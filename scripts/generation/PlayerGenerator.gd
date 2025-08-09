@@ -8,6 +8,8 @@ var names_cfg: Dictionary = {}        # names.json
 var main_cfg: Dictionary = {}         # merged save config (save-overrides-main)
 var class_rules: Dictionary = {}      # main_cfg["class_rules"]
 
+var superstar_candidates: Array = []  # holds compact summaries for console/logs
+
 # --------------------------------
 # Public API
 # --------------------------------
@@ -23,34 +25,15 @@ func generate_class(class_size: int, gaussian_share: float) -> Array:
 		var need: int = int(quotas[pos_key])
 		for i in range(need):
 			var p: Dictionary = _generate_for_position(pos)
-			p["id"] = id_counter
-			id_counter += 1
-			players.append(p)
+			id_counter = _finalize_player(p, "quota", false, players, id_counter)
 
-	# Pass 2 & 3: fill to class size
+	# Pass 2 & 3: fill remainder
 	var remaining: int = max(0, class_size - players.size())
 	var gaussian_count: int = int(round(float(remaining) * gaussian_share))
 	var chaos_count: int = max(0, remaining - gaussian_count)
 
-	# Gaussian generalists → best-fit, then add physicals after position is decided
-	for i in range(gaussian_count):
-		var p: Dictionary = generate_generalist(true)
-		p["position"] = best_fit_position(p["stats"])
-		p["gen_mode"] = "gauss"
-		p["id"] = id_counter
-		id_counter += 1
-		p["physicals"] = generate_physicals(String(p["position"]))
-		players.append(p)
-
-	# Weighted-random generalists → best-fit
-	for i in range(chaos_count):
-		var p: Dictionary = generate_generalist(false)
-		p["position"] = best_fit_position(p["stats"])
-		p["gen_mode"] = "chaos"
-		p["id"] = id_counter
-		id_counter += 1
-		p["physicals"] = generate_physicals(String(p["position"]))
-		players.append(p)
+	id_counter = _emit_generalists(gaussian_count, true,  "gauss", players, id_counter)
+	id_counter = _emit_generalists(chaos_count,   false, "chaos", players, id_counter)
 
 	return players
 
@@ -81,10 +64,10 @@ func _generate_for_position(pos: String) -> Dictionary:
 	for stat_name in _all_stat_names():
 		if dists.has(stat_name):
 			var d: Dictionary = dists[stat_name]
-			var mu: float = float(d["mu"])
-			var sigma: float = float(d["sigma"])
-			var cap_pct: float = float(d["cap_pct"])
-			var role: String = String(d["role"])  # "core" | "secondary" | "other"
+			var mu: float = float(d.get("mu", 55.0))
+			var sigma: float = float(d.get("sigma", 12.0))
+			var cap_pct: float = float(d.get("cap_pct", 1.0))
+			var role: String = String(d.get("role", "other"))
 			var synthetic: Array = _synthetic_percentile_source()
 			p["stats"][stat_name] = _round2(StatHelpers.sample_with_caps(mu, sigma, cap_pct, synthetic, role, outlier))
 		else:
@@ -92,6 +75,11 @@ func _generate_for_position(pos: String) -> Dictionary:
 
 	# physicals (real units) from positions.json
 	p["physicals"] = generate_physicals(pos)
+
+	# superstar check on finished-product/current ratings
+	if _qualifies_superstar(p, 85.0):
+		_record_superstar(p)
+
 	return p
 
 func generate_generalist(use_gaussian: bool) -> Dictionary:
@@ -112,6 +100,38 @@ func generate_generalist(use_gaussian: bool) -> Dictionary:
 			else:
 				p["stats"][stat_name] = _round2(randf_range(20.0, 90.0))
 	return p
+
+# --------------------------------
+# DRY helpers for finalization & emission
+# --------------------------------
+
+func _finalize_player(p: Dictionary, mode: String, auto_fit: bool, players: Array, id_counter: int) -> int:
+	# Decide position for generalists
+	if auto_fit:
+		p["position"] = best_fit_position(p["stats"])
+
+	# Tag mode & id
+	p["gen_mode"] = mode
+	p["id"] = id_counter
+	id_counter += 1
+
+	# Ensure physicals exist
+	if not p.has("physicals") or (p["physicals"] as Dictionary).is_empty():
+		p["physicals"] = generate_physicals(String(p["position"]))
+
+	# Superstar tag (based on finished-product/current ratings)
+	if _qualifies_superstar(p, 85.0):
+		_record_superstar(p)
+
+	# Store
+	players.append(p)
+	return id_counter
+
+func _emit_generalists(count: int, use_gaussian: bool, mode: String, players: Array, id_counter: int) -> int:
+	for i in range(count):
+		var p: Dictionary = generate_generalist(use_gaussian)
+		id_counter = _finalize_player(p, mode, true, players, id_counter)
+	return id_counter
 
 # --------------------------------
 # Position fit & scoring
@@ -266,11 +286,54 @@ func generate_physicals(pos: String) -> Dictionary:
 		var sigma: float = float(cfg.get("sigma", 1.0))
 		var vmin: float = float(cfg.get("min", 0.0))
 		var vmax: float = float(cfg.get("max", 9999.0))
-		var step: float = float(cfg.get("step", 0.1))
+		var step: float = float(cfg.get("step", 0.01))
 
 		var val: float = clamp(StatHelpers.gaussian(mu, sigma), vmin, vmax)
-		out[key] = _round2(snappedf(val, step))
+		out[key] = _round2(snappedf(val, step))  # snap to step, then clean to 2dp
 	return out
+
+# --------------------------------
+# Superstar detection
+# --------------------------------
+
+func _qualifies_superstar(p: Dictionary, threshold: float = 85.0, require_all_core: bool = false) -> bool:
+	var pos: String = String(p.get("position", "ATH"))
+	# Skip special teams positions
+	if pos in ["K", "P"]:
+		return false
+	var cores: Array = positions_data.get(pos, {}).get("core_stats", [])
+	if cores.is_empty():
+		return false
+	var stats: Dictionary = p.get("stats", {})
+	if require_all_core:
+		for c in cores:
+			if float(stats.get(c, -1.0)) < threshold:
+				return false
+		return true
+	# else: average core check
+	var s: float = 0.0
+	var cnt: int = 0
+	for c in cores:
+		if stats.has(c):
+			s += float(stats[c])
+			cnt += 1
+	return (cnt > 0 and (s / float(cnt)) >= threshold)
+
+func _record_superstar(p: Dictionary) -> void:
+	if not p.has("tags"):
+		p["tags"] = []
+	(p["tags"] as Array).append("PotentialSuperstar")
+	var pos: String = String(p.get("position", "ATH"))
+	var cores: Array = positions_data.get(pos, {}).get("core_stats", [])
+	var summary_core := {}
+	for c in cores:
+		if (p["stats"] as Dictionary).has(c):
+			summary_core[c] = _round2(float(p["stats"][c]))
+	superstar_candidates.append({
+		"position": pos,
+		"name": p.get("name","Unknown"),
+		"core": summary_core
+	})
 
 # --------------------------------
 # Utils

@@ -37,23 +37,69 @@ func run() -> void:
 	# 5) Inject dynamic freaks
 	gen.assign_dynamic_freaks(players, max_freaks, freak_min, freak_max)
 
+	var current_year: int = int(main_cfg.get("starting_year", 2025))
+	var college_grad_year: int = current_year + 8
+	var out_path: String = "res://configs/sports/american_football/CLASS_OF_%d.json" % college_grad_year
+
+	# 8) Log a quick preview
+	print("✅ Generated ", players.size(), " prospects → ", out_path)
+	# After rating & ranking
+	var rater := RecruitRater.new()
+	rater.rate_and_rank(players, gen.positions_data, gen.class_rules)
+
+	# Filter out kickers and punters for top 20
+	var non_specialists := players.filter(func(p):
+		var pos = String(p.get("position", ""))
+		return pos != "K" and pos != "P"
+	)
+
+	# Example: print top 20 overall (no K/P)
+	print("🏆 Top 20 overall (no specialists):")
+	for i in range(min(20, non_specialists.size())):
+		var p = non_specialists[i]
+		print("%2d) %s [%s]  ★%d  comp:%.2f  core:%.2f  sec:%.2f  ment:%.2f  phys:%.2f" % [
+			int(p.get("rank_overall", 0)),
+			String(p.get("name","")),
+			String(p.get("position","")),
+			int(p.get("star_rating", 0)),
+			float(p.get("composite_score", 0.0)),
+			float(p.get("core_avg", 0.0)),
+			float(p.get("secondary_avg", 0.0)),
+			float(p.get("mentals_avg", 0.0)),
+			float(p.get("physicals_index", 0.0))
+		])
+
+	# Print all 5-star recruits in descending composite score
+	var five_stars := players.filter(func(p):
+		return int(p.get("star_rating", 0)) == 5
+	)
+	five_stars.sort_custom(func(a, b):
+		return float(b.get("composite_score", 0.0)) < float(a.get("composite_score", 0.0))
+	)
+
+	print("\n🌟 All 5-star recruits:")
+	for i in range(five_stars.size()):
+		var p = five_stars[i]
+		print("%2d) %s [%s]  comp:%.2f  core:%.2f  sec:%.2f  ment:%.2f  phys:%.2f" % [
+			int(p.get("rank_overall", 0)),
+			String(p.get("name","")),
+			String(p.get("position","")),
+			float(p.get("composite_score", 0.0)),
+			float(p.get("core_avg", 0.0)),
+			float(p.get("secondary_avg", 0.0)),
+			float(p.get("mentals_avg", 0.0)),
+			float(p.get("physicals_index", 0.0))
+		])
+	
 	# 6) Copy finished → potential, then de-age to HS stats
 	for p in players:
 		if not p.has("potential") or (p["potential"] as Dictionary).is_empty():
 			p["potential"] = (p["stats"] as Dictionary).duplicate(true)
+
 	gen.de_age_players(players, gen.positions_data, main_cfg.get("deage", {}))
-
+	
 	# 7) Save as CLASS_OF_%Y.json (HS 4y + College 4y)
-	var current_year: int = int(main_cfg.get("starting_year", 2025))
-	var college_grad_year: int = current_year + 8
-	var out_path: String = "res://configs/sports/american_football/CLASS_OF_%d.json" % college_grad_year
 	gen.save_to_json(out_path, players)
-
-	# 8) Log a quick preview
-	print("✅ Generated ", players.size(), " prospects → ", out_path)
-	for i in min(5, players.size()):
-		var p: Dictionary = players[i]
-		print("  - [", p["position"], "] ", p["name"])
 
 func _ready() -> void:
 	# Auto-run when the scene plays
