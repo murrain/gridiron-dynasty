@@ -1,106 +1,201 @@
 {
-  "active_sport": "american_football",
-  "class_size": 2000,
-  "gaussian_share": 0.75,
-  "max_freaks_per_class": 5,
-  "freak_percentile_min": 0.80,
-  "freak_percentile_max": 0.90,
-  "hs_start_scalar_min": 0.55,
-  "hs_start_scalar_max": 0.72,
-  "annual_base_progress_min": 1.0,
-  "annual_base_progress_max": 4.0,
-  "annual_progress_cap": 6.0,
-
-  "deage": {
-    "core_pct_min": 0.60,
-    "core_pct_max": 0.75,
-    "secondary_pct_min": 0.50,
-    "secondary_pct_max": 0.70,
-    "other_pct_min": 0.40,
-    "other_pct_max": 0.65,
-    "core_var": 0.10,
-    "secondary_var": 0.15,
-    "other_var": 0.20,
-    "noise_min": -3.0,
-    "noise_max": 3.0,
-    "floor": 20.0,
-    "ceil": 100.0
-  },
-
-  "combine_tuning": {
-    "weights": {
-      "forty_speed": 0.65, "forty_accel": 0.35,
-      "shut20_agi": 0.60, "shut20_react": 0.25, "shut20_bal": 0.15,
-      "cone3_agi": 0.55, "cone3_bal": 0.25, "cone3_acc": 0.20,
-      "shut60_stamina": 0.50, "shut60_speed": 0.30, "shut60_agi": 0.20,
-      "vert_str": 0.55, "vert_agi": 0.45,
-      "broad_str": 0.50, "broad_acc": 0.50
+    "active_sport": "american_football",
+    "class_size": 2000,
+    "gaussian_share": 0.75,
+    "max_freaks_per_class": 5,
+    "freak_percentile_min": 0.8,
+    "freak_percentile_max": 0.9,
+    "hs_start_scalar_min": 0.55,
+    "hs_start_scalar_max": 0.72,
+    "annual_base_progress_min": 1.0,
+    "annual_base_progress_max": 4.0,
+    "annual_progress_cap": 6.0,
+    "deage": {
+        "core_pct_min": 0.6,
+        "core_pct_max": 0.75,
+        "secondary_pct_min": 0.5,
+        "secondary_pct_max": 0.7,
+        "other_pct_min": 0.4,
+        "other_pct_max": 0.65,
+        "core_var": 0.1,
+        "secondary_var": 0.15,
+        "other_var": 0.2,
+        "noise_min": -3.0,
+        "noise_max": 3.0,
+        "floor": 20.0,
+        "ceil": 100.0
     },
-    "noise": {
-      "sigma_time": 0.025,
-      "sigma_time_long": 0.035,
-      "sigma_inches": 1.0,
-      "sigma_reps": 1.5,
-      "forty_min": 4.25, "forty_max": 5.40,
-      "shut20_min": 3.80, "shut20_max": 4.80,
-      "cone3_min": 6.40, "cone3_max": 7.80,
-      "shut60_min": 10.60, "shut60_max": 12.80,
-      "vert_min": 24.0, "vert_max": 46.0,
-      "broad_min": 100.0, "broad_max": 140.0,
-      "reps_min": 0, "reps_max": 40
+    "combine_tuning": {
+        "weights": {
+            "forty_speed": 0.65,
+            "forty_accel": 0.35,
+            "shut20_agi": 0.6,
+            "shut20_react": 0.25,
+            "shut20_bal": 0.15,
+            "cone3_agi": 0.55,
+            "cone3_bal": 0.25,
+            "cone3_acc": 0.2,
+            "shut60_stamina": 0.5,
+            "shut60_speed": 0.3,
+            "shut60_agi": 0.2,
+            "vert_str": 0.55,
+            "vert_agi": 0.45,
+            "broad_str": 0.5,
+            "broad_acc": 0.5
+        },
+        "noise": {
+            "sigma_time": 0.025,
+            "sigma_time_long": 0.035,
+            "sigma_inches": 1.0,
+            "sigma_reps": 1.5,
+            "forty_min": 4.25,
+            "forty_max": 5.4,
+            "shut20_min": 3.8,
+            "shut20_max": 4.8,
+            "cone3_min": 6.4,
+            "cone3_max": 7.8,
+            "shut60_min": 10.6,
+            "shut60_max": 12.8,
+            "vert_min": 24.0,
+            "vert_max": 46.0,
+            "broad_min": 100.0,
+            "broad_max": 140.0,
+            "reps_min": 0,
+            "reps_max": 40
+        },
+        "adjustments": {
+            "fatigue_time_pct_per_100": 0.03,
+            "fatigue_power_pct_per_100": 0.03,
+            "morale_boon_pct_per_100": 0.02,
+            "boom_bust_day_sigma": 0.15,
+            "boom_bust_sigma_mult": 1.0
+        }
     },
-    "adjustments": {
-      "fatigue_time_pct_per_100": 0.03,
-      "fatigue_power_pct_per_100": 0.03,
-      "morale_boon_pct_per_100": 0.02,
-      "boom_bust_day_sigma": 0.15,
-      "boom_bust_sigma_mult": 1.0
+    "class_rules": {
+        "position_quotas": {
+            "QB": 110,
+            "RB": 220,
+            "WR": 320,
+            "TE": 120,
+            "OL": 380,
+            "DL": 174,
+            "EDGE": 116,
+            "LB": 200,
+            "CB": 190,
+            "S": 120,
+            "K": 30,
+            "P": 20
+        },
+        "position_quotas_percent": {
+            "QB": 0.055,
+            "RB": 0.11,
+            "WR": 0.16,
+            "TE": 0.06,
+            "OL": 0.19,
+            "DL": 0.087,
+            "EDGE": 0.058,
+            "LB": 0.1,
+            "CB": 0.095,
+            "S": 0.06,
+            "K": 0.015,
+            "P": 0.01
+        },
+        "recruiting": {
+            "w_core": 0.55,
+            "w_secondary": 0.2,
+            "w_mentals": 0.15,
+            "w_physicals": 0.1,
+            "risk_cap": 10.0,
+            "composite_weights": {
+                "athletic": 0.40,
+                "core": 0.30,
+                "secondary": 0.20,
+                "mentals": 0.10
+            },
+            "composite_weights_by_pos": {
+                "WR": { "athletic": 0.50, "core": 0.25, "secondary": 0.15, "mentals": 0.10 },
+                "CB": { "athletic": 0.50, "core": 0.25, "secondary": 0.15, "mentals": 0.10 },
+                "RB": { "athletic": 0.50, "core": 0.25, "secondary": 0.15, "mentals": 0.10 },
+                "OL": { "athletic": 0.25, "core": 0.45, "secondary": 0.20, "mentals": 0.10 },
+                "DL": { "athletic": 0.30, "core": 0.40, "secondary": 0.20, "mentals": 0.10 },
+                "EDGE": { "athletic": 0.45, "core": 0.35, "secondary": 0.10, "mentals": 0.10 },
+                "LB": { "athletic": 0.40, "core": 0.35, "secondary": 0.15, "mentals": 0.10 },
+                "S":  { "athletic": 0.45, "core": 0.30, "secondary": 0.15, "mentals": 0.10 },
+                "TE": { "athletic": 0.40, "core": 0.35, "secondary": 0.15, "mentals": 0.10 },
+                "QB": { "athletic": 0.30, "core": 0.45, "secondary": 0.15, "mentals": 0.10 }
+                },
+                "position_value": {
+                "QB": 1.25, "WR": 1.05, "RB": 0.98, "TE": 0.98,
+                "OL": 1.08, "DL": 1.06, "EDGE": 1.20, "LB": 1.00, "CB": 1.05, "S": 0.98,
+                "K": 0.60, "P": 0.60
+                },
+            "athletic_keys": [
+                "speed",
+                "acceleration",
+                "agility",
+                "balance",
+                "vertical_jump",
+                "broad_jump",
+                "strength"
+            ],
+            "composite_synergy_gain": 0.15,
+            "use_size_adjusted_speed": true,
+            "composite_calibration": {
+                "shrink_to_mean": 0.60,
+                "global_bias": -5.0,
+                "floor": 30.0,
+                "cap": 92.0,
+                "bias_by_pos": {
+                }
+            },
+            "star_weights": {
+                "core": 0.60,
+                "composite": 0.40
+            },
+            "stars_use_within_position": true,
+            "elite_core_threshold": 90.0,
+            "exceptional_override": {
+                "star_score_min": 92.0,
+                "athletic_pct_min": 0.90,
+                "allow_for_positions": [
+                    "RB",
+                    "TE",
+                    "S",
+                    "LB",
+                    "WR",
+                    "CB",
+                    "OL",
+                    "DL",
+                    "QB"
+                ],
+                "ignore_specialist_cap": false
+            }
+            ,
+            "mental_keys": [
+                "awareness",
+                "decision_making",
+                "discipline",
+                "work_ethic",
+                "coachability",
+                "focus",
+                "composure",
+                "anticipation"
+            ],
+            "physical_keys": [
+                "height_in",
+                "weight_lb",
+                "arm_length_in",
+                "wingspan_in",
+                "hand_size_in"
+            ],
+            "star_thresholds": {
+                "5": 0.98,
+                "4": 0.9,
+                "3": 0.7,
+                "2": 0.4,
+                "1": 0.15
+            },
+            "cap_specialists_to_3_stars": true
+        }
     }
-  },
-
-  "class_rules": {
-    "position_quotas": {
-      "QB": 2,
-      "RB": 4,
-      "WR": 6,
-      "TE": 2,
-      "OL": 10,   
-      "DL": 8,
-      "LB": 6,
-      "CB": 6,
-      "S": 4,
-      "K": 1,
-      "P": 1
-    },
-
-    "recruiting": {
-      "w_core": 0.55,
-      "w_secondary": 0.20,
-      "w_mentals": 0.15,
-      "w_physicals": 0.10,
-      "risk_cap": 10.0,
-
-      "weights_by_pos": {
-        "WR": { "w_core": 0.50, "w_secondary": 0.20, "w_mentals": 0.10, "w_physicals": 0.20 },
-        "OL": { "w_core": 0.60, "w_secondary": 0.15, "w_mentals": 0.20, "w_physicals": 0.05 },
-        "CB": { "w_core": 0.50, "w_secondary": 0.25, "w_mentals": 0.10, "w_physicals": 0.15 }
-      },
-
-      "mental_keys": [
-        "awareness","decision_making","discipline","work_ethic",
-        "coachability","focus","composure","anticipation"
-      ],
-      "physical_keys": [
-        "height_in","weight_lb","arm_length_in","wingspan_in","hand_size_in"
-      ],
-      "star_thresholds": {
-        "5": 0.98,
-        "4": 0.90,
-        "3": 0.70,
-        "2": 0.40,
-        "1": 0.15
-      },
-      "cap_specialists_to_3_stars": true
-    }
-  }
 }

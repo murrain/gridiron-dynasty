@@ -3,10 +3,10 @@
     "core_stats": ["throw_power", "throw_accuracy", "awareness", "decision_making"],
     "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
     "distributions": {
-      "throw_power":      { "mu": 78, "sigma": 8,  "cap_pct": 0.99, "role": "core" },
-      "throw_accuracy":   { "mu": 77, "sigma": 8,  "cap_pct": 0.99, "role": "core" },
-      "awareness":        { "mu": 72, "sigma": 7,  "cap_pct": 0.99, "role": "core" },
-      "decision_making":  { "mu": 72, "sigma": 7,  "cap_pct": 0.99, "role": "core" },
+      "throw_power":      { "mu": 79, "sigma": 9,  "cap_pct": 0.99, "role": "core" },
+      "throw_accuracy":   { "mu": 78, "sigma": 9,  "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 73, "sigma": 7,  "cap_pct": 0.99, "role": "core" },
+      "decision_making":  { "mu": 73, "sigma": 7,  "cap_pct": 0.99, "role": "core" },
       "speed":            { "mu": 55, "sigma": 10, "cap_pct": 0.97, "role": "secondary" },
       "agility":          { "mu": 56, "sigma": 9,  "cap_pct": 0.97, "role": "secondary" },
       "stamina":          { "mu": 68, "sigma": 8,  "cap_pct": 0.99, "role": "secondary" },
@@ -96,11 +96,11 @@
     "core_stats": ["strength", "blocking", "balance"],
     "noncore_outlier": { "prob": 0.001, "max_pct": 0.98 },
     "distributions": {
-      "strength":         { "mu": 90, "sigma": 5, "cap_pct": 1.00, "role": "core" },
-      "blocking":         { "mu": 86, "sigma": 6, "cap_pct": 0.99, "role": "core" },
-      "balance":          { "mu": 82, "sigma": 6, "cap_pct": 0.99, "role": "core" },
+      "strength":         { "mu": 88, "sigma": 5, "cap_pct": 1.00, "role": "core" },
+      "blocking":         { "mu": 82, "sigma": 6, "cap_pct": 0.99, "role": "core" },
+      "balance":          { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
       "agility":          { "mu": 48, "sigma": 7, "cap_pct": 0.97, "role": "secondary" },
-      "speed":            { "mu": 38, "sigma": 6, "cap_pct": 0.80, "role": "other" },
+      "speed":            { "mu": 38, "sigma": 5, "cap_pct": 0.80, "role": "other" },
       "catching":         { "mu": 25, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
     "development": { "peak_age": 28, "decline_start": 33, "curve": "late" },
@@ -117,11 +117,11 @@
     "core_stats": ["strength", "tackling", "shedding_blocks", "run_defense", "pass_rush"],
     "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
     "distributions": {
-      "strength":         { "mu": 86, "sigma": 6, "cap_pct": 1.00, "role": "core" },
-      "tackling":         { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
-      "shedding_blocks":  { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
-      "run_defense":      { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
-      "pass_rush":        { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "strength":         { "mu": 86, "sigma": 8, "cap_pct": 1.00, "role": "core" },
+      "tackling":         { "mu": 77, "sigma": 9, "cap_pct": 0.99, "role": "core" },
+      "shedding_blocks":  { "mu": 74, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "run_defense":      { "mu": 70, "sigma": 12, "cap_pct": 0.99, "role": "secondary" },
+      "pass_rush":        { "mu": 70, "sigma": 12, "cap_pct": 0.99, "role": "secondary" },
       "speed":            { "mu": 40, "sigma": 8, "cap_pct": 0.89, "role": "secondary" },
       "catching":         { "mu": 28, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
@@ -133,6 +133,31 @@
 			"arm_length_in":{ "mu": 33.5, "sigma": 0.80, "min": 31.0, "max": 36.0, "step": 0.25 },
 			"wingspan_in":  { "mu": 80.0, "sigma": 1.5,  "min": 76.0, "max": 84.0, "step": 0.5 }
 		}
+  },
+
+  "EDGE": {
+    "core_stats": ["pass_rush","acceleration","agility","tackling","shedding_blocks","strength"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "pass_rush":       { "mu": 82, "sigma": 7, "cap_pct": 1.00, "role": "core" },
+      "acceleration":    { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "agility":         { "mu": 74, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "tackling":        { "mu": 75, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "shedding_blocks": { "mu": 73, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "strength":        { "mu": 70, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "speed":           { "mu": 72, "sigma": 7, "cap_pct": 0.99, "role": "secondary" },
+      "awareness":       { "mu": 62, "sigma": 7, "cap_pct": 0.98, "role": "secondary" },
+      "balance":         { "mu": 68, "sigma": 6, "cap_pct": 0.98, "role": "secondary" },
+      "coverage":        { "mu": 40, "sigma": 7, "cap_pct": 0.95, "role": "other" },
+      "catching":        { "mu": 32, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "physicals": {
+      "height_in":     { "mu": 76.0, "sigma": 1.5, "min": 73.0, "max": 79.0,  "step": 0.5 },
+      "weight_lb":     { "mu": 255.0, "sigma": 12.0, "min": 230.0, "max": 285.0, "step": 1.0 },
+      "arm_length_in": { "mu": 34.0, "sigma": 0.7, "min": 32.0, "max": 35.5, "step": 0.25 },
+      "wingspan_in":   { "mu": 82.0, "sigma": 1.5, "min": 78.0, "max": 86.0,  "step": 0.5 },
+      "hand_size_in":  { "mu": 9.8,  "sigma": 0.4, "min": 8.8,  "max": 10.8,  "step": 0.25 }
+    }
   },
 
   "LB": {
