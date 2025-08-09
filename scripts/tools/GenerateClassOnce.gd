@@ -2,6 +2,7 @@ extends Node
 
 # Optional: run in editor via the "play scene" button
 # @tool
+const USE_COLOR: bool = true  # set false if your output panel doesn't show ANSI colors
 
 func run() -> void:
 	# 1) Load configs
@@ -79,6 +80,26 @@ func _join_array(parts: Array, sep: String) -> String:
 			out += sep
 	return out
 
+func _ansi(code: String, text: String) -> String:
+	var esc := char(27)  # 27 = ASCII escape
+	return esc + "[" + code + "m" + text + esc + "[0m"
+
+func _color_code_for_score(v: float) -> String:
+	# Elite / Good / Avg / Poor / Very poor
+	if v >= 90.0: return "1;32"   # bold green
+	if v >= 80.0: return "32"     # green
+	if v >= 60.0: return "33"     # yellow
+	if v >= 40.0: return "31"     # red
+	return "1;31"                  # bold red
+
+func _fmt_kv_colored(key: String, value: float) -> String:
+	var label := "%-16s" % (key + ":")
+	var num := "%6.2f" % value
+	if USE_COLOR:
+		return label + " " + _ansi(_color_code_for_score(value), num)
+	else:
+		return label + " " + num
+
 func _fmt_height(height_in: float) -> String:
 	var feet: int = int(height_in / 12.0)
 	var inches_f: float = height_in - float(feet) * 12.0
@@ -106,15 +127,20 @@ func _fmt_physicals(phys: Dictionary) -> String:
 func _collect_role_sets(positions_data: Dictionary, pos: String) -> Dictionary:
 	var spec: Dictionary = positions_data.get(pos, {}) as Dictionary
 	var dists: Dictionary = spec.get("distributions", {}) as Dictionary
+
+	# Build core from explicit core_stats plus any role:"core" in dists
 	var core_list: Array = (spec.get("core_stats", []) as Array).duplicate()
-	# Add any stat explicitly marked role:"core" in distributions
 	for k in dists.keys():
 		if String((dists[k] as Dictionary).get("role","other")) == "core" and not core_list.has(k):
 			core_list.append(k)
+
+	# Build secondary from dists role:"secondary" and remove any that appear in core
 	var secondary_list: Array = []
 	for k in dists.keys():
 		if String((dists[k] as Dictionary).get("role","other")) == "secondary":
-			secondary_list.append(k)
+			if not core_list.has(k):
+				secondary_list.append(k)
+
 	return {"core": core_list, "secondary": secondary_list}
 
 func _all_base_stats(stats_cfg: Dictionary) -> Array:
@@ -144,6 +170,44 @@ func _fmt_stat_block(stats: Dictionary, keys: Array, title: String, per_row: int
 	if not row.is_empty():
 		lines.append("  " + _join_array(row, "  "))
 	return _join_array(lines, "\n")
+
+func _fmt_stat_line_inline(stats: Dictionary, keys: Array, title: String, per_row: int = 6) -> String:
+	if keys.is_empty():
+		return ""
+	# stable order + de-dup to be extra safe
+	var kset := {}
+	var ordered: Array = []
+	for k in keys:
+		var s := String(k)
+		if not kset.has(s):
+			kset[s] = true
+			ordered.append(s)
+	ordered.sort()
+
+	var prefix := "• " + title + ": "
+	var indent := " ".repeat(prefix.length())
+
+	var parts: Array = []
+	for s in ordered:
+		var v := float(stats.get(s, 0.0))
+		parts.append(_fmt_kv_colored(s, v))
+
+	# wrap by per_row onto multiple lines, first line has the label
+	var lines: Array = []
+	var row: Array = []
+	for i in range(parts.size()):
+		row.append(String(parts[i]))
+		var last_in_row := (i + 1) % per_row == 0
+		var last_item := (i == parts.size() - 1)
+		if last_in_row or last_item:
+			var line_body := "  ".join(row)
+			if lines.is_empty():
+				lines.append(prefix + line_body)
+			else:
+				lines.append(indent + line_body)
+			row.clear()
+
+	return "\n".join(lines)
 
 func print_player_detailed(p: Dictionary, positions_data: Dictionary, stats_cfg: Dictionary) -> void:
 	var player_name: String = String(p.get("name","Unknown"))  # avoid shadowing Node.name

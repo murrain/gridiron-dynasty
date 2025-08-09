@@ -78,8 +78,7 @@ func _generate_for_position(pos: String) -> Dictionary:
 
 	# superstar check on finished-product/current ratings
 	if _qualifies_superstar(p, 85.0):
-		_record_superstar(p)
-
+		add_tags(p, ["PotentialSuperstar"])
 	return p
 
 func generate_generalist(use_gaussian: bool) -> Dictionary:
@@ -121,7 +120,7 @@ func _finalize_player(p: Dictionary, mode: String, auto_fit: bool, players: Arra
 
 	# Superstar tag (based on finished-product/current ratings)
 	if _qualifies_superstar(p, 85.0):
-		_record_superstar(p)
+		add_tags(p, ["PotentialSuperstar"])
 
 	# Store
 	players.append(p)
@@ -367,3 +366,21 @@ func _synthetic_percentile_source() -> Array:
 
 func _round2(x: float) -> float:
 	return snappedf(x, 0.01)
+
+func add_tags(p: Dictionary, tags_to_add: Array) -> int:
+	# Ensures player has a tags array and adds unique tags only.
+	# Returns the number of tags actually added.
+	if tags_to_add.is_empty():
+		return 0
+	if not p.has("tags"):
+		p["tags"] = []
+	var tags: Array = p["tags"] as Array
+	var added := 0
+	for raw_tag in tags_to_add:
+		var tag := String(raw_tag)
+		if tag == "" or tags.has(tag):
+			continue
+		tags.append(tag)
+		added += 1
+	p["tags"] = tags
+	return added
