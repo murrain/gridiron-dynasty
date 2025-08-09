@@ -10,7 +10,6 @@
     "annual_base_progress_min": 1.0,
     "annual_base_progress_max": 4.0,
     "annual_progress_cap": 6.0,
-    "random_seed": 1337,
     "deage": {
         "core_pct_min": 0.60,
         "core_pct_max": 0.75,

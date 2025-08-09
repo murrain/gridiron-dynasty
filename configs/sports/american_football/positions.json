@@ -14,7 +14,14 @@
       "tackling":         { "mu": 30, "sigma": 6,  "cap_pct": 0.95, "role": "other" },
       "blocking":         { "mu": 28, "sigma": 6,  "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 27, "decline_start": 31, "curve": "late" }
+    "development": { "peak_age": 27, "decline_start": 31, "curve": "late" },
+    "physicals": {
+      "height_in":    { "mu": 75.0, "sigma": 1.5,  "min": 68,   "max": 80,   "step": 0.5 },
+      "weight_lb":    { "mu": 220,  "sigma": 12.0, "min": 190,  "max": 260,  "step": 1.0 },
+      "hand_size_in": { "mu": 9.75, "sigma": 0.30, "min": 8.5,  "max": 11.0, "step": 0.1 },
+      "arm_length_in":{ "mu": 32.5, "sigma": 0.70, "min": 30.0, "max": 35.0, "step": 0.25 },
+      "wingspan_in":  { "mu": 76.0, "sigma": 1.5,  "min": 72.0, "max": 82.0, "step": 0.5 }
+    }
   },
 
   "RB": {
@@ -31,7 +38,14 @@
       "throw_accuracy":   { "mu": 35, "sigma": 8, "cap_pct": 0.95, "role": "other" },
       "coverage":         { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 24, "decline_start": 27, "curve": "early" }
+    "development": { "peak_age": 24, "decline_start": 27, "curve": "early" },
+    "physicals": {
+      "height_in":    { "mu": 71.0, "sigma": 1.5,  "min": 68,   "max": 75,   "step": 0.5 },
+      "weight_lb":    { "mu": 205,  "sigma": 10.0, "min": 180,  "max": 235,  "step": 1.0 },
+      "hand_size_in": { "mu": 9.25, "sigma": 0.25, "min": 8.5,  "max": 10.5, "step": 0.1 },
+      "arm_length_in":{ "mu": 31.5, "sigma": 0.70, "min": 29.0, "max": 34.0, "step": 0.25 },
+      "wingspan_in":  { "mu": 74.0, "sigma": 1.5,  "min": 70.0, "max": 79.0, "step": 0.5 }
+		}
   },
 
   "WR": {
@@ -47,7 +61,14 @@
       "strength":         { "mu": 50, "sigma": 8, "cap_pct": 0.96, "role": "other" },
       "blocking":         { "mu": 38, "sigma": 8, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" }
+    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" },
+    "physicals": {
+			"height_in":    { "mu": 73.5, "sigma": 1.75, "min": 70,   "max": 78,   "step": 0.5 },
+			"weight_lb":    { "mu": 190,  "sigma": 10.0, "min": 165,  "max": 230,  "step": 1.0 },
+			"hand_size_in": { "mu": 9.5,  "sigma": 0.35, "min": 8.75, "max": 11.0, "step": 0.1 },
+			"arm_length_in":{ "mu": 32.5, "sigma": 0.80, "min": 30.0, "max": 35.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 77.0, "sigma": 1.5,  "min": 73.0, "max": 82.0, "step": 0.5 }
+		}
   },
 
   "TE": {
@@ -61,7 +82,14 @@
       "agility":          { "mu": 58, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
       "throw_power":      { "mu": 32, "sigma": 8, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 27, "decline_start": 31, "curve": "mid" }
+    "development": { "peak_age": 27, "decline_start": 31, "curve": "mid" },
+    "physicals": {
+			"height_in":    { "mu": 77.0, "sigma": 1.5,  "min": 74,   "max": 80,   "step": 0.5 },
+			"weight_lb":    { "mu": 250,  "sigma": 15.0, "min": 230,  "max": 275,  "step": 1.0 },
+			"hand_size_in": { "mu": 10.0, "sigma": 0.35, "min": 9.0,  "max": 11.5, "step": 0.1 },
+			"arm_length_in":{ "mu": 33.5, "sigma": 0.75, "min": 31.0, "max": 36.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 80.0, "sigma": 1.75, "min": 76.0, "max": 84.0, "step": 0.5 }
+		}
   },
 
   "OL": {
@@ -72,10 +100,17 @@
       "blocking":         { "mu": 86, "sigma": 6, "cap_pct": 0.99, "role": "core" },
       "balance":          { "mu": 82, "sigma": 6, "cap_pct": 0.99, "role": "core" },
       "agility":          { "mu": 48, "sigma": 7, "cap_pct": 0.97, "role": "secondary" },
-      "speed":            { "mu": 38, "sigma": 6, "cap_pct": 0.96, "role": "other" },
+      "speed":            { "mu": 38, "sigma": 6, "cap_pct": 0.80, "role": "other" },
       "catching":         { "mu": 25, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 28, "decline_start": 33, "curve": "late" }
+    "development": { "peak_age": 28, "decline_start": 33, "curve": "late" },
+    "physicals": {
+			"height_in":    { "mu": 77.5, "sigma": 1.25, "min": 71,   "max": 82,   "step": 0.5 },
+			"weight_lb":    { "mu": 300,  "sigma": 15.0, "min": 270,  "max": 360,  "step": 1.0 },
+			"hand_size_in": { "mu": 10.25,"sigma": 0.30, "min": 9.5,  "max": 11.8, "step": 0.1 },
+			"arm_length_in":{ "mu": 34.0, "sigma": 0.75, "min": 32.0, "max": 36.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 81.0, "sigma": 1.5,  "min": 78.0, "max": 85.0, "step": 0.5 }
+		}
   },
 
   "DL": {
@@ -87,10 +122,17 @@
       "shedding_blocks":  { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
       "run_defense":      { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
       "pass_rush":        { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
-      "speed":            { "mu": 50, "sigma": 8, "cap_pct": 0.97, "role": "secondary" },
+      "speed":            { "mu": 40, "sigma": 8, "cap_pct": 0.89, "role": "secondary" },
       "catching":         { "mu": 28, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 27, "decline_start": 31, "curve": "mid" }
+    "development": { "peak_age": 27, "decline_start": 31, "curve": "mid" },
+    "physicals": {
+			"height_in":    { "mu": 76.0, "sigma": 1.5,  "min": 73,   "max": 80,   "step": 0.5 },
+			"weight_lb":    { "mu": 290,  "sigma": 15.0, "min": 260,  "max": 320,  "step": 1.0 },
+			"hand_size_in": { "mu": 10.0, "sigma": 0.30, "min": 8.8,  "max": 11.8, "step": 0.1 },
+			"arm_length_in":{ "mu": 33.5, "sigma": 0.80, "min": 31.0, "max": 36.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 80.0, "sigma": 1.5,  "min": 76.0, "max": 84.0, "step": 0.5 }
+		}
   },
 
   "LB": {
@@ -104,7 +146,14 @@
       "speed":            { "mu": 62, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
       "throw_power":      { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" }
+    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" },
+    "physicals": {
+			"height_in":    { "mu": 74.5, "sigma": 1.5,  "min": 71,   "max": 78,   "step": 0.5 },
+			"weight_lb":    { "mu": 240,  "sigma": 12.0, "min": 215,  "max": 265,  "step": 1.0 },
+			"hand_size_in": { "mu": 9.75, "sigma": 0.30, "min": 8.75, "max": 11.0, "step": 0.1 },
+			"arm_length_in":{ "mu": 32.5, "sigma": 0.75, "min": 30.0, "max": 35.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 77.5, "sigma": 1.5,  "min": 73.0, "max": 82.0, "step": 0.5 }
+		}
   },
 
   "CB": {
@@ -119,7 +168,14 @@
       "strength":         { "mu": 44, "sigma": 7, "cap_pct": 0.96, "role": "other" },
       "blocking":         { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 25, "decline_start": 29, "curve": "early" }
+    "development": { "peak_age": 25, "decline_start": 29, "curve": "early" },
+    "physicals": {
+			"height_in":    { "mu": 71.5, "sigma": 1.5,  "min": 69,   "max": 75,   "step": 0.5 },
+			"weight_lb":    { "mu": 195,  "sigma": 10.0, "min": 175,  "max": 215,  "step": 1.0 },
+			"hand_size_in": { "mu": 9.25, "sigma": 0.30, "min": 8.5,  "max": 10.5, "step": 0.1 },
+			"arm_length_in":{ "mu": 31.5, "sigma": 0.70, "min": 29.5, "max": 33.5, "step": 0.25 },
+			"wingspan_in":  { "mu": 74.5, "sigma": 1.25, "min": 71.0, "max": 78.0, "step": 0.5 }
+		}
   },
 
   "S": {
@@ -132,7 +188,14 @@
       "awareness":        { "mu": 68, "sigma": 7, "cap_pct": 0.99, "role": "secondary" },
       "throw_power":      { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" }
+    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" },
+    "physicals": {
+			"height_in":    { "mu": 72.5, "sigma": 1.5,  "min": 70,   "max": 76,   "step": 0.5 },
+			"weight_lb":    { "mu": 205,  "sigma": 10.0, "min": 185,  "max": 230,  "step": 1.0 },
+			"hand_size_in": { "mu": 9.5,  "sigma": 0.30, "min": 8.75, "max": 10.75,"step": 0.1 },
+			"arm_length_in":{ "mu": 32.0, "sigma": 0.70, "min": 30.0, "max": 34.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 76.0, "sigma": 1.25, "min": 72.0, "max": 79.0, "step": 0.5 }
+		}
   },
 
   "K": {
@@ -145,7 +208,14 @@
       "strength":         { "mu": 40, "sigma": 7, "cap_pct": 0.96, "role": "other" },
       "tackling":         { "mu": 28, "sigma": 7, "cap_pct": 0.95, "role": "other" }
     },
-    "development": { "peak_age": 30, "decline_start": 35, "curve": "late" }
+    "development": { "peak_age": 30, "decline_start": 35, "curve": "late" },
+    "physicals": {
+			"height_in":    { "mu": 71.5, "sigma": 1.5,  "min": 69,   "max": 75,   "step": 0.5 },
+			"weight_lb":    { "mu": 190,  "sigma": 10.0, "min": 170,  "max": 210,  "step": 1.0 },
+			"hand_size_in": { "mu": 9.0,  "sigma": 0.25, "min": 8.25, "max": 10.0, "step": 0.1 },
+			"arm_length_in":{ "mu": 31.0, "sigma": 0.70, "min": 29.0, "max": 33.0, "step": 0.25 },
+			"wingspan_in":  { "mu": 73.0, "sigma": 1.25, "min": 70.0, "max": 76.0, "step": 0.5 }
+		}
   },
 
   "P": {
@@ -157,6 +227,13 @@
       "awareness":        { "mu": 60, "sigma": 8, "cap_pct": 0.99, "role": "secondary" },
       "strength":         { "mu": 42, "sigma": 7, "cap_pct": 0.96, "role": "other" }
     },
-    "development": { "peak_age": 30, "decline_start": 35, "curve": "late" }
+    "development": { "peak_age": 30, "decline_start": 35, "curve": "late" },
+    "physicals": {
+			"height_in":    { "mu": 72.5, "sigma": 1.5,  "min": 70,   "max": 76,   "step": 0.5 },
+			"weight_lb":    { "mu": 200,  "sigma": 12.0, "min": 175,  "max": 225,  "step": 1.0 },
+			"hand_size_in": { "mu": 9.25, "sigma": 0.25, "min": 8.5,  "max": 10.5, "step": 0.1 },
+			"arm_length_in":{ "mu": 31.5, "sigma": 0.70, "min": 29.5, "max": 33.5, "step": 0.25 },
+			"wingspan_in":  { "mu": 74.0, "sigma": 1.25, "min": 71.0, "max": 77.0, "step": 0.5 }
+		}
   }
 }

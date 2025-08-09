@@ -2,19 +2,19 @@
   "stats": [
     {
       "name": "height",
-      "type": "base"
+      "type": "physical"
     },
     {
       "name": "weight",
-      "type": "base"
+      "type": "physical"
     },
     {
       "name": "wingspan",
-      "type": "base"
+      "type": "physical"
     },
     {
       "name": "hand_size",
-      "type": "base"
+      "type": "physical"
     },
     {
       "name": "speed",

@@ -1,65 +1,22 @@
 extends Node
 class_name PlayerGenerator
 
-# Data loaded from config files
+# Inject these from your runner (e.g., GenerateClassOnce.gd)
 var positions_data: Dictionary = {}   # unified positions.json
 var stats_cfg: Dictionary = {}        # stats.json (for _all_stat_names)
 var names_cfg: Dictionary = {}        # names.json
-var main_cfg: Dictionary = {}         # american_football/main.json (entry point)
+var main_cfg: Dictionary = {}         # merged save config (save-overrides-main)
 var class_rules: Dictionary = {}      # main_cfg["class_rules"]
 
-# -------------------------
-# Entry
-# -------------------------
-func _ready() -> void:
-	randomize()
+# --------------------------------
+# Public API
+# --------------------------------
 
-	# --- load configs (update these calls to match your ConfigLoader) ---
-	var cfg := ConfigLoader.new()
-	main_cfg = cfg.load_main()                                  # res://configs/sports/american_football/main.json
-	positions_data = cfg.load_positions()                       # res://configs/sports/american_football/positions.json
-	stats_cfg = cfg.load_stats()                                 # res://configs/sports/american_football/stats.json
-	names_cfg = cfg.load_names()                                 # res://configs/sports/american_football/names.json
-	class_rules = main_cfg.get("class_rules", {})                # quotas + knobs
-
-	# optional RNG control
-	if main_cfg.has("random_seed"):
-		seed(int(main_cfg["random_seed"]))
-
-	# --- knobs from class_rules ---
-	var class_size: int = int(class_rules.get("class_size", 2000))
-	var gaussian_share: float = float(class_rules.get("gaussian_share", 0.75))
-	var max_freaks: int = int(class_rules.get("max_freaks_per_class", 5))
-	var freak_min: float = float(class_rules.get("freak_percentile_min", 0.80))
-	var freak_max: float = float(class_rules.get("freak_percentile_max", 0.90))
-
-	# --- pipeline ---
-	var players: Array = generate_class(class_size, gaussian_share)
-
-	assign_dynamic_freaks(players, max_freaks, freak_min, freak_max)
-
-	# finished product → potential, then de-age to HS stats
-	for p in players:
-		if not p.has("potential") or (p["potential"] as Dictionary).is_empty():
-			p["potential"] = (p["stats"] as Dictionary).duplicate(true)
-
-	de_age_players(players, positions_data, main_cfg.get("deage", {}))
-
-	# save with college grad year = starting_year + 8 (4 HS + 4 college)
-	var current_year: int = int(main_cfg.get("starting_year", 2025))
-	var college_grad_year: int = current_year + 8
-	var out_path: String = "res://configs/sports/american_football/CLASS_OF_%d.json" % college_grad_year
-	save_to_json(out_path, players)
-	print("Generated ", players.size(), " prospects → ", out_path)
-
-# -------------------------
-# Class generation
-# -------------------------
 func generate_class(class_size: int, gaussian_share: float) -> Array:
 	var players: Array = []
 	var id_counter: int = 1
 
-	# Pass 1: Quotas (position-locked) — read from class_rules.position_quotas
+	# Pass 1: position quotas (locked to position)
 	var quotas: Dictionary = class_rules.get("position_quotas", {})
 	for pos_key in quotas.keys():
 		var pos: String = String(pos_key)
@@ -70,33 +27,42 @@ func generate_class(class_size: int, gaussian_share: float) -> Array:
 			id_counter += 1
 			players.append(p)
 
-	# Pass 2 + 3: Fill to class_size
+	# Pass 2 & 3: fill to class size
 	var remaining: int = max(0, class_size - players.size())
 	var gaussian_count: int = int(round(float(remaining) * gaussian_share))
 	var chaos_count: int = max(0, remaining - gaussian_count)
 
-	# Gaussian generalists → best-fit
+	# Gaussian generalists → best-fit, then add physicals after position is decided
 	for i in range(gaussian_count):
 		var p: Dictionary = generate_generalist(true)
 		p["position"] = best_fit_position(p["stats"])
 		p["gen_mode"] = "gauss"
 		p["id"] = id_counter
 		id_counter += 1
+		p["physicals"] = generate_physicals(String(p["position"]))
 		players.append(p)
 
-	# Weighted chaos → best-fit
+	# Weighted-random generalists → best-fit
 	for i in range(chaos_count):
 		var p: Dictionary = generate_generalist(false)
 		p["position"] = best_fit_position(p["stats"])
 		p["gen_mode"] = "chaos"
 		p["id"] = id_counter
 		id_counter += 1
+		p["physicals"] = generate_physicals(String(p["position"]))
 		players.append(p)
 
 	return players
 
-# Expect: positions_data is the loaded unified positions.json Dictionary
-# Uses StatHelpers.sample_with_caps(mu, sigma, cap_pct, percentile_source, role, outlier)
+# Compatibility wrapper if anything still calls the old name
+func generate_player_for_position(pos: String) -> Dictionary:
+	return _generate_for_position(pos)
+
+# --------------------------------
+# Core generators
+# --------------------------------
+
+# Expect positions_data[pos] to have: {distributions, noncore_outlier, core_stats?, physicals?}
 func _generate_for_position(pos: String) -> Dictionary:
 	var spec: Dictionary = positions_data.get(pos, {})
 	var dists: Dictionary = spec.get("distributions", {})
@@ -111,7 +77,7 @@ func _generate_for_position(pos: String) -> Dictionary:
 		"hidden_traits": []
 	}
 
-	# Assign all known stats; use distribution when provided, else a global fallback
+	# ratings
 	for stat_name in _all_stat_names():
 		if dists.has(stat_name):
 			var d: Dictionary = dists[stat_name]
@@ -120,10 +86,12 @@ func _generate_for_position(pos: String) -> Dictionary:
 			var cap_pct: float = float(d["cap_pct"])
 			var role: String = String(d["role"])  # "core" | "secondary" | "other"
 			var synthetic: Array = _synthetic_percentile_source()
-			p["stats"][stat_name] = StatHelpers.sample_with_caps(mu, sigma, cap_pct, synthetic, role, outlier)
+			p["stats"][stat_name] = _round2(StatHelpers.sample_with_caps(mu, sigma, cap_pct, synthetic, role, outlier))
 		else:
-			p["stats"][stat_name] = clamp(StatHelpers.gaussian(55.0, 12.0), 0.0, 100.0)
+			p["stats"][stat_name] = _round2(clamp(StatHelpers.gaussian(55.0, 12.0), 0.0, 100.0))
 
+	# physicals (real units) from positions.json
+	p["physicals"] = generate_physicals(pos)
 	return p
 
 func generate_generalist(use_gaussian: bool) -> Dictionary:
@@ -137,18 +105,21 @@ func generate_generalist(use_gaussian: bool) -> Dictionary:
 	}
 	for stat_name in _all_stat_names():
 		if use_gaussian:
-			p["stats"][stat_name] = clamp(StatHelpers.gaussian(60.0, 12.0), 0.0, 100.0)
+			p["stats"][stat_name] = _round2(clamp(StatHelpers.gaussian(60.0, 12.0), 0.0, 100.0))
 		else:
 			if randf() < 0.30:
-				p["stats"][stat_name] = randf_range(70.0, 100.0)
+				p["stats"][stat_name] = _round2(randf_range(70.0, 100.0))
 			else:
-				p["stats"][stat_name] = randf_range(20.0, 90.0)
+				p["stats"][stat_name] = _round2(randf_range(20.0, 90.0))
 	return p
+
+# --------------------------------
+# Position fit & scoring
+# --------------------------------
 
 func best_fit_position(stats: Dictionary) -> String:
 	var best_pos: String = "ATH"
 	var best_score: float = -1e9
-	# Derive candidate positions from positions_data keys
 	for pos_key in positions_data.keys():
 		var pos: String = String(pos_key)
 		var score: float = _score_for_position(stats, pos)
@@ -166,13 +137,16 @@ func _score_for_position(stats: Dictionary, pos: String) -> float:
 		s += float(stats.get(c, 0.0))
 	return s / float(cores.size())
 
-# Inject a few dynamic "anti-positional" freak boosts on NON-core stats per position
+# --------------------------------
+# Freaks (anti-positional boosts)
+# --------------------------------
+
 func assign_dynamic_freaks(players: Array, max_freaks: int, pmin: float, pmax: float) -> void:
 	var count: int = randi_range(0, max(0, max_freaks))
 	if count == 0:
 		return
 
-	# Group players by position
+	# group by position
 	var by_pos: Dictionary = {}
 	for pos_key in positions_data.keys():
 		by_pos[pos_key] = []
@@ -181,7 +155,7 @@ func assign_dynamic_freaks(players: Array, max_freaks: int, pmin: float, pmax: f
 		arr.append(p)
 		by_pos[p["position"]] = arr
 
-	# Precompute core lists
+	# precompute cores
 	var pos_core: Dictionary = {}
 	for pos_key in positions_data.keys():
 		pos_core[pos_key] = positions_data[pos_key].get("core_stats", [])
@@ -201,7 +175,7 @@ func assign_dynamic_freaks(players: Array, max_freaks: int, pmin: float, pmax: f
 
 		var chosen: String = String(non_core[randi() % non_core.size()])
 
-		# Find target percentile within same-position peers
+		# find target percentile within same-position peers
 		var vals: Array = []
 		for q in by_pos.get(pos, []):
 			var qd: Dictionary = q
@@ -214,15 +188,17 @@ func assign_dynamic_freaks(players: Array, max_freaks: int, pmin: float, pmax: f
 		var target_pct: float = randf_range(pmin, pmax)
 		var target_val: float = StatHelpers.percentile_value(vals, target_pct)
 		var cur: float = float(pl["stats"].get(chosen, 0.0))
-		pl["stats"][chosen] = max(cur, target_val)
+		pl["stats"][chosen] = _round2(max(cur, target_val))
 
 		if not pl.has("hidden_traits"):
 			pl["hidden_traits"] = []
 		(pl["hidden_traits"] as Array).append("Freak:" + chosen)
 		used[pl["id"]] = true
 
-# De-age finished product ratings into HS-level stats using role-aware percentages
-# positions_data: unified positions.json
+# --------------------------------
+# De-aging finished products → HS stats
+# --------------------------------
+
 # deage_cfg: { core_pct_min/max, other_pct_min/max, core_var/other_var, noise_min/max, floor, ceil }
 func de_age_players(players: Array, positions_data_in: Dictionary, deage_cfg: Dictionary) -> void:
 	var cfgd: Dictionary = deage_cfg if deage_cfg != null else {}
@@ -269,12 +245,37 @@ func de_age_players(players: Array, positions_data_in: Dictionary, deage_cfg: Di
 			if finished_val >= floor_v * 1.25:
 				hs_val = max(hs_val, floor_v)
 
-			new_stats[stat] = hs_val
+			new_stats[stat] = _round2(hs_val)
+
 		p["stats"] = new_stats
 
-# -------------------------
+# --------------------------------
+# Physicals from positions.json
+# --------------------------------
+
+func generate_physicals(pos: String) -> Dictionary:
+	var spec: Dictionary = positions_data.get(pos, {})
+	if spec.is_empty():
+		spec = positions_data.get("ATH", {})  # optional ATH default if you add it
+	var pphys: Dictionary = spec.get("physicals", {})
+	var out: Dictionary = {}
+
+	for key in pphys.keys():
+		var cfg: Dictionary = pphys[key]
+		var mu: float = float(cfg.get("mu", 0.0))
+		var sigma: float = float(cfg.get("sigma", 1.0))
+		var vmin: float = float(cfg.get("min", 0.0))
+		var vmax: float = float(cfg.get("max", 9999.0))
+		var step: float = float(cfg.get("step", 0.1))
+
+		var val: float = clamp(StatHelpers.gaussian(mu, sigma), vmin, vmax)
+		out[key] = _round2(snappedf(val, step))
+	return out
+
+# --------------------------------
 # Utils
-# -------------------------
+# --------------------------------
+
 func random_name() -> String:
 	var f: Array = names_cfg.get("first_names", [])
 	var l: Array = names_cfg.get("last_names", [])
@@ -300,3 +301,6 @@ func _synthetic_percentile_source() -> Array:
 	for i in range(0, 101):
 		a.append(float(i))
 	return a
+
+func _round2(x: float) -> float:
+	return snappedf(x, 0.01)
