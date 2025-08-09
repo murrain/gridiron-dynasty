@@ -1,0 +1,147 @@
+{
+  "stats": [
+    {
+      "name": "height",
+      "type": "base"
+    },
+    {
+      "name": "weight",
+      "type": "base"
+    },
+    {
+      "name": "wingspan",
+      "type": "base"
+    },
+    {
+      "name": "hand_size",
+      "type": "base"
+    },
+    {
+      "name": "speed",
+      "type": "base"
+    },
+    {
+      "name": "acceleration",
+      "type": "base"
+    },
+    {
+      "name": "agility",
+      "type": "base"
+    },
+    {
+      "name": "balance",
+      "type": "base"
+    },
+    {
+      "name": "strength",
+      "type": "base"
+    },
+    {
+      "name": "stamina",
+      "type": "base"
+    },
+    {
+      "name": "durability",
+      "type": "base"
+    },
+    {
+      "name": "flexibility",
+      "type": "base"
+    },
+    {
+      "name": "pain_tolerance",
+      "type": "base"
+    },
+    {
+      "name": "throw_power",
+      "type": "base"
+    },
+    {
+      "name": "throw_accuracy",
+      "type": "base"
+    },
+    {
+      "name": "catching",
+      "type": "base"
+    },
+    {
+      "name": "route_running",
+      "type": "base"
+    },
+    {
+      "name": "blocking",
+      "type": "base"
+    },
+    {
+      "name": "shedding_blocks",
+      "type": "base"
+    },
+    {
+      "name": "tackling",
+      "type": "base"
+    },
+    {
+      "name": "pass_rush",
+      "type": "base"
+    },
+    {
+      "name": "run_defense",
+      "type": "base"
+    },
+    {
+      "name": "coverage",
+      "type": "base"
+    },
+    {
+      "name": "press_coverage",
+      "type": "base"
+    },
+    {
+      "name": "awareness",
+      "type": "base"
+    },
+    {
+      "name": "decision_making",
+      "type": "base"
+    },
+    {
+      "name": "reaction_time",
+      "type": "base"
+    },
+    {
+      "name": "football_IQ",
+      "type": "base"
+    },
+    {
+      "name": "discipline",
+      "type": "base"
+    },
+    {
+      "name": "focus",
+      "type": "base"
+    },
+    {
+      "name": "kick_power",
+      "type": "base"
+    },
+    {
+      "name": "kick_accuracy",
+      "type": "base"
+    },
+    {
+      "name": "catch_radius",
+      "type": "derived",
+      "formula": "(wingspan * 0.5) + (hand_size * 5.0)"
+    },
+    {
+      "name": "burst",
+      "type": "derived",
+      "formula": "(acceleration * 0.6) + (agility * 0.4)"
+    },
+    {
+      "name": "injury_proneness",
+      "type": "derived",
+      "formula": "(100 - durability) * (1.2 - flexibility / 100) * (1.1 - pain_tolerance / 100)"
+    }
+  ]
+}

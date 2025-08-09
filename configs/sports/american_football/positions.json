@@ -1,0 +1,162 @@
+{
+  "QB": {
+    "core_stats": ["throw_power", "throw_accuracy", "awareness", "decision_making"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "throw_power":      { "mu": 78, "sigma": 8,  "cap_pct": 0.99, "role": "core" },
+      "throw_accuracy":   { "mu": 77, "sigma": 8,  "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 72, "sigma": 7,  "cap_pct": 0.99, "role": "core" },
+      "decision_making":  { "mu": 72, "sigma": 7,  "cap_pct": 0.99, "role": "core" },
+      "speed":            { "mu": 55, "sigma": 10, "cap_pct": 0.97, "role": "secondary" },
+      "agility":          { "mu": 56, "sigma": 9,  "cap_pct": 0.97, "role": "secondary" },
+      "stamina":          { "mu": 68, "sigma": 8,  "cap_pct": 0.99, "role": "secondary" },
+      "strength":         { "mu": 45, "sigma": 6,  "cap_pct": 0.95, "role": "other" },
+      "tackling":         { "mu": 30, "sigma": 6,  "cap_pct": 0.95, "role": "other" },
+      "blocking":         { "mu": 28, "sigma": 6,  "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 27, "decline_start": 31, "curve": "late" }
+  },
+
+  "RB": {
+    "core_stats": ["speed", "agility", "balance"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "speed":            { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "agility":          { "mu": 76, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "balance":          { "mu": 72, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "stamina":          { "mu": 70, "sigma": 8, "cap_pct": 0.99, "role": "secondary" },
+      "strength":         { "mu": 62, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "awareness":        { "mu": 60, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "throw_power":      { "mu": 35, "sigma": 8, "cap_pct": 0.95, "role": "other" },
+      "throw_accuracy":   { "mu": 35, "sigma": 8, "cap_pct": 0.95, "role": "other" },
+      "coverage":         { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 24, "decline_start": 27, "curve": "early" }
+  },
+
+  "WR": {
+    "core_stats": ["speed", "agility", "route_running", "catching"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "speed":            { "mu": 84, "sigma": 6, "cap_pct": 1.00, "role": "core" },
+      "agility":          { "mu": 80, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "route_running":    { "mu": 74, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "catching":         { "mu": 74, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 62, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "stamina":          { "mu": 68, "sigma": 8, "cap_pct": 0.99, "role": "secondary" },
+      "strength":         { "mu": 50, "sigma": 8, "cap_pct": 0.96, "role": "other" },
+      "blocking":         { "mu": 38, "sigma": 8, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" }
+  },
+
+  "TE": {
+    "core_stats": ["strength", "blocking", "catching"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "strength":         { "mu": 74, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "blocking":         { "mu": 70, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "catching":         { "mu": 68, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "speed":            { "mu": 60, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "agility":          { "mu": 58, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "throw_power":      { "mu": 32, "sigma": 8, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 27, "decline_start": 31, "curve": "mid" }
+  },
+
+  "OL": {
+    "core_stats": ["strength", "blocking", "balance"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.98 },
+    "distributions": {
+      "strength":         { "mu": 90, "sigma": 5, "cap_pct": 1.00, "role": "core" },
+      "blocking":         { "mu": 86, "sigma": 6, "cap_pct": 0.99, "role": "core" },
+      "balance":          { "mu": 82, "sigma": 6, "cap_pct": 0.99, "role": "core" },
+      "agility":          { "mu": 48, "sigma": 7, "cap_pct": 0.97, "role": "secondary" },
+      "speed":            { "mu": 38, "sigma": 6, "cap_pct": 0.96, "role": "other" },
+      "catching":         { "mu": 25, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 28, "decline_start": 33, "curve": "late" }
+  },
+
+  "DL": {
+    "core_stats": ["strength", "tackling", "shedding_blocks", "run_defense", "pass_rush"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "strength":         { "mu": 86, "sigma": 6, "cap_pct": 1.00, "role": "core" },
+      "tackling":         { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "shedding_blocks":  { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "run_defense":      { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "pass_rush":        { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "speed":            { "mu": 50, "sigma": 8, "cap_pct": 0.97, "role": "secondary" },
+      "catching":         { "mu": 28, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 27, "decline_start": 31, "curve": "mid" }
+  },
+
+  "LB": {
+    "core_stats": ["tackling", "awareness", "strength"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "tackling":         { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 72, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "strength":         { "mu": 72, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "coverage":         { "mu": 60, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "speed":            { "mu": 62, "sigma": 8, "cap_pct": 0.98, "role": "secondary" },
+      "throw_power":      { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" }
+  },
+
+  "CB": {
+    "core_stats": ["speed", "agility", "coverage", "reaction_time"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "speed":            { "mu": 86, "sigma": 6, "cap_pct": 1.00, "role": "core" },
+      "agility":          { "mu": 82, "sigma": 6, "cap_pct": 0.99, "role": "core" },
+      "coverage":         { "mu": 76, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "reaction_time":    { "mu": 74, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 66, "sigma": 7, "cap_pct": 0.99, "role": "secondary" },
+      "strength":         { "mu": 44, "sigma": 7, "cap_pct": 0.96, "role": "other" },
+      "blocking":         { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 25, "decline_start": 29, "curve": "early" }
+  },
+
+  "S": {
+    "core_stats": ["speed", "tackling", "coverage", "awareness"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "speed":            { "mu": 78, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "tackling":         { "mu": 74, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "coverage":         { "mu": 72, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 68, "sigma": 7, "cap_pct": 0.99, "role": "secondary" },
+      "throw_power":      { "mu": 30, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 26, "decline_start": 30, "curve": "mid" }
+  },
+
+  "K": {
+    "core_stats": ["kick_power", "kick_accuracy"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "kick_power":       { "mu": 78, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "kick_accuracy":    { "mu": 76, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 60, "sigma": 8, "cap_pct": 0.99, "role": "secondary" },
+      "strength":         { "mu": 40, "sigma": 7, "cap_pct": 0.96, "role": "other" },
+      "tackling":         { "mu": 28, "sigma": 7, "cap_pct": 0.95, "role": "other" }
+    },
+    "development": { "peak_age": 30, "decline_start": 35, "curve": "late" }
+  },
+
+  "P": {
+    "core_stats": ["kick_power", "kick_accuracy"],
+    "noncore_outlier": { "prob": 0.001, "max_pct": 0.99 },
+    "distributions": {
+      "kick_power":       { "mu": 80, "sigma": 7, "cap_pct": 0.99, "role": "core" },
+      "kick_accuracy":    { "mu": 74, "sigma": 8, "cap_pct": 0.99, "role": "core" },
+      "awareness":        { "mu": 60, "sigma": 8, "cap_pct": 0.99, "role": "secondary" },
+      "strength":         { "mu": 42, "sigma": 7, "cap_pct": 0.96, "role": "other" }
+    },
+    "development": { "peak_age": 30, "decline_start": 35, "curve": "late" }
+  }
+}

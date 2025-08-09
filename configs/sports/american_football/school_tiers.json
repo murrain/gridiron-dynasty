@@ -1,0 +1,33 @@
+{
+  "HS": {
+    "ELITE": {
+      "dev_factor": 1.1
+    },
+    "GOOD": {
+      "dev_factor": 1.03
+    },
+    "AVG": {
+      "dev_factor": 1.0
+    },
+    "LOW": {
+      "dev_factor": 0.96
+    }
+  },
+  "COLLEGE": {
+    "ELITE": {
+      "dev_factor": 1.12
+    },
+    "P5": {
+      "dev_factor": 1.06
+    },
+    "G5": {
+      "dev_factor": 1.02
+    },
+    "FCS": {
+      "dev_factor": 0.98
+    },
+    "JUCO": {
+      "dev_factor": 0.95
+    }
+  }
+}
