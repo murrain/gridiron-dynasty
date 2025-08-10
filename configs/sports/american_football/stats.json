@@ -1,147 +1,57 @@
 {
   "stats": [
-    {
-      "name": "height",
-      "type": "physical"
-    },
-    {
-      "name": "weight",
-      "type": "physical"
-    },
-    {
-      "name": "wingspan",
-      "type": "physical"
-    },
-    {
-      "name": "hand_size",
-      "type": "physical"
-    },
-    {
-      "name": "speed",
-      "type": "base"
-    },
-    {
-      "name": "acceleration",
-      "type": "base"
-    },
-    {
-      "name": "agility",
-      "type": "base"
-    },
-    {
-      "name": "balance",
-      "type": "base"
-    },
-    {
-      "name": "strength",
-      "type": "base"
-    },
-    {
-      "name": "stamina",
-      "type": "base"
-    },
-    {
-      "name": "durability",
-      "type": "base"
-    },
-    {
-      "name": "flexibility",
-      "type": "base"
-    },
-    {
-      "name": "pain_tolerance",
-      "type": "base"
-    },
-    {
-      "name": "throw_power",
-      "type": "base"
-    },
-    {
-      "name": "throw_accuracy",
-      "type": "base"
-    },
-    {
-      "name": "catching",
-      "type": "base"
-    },
-    {
-      "name": "route_running",
-      "type": "base"
-    },
-    {
-      "name": "blocking",
-      "type": "base"
-    },
-    {
-      "name": "shedding_blocks",
-      "type": "base"
-    },
-    {
-      "name": "tackling",
-      "type": "base"
-    },
-    {
-      "name": "pass_rush",
-      "type": "base"
-    },
-    {
-      "name": "run_defense",
-      "type": "base"
-    },
-    {
-      "name": "coverage",
-      "type": "base"
-    },
-    {
-      "name": "press_coverage",
-      "type": "base"
-    },
-    {
-      "name": "awareness",
-      "type": "base"
-    },
-    {
-      "name": "decision_making",
-      "type": "base"
-    },
-    {
-      "name": "reaction_time",
-      "type": "base"
-    },
-    {
-      "name": "football_IQ",
-      "type": "base"
-    },
-    {
-      "name": "discipline",
-      "type": "base"
-    },
-    {
-      "name": "focus",
-      "type": "base"
-    },
-    {
-      "name": "kick_power",
-      "type": "base"
-    },
-    {
-      "name": "kick_accuracy",
-      "type": "base"
-    },
-    {
-      "name": "catch_radius",
-      "type": "derived",
-      "formula": "(wingspan * 0.5) + (hand_size * 5.0)"
-    },
-    {
-      "name": "burst",
-      "type": "derived",
-      "formula": "(acceleration * 0.6) + (agility * 0.4)"
-    },
-    {
-      "name": "injury_proneness",
-      "type": "derived",
-      "formula": "(100 - durability) * (1.2 - flexibility / 100) * (1.1 - pain_tolerance / 100)"
-    }
+    { "name": "speed",             "type": "base", "measurement_difficulty": 0.98 },
+    { "name": "acceleration",      "type": "base", "measurement_difficulty": 0.95 },
+    { "name": "agility",           "type": "base", "measurement_difficulty": 0.92 },
+    { "name": "balance",           "type": "base", "measurement_difficulty": 0.70 },
+    { "name": "strength",          "type": "base", "measurement_difficulty": 0.95 },
+    { "name": "core_strength",     "type": "base", "measurement_difficulty": 0.80 },
+    { "name": "stamina",           "type": "base", "measurement_difficulty": 0.60 },
+
+    { "name": "tackling",          "type": "base", "measurement_difficulty": 0.60 },
+    { "name": "blocking",          "type": "base", "measurement_difficulty": 0.60 },
+    { "name": "catching",          "type": "base", "measurement_difficulty": 0.70 },
+    { "name": "throw_power",       "type": "base", "measurement_difficulty": 0.95 },
+    { "name": "throw_accuracy",    "type": "base", "measurement_difficulty": 0.65 },
+    { "name": "route_running",     "type": "base", "measurement_difficulty": 0.60 },
+    { "name": "coverage",          "type": "base", "measurement_difficulty": 0.45 },
+    { "name": "press_coverage",    "type": "base", "measurement_difficulty": 0.40 },
+    { "name": "run_defense",       "type": "base", "measurement_difficulty": 0.50 },
+    { "name": "pass_rush",         "type": "base", "measurement_difficulty": 0.55 },
+    { "name": "shedding_blocks",   "type": "base", "measurement_difficulty": 0.60 },
+    { "name": "footwork",          "type": "base", "measurement_difficulty": 0.70 },
+    { "name": "hand_fighting",     "type": "base", "measurement_difficulty": 0.50 },
+    { "name": "kick_power",        "type": "base", "measurement_difficulty": 0.95 },
+    { "name": "kick_accuracy",     "type": "base", "measurement_difficulty": 0.70 },
+
+    { "name": "awareness",         "type": "base", "measurement_difficulty": 0.35 },
+    { "name": "discipline",        "type": "base", "measurement_difficulty": 0.40 },
+    { "name": "composure",         "type": "base", "measurement_difficulty": 0.30 },
+    { "name": "confidence",        "type": "base", "measurement_difficulty": 0.30 },
+    { "name": "aggression",        "type": "base", "measurement_difficulty": 0.40 },
+    { "name": "leadership",        "type": "base", "measurement_difficulty": 0.25 },
+    { "name": "work_ethic",        "type": "base", "measurement_difficulty": 0.30 },
+    { "name": "coachability",      "type": "base", "measurement_difficulty": 0.35 },
+    { "name": "focus",             "type": "base", "measurement_difficulty": 0.45 },
+    { "name": "reaction_time",     "type": "base", "measurement_difficulty": 0.90 },
+    { "name": "decision_making",   "type": "base", "measurement_difficulty": 0.25 },
+    { "name": "anticipation",      "type": "base", "measurement_difficulty": 0.40 },
+    { "name": "football_IQ",       "type": "base", "measurement_difficulty": 0.30 },
+
+    { "name": "morale",            "type": "base", "measurement_difficulty": 0.20 },
+    { "name": "clutch_factor",     "type": "base", "measurement_difficulty": 0.20 },
+    { "name": "charisma",          "type": "base", "measurement_difficulty": 0.50 },
+
+    { "name": "fatigue",           "type": "base", "measurement_difficulty": 0.80 },
+    { "name": "recovery_rate",     "type": "base", "measurement_difficulty": 0.50 },
+    { "name": "durability",        "type": "base", "measurement_difficulty": 0.40 },
+
+    { "name": "pain_tolerance",    "type": "base", "hidden": true, "measurement_difficulty": 0.15 },
+    { "name": "flexibility",       "type": "base", "hidden": true, "measurement_difficulty": 0.85 },
+    { "name": "medical_history_score", "type": "base", "hidden": true, "measurement_difficulty": 0.90 },
+
+    { "name": "catch_radius",      "type": "derived", "formula": "f(wingspan, vertical_jump, hand_size, agility, reaction_time)", "measurement_difficulty": 0.90 },
+    { "name": "burst",             "type": "derived", "formula": "f(acceleration, agility)", "measurement_difficulty": 0.95 },
+    { "name": "injury_proneness",  "type": "derived", "hidden": true, "formula": "f(durability, flexibility, pain_tolerance, medical_history_score)", "measurement_difficulty": 0.20 }
   ]
 }
