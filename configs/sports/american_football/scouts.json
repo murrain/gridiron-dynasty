@@ -1,0 +1,155 @@
+{
+  "version": 2,
+  "defaults": {
+    "context_quality": {
+      "combine": 0.95,
+      "practice": 0.65,
+      "game": 0.80,
+      "rumor": 0.30
+    },
+    "base_skill": 0.55,
+    "overrate_athletes": 0.0,
+    "tape_grinder": 0.25,
+    "risk_aversion": 0.10,
+    "bias": {
+      "mean_points": 0.0,
+      "sigma_points": 0.75,
+      "clamp_min": -6.0,
+      "clamp_max": 6.0
+    },
+
+    "specialty": {
+      "num_min": 2,
+      "num_max": 4,
+      
+      "exclude_easy_at": 0.80,
+      "prefer_hard_at": 0.40,
+      "weight_alpha": 1.25,
+      "weight_floor": 0.01,
+
+      "skill_for_specialty_min": 0.80,
+      "skill_for_specialty_max": 0.90,
+      "skill_for_non_specialty_min": 0.45,
+      "skill_for_non_specialty_max": 0.65
+    }
+  },
+
+  "generation": {
+    "skill_distributions": {
+      "base_skill": { "mu": 0.55, "sigma": 0.12, "min": 0.30, "max": 0.85 },
+      "overrate_athletes": { "mu": 0.0, "sigma": 0.25, "min": -0.8, "max": 0.8 },
+      "tape_grinder": { "mu": 0.30, "sigma": 0.20, "min": 0.0, "max": 1.0 },
+      "risk_aversion": { "mu": 0.10, "sigma": 0.10, "min": 0.0, "max": 0.6 }
+    },
+    "bias_distributions": {
+      "mean_points_mu": 0.0,
+      "mean_points_sigma": 0.8,
+      "sigma_points_mu": 0.8,
+      "sigma_points_sigma": 0.4,
+      "clamp_min": -6.0,
+      "clamp_max": 6.0
+    },
+    "context_quality_overrides": {
+      "combine_mu": 0.95, "combine_sigma": 0.02,
+      "practice_mu": 0.65, "practice_sigma": 0.07,
+      "game_mu": 0.80, "game_sigma": 0.05,
+      "rumor_mu": 0.30, "rumor_sigma": 0.10,
+      "clamp_min": 0.05, "clamp_max": 1.0
+    }
+  },
+
+  "national_scouts": [
+    {
+      "name": "Alex Rivers",
+      "role": "National",
+      "years_exp": 14,
+      "base_skill": 0.75,
+      "overrate_athletes": 0.10,
+      "tape_grinder": 0.35,
+      "risk_aversion": 0.15,
+      "stat_skill": {
+        "football_IQ": 0.84,
+        "decision_making": 0.82,
+        "anticipation": 0.80,
+        "coverage": 0.78,
+        "route_running": 0.78
+      }
+    },
+    {
+      "name": "Morgan Hale",
+      "role": "National",
+      "years_exp": 12,
+      "base_skill": 0.74,
+      "overrate_athletes": 0.05,
+      "tape_grinder": 0.40,
+      "risk_aversion": 0.12,
+      "stat_skill": {
+        "pass_rush": 0.82,
+        "run_defense": 0.80,
+        "shedding_blocks": 0.80,
+        "football_IQ": 0.78
+      }
+    },
+    {
+      "name": "Jordan Patel",
+      "role": "National",
+      "years_exp": 10,
+      "base_skill": 0.76,
+      "overrate_athletes": 0.00,
+      "tape_grinder": 0.45,
+      "risk_aversion": 0.10,
+      "stat_skill": {
+        "coverage": 0.83,
+        "press_coverage": 0.82,
+        "anticipation": 0.80,
+        "decision_making": 0.78
+      }
+    },
+    {
+      "name": "Renee Okoye",
+      "role": "National",
+      "years_exp": 11,
+      "base_skill": 0.75,
+      "overrate_athletes": -0.05,
+      "tape_grinder": 0.50,
+      "risk_aversion": 0.08,
+      "stat_skill": {
+        "work_ethic": 0.85,
+        "coachability": 0.82,
+        "discipline": 0.80,
+        "focus": 0.78,
+        "composure": 0.76
+      }
+    },
+    {
+      "name": "Casey Whitfield",
+      "role": "National",
+      "years_exp": 13,
+      "base_skill": 0.73,
+      "overrate_athletes": 0.15,
+      "tape_grinder": 0.30,
+      "risk_aversion": 0.18,
+      "stat_skill": {
+        "route_running": 0.82,
+        "catching": 0.80,
+        "anticipation": 0.78,
+        "decision_making": 0.76
+      }
+    },
+    {
+      "name": "Devon Maeda",
+      "role": "National",
+      "years_exp": 9,
+      "base_skill": 0.75,
+      "overrate_athletes": -0.02,
+      "tape_grinder": 0.42,
+      "risk_aversion": 0.12,
+      "stat_skill": {
+        "football_IQ": 0.82,
+        "decision_making": 0.80,
+        "coverage": 0.79,
+        "run_defense": 0.78
+      }
+    }
+  ]
+}

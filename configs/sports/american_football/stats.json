@@ -38,13 +38,13 @@
     { "name": "anticipation",      "type": "base", "measurement_difficulty": 0.40 },
     { "name": "football_IQ",       "type": "base", "measurement_difficulty": 0.30 },
 
-    { "name": "morale",            "type": "base", "measurement_difficulty": 0.20 },
-    { "name": "clutch_factor",     "type": "base", "measurement_difficulty": 0.20 },
+    { "name": "morale",            "type": "base", "measurement_difficulty": 0.20, "hidden": true },
+    { "name": "clutch_factor",     "type": "base", "measurement_difficulty": 0.20, "hidden": true },
     { "name": "charisma",          "type": "base", "measurement_difficulty": 0.50 },
 
-    { "name": "fatigue",           "type": "base", "measurement_difficulty": 0.80 },
-    { "name": "recovery_rate",     "type": "base", "measurement_difficulty": 0.50 },
-    { "name": "durability",        "type": "base", "measurement_difficulty": 0.40 },
+    { "name": "fatigue",           "type": "base", "measurement_difficulty": 0.80, "hidden": true },
+    { "name": "recovery_rate",     "type": "base", "measurement_difficulty": 0.50, "hidden": true },
+    { "name": "durability",        "type": "base", "measurement_difficulty": 0.40, "hidden": true },
 
     { "name": "pain_tolerance",    "type": "base", "hidden": true, "measurement_difficulty": 0.15 },
     { "name": "flexibility",       "type": "base", "hidden": true, "measurement_difficulty": 0.85 },
