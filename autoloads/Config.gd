@@ -5,7 +5,8 @@ extends Node
 # Paths / defaults
 # ---------------------------
 const DEFAULT_BASE_DIR: String = "res://configs/sports/american_football"
-const ENGINE_CFG_PATH: String  = "res://config/engine/engine.json"
+const ENGINE_CFG_PATH: String  = "res://config/engine/engine.json" # project default (read-only at runtime)
+const USER_ENGINE_CFG_PATH: String = "user://engine.json"           # user override (writeable)
 
 # ---------------------------
 # State
@@ -13,13 +14,12 @@ const ENGINE_CFG_PATH: String  = "res://config/engine/engine.json"
 var base_dir: String = DEFAULT_BASE_DIR
 var save_dir: String = ""     # e.g. "user://saves/slot_001/configs/american_football"
 var recurse: bool = false
-var engine: Dictionary = {}
+var engine: Dictionary = {}   # last loaded engine cfg (default+user merge)
 
 # Caches: keyed by "<base>|<save>|<recurse>"
 var _cache_all: Dictionary = {}    # { key: { filename => merged_dict } }
 var _cache_one: Dictionary = {}    # { key + "|" + name: merged_dict }
-var _engine_cache: Dictionary = {} # parsed engine.json cached once
-
+var _engine_cache: Dictionary = {} # parsed (default ⊕ user) engine.json cached once
 
 # ---------------------------
 # Setup / control
@@ -48,7 +48,7 @@ func clear_cache() -> void:
 	_engine_cache.clear()
 
 # ---------------------------
-# Public API
+# Public API (game configs)
 # ---------------------------
 
 ## Get a merged map of ALL jsons in base/save (save wins), keyed by filename without ".json"
@@ -106,34 +106,60 @@ func list_keys() -> Array[String]:
 	return keys
 
 # ---------------------------
-# Engine helpers
+# Engine helpers (threading, etc.)
 # ---------------------------
 
-## Read the engine.json once and cache it.
+## Read engine config (default + user override) once and cache it.
 func engine_cfg() -> Dictionary:
 	if not _engine_cache.is_empty():
 		return _engine_cache
-	var f := FileAccess.open(ENGINE_CFG_PATH, FileAccess.READ)
-	if f == null:
-		_engine_cache = {}
-		return _engine_cache
-	var parsed : Variant = JSON.parse_string(f.get_as_text())
-	if typeof(parsed) == TYPE_DICTIONARY:
-		_engine_cache = parsed as Dictionary
-	else:
-		_engine_cache = {}
+
+	# project default
+	var def: Dictionary = _load_json_safe(ENGINE_CFG_PATH)
+
+	# user overrides (if present)
+	var usr: Dictionary = _load_json_safe(USER_ENGINE_CFG_PATH)
+
+	# user wins
+	_engine_cache = (_deep_merge(def, usr) as Dictionary)
 	return _engine_cache
 
-## Number of worker threads to use. Defaults to 1/core up to 8.
+## Force-reload engine config from disk (both default and user).
+func reload_engine_cfg() -> void:
+	_engine_cache.clear()
+	engine = engine_cfg()
+
+## Number of worker threads to use. Defaults to 1/core up to 8 when <= 0.
 func threads_count() -> int:
 	var eg := engine_cfg()
 	var val := 0
 	if eg.has("threads"):
 		val = int(eg["threads"])
 	if val <= 0:
-		var cores : int = max(1, OS.get_processor_count())
+		var cores: int = max(1, OS.get_processor_count())
 		val = min(cores, 8)
 	return val
+
+## Update threads in-memory (runtime only). Call save_engine_threads() to persist.
+func set_threads_runtime(n: int) -> void:
+	var eg := engine_cfg().duplicate(true)
+	eg["threads"] = clamp(n, 1, min(OS.get_processor_count(), 8))
+	_engine_cache = eg
+	engine = eg
+
+## Persist thread count to user://engine.json and refresh cache.
+func save_engine_threads(n: int) -> void:
+	var eg := engine_cfg().duplicate(true)
+	eg["threads"] = clamp(n, 1, min(OS.get_processor_count(), 8))
+
+	var f := FileAccess.open(USER_ENGINE_CFG_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(eg, "\t"))
+		f.flush()
+
+	# Refresh live state
+	_engine_cache = eg
+	engine = eg
 
 # ---------------------------
 # Internals
@@ -199,4 +225,5 @@ func _join(base: String, leaf: String) -> String:
 	return base + leaf if base.ends_with("/") else base + "/" + leaf
 
 func _ready() -> void:
+	# Preload engine config so Config.engine is immediately available
 	engine = engine_cfg()
