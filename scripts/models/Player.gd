@@ -21,23 +21,20 @@ class_name SportPlayer
 
 # --- Combine / Testing Metrics ---
 # Timed drills (seconds)
-@export var forty_yd_dash_s: float = 4.65
-@export var twenty_yd_shuttle_s: float = 4.35
-@export var three_cone_s: float = 7.2
-@export var sixty_yd_shuttle_s: float = 11.5
+@export var forty_sec: float
+@export var shuttle20_sec: float
+@export var cone3_sec: float
+@export var shuttle60_sec: float
 
-# Explosives (inches)
-@export var vertical_jump_in: float = 32.0
-@export var broad_jump_in: float = 120.0   # inches
+@export var vertical_in: float
+@export var broad_in: float
+@export var bench_225_reps: int
 
-# Strength
-@export var bench_reps_225: int = 10
+@export var wonderlic: int
+@export var cybex_index: float
 
-# Evaluations / Screens
-@export var injury_eval: String = ""       # free-form or code, e.g., "CLEARED", "FLAGGED: AC joint"
-@export var drug_screen: String = ""       # "PASS", "FAIL", "N/A"
-@export var cybex_score: float = 0.0       # if used
-@export var wonderlic: int = 0             # or any cognitive metric you prefer
+@export var injury_eval: String
+@export var drug_screen: String
 
 # --- Stats (gameplay ratings) ---
 # Use 0–100 scale (or whatever your engine expects). Derived stats can be recomputed from base.
@@ -84,17 +81,21 @@ func from_dict(d: Dictionary) -> void:
 
 	# Combine
 	var cmb: Dictionary = d.get("combine", {})
-	forty_yd_dash_s = float(cmb.get("forty_yd_dash_s", forty_yd_dash_s))
-	bench_reps_225 = int(cmb.get("bench_reps_225", bench_reps_225))
-	vertical_jump_in = float(cmb.get("vertical_jump_in", vertical_jump_in))
-	broad_jump_in = float(cmb.get("broad_jump_in", broad_jump_in))
-	twenty_yd_shuttle_s = float(cmb.get("twenty_yd_shuttle_s", twenty_yd_shuttle_s))
-	three_cone_s = float(cmb.get("three_cone_s", three_cone_s))
-	sixty_yd_shuttle_s = float(cmb.get("sixty_yd_shuttle_s", sixty_yd_shuttle_s))
-	injury_eval = String(cmb.get("injury_eval", injury_eval))
-	drug_screen = String(cmb.get("drug_screen", drug_screen))
-	cybex_score = float(cmb.get("cybex_score", cybex_score))
-	wonderlic = int(cmb.get("wonderlic", wonderlic))
+
+	forty_sec        = float(cmb.get("forty_sec", forty_sec))
+	shuttle20_sec    = float(cmb.get("shuttle20_sec", shuttle20_sec))
+	cone3_sec        = float(cmb.get("cone3_sec", cone3_sec))
+	shuttle60_sec    = float(cmb.get("shuttle60_sec", shuttle60_sec))
+
+	vertical_in      = float(cmb.get("vertical_in", vertical_in))
+	broad_in         = float(cmb.get("broad_in", broad_in))
+	bench_225_reps   = int(cmb.get("bench_225_reps", bench_225_reps))
+
+	wonderlic        = int(cmb.get("wonderlic", wonderlic))
+	cybex_index      = float(cmb.get("cybex_index", cybex_index))
+
+	injury_eval      = String(cmb.get("injury_eval", injury_eval))
+	drug_screen      = String(cmb.get("drug_screen", drug_screen))
 
 	# Ratings & traits
 	stats = (d.get("stats", stats) as Dictionary).duplicate(true)
@@ -122,16 +123,16 @@ func to_dict() -> Dictionary:
 			"wingspan_in": wingspan_in
 		},
 		"combine": {
-			"forty_yd_dash_s": forty_yd_dash_s,
-			"bench_reps_225": bench_reps_225,
-			"vertical_jump_in": vertical_jump_in,
-			"broad_jump_in": broad_jump_in,
-			"twenty_yd_shuttle_s": twenty_yd_shuttle_s,
-			"three_cone_s": three_cone_s,
-			"sixty_yd_shuttle_s": sixty_yd_shuttle_s,
+			"forty_sec": forty_sec,
+			"bench_225_reps": bench_225_reps,
+			"vertical_in": vertical_in,
+			"broad_in": broad_in,
+			"shuttle20_sec": shuttle20_sec,
+			"cone3_sec": cone3_sec,
+			"shuttle60_sec": shuttle60_sec,
 			"injury_eval": injury_eval,
 			"drug_screen": drug_screen,
-			"cybex_score": cybex_score,
+			"cybex_index": cybex_index,
 			"wonderlic": wonderlic
 		},
 		"stats": stats.duplicate(true),

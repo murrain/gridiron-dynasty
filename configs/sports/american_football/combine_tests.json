@@ -1,0 +1,149 @@
+{
+  "version": 2,
+  "defaults": {
+    "precision": 2,
+    "integer": false,
+    "noise": { "dist": "gauss", "sigma": 0.0 },
+    "map": { "mode": "lerp", "min": 0.0, "max": 100.0, "invert": false },
+    "adjust_profile": "none",
+    "body_adjust": { "mode": "none" }
+  },
+  "tests": {
+    "forty_yd_dash_s": {
+      "display": "40-yd Dash (s)",
+      "type": "time",
+      "inputs": [
+        { "src": "stat", "name": "speed",        "weight": 0.72 },
+        { "src": "stat", "name": "acceleration", "weight": 0.28 }
+      ],
+      "curve": { "mode": "ease_out_quart" },
+      "map":   { "mode": "lerp", "min": 5.55, "max": 4.35, "invert": false },
+      "bounds": { "min": 4.25, "max": 5.90 },
+      "noise": { "dist": "gauss", "sigma": 0.014 },
+      "body_adjust": {
+        "mode": "time_mass_curve",
+        "anchor_wt": 200.0,
+        "base_per10": 0.014,
+        "extra_per10_over_anchor": 0.012,
+        "quad_above_anchor": true,
+        "bonus_per10_under": -0.004
+      },
+      "synergy_bonus": {
+        "mode": "time_sec",
+        "speed_thr": 93.0,
+        "accel_thr": 91.0,
+        "scale": 0.024,
+        "weight_full_bonus_at": 188.0,
+        "weight_zero_bonus_at": 208.0
+      },
+      "precision": 2
+    },
+
+    "twenty_yd_shuttle_s": {
+      "display": "20-yd Shuttle (s)",
+      "type": "time",
+      "inputs": [
+        { "src": "stat", "name": "agility",        "weight": 0.50 },
+        { "src": "stat", "name": "reaction_time",  "weight": 0.30 },
+        { "src": "stat", "name": "balance",        "weight": 0.15 },
+        { "src": "stat", "name": "acceleration",   "weight": 0.05 }
+      ],
+      "map": { "mode": "lerp", "min": 4.72, "max": 4.05, "invert": false },
+      "bounds": { "min": 3.98, "max": 4.95 },
+      "noise": { "dist": "gauss", "sigma": 0.017 },
+      "adjust_profile": "time",
+      "precision": 2,
+      "body_adjust": {
+        "mode": "time_mass",
+        "anchor_wt": 200.0,
+        "coef_per_10lb": 0.011
+      }
+    },
+
+    "three_cone_s": {
+      "display": "3-Cone (s)",
+      "type": "time",
+      "inputs": [
+        { "src": "stat", "name": "agility",        "weight": 0.55 },
+        { "src": "stat", "name": "balance",        "weight": 0.25 },
+        { "src": "stat", "name": "footwork",       "weight": 0.10 },
+        { "src": "stat", "name": "acceleration",   "weight": 0.10 }
+      ],
+      "map": { "mode": "lerp", "min": 7.98, "max": 6.65, "invert": false },
+      "bounds": { "min": 6.60, "max": 8.20 },
+      "noise": { "dist": "gauss", "sigma": 0.028 },
+      "adjust_profile": "time",
+      "precision": 2,
+      "body_adjust": {
+        "mode": "time_mass",
+        "anchor_wt": 200.0,
+        "coef_per_10lb": 0.013
+      }
+    },
+
+    "vertical_jump_in": {
+      "display": "Vertical (in)",
+      "type": "power",
+      "inputs": [
+        { "src": "stat", "name": "strength",      "weight": 0.28 },
+        { "src": "stat", "name": "agility",       "weight": 0.36 },
+        { "src": "stat", "name": "acceleration",  "weight": 0.36 }
+      ],
+      "map": { "mode": "lerp", "min": 26.0, "max": 42.5, "invert": false },
+      "bounds": { "min": 24.0, "max": 44.5 },
+      "noise": { "dist": "gauss", "sigma": 0.9 },
+      "adjust_profile": "power",
+      "precision": 1,
+      "body_adjust": {
+        "mode": "power_mass",
+        "anchor_wt": 200.0,
+        "coef_per_10lb": -0.35
+      }
+    },
+
+    "broad_jump_in": {
+      "display": "Broad (in)",
+      "type": "power",
+      "inputs": [
+        { "src": "stat", "name": "strength",      "weight": 0.28 },
+        { "src": "stat", "name": "acceleration",  "weight": 0.47 },
+        { "src": "stat", "name": "agility",       "weight": 0.25 }
+      ],
+      "map": { "mode": "lerp", "min": 105.0, "max": 136.0, "invert": false },
+      "bounds": { "min": 98.0, "max": 140.0 },
+      "noise": { "dist": "gauss", "sigma": 1.0 },
+      "adjust_profile": "power",
+      "precision": 0,
+      "body_adjust": {
+        "mode": "power_mass",
+        "anchor_wt": 200.0,
+        "coef_per_10lb": -0.70
+      }
+    },
+
+    "bench_225_reps": {
+      "display": "Bench 225 (reps)",
+      "type": "reps",
+      "inputs": [
+        { "src": "stat", "name": "strength",       "weight": 0.70 },
+        { "src": "stat", "name": "core_strength",  "weight": 0.20 },
+        { "src": "stat", "name": "stamina",        "weight": 0.10 }
+      ],
+
+      "curve": { "mode": "gamma", "gamma": 1.6 },
+
+      "map":    { "mode": "lerp", "min": 0.0, "max": 32.0, "invert": false },
+      "bounds": { "min": 0.0, "max": 40.0 },
+      "noise":  { "dist": "gauss", "sigma": 0.8 },
+      "adjust_profile": "power",
+      "integer": true,
+
+      "body_adjust": {
+        "mode": "power_mass_asym",
+        "anchor_wt": 225.0,
+        "coef_per_10lb": 0.8,
+        "under_mult": 2.5
+      }
+    }
+  }
+}

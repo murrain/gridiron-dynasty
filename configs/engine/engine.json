@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "threads": {
+    "count": 0,
+    "max": 8
+  },
+  "logging": {
+    "level": "info"
+  }
+}

@@ -1,5 +1,6 @@
 {
   "version": 2,
+
   "defaults": {
     "context_quality": {
       "combine": 0.95,
@@ -7,13 +8,21 @@
       "game": 0.80,
       "rumor": 0.30
     },
+
     "base_skill": 0.55,
     "overrate_athletes": 0.0,
     "tape_grinder": 0.25,
     "risk_aversion": 0.10,
+
+    "current_vs_potential": {
+      "current_weight": 0.80,
+      "potential_weight": 0.20,
+      "jitter_sigma": 0.04
+    },
+
     "bias": {
       "mean_points": 0.0,
-      "sigma_points": 0.75,
+      "sigma_points": 0.8,
       "clamp_min": -6.0,
       "clamp_max": 6.0
     },
@@ -21,12 +30,10 @@
     "specialty": {
       "num_min": 2,
       "num_max": 4,
-      
       "exclude_easy_at": 0.80,
       "prefer_hard_at": 0.40,
       "weight_alpha": 1.25,
       "weight_floor": 0.01,
-
       "skill_for_specialty_min": 0.80,
       "skill_for_specialty_max": 0.90,
       "skill_for_non_specialty_min": 0.45,
@@ -36,10 +43,10 @@
 
   "generation": {
     "skill_distributions": {
-      "base_skill": { "mu": 0.55, "sigma": 0.12, "min": 0.30, "max": 0.85 },
-      "overrate_athletes": { "mu": 0.0, "sigma": 0.25, "min": -0.8, "max": 0.8 },
-      "tape_grinder": { "mu": 0.30, "sigma": 0.20, "min": 0.0, "max": 1.0 },
-      "risk_aversion": { "mu": 0.10, "sigma": 0.10, "min": 0.0, "max": 0.6 }
+      "base_skill":         { "mu": 0.55, "sigma": 0.12, "min": 0.30, "max": 0.85 },
+      "overrate_athletes":  { "mu": 0.00, "sigma": 0.25, "min": -0.8, "max": 0.8 },
+      "tape_grinder":       { "mu": 0.30, "sigma": 0.20, "min": 0.0,  "max": 1.0 },
+      "risk_aversion":      { "mu": 0.10, "sigma": 0.10, "min": 0.0,  "max": 0.6 }
     },
     "bias_distributions": {
       "mean_points_mu": 0.0,
@@ -55,6 +62,10 @@
       "game_mu": 0.80, "game_sigma": 0.05,
       "rumor_mu": 0.30, "rumor_sigma": 0.10,
       "clamp_min": 0.05, "clamp_max": 1.0
+    },
+    "current_vs_potential_overrides": {
+      "current_mu": 0.80, "current_sigma": 0.07, "current_min": 0.55, "current_max": 0.95,
+      "potential_mu": 0.20, "potential_sigma": 0.07, "potential_min": 0.05, "potential_max": 0.45
     }
   },
 
@@ -67,12 +78,23 @@
       "overrate_athletes": 0.10,
       "tape_grinder": 0.35,
       "risk_aversion": 0.15,
+      "current_vs_potential": { "current_weight": 0.62, "potential_weight": 0.38 },
       "stat_skill": {
         "football_IQ": 0.84,
         "decision_making": 0.82,
         "anticipation": 0.80,
         "coverage": 0.78,
         "route_running": 0.78
+      },
+      "valuation_multipliers": {
+        "football_IQ": 1.08,
+        "decision_making": 1.05,
+        "anticipation": 1.05,
+        "coverage": 1.03
+      },
+      "estimation_multipliers": {
+        "speed": 1.00,
+        "football_IQ": 1.00
       }
     },
     {
@@ -83,11 +105,21 @@
       "overrate_athletes": 0.05,
       "tape_grinder": 0.40,
       "risk_aversion": 0.12,
+      "current_vs_potential": { "current_weight": 0.78, "potential_weight": 0.22 },
       "stat_skill": {
         "pass_rush": 0.82,
         "run_defense": 0.80,
         "shedding_blocks": 0.80,
         "football_IQ": 0.78
+      },
+      "valuation_multipliers": {
+        "pass_rush": 1.07,
+        "run_defense": 1.05,
+        "shedding_blocks": 1.05,
+        "strength": 1.03
+      },
+      "estimation_multipliers": {
+        "strength": 1.01
       }
     },
     {
@@ -98,11 +130,21 @@
       "overrate_athletes": 0.00,
       "tape_grinder": 0.45,
       "risk_aversion": 0.10,
+      "current_vs_potential": { "current_weight": 0.80, "potential_weight": 0.20 },
       "stat_skill": {
         "coverage": 0.83,
         "press_coverage": 0.82,
         "anticipation": 0.80,
         "decision_making": 0.78
+      },
+      "valuation_multipliers": {
+        "coverage": 1.08,
+        "press_coverage": 1.06,
+        "reaction_time": 1.03
+      },
+      "estimation_multipliers": {
+        "coverage": 1.01,
+        "speed": 0.99
       }
     },
     {
@@ -113,28 +155,38 @@
       "overrate_athletes": -0.05,
       "tape_grinder": 0.50,
       "risk_aversion": 0.08,
+      "current_vs_potential": { "current_weight": 0.76, "potential_weight": 0.24 },
       "stat_skill": {
         "work_ethic": 0.85,
         "coachability": 0.82,
         "discipline": 0.80,
         "focus": 0.78,
         "composure": 0.76
+      },
+      "valuation_multipliers": {
+        "work_ethic": 1.10,
+        "coachability": 1.08,
+        "discipline": 1.06,
+        "focus": 1.04
+      },
+      "estimation_multipliers": {
+        "work_ethic": 1.02,
+        "coachability": 1.01
       }
     },
     {
       "name": "Casey Whitfield",
       "role": "National",
-      "years_exp": 13,
-      "base_skill": 0.73,
-      "overrate_athletes": 0.15,
-      "tape_grinder": 0.30,
+      "years_exp": 11,
+      "base_skill": 0.78,
+      "overrate_athletes": 0.05,
+      "tape_grinder": 0.42,
       "risk_aversion": 0.18,
-      "stat_skill": {
-        "route_running": 0.82,
-        "catching": 0.80,
-        "anticipation": 0.78,
-        "decision_making": 0.76
-      }
+      "bucket_weights": { "athletic": 0.52, "core": 0.24, "secondary": 0.14, "mentals": 0.10 },
+      "current_vs_potential": { "current_weight": 0.74, "potential_weight": 0.26 },
+      "valuation_multipliers": { "speed": 1.12, "vertical_jump": 1.06, "broad_jump": 1.05, "football_IQ": 0.95 },
+      "estimation_multipliers": { "speed": 1.03, "coverage": 0.97 },
+      "grade_calibration": { "offset": 0.8, "slope": 1.06, "noise_sigma": 2.2 }
     },
     {
       "name": "Devon Maeda",
@@ -144,12 +196,100 @@
       "overrate_athletes": -0.02,
       "tape_grinder": 0.42,
       "risk_aversion": 0.12,
+      "current_vs_potential": { "current_weight": 0.86, "potential_weight": 0.14 },
       "stat_skill": {
         "football_IQ": 0.82,
         "decision_making": 0.80,
         "coverage": 0.79,
         "run_defense": 0.78
+      },
+      "valuation_multipliers": {
+        "football_IQ": 1.07,
+        "decision_making": 1.05,
+        "coverage": 1.04
+      },
+      "estimation_multipliers": {
+        "football_IQ": 1.01
       }
-    }
+    },
+    {
+    "name": "Brooke Santana",
+    "role": "National",
+    "years_exp": 15,
+    "base_skill": 0.68,
+    "overrate_athletes": 0.05,
+    "tape_grinder": 0.55,
+    "risk_aversion": 0.20,
+    "valuation_multipliers": {
+      "tackling": 1.20, "strength": 1.15, "agility": 1.12, "speed": 1.10,
+      "coverage": 1.18, "press_coverage": 1.12, "route_running": 1.18,
+      "catching": 1.14, "pass_rush": 1.18, "run_defense": 1.16,
+      "throw_accuracy": 1.12, "throw_power": 1.10,
+      "hand_fighting": 1.12, "balance": 1.08,
+      "football_IQ": 1.06,
+
+      "charisma": 0.75, "leadership": 0.85, "kick_accuracy": 0.70, "kick_power": 0.70,
+      "clutch_factor": 0.90, "composure": 0.92, "focus": 0.94, "discipline": 0.95
+    },
+    "estimation_multipliers": {
+      "tackling": 1.03, "strength": 1.02, "coverage": 1.03, "route_running": 1.03,
+      "pass_rush": 1.03, "run_defense": 1.02, "throw_accuracy": 1.02,
+      "charisma": 0.95, "leadership": 0.97, "kick_accuracy": 0.92, "kick_power": 0.92
+    },
+
+    "potential_weight": 0.20
+  },
+
+  {
+    "name": "Evan Cho",
+    "role": "National",
+    "years_exp": 11,
+    "base_skill": 0.80,
+    "overrate_athletes": 0.00,
+    "tape_grinder": 0.45,
+    "risk_aversion": 0.12,
+    "valuation_multipliers": {
+      "football_IQ": 1.10, "decision_making": 1.12, "awareness": 1.08,
+      "discipline": 1.06, "work_ethic": 1.06, "recovery_rate": 1.06, "stamina": 1.05,
+      "speed": 1.03, "agility": 1.03, "strength": 1.03,
+      "focus": 1.04, "composure": 1.04, "balance": 1.04,
+
+      "kick_accuracy": 0.95, "kick_power": 0.95  
+    },
+
+    "estimation_multipliers": {
+      "football_IQ": 1.01, "decision_making": 1.01, "awareness": 1.01,
+      "discipline": 1.00, "work_ethic": 1.00,
+      "charisma": 0.98, "clutch_factor": 0.99
+    },
+
+    "potential_weight": 0.30
+  },
+
+  {
+    "name": "Mina Kovacs",
+    "role": "National",
+    "years_exp": 9,
+    "base_skill": 0.70,
+    "overrate_athletes": -0.05,
+    "tape_grinder": 0.60,
+    "risk_aversion": 0.08,
+    "valuation_multipliers": {
+      "route_running": 1.20, "coverage": 1.18, "tackling": 1.16,
+      "pass_rush": 1.15, "run_defense": 1.15, "hand_fighting": 1.14,
+      "football_IQ": 1.12, "decision_making": 1.10, "awareness": 1.08,
+
+      "vertical_jump": 0.90, "broad_jump": 0.92, "speed": 0.96, "agility": 0.98,
+      "charisma": 0.85, "clutch_factor": 0.93
+    },
+    "estimation_multipliers": {
+      "route_running": 1.03, "coverage": 1.02, "football_IQ": 1.02,
+      "speed": 0.98, "vertical_jump": 0.97, "broad_jump": 0.97
+    },
+
+    "potential_weight": 0.15
+  }
+
+    
   ]
 }
