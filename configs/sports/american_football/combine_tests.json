@@ -13,50 +13,75 @@
       "display": "40-yd Dash (s)",
       "type": "time",
       "inputs": [
-        { "src": "stat", "name": "speed",        "weight": 0.72 },
-        { "src": "stat", "name": "acceleration", "weight": 0.28 }
+        { "src": "stat", "name": "speed",        "weight": 0.80 },
+        { "src": "stat", "name": "acceleration", "weight": 0.20 }
       ],
       "curve": { "mode": "ease_out_quart" },
-      "map":   { "mode": "lerp", "min": 5.55, "max": 4.35, "invert": false },
-      "bounds": { "min": 4.25, "max": 5.90 },
-      "noise": { "dist": "gauss", "sigma": 0.014 },
+      "map":   { "mode": "lerp", "min": 5.55, "max": 4.38, "invert": false },
+      "bounds": { "min": 4.25, "max": 5.80 },
+      "noise": { "dist": "gauss", "sigma": 0.012 },
       "body_adjust": {
         "mode": "time_mass_curve",
-        "anchor_wt": 200.0,
-        "base_per10": 0.014,
-        "extra_per10_over_anchor": 0.012,
+        "anchor_wt": 220.0,
+        "base_per10": 0.020,
+        "extra_per10_over_anchor": 0.015,
         "quad_above_anchor": true,
-        "bonus_per10_under": -0.004
+        "bonus_per10_under": -0.001
       },
       "synergy_bonus": {
         "mode": "time_sec",
-        "speed_thr": 93.0,
-        "accel_thr": 91.0,
-        "scale": 0.024,
-        "weight_full_bonus_at": 188.0,
-        "weight_zero_bonus_at": 208.0
+        "speed_thr": 96.0,
+        "accel_thr": 92.0,
+        "scale": 0.004,
+        "weight_full_bonus_at": 185.0,
+        "weight_zero_bonus_at": 200.0
       },
       "precision": 2
     },
-
+    "ten_yd_split_s": {
+      "display": "10-yd Split (s)",
+      "type": "time",
+      "inputs": [
+        { "src": "stat", "name": "acceleration", "weight": 0.60 },
+        { "src": "stat", "name": "speed",        "weight": 0.40 }
+      ],
+      "curve": { "mode": "ease_out_quart" },
+      "map":   { "mode": "lerp", "min": 1.92, "max": 1.52, "invert": false },
+      "bounds": { "min": 1.48, "max": 2.00 },
+      "noise": { "dist": "gauss", "sigma": 0.008 },
+      "body_adjust": {
+        "mode": "time_mass",
+        "anchor_wt": 210.0,
+        "coef_per_10lb": 0.015
+      },
+      "synergy_bonus": {
+        "mode": "time_sec",
+        "speed_thr": 96.0,
+        "accel_thr": 96.0,
+        "scale": 0.020,
+        "weight_full_bonus_at": 185.0,
+        "weight_zero_bonus_at": 205.0
+      },
+      "precision": 2
+    },
     "twenty_yd_shuttle_s": {
       "display": "20-yd Shuttle (s)",
       "type": "time",
       "inputs": [
-        { "src": "stat", "name": "agility",        "weight": 0.50 },
-        { "src": "stat", "name": "reaction_time",  "weight": 0.30 },
+        { "src": "stat", "name": "agility",        "weight": 0.55 },
+        { "src": "stat", "name": "reaction_time",  "weight": 0.25 },
         { "src": "stat", "name": "balance",        "weight": 0.15 },
         { "src": "stat", "name": "acceleration",   "weight": 0.05 }
       ],
-      "map": { "mode": "lerp", "min": 4.72, "max": 4.05, "invert": false },
-      "bounds": { "min": 3.98, "max": 4.95 },
-      "noise": { "dist": "gauss", "sigma": 0.017 },
+      "map": { "mode": "lerp", "min": 5.05, "max": 4.10, "invert": false },
+      "bounds": { "min": 4.05, "max": 5.05 },
+      "noise": { "dist": "gauss", "sigma": 0.015 },
       "adjust_profile": "time",
       "precision": 2,
       "body_adjust": {
         "mode": "time_mass",
-        "anchor_wt": 200.0,
-        "coef_per_10lb": 0.011
+        "anchor_wt": 220.0,
+        "coef_per_10lb": 0.030
       }
     },
 
@@ -69,15 +94,15 @@
         { "src": "stat", "name": "footwork",       "weight": 0.10 },
         { "src": "stat", "name": "acceleration",   "weight": 0.10 }
       ],
-      "map": { "mode": "lerp", "min": 7.98, "max": 6.65, "invert": false },
-      "bounds": { "min": 6.60, "max": 8.20 },
-      "noise": { "dist": "gauss", "sigma": 0.028 },
+      "map": { "mode": "lerp", "min": 8.25, "max": 6.60, "invert": false },
+      "bounds": { "min": 6.58, "max": 8.25 },
+      "noise": { "dist": "gauss", "sigma": 0.026 },
       "adjust_profile": "time",
       "precision": 2,
       "body_adjust": {
         "mode": "time_mass",
-        "anchor_wt": 200.0,
-        "coef_per_10lb": 0.013
+        "anchor_wt": 225.0,
+        "coef_per_10lb": 0.040
       }
     },
 
@@ -85,19 +110,19 @@
       "display": "Vertical (in)",
       "type": "power",
       "inputs": [
-        { "src": "stat", "name": "strength",      "weight": 0.28 },
-        { "src": "stat", "name": "agility",       "weight": 0.36 },
-        { "src": "stat", "name": "acceleration",  "weight": 0.36 }
+        { "src": "stat", "name": "strength",      "weight": 0.25 },
+        { "src": "stat", "name": "agility",       "weight": 0.30 },
+        { "src": "stat", "name": "acceleration",  "weight": 0.45 }
       ],
-      "map": { "mode": "lerp", "min": 26.0, "max": 42.5, "invert": false },
-      "bounds": { "min": 24.0, "max": 44.5 },
-      "noise": { "dist": "gauss", "sigma": 0.9 },
+      "map": { "mode": "lerp", "min": 25.0, "max": 40.0, "invert": false },
+      "bounds": { "min": 24.0, "max": 42.5 },
+      "noise": { "dist": "gauss", "sigma": 0.85 },
       "adjust_profile": "power",
       "precision": 1,
       "body_adjust": {
         "mode": "power_mass",
-        "anchor_wt": 200.0,
-        "coef_per_10lb": -0.35
+        "anchor_wt": 225.0,
+        "coef_per_10lb": -1.00
       }
     },
 
@@ -105,44 +130,40 @@
       "display": "Broad (in)",
       "type": "power",
       "inputs": [
-        { "src": "stat", "name": "strength",      "weight": 0.28 },
-        { "src": "stat", "name": "acceleration",  "weight": 0.47 },
+        { "src": "stat", "name": "strength",      "weight": 0.25 },
+        { "src": "stat", "name": "acceleration",  "weight": 0.50 },
         { "src": "stat", "name": "agility",       "weight": 0.25 }
       ],
-      "map": { "mode": "lerp", "min": 105.0, "max": 136.0, "invert": false },
-      "bounds": { "min": 98.0, "max": 140.0 },
-      "noise": { "dist": "gauss", "sigma": 1.0 },
+      "map": { "mode": "lerp", "min": 103.0, "max": 133.0, "invert": false },
+      "bounds": { "min": 98.0, "max": 138.0 },
+      "noise": { "dist": "gauss", "sigma": 0.90 },
       "adjust_profile": "power",
       "precision": 0,
       "body_adjust": {
         "mode": "power_mass",
-        "anchor_wt": 200.0,
-        "coef_per_10lb": -0.70
+        "anchor_wt": 225.0,
+        "coef_per_10lb": -1.80
       }
     },
-
     "bench_225_reps": {
       "display": "Bench 225 (reps)",
       "type": "reps",
       "inputs": [
-        { "src": "stat", "name": "strength",       "weight": 0.70 },
-        { "src": "stat", "name": "core_strength",  "weight": 0.20 },
+        { "src": "stat", "name": "strength",       "weight": 0.68 },
+        { "src": "stat", "name": "core_strength",  "weight": 0.22 },
         { "src": "stat", "name": "stamina",        "weight": 0.10 }
       ],
-
       "curve": { "mode": "gamma", "gamma": 1.6 },
-
-      "map":    { "mode": "lerp", "min": 0.0, "max": 32.0, "invert": false },
-      "bounds": { "min": 0.0, "max": 40.0 },
-      "noise":  { "dist": "gauss", "sigma": 0.8 },
+      "map":    { "mode": "lerp", "min": 0.0, "max": 36.0, "invert": false },
+      "bounds": { "min": 0.0, "max": 45.0 },
+      "noise":  { "dist": "gauss", "sigma": 0.70 },
       "adjust_profile": "power",
       "integer": true,
-
       "body_adjust": {
         "mode": "power_mass_asym",
-        "anchor_wt": 225.0,
-        "coef_per_10lb": 0.8,
-        "under_mult": 2.5
+        "anchor_wt": 230.0,
+        "coef_per_10lb": 0.80,
+        "under_mult": 2.0
       }
     }
   }
