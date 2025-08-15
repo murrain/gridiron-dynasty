@@ -65,15 +65,22 @@ func _make_single_player(gaussian_share: float) -> Dictionary:
 	p["position"] = PositionHelper.pick_position(positions_data, class_rules)
 	p["physicals"] = PhysicalsHelper.roll_for_position(p["position"], positions_data)
 	p["stats"] = StatsHelper.roll_all(stats_cfg, p["position"], positions_data, gaussian_share)
+	StatsHelper.apply_defaults(p["stats"], stats_cfg, true)
 	p["tags"] = []
 	return p
 
 ## De-age a class to HS year 1 (threaded wrapper).
-func de_age_players(players: Array, positions: Dictionary, deage_cfg: Dictionary) -> void:
+func de_age_players(
+	players: Array,
+	positions: Dictionary,
+	deage_cfg: Dictionary,
+	stats_cfg: Dictionary
+) -> void:
 	var threads := App.threads_count()
 	var deaged := ThreadPool.map(players, func(p):
-		return DeAger.de_age(p, positions, deage_cfg)
+		return DeAger.de_age(p, positions, deage_cfg, stats_cfg)
 	, threads)
+
 	for i in players.size():
 		players[i] = deaged[i]
 

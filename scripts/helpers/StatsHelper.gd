@@ -40,3 +40,28 @@ static func roll_all(stats_cfg: Dictionary, pos: String, positions_data: Diction
 		var v := _sample_mix(mu, sg, lo, hi, gaussian_share)
 		out[name] = clamp(v, 0.0, 100.0)
 	return out
+
+static func apply_defaults(
+	stats: Dictionary,
+	stats_cfg: Dictionary,
+	only_if_missing: bool = true
+) -> int:
+	var applied := 0
+	if not stats_cfg.has("stats"):
+		return applied
+
+	for s in stats_cfg["stats"]:
+		if not s is Dictionary:
+			continue
+		if not s.has("name") or not s.has("default"):
+			continue
+
+		var name: String = s["name"]
+
+		if only_if_missing and stats.has(name):
+			continue
+
+		stats[name] = s["default"]
+		applied += 1
+
+	return applied

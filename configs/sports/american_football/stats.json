@@ -30,6 +30,7 @@
     { "name": "confidence",        "type": "base", "measurement_difficulty": 0.30 },
     { "name": "aggression",        "type": "base", "measurement_difficulty": 0.40 },
     { "name": "leadership",        "type": "base", "measurement_difficulty": 0.25 },
+    { "name": "loyalty",           "type": "base", "measurement_difficulty": 0.33 },
     { "name": "work_ethic",        "type": "base", "measurement_difficulty": 0.30 },
     { "name": "coachability",      "type": "base", "measurement_difficulty": 0.35 },
     { "name": "focus",             "type": "base", "measurement_difficulty": 0.45 },
@@ -38,11 +39,11 @@
     { "name": "anticipation",      "type": "base", "measurement_difficulty": 0.40 },
     { "name": "football_IQ",       "type": "base", "measurement_difficulty": 0.30 },
 
-    { "name": "morale",            "type": "base", "measurement_difficulty": 0.20, "hidden": true },
+    { "name": "morale",            "type": "base", "measurement_difficulty": 0.20, "hidden": true, "default": "50" },
     { "name": "clutch_factor",     "type": "base", "measurement_difficulty": 0.20, "hidden": true },
     { "name": "charisma",          "type": "base", "measurement_difficulty": 0.50 },
 
-    { "name": "fatigue",           "type": "base", "measurement_difficulty": 0.80, "hidden": true },
+    { "name": "fatigue",           "type": "base", "measurement_difficulty": 0.80, "hidden": true, "default": "100" },
     { "name": "recovery_rate",     "type": "base", "measurement_difficulty": 0.50, "hidden": true },
     { "name": "durability",        "type": "base", "measurement_difficulty": 0.40, "hidden": true },
 

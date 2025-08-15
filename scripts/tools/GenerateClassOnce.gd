@@ -78,7 +78,7 @@ func run() -> void:
 		players[i] = copied[i]
 
 	# 5) de-age (threaded wrapper in generator)
-	gen.de_age_players(players, gen.positions_data, main_cfg.get("deage", {}))
+	gen.de_age_players(players, gen.positions_data, main_cfg.get("deage", {}), stats_cfg)
 
 	# 6) save
 	gen.save_to_json(out_path, players)
