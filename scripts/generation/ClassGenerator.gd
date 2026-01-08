@@ -5,7 +5,8 @@ signal step_started(name: String)
 signal step_finished(name: String)
 signal progress(pct: float, label: String)
 
-const CombineCalculator = preload("res://scripts/rating/CombineCalculator.gd")
+# Recruiting classes are stored 8 years after the "starting_year" baseline.
+const CLASS_YEAR_OFFSET: int = 8
 
 # Public fields (you can set these before calling run())
 var main_cfg: Dictionary
@@ -164,7 +165,7 @@ func _de_age_players(players:Array, positions:Dictionary, deage_cfg:Dictionary, 
 func _save_class_json(players:Array) -> String:
 	var gen := PlayerGenerator.new()
 	var current_year := int(main_cfg.get("starting_year", 2025))
-	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + 8)
+	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
 	gen.save_to_json(out_path, players)
 	return out_path
 
@@ -346,7 +347,7 @@ func _print_scouts_section(player: Dictionary, scouts_cfg: Dictionary, positions
 
 func _print_preview(players:Array, top_n:int) -> void:
 	var current_year := int(main_cfg.get("starting_year", 2025))
-	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + 8)
+	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
 	print("\n✅ Generated %d prospects → %s" % [players.size(), out_path])
 	_print_top_detailed(players, positions_cfg, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, top_n)
 	_print_all_five_stars(players, positions_cfg, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules)

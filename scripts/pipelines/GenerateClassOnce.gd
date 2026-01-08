@@ -16,10 +16,12 @@
 extends Node
 
 const USE_COLOR: bool = true
-const CombineCalculator = preload("res://scripts/rating/CombineCalculator.gd")
+# Recruiting classes are stored 8 years after the "starting_year" baseline.
+const CLASS_YEAR_OFFSET: int = 8
 
 func run() -> void:
-	var all_cfg: Dictionary = Config.get_all()
+	# Force full config load once so downstream lookups are consistent.
+	var _all_cfg: Dictionary = Config.get_all()
 	var main_cfg: Dictionary      = Config.get_config("main")
 	var positions: Dictionary     = Config.get_config("positions")
 	var stats_cfg: Dictionary     = Config.get_config("stats")
@@ -62,7 +64,7 @@ func run() -> void:
 
 	# preview output
 	var current_year := int(main_cfg.get("starting_year", 2025))
-	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + 8)
+	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
 	print("✅ Generated ", players.size(), " prospects → ", out_path)
 
 	_print_top_detailed(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules, 10)

@@ -1,5 +1,5 @@
 @icon("res://icon.svg")
-# res://scripts/models/Player.gd
+# res://scripts/core/models/Player.gd
 extends Resource
 class_name SportPlayer
 

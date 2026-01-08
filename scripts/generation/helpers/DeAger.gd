@@ -1,4 +1,4 @@
-# res://helpers/DeAger.gd
+# res://scripts/generation/helpers/DeAger.gd
 extends Node
 class_name DeAger
 
