@@ -19,7 +19,54 @@ const USE_COLOR: bool = true
 # Recruiting classes are stored 8 years after the "starting_year" baseline.
 const CLASS_YEAR_OFFSET: int = 8
 
+class OutputConfig:
+	extends Resource
+
+	@export var auto_scroll: bool = true
+	@export var append_newline: bool = true
+	@export var clear_on_run: bool = true
+	@export var max_lines: int = 0
+
+@export var output_label_path: NodePath = NodePath("OutputPanel/OutputScroll/OutputText")
+@export var output_config: OutputConfig = OutputConfig.new()
+
+var output_label: RichTextLabel
+
+func _ready() -> void:
+	output_label = get_node_or_null(output_label_path) as RichTextLabel
+	run()
+
+func _emit_output(text: String) -> void:
+	if output_label == null:
+		return
+	var line := text
+	if output_config.append_newline:
+		line += "\n"
+	output_label.append_text(line)
+	_trim_output_lines()
+	if output_config.auto_scroll:
+		output_label.scroll_to_line(output_label.get_line_count())
+
+func _trim_output_lines() -> void:
+	if output_label == null:
+		return
+	if output_config.max_lines <= 0:
+		return
+	var lines := output_label.get_line_count()
+	if lines <= output_config.max_lines:
+		return
+	var excess := lines - output_config.max_lines
+	var buffer := output_label.get_parsed_text().split("\n", false)
+	if excess >= buffer.size():
+		output_label.clear()
+		return
+	buffer = buffer.slice(excess, buffer.size())
+	output_label.clear()
+	output_label.append_text("\n".join(buffer) + "\n")
+
 func run() -> void:
+	if output_label != null and output_config.clear_on_run:
+		output_label.clear()
 	# Force full config load once so downstream lookups are consistent.
 	var _all_cfg: Dictionary = Config.get_all()
 	var main_cfg: Dictionary      = Config.get_config("main")
@@ -65,7 +112,7 @@ func run() -> void:
 	# preview output
 	var current_year := int(main_cfg.get("starting_year", 2025))
 	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
-	print("✅ Generated ", players.size(), " prospects → ", out_path)
+	_emit_output("✅ Generated %d prospects → %s" % [players.size(), out_path])
 
 	_print_top_detailed(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules, 10)
 	_print_all_five_stars(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules)
@@ -174,7 +221,7 @@ func _fmt_stat_block(stats: Dictionary, keys: Array, title: String, per_row: int
 	return _join_array(lines, "\n")
 
 func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> void:
-	print("\n🧪 Combine Results:")
+	_emit_output("\n🧪 Combine Results:")
 	var tests: Dictionary = combine_cfg.get("tests", {}) as Dictionary
 	var items: Array = []
 	for key in tests.keys():
@@ -195,7 +242,7 @@ func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> voi
 			var name_pad := String(cell[0]).lpad(max_name_len)
 			var val_pad := String(cell[1]).rpad(max_val_len)
 			row_str += "%s: %s   " % [name_pad, val_pad]
-		print("   " + row_str.strip_edges())
+		_emit_output("   " + row_str.strip_edges())
 
 func print_player_detailed(
 	p: Dictionary,
@@ -212,9 +259,9 @@ func print_player_detailed(
 	var comp_f := float(p.get("composite_score",0.0))
 	var star_score_f := float(p.get("star_score",0.0))
 
-	print("──────────────────────────────────────────────────────────────────────────────")
-	print("%2d) ★%d  %-24s [%s]    comp:%6.2f   star:%6.2f" % [rank_i, stars_i, name_s, pos_s, comp_f, star_score_f])
-	print("    " + _fmt_physicals(p.get("physicals", {}) as Dictionary))
+	_emit_output("──────────────────────────────────────────────────────────────────────────────")
+	_emit_output("%2d) ★%d  %-24s [%s]    comp:%6.2f   star:%6.2f" % [rank_i, stars_i, name_s, pos_s, comp_f, star_score_f])
+	_emit_output("    " + _fmt_physicals(p.get("physicals", {}) as Dictionary))
 	if p.has("combine"): _print_combine_section(p["combine"], combine_tests_cfg)
 
 	var roles := _collect_role_sets(positions_data, pos_s)
@@ -230,18 +277,18 @@ func print_player_detailed(
 
 	var stats: Dictionary = p.get("stats", {}) as Dictionary
 	var blk_core := _fmt_stat_block(stats, core_keys, "Core", 6)
-	if blk_core != "": print(blk_core)
+	if blk_core != "": _emit_output(blk_core)
 	var blk_sec := _fmt_stat_block(stats, sec_keys, "Secondary", 6)
-	if blk_sec != "": print(blk_sec)
+	if blk_sec != "": _emit_output(blk_sec)
 	var blk_other := _fmt_stat_block(stats, other_keys, "Other", 6)
-	if blk_other != "": print(blk_other)
+	if blk_other != "": _emit_output(blk_other)
 
 	var mentals_avg_f := float(p.get("mentals_avg", 0.0))
 	var tags_arr: Array = p.get("tags", []) as Array
 	if tags_arr.is_empty():
-		print("• Mentals: %5.2f" % mentals_avg_f)
+		_emit_output("• Mentals: %5.2f" % mentals_avg_f)
 	else:
-		print("• Mentals: %5.2f   • Tags: %s" % [mentals_avg_f, ", ".join(tags_arr)])
+		_emit_output("• Mentals: %5.2f   • Tags: %s" % [mentals_avg_f, ", ".join(tags_arr)])
 
 	_print_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules)
 
@@ -251,7 +298,7 @@ func _print_top_detailed(players: Array, positions_data: Dictionary, stats_cfg: 
 		return pos != "K" and pos != "P"
 	)
 	var limit : int = min(top_n, pool.size())
-	print("\n🏆 Top %d (detailed):\n" % limit)
+	_emit_output("\n🏆 Top %d (detailed):\n" % limit)
 	for i in limit:
 		print_player_detailed(pool[i] as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules)
 
@@ -259,7 +306,7 @@ func _print_all_five_stars(players: Array, positions_data: Dictionary, stats_cfg
 	var five := players.filter(func(pp):
 		return int((pp as Dictionary).get("star_rating",0)) == 5
 	)
-	print("\n🌟 All 5★ recruits (%d):\n" % five.size())
+	_emit_output("\n🌟 All 5★ recruits (%d):\n" % five.size())
 	for p in five:
 		print_player_detailed(p as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules)
 
@@ -267,7 +314,7 @@ func _print_scouts_section(player: Dictionary, scouts_cfg: Dictionary, positions
 	var scouts: Array = (scouts_cfg.get("national_scouts", []) as Array)
 	if scouts.is_empty():
 		return
-	print("\n🕵️ What the scouts say:")
+	_emit_output("\n🕵️ What the scouts say:")
 	var cells: Array = []
 	for s in scouts:
 		var scout: Dictionary = s as Dictionary
@@ -276,7 +323,4 @@ func _print_scouts_section(player: Dictionary, scouts_cfg: Dictionary, positions
 		var score := ScoutRuntime.score_player(scout, player, positions_data, stats_cfg, class_rules)
 		cells.append("%s: %.2f" % [scout_name, score])
 	for i in range(0, cells.size(), 5):
-		print("   " + "   ".join(cells.slice(i, i + 5)))
-
-func _ready() -> void:
-	run()
+		_emit_output("   " + "   ".join(cells.slice(i, i + 5)))
