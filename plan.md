@@ -39,18 +39,48 @@ HS → college → NFL.
 **Agent: Architect**
 1. Define the phase order and boundaries for a yearly cycle:
    - HS season → recruiting → college season → draft prep → NFL draft.
-2. Approve the minimal interface for a scheduler (inputs/outputs).
+2. Specify the minimal scheduler interface and data contracts:
+   - Input: year index, world state handle, RNG seed tuple.
+   - Output: ordered list of phase descriptors with explicit phase ids,
+     start/end boundaries, and seed lineage.
+   - Define a stable phase id naming scheme (e.g., `hs_season`,
+     `hs_recruiting`, `college_season`, `draft_prep`, `nfl_draft`).
+3. Define logging/trace expectations for phase boundaries:
+   - Each phase must emit start/end with year + phase id + seed used.
+   - Ensure phase logs allow re-running a single phase deterministically.
+4. Document how phases map to existing pipeline steps:
+   - Identify existing generators or lifecycle steps used in Phase 1.
+   - Note which steps are placeholders vs. implemented.
+5. Mark architecture-impacting risks or open questions:
+   - e.g., how to represent phase outputs without coupling to UI.
+6. Status: Complete (Architect).
 
 **Agent: Engineer**
 1. Add a calendar config (e.g., `configs/world/calendar.json`) that
    includes HS generation, HS season, and HS assignment steps per year.
-2. Implement `scripts/world/WorldCalendar.gd` to emit ordered phases.
-3. Implement `scripts/pipelines/AdvanceWorldYear.gd` to execute phases.
-4. Ensure RNG seeding is explicit and recorded per phase.
+2. Define calendar schema in config with explicit phase ids and ordering:
+   - Include optional metadata fields for future phases (college/nfl).
+   - Keep the schema minimal and deterministic (no computed defaults).
+3. Implement `scripts/world/WorldCalendar.gd` to:
+   - Load calendar config and validate required fields.
+   - Emit ordered phase descriptors with year context.
+4. Implement `scripts/pipelines/AdvanceWorldYear.gd` to:
+   - Accept world state + seed input.
+   - Iterate phases, calling phase handlers by id.
+   - Record per-phase seed derivations and outputs.
+   - Return a structured summary (phase id, seed used, outputs).
+5. Add placeholder phase handlers for non-Phase1 steps:
+   - No-op handlers with explicit TODOs and determinism notes.
+6. Ensure RNG seeding is explicit and recorded per phase:
+   - Derive per-phase seeds from the year seed.
+   - Persist seeds in logs or structured outputs.
 
 **Agent: Review**
-1. Verify scheduler interfaces are deterministic and modular.
+1. Verify scheduler interfaces are deterministic and modular:
+   - Phase ordering stable for fixed config.
+   - Phase handlers are pure-ish with explicit inputs/outputs.
 2. Confirm no simulation logic is hidden inside UI or tooling.
+3. Validate seed derivation is explicit and auditable in logs/outputs.
 
 ---
 
