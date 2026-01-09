@@ -32,6 +32,41 @@ current draft class generation + de-age flow as the HS baseline.
 
 ---
 
+## Phase 0.5: Deterministic generation + bootstrap alignment
+**Goal:** Remove global RNG usage in class/scout generation and ensure
+bootstrap flows are fully seed-driven for reproducibility.
+
+**Agent: Engineer**
+1. Refactor draft class generators to accept explicit seeds/RNG:
+   - `scripts/generation/DraftClassGenerator.gd`
+   - `scripts/generation/ClassGenerator.gd`
+   - Replace `seed()/randomize()` usage with passed seed inputs.
+2. Make per-thread seeds deterministic from a single seed input:
+   - `scripts/generation/PlayerGenerator.gd`
+   - Replace `randi()/randf_range()/randfn()` with `RandomNumberGenerator`.
+   - Ensure combine and freak assignment use derived RNGs.
+3. Thread RNG through de-aging and stat helpers:
+   - `scripts/generation/helpers/DeAger.gd`
+   - `scripts/generation/StatHelpers.gd`
+   - Require RNG inputs (no fallback to global RNG).
+4. Make scout creation deterministic:
+   - `scripts/generation/ScoutFactory.gd`
+   - Accept RNG in `create_random_scout`.
+   - Avoid `rng.randomize()` defaults in team scout creation unless
+     explicitly called from tooling.
+5. Align bootstrap pipeline with deterministic seeds:
+   - `scripts/pipelines/BootstrapWorld.gd`
+   - Derive per-class and per-advance seeds from base seed + year.
+   - Pass RNG explicitly to `PlayerLifecycle.advance_years`.
+6. Record seed lineage in outputs or logs for the above pipelines.
+
+**Agent: Review**
+1. Verify no generation/scouting paths depend on global RNG calls.
+2. Confirm seed lineage is explicit and auditable in logs/outputs.
+3. Check threading paths for deterministic seed derivation.
+
+---
+
 ## Phase 1: World calendar + phase scheduler
 **Goal:** Create a deterministic year-by-year orchestration layer for
 HS → college → NFL.
