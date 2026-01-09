@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "phases": [
+    {
+      "id": "hs_generation",
+      "label": "HS generation",
+      "start_tick": 0,
+      "end_tick": 0,
+      "tags": ["hs"],
+      "placeholder": false
+    },
+    {
+      "id": "hs_season",
+      "label": "HS season",
+      "start_tick": 1,
+      "end_tick": 1,
+      "tags": ["hs"],
+      "placeholder": false
+    },
+    {
+      "id": "hs_assignment",
+      "label": "HS assignment",
+      "start_tick": 2,
+      "end_tick": 2,
+      "tags": ["hs"],
+      "placeholder": false
+    },
+    {
+      "id": "college_season",
+      "label": "College season",
+      "start_tick": 3,
+      "end_tick": 3,
+      "tags": ["college"],
+      "placeholder": true
+    },
+    {
+      "id": "draft_prep",
+      "label": "Draft prep",
+      "start_tick": 4,
+      "end_tick": 4,
+      "tags": ["nfl"],
+      "placeholder": true
+    },
+    {
+      "id": "nfl_draft",
+      "label": "NFL draft",
+      "start_tick": 5,
+      "end_tick": 5,
+      "tags": ["nfl"],
+      "placeholder": true
+    }
+  ]
+}
