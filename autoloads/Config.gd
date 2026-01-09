@@ -132,25 +132,50 @@ func reload_engine_cfg() -> void:
 ## Number of worker threads to use. Defaults to 1/core up to 8 when <= 0.
 func threads_count() -> int:
 	var eg := engine_cfg()
-	var val := 0
+	var cores: int = max(1, OS.get_processor_count())
+	var max_cap: int = 8
+	var desired: int = 0
 	if eg.has("threads"):
-		val = int(eg["threads"])
-	if val <= 0:
-		var cores: int = max(1, OS.get_processor_count())
-		val = min(cores, 8)
-	return val
+		var raw := eg["threads"]
+		if typeof(raw) == TYPE_DICTIONARY:
+			var cfg := raw as Dictionary
+			desired = int(cfg.get("count", 0))
+			max_cap = int(cfg.get("max", max_cap))
+		else:
+			desired = int(raw)
+	if desired <= 0:
+		return min(cores, max_cap)
+	return min(desired, max_cap)
 
 ## Update threads in-memory (runtime only). Call save_engine_threads() to persist.
 func set_threads_runtime(n: int) -> void:
 	var eg := engine_cfg().duplicate(true)
-	eg["threads"] = clamp(n, 1, min(OS.get_processor_count(), 8))
+	var max_cap: int = 8
+	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
+		max_cap = int((eg["threads"] as Dictionary).get("max", max_cap))
+	var clamped := clamp(n, 1, min(OS.get_processor_count(), max_cap))
+	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
+		var cfg := (eg["threads"] as Dictionary).duplicate(true)
+		cfg["count"] = clamped
+		eg["threads"] = cfg
+	else:
+		eg["threads"] = clamped
 	_engine_cache = eg
 	engine = eg
 
 ## Persist thread count to user://engine.json and refresh cache.
 func save_engine_threads(n: int) -> void:
 	var eg := engine_cfg().duplicate(true)
-	eg["threads"] = clamp(n, 1, min(OS.get_processor_count(), 8))
+	var max_cap: int = 8
+	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
+		max_cap = int((eg["threads"] as Dictionary).get("max", max_cap))
+	var clamped := clamp(n, 1, min(OS.get_processor_count(), max_cap))
+	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
+		var cfg := (eg["threads"] as Dictionary).duplicate(true)
+		cfg["count"] = clamped
+		eg["threads"] = cfg
+	else:
+		eg["threads"] = clamped
 
 	var f := FileAccess.open(USER_ENGINE_CFG_PATH, FileAccess.WRITE)
 	if f != null:

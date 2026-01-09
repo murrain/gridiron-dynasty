@@ -5,12 +5,23 @@ class_name PhysicalsHelper
 ## Expects positions_data[pos].physicals like:
 ## { "height_in": {"mu": 74, "sigma": 1.5, "min": 68, "max": 80}, ... }
 
-static func _sample_gauss(mu: float, sigma: float, lo: float, hi: float) -> float:
+static func _sample_gauss(
+	mu: float,
+	sigma: float,
+	lo: float,
+	hi: float,
+	rng: RandomNumberGenerator = null
+) -> float:
 	if sigma <= 0.0:
 		return clamp(mu, lo, hi)
-	return clamp(mu + randfn(0.0, sigma), lo, hi)
+	var noise: float = rng.randfn(0.0, sigma) if rng != null else randfn(0.0, sigma)
+	return clamp(mu + noise, lo, hi)
 
-static func roll_for_position(pos: String, positions_data: Dictionary) -> Dictionary:
+static func roll_for_position(
+	pos: String,
+	positions_data: Dictionary,
+	rng: RandomNumberGenerator = null
+) -> Dictionary:
 	var out: Dictionary = {}
 	var pdef: Dictionary = positions_data.get(pos, {}) as Dictionary
 	var phys: Dictionary = pdef.get("physicals", {}) as Dictionary
@@ -20,5 +31,5 @@ static func roll_for_position(pos: String, positions_data: Dictionary) -> Dictio
 		var sigma := float(d.get("sigma", 0.0))
 		var lo := float(d.get("min", -1e9))
 		var hi := float(d.get("max",  1e9))
-		out[key] = _sample_gauss(mu, sigma, lo, hi)
+		out[key] = _sample_gauss(mu, sigma, lo, hi, rng)
 	return out
