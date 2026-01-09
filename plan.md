@@ -87,6 +87,8 @@ HS → college → NFL.
 ## Phase 2: High-school generation + progression + assignment
 **Goal:** Build HS schools with varied eliteness, assign players, and
 advance them year-by-year with explicit eligibility rules.
+**Implementation note:** Phase 2 requires new HS config defaults and
+world-state containers; add them if missing before wiring handlers.
 
 **Agent: Engineer**
 1. Add HS fields to player dictionaries:
