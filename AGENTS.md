@@ -58,10 +58,10 @@ Design and protect the long-term structure of the simulation.
 - Changes to persistence formats
 - Reordering or redefining the simulation pipeline
 
-### 2. Simulation Engineer Agent
+### 2. Engineer Agent
 
 **Primary Goal:**
-Implement simulation logic that is correct, extensible, and testable.
+Implement game systems and simulation logic that are correct, extensible, and testable.
 
 **Responsibilities:**
 - Implement player, team, game, and season simulation
@@ -77,22 +77,7 @@ Implement simulation logic that is correct, extensible, and testable.
 - RNG must be passed explicitly (no global state).
 - Seeds must be logged or persisted at simulation boundaries.
 
-### 3. Content Generation Agent
-
-**Primary Goal:**
-Generate believable football world data.
-
-**Responsibilities:**
-- Draft class generation (multi-year)
-- Player attribute distributions
-- Coach and scout profiles
-- Naming, background data, and tendencies
-
-**Must NOT:**
-- Embed simulation logic
-- Make balance decisions without review
-
-### 4. Code Review Agent
+### 3. Review Agent
 
 **Primary Goal:**
 Protect code quality and project coherence.
@@ -109,33 +94,6 @@ Protect code quality and project coherence.
 **Must NOT:**
 - Approve PRs solely because “it works”
 - Rewrite entire systems unless necessary
-
-### 5. Commit & PR Hygiene Agent
-
-**Primary Goal:**
-Maintain a high-signal project history.
-
-**Responsibilities:**
-- Review commit messages for clarity and intent
-- Enforce structured, descriptive PR descriptions
-- Ensure commits explain:
-  - What changed
-  - Why it changed
-  - What assumptions were made
-- Encourage small, logically grouped commits
-
-**Commit style expectations:**
-- Informative, technical, and precise
-- Inspired by Fabrice Bellard–style commits
-- Avoid vague messages like:
-  - “fix stuff”
-  - “cleanup”
-  - “wip”
-
-**Examples:**
-- “draft: isolate player aging into pure step”
-- “rng: seed injected into season sim”
-- “sim: document retirement thresholds”
 
 ## General Purpose Agent
 
@@ -191,7 +149,7 @@ Include the following in PR descriptions:
 
 If agents disagree:
 - The Architect Agent has final say on structure.
-- The Simulation Engineer Agent has final say on correctness.
+- The Engineer Agent has final say on correctness.
 - If still uncertain, document and defer.
 
 ## Review Checklist (For All PRs)
