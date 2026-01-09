@@ -220,3 +220,8 @@ If forced to choose:
 Fewer features, well designed
 beats
 Many features, poorly understood
+
+## Additional References
+
+Commit message requirements live in `COMMIT_STYLE.md` at the repository root.
+All agents and contributors are expected to follow it.
