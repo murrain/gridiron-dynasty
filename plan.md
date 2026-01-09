@@ -208,6 +208,43 @@ world-state containers; add them if missing before wiring handlers.
 
 ---
 
+## Phase 2.5: Determinism cleanup for generation + lifecycle backfill
+**Goal:** Close remaining Phase 0.5 determinism gaps before Phase 3
+work so generation and lifecycle steps are fully seed-driven.
+
+**Agent: Engineer**
+1. Remove global RNG usage in class generation + helpers:
+   - `scripts/generation/DraftClassGenerator.gd`
+   - `scripts/generation/ClassGenerator.gd`
+   - `scripts/generation/PlayerGenerator.gd`
+   - `scripts/generation/helpers/DeAger.gd`
+   - `scripts/generation/helpers/NamesHelper.gd`
+   - `scripts/generation/helpers/PositionHelper.gd`
+   - `scripts/generation/helpers/StatsHelper.gd`
+   - `scripts/generation/helpers/PhysicalsHelper.gd`
+2. Thread explicit RNG through scout generation:
+   - `scripts/generation/ScoutFactory.gd`
+   - Ensure `create_random_scout` accepts RNG input with no implicit
+     `randomize()` defaults.
+3. Make player lifecycle RNG mandatory (no implicit randomize):
+   - `scripts/world/PlayerLifecycle.gd`
+   - Require RNG inputs for `advance_years` and `advance_one_year`.
+4. Align bootstrap and one-off generation scripts with explicit seeds:
+   - `scripts/pipelines/BootstrapWorld.gd`
+   - `scripts/pipelines/GenerateClassOnce.gd`
+   - Ensure seed lineage is logged and derived from config + year.
+5. Preserve deterministic per-thread seed derivation:
+   - Replace `randi()` fan-out with derived seeds from a parent RNG.
+   - Document the seed derivation method in comments (why chosen).
+
+**Agent: Review**
+1. Audit for any remaining `randomize()` or global RNG calls in
+   generation/scouting/lifecycle code paths.
+2. Confirm seed lineage is explicit and logged for generation and
+   bootstrap flows.
+
+---
+
 ## Phase 3: College generation + recruiting pipeline
 **Goal:** Generate colleges, then turn HS recruits into college
 commitments deterministically.
