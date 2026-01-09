@@ -45,24 +45,15 @@ HS → college → NFL.
      start/end boundaries, and seed lineage.
    - Define a stable phase id naming scheme (e.g., `hs_season`,
      `hs_recruiting`, `college_season`, `draft_prep`, `nfl_draft`).
-   - Provide a compact phase descriptor example (keys + types) so
-     engineers can implement without guessing shape.
 3. Define logging/trace expectations for phase boundaries:
    - Each phase must emit start/end with year + phase id + seed used.
    - Ensure phase logs allow re-running a single phase deterministically.
-   - Clarify whether logs live in memory, file output, or a world ledger.
 4. Document how phases map to existing pipeline steps:
    - Identify existing generators or lifecycle steps used in Phase 1.
    - Note which steps are placeholders vs. implemented.
-   - Call out any required adapters between legacy generators and phases.
 5. Mark architecture-impacting risks or open questions:
    - e.g., how to represent phase outputs without coupling to UI.
-   - Decide if phase outputs should be immutable snapshots or mutable
-     world-state diffs and document the rationale.
-6. Provide guidance on phase boundaries for determinism:
-   - Specify if RNG derivation should be hierarchical (year → phase → step).
-   - Confirm whether phase handlers may mutate world state in-place.
-7. Status: Complete (Architect).
+6. Status: Complete (Architect).
 
 **Agent: Engineer**
 1. Add a calendar config (e.g., `configs/world/calendar.json`) that
