@@ -5,7 +5,7 @@ signal step_started(name: String)
 signal step_finished(name: String)
 signal progress(pct: float, label: String)
 
-# Recruiting classes are stored 8 years after the "starting_year" baseline.
+# Recruiting classes are stored after the "starting_year" baseline.
 const CLASS_YEAR_OFFSET: int = 8
 
 # Public fields (you can set these before calling run())
@@ -165,7 +165,8 @@ func _de_age_players(players:Array, positions:Dictionary, deage_cfg:Dictionary, 
 func _save_class_json(players:Array) -> String:
 	var gen := PlayerGenerator.new()
 	var current_year := int(main_cfg.get("starting_year", 2025))
-	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
+	var offset := int(main_cfg.get("draft_class_year_offset", CLASS_YEAR_OFFSET))
+	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + offset)
 	gen.save_to_json(out_path, players)
 	return out_path
 

@@ -164,23 +164,7 @@ func _build_scouts_from_config() -> void:
 	for d in list:
 		var row: Dictionary = d as Dictionary
 		var s := Scout.new()
-		_apply_scout_dict(s, row)
+		ScoutFactory.apply_scout_dict(s, row)
 		# Important: two-arg setup as per your Scout.gd
 		s.setup(_stats_cfg, defaults)
 		_scouts_built.append(s)
-
-func _apply_scout_dict(s: Scout, row: Dictionary) -> void:
-	if row.has("name"): s.name = String(row["name"])
-	if row.has("role"): s.role = String(row["role"])
-	if row.has("years_exp"): s.years_exp = int(row["years_exp"])
-
-	if row.has("base_skill"): s.base_skill = float(row["base_skill"])
-	if row.has("overrate_athletes"): s.overrate_athletes = float(row["overrate_athletes"])
-	if row.has("tape_grinder"): s.tape_grinder = float(row["tape_grinder"])
-	if row.has("risk_aversion"): s.risk_aversion = float(row["risk_aversion"])
-
-	if row.has("stat_skill"): s.stat_skill = (row["stat_skill"] as Dictionary).duplicate(true)
-	if row.has("valuation_multipliers"): s.valuation_multipliers = (row["valuation_multipliers"] as Dictionary).duplicate(true)
-	if row.has("estimation_multipliers"): s.estimation_multipliers = (row["estimation_multipliers"] as Dictionary).duplicate(true)
-	if row.has("stat_bias_mean"): s.stat_bias_mean = (row["stat_bias_mean"] as Dictionary).duplicate(true)
-	if row.has("stat_bias_sigma"): s.stat_bias_sigma = (row["stat_bias_sigma"] as Dictionary).duplicate(true)

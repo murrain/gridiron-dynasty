@@ -3,6 +3,8 @@ class_name ScoutFactory
 
 var stats_cfg: Dictionary
 var scouts_cfg: Dictionary
+const _MULT_MIN: float = 0.5
+const _MULT_MAX: float = 1.5
 
 func setup(stats_cfg_in: Dictionary, scouts_cfg_in: Dictionary) -> void:
 	stats_cfg = stats_cfg_in
@@ -91,6 +93,119 @@ func create_random_scout(name_hint: String = "Regional Scout") -> Resource:
 	s.setup(stats_cfg, {"sigma_min":1.0,"sigma_max":12.0,"quality_floor":0.15,"bounded_min":0.0,"bounded_max":100.0})
 
 	return s
+
+func create_team_scouts(team_name: String, count: int = 3, rng: RandomNumberGenerator = null) -> Array:
+	var scouts: Array = []
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.randomize()
+
+	var defaults: Dictionary = scouts_cfg.get("defaults", {}) as Dictionary
+	var templates: Array = scouts_cfg.get("national_scouts", []) as Array
+	var archetypes: Array = scouts_cfg.get("team_archetypes", []) as Array
+
+	for i in range(count):
+		var template: Dictionary = templates[rng.randi_range(0, templates.size() - 1)] if not templates.is_empty() else {}
+		var scout := Scout.new()
+		apply_scout_dict(scout, template)
+		scout.role = "Team"
+		if scout.name == "Scout":
+			scout.name = "%s Scout %d" % [team_name, i + 1]
+		else:
+			scout.name = "%s - %s" % [team_name, scout.name]
+
+		if not archetypes.is_empty():
+			var archetype: Dictionary = archetypes[rng.randi_range(0, archetypes.size() - 1)] as Dictionary
+			_apply_archetype(scout, archetype)
+
+		_jitter_multipliers(scout.valuation_multipliers, rng)
+		_jitter_multipliers(scout.estimation_multipliers, rng)
+		_normalize_bucket_weights(scout.bucket_weights)
+
+		scout.setup(stats_cfg, defaults)
+		scouts.append(scout)
+
+	return scouts
+
+static func apply_scout_dict(s: Scout, row: Dictionary) -> void:
+	if row.has("name"): s.name = String(row["name"])
+	if row.has("role"): s.role = String(row["role"])
+	if row.has("years_exp"): s.years_exp = int(row["years_exp"])
+
+	if row.has("base_skill"): s.base_skill = float(row["base_skill"])
+	if row.has("overrate_athletes"): s.overrate_athletes = float(row["overrate_athletes"])
+	if row.has("tape_grinder"): s.tape_grinder = float(row["tape_grinder"])
+	if row.has("risk_aversion"): s.risk_aversion = float(row["risk_aversion"])
+
+	if row.has("stat_skill"): s.stat_skill = (row["stat_skill"] as Dictionary).duplicate(true)
+	if row.has("valuation_multipliers"): s.valuation_multipliers = (row["valuation_multipliers"] as Dictionary).duplicate(true)
+	if row.has("estimation_multipliers"): s.estimation_multipliers = (row["estimation_multipliers"] as Dictionary).duplicate(true)
+	if row.has("stat_bias_mean"): s.stat_bias_mean = (row["stat_bias_mean"] as Dictionary).duplicate(true)
+	if row.has("stat_bias_sigma"): s.stat_bias_sigma = (row["stat_bias_sigma"] as Dictionary).duplicate(true)
+	if row.has("pos_bias_pts"): s.pos_bias_pts = (row["pos_bias_pts"] as Dictionary).duplicate(true)
+
+	if row.has("bucket_weights"):
+		s.bucket_weights = (row["bucket_weights"] as Dictionary).duplicate(true)
+
+	if row.has("current_vs_potential"):
+		var cvp: Dictionary = row["current_vs_potential"] as Dictionary
+		if cvp.has("current_weight"): s.current_weight = float(cvp["current_weight"])
+		if cvp.has("potential_weight"): s.potential_weight = float(cvp["potential_weight"])
+		if cvp.has("jitter_sigma"): s.weight_jitter_sigma = float(cvp["jitter_sigma"])
+	elif row.has("potential_weight"):
+		s.potential_weight = float(row["potential_weight"])
+		s.current_weight = clamp(1.0 - s.potential_weight, 0.55, 0.95)
+
+	if row.has("grade_calibration"):
+		var gc: Dictionary = row["grade_calibration"] as Dictionary
+		if gc.has("offset"): s.board_offset_pts = float(gc["offset"])
+		if gc.has("slope"): s.board_slope = float(gc["slope"])
+		if gc.has("noise_sigma"): s.board_noise_sigma = float(gc["noise_sigma"])
+
+	if row.has("board_offset_pts"): s.board_offset_pts = float(row["board_offset_pts"])
+	if row.has("board_slope"): s.board_slope = float(row["board_slope"])
+	if row.has("board_noise_sigma"): s.board_noise_sigma = float(row["board_noise_sigma"])
+
+func _apply_archetype(scout: Scout, archetype: Dictionary) -> void:
+	if archetype.has("bucket_weights"):
+		scout.bucket_weights = (archetype["bucket_weights"] as Dictionary).duplicate(true)
+	if archetype.has("valuation_multipliers"):
+		scout.valuation_multipliers = _merge_multipliers(
+			scout.valuation_multipliers,
+			archetype["valuation_multipliers"] as Dictionary
+		)
+	if archetype.has("estimation_multipliers"):
+		scout.estimation_multipliers = _merge_multipliers(
+			scout.estimation_multipliers,
+			archetype["estimation_multipliers"] as Dictionary
+		)
+	if archetype.has("pos_bias_pts"):
+		scout.pos_bias_pts = (archetype["pos_bias_pts"] as Dictionary).duplicate(true)
+	if archetype.has("name"):
+		scout.name = "%s (%s)" % [scout.name, String(archetype["name"])]
+
+func _merge_multipliers(base: Dictionary, extra: Dictionary) -> Dictionary:
+	var out := base.duplicate(true)
+	for k in extra.keys():
+		var mult := float(extra[k])
+		var curr := float(out.get(k, 1.0))
+		out[k] = clamp(curr * mult, _MULT_MIN, _MULT_MAX)
+	return out
+
+func _jitter_multipliers(mults: Dictionary, rng: RandomNumberGenerator) -> void:
+	for k in mults.keys():
+		var curr := float(mults[k])
+		var jitter := rng.randf_range(0.97, 1.03)
+		mults[k] = clamp(curr * jitter, _MULT_MIN, _MULT_MAX)
+
+func _normalize_bucket_weights(weights: Dictionary) -> void:
+	var total := 0.0
+	for v in weights.values():
+		total += float(v)
+	if total <= 0.0:
+		return
+	for k in weights.keys():
+		weights[k] = float(weights[k]) / total
 
 # --- helpers ---
 

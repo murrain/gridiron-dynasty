@@ -69,6 +69,39 @@
     }
   },
 
+  "team_archetypes": [
+    {
+      "name": "Speed First",
+      "bucket_weights": { "athletic": 0.52, "core": 0.24, "secondary": 0.14, "mentals": 0.10 },
+      "valuation_multipliers": { "speed": 1.12, "acceleration": 1.08, "agility": 1.06, "vertical_jump": 1.05 }
+    },
+    {
+      "name": "Edge Technician",
+      "bucket_weights": { "athletic": 0.36, "core": 0.36, "secondary": 0.18, "mentals": 0.10 },
+      "valuation_multipliers": { "pass_rush": 1.12, "hand_fighting": 1.10, "shedding_blocks": 1.06, "strength": 1.03 }
+    },
+    {
+      "name": "Ball Hawks",
+      "bucket_weights": { "athletic": 0.40, "core": 0.28, "secondary": 0.20, "mentals": 0.12 },
+      "valuation_multipliers": { "coverage": 1.12, "press_coverage": 1.08, "anticipation": 1.06, "reaction_time": 1.05 }
+    },
+    {
+      "name": "Trench Power",
+      "bucket_weights": { "athletic": 0.32, "core": 0.42, "secondary": 0.16, "mentals": 0.10 },
+      "valuation_multipliers": { "strength": 1.12, "run_defense": 1.08, "tackling": 1.06, "balance": 1.04 }
+    },
+    {
+      "name": "QB Processors",
+      "bucket_weights": { "athletic": 0.30, "core": 0.38, "secondary": 0.18, "mentals": 0.14 },
+      "valuation_multipliers": { "football_IQ": 1.12, "decision_making": 1.10, "anticipation": 1.06, "throw_accuracy": 1.05 }
+    },
+    {
+      "name": "Culture Builders",
+      "bucket_weights": { "athletic": 0.30, "core": 0.30, "secondary": 0.18, "mentals": 0.22 },
+      "valuation_multipliers": { "work_ethic": 1.12, "coachability": 1.10, "discipline": 1.06, "focus": 1.05 }
+    }
+  ],
+
   "national_scouts": [
     {
       "name": "Alex Rivers",
