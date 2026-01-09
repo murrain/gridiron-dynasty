@@ -10,6 +10,27 @@
     "annual_base_progress_min": 1.0,
     "annual_base_progress_max": 4.0,
     "annual_progress_cap": 6.0,
+    "development": {
+        "prime_growth_min": 0.2,
+        "prime_growth_max": 0.8,
+        "decline_min": 0.4,
+        "decline_max": 1.6,
+        "curve_multipliers": {
+            "early": { "growth": 1.1, "prime": 0.45, "decline": 1.15 },
+            "mid": { "growth": 1.0, "prime": 0.35, "decline": 1.0 },
+            "late": { "growth": 0.9, "prime": 0.30, "decline": 0.85 }
+        }
+    },
+    "retirement": {
+        "min_age": 27,
+        "soft_cap_age": 33,
+        "max_age": 40,
+        "base_chance": 0.02,
+        "age_chance_per_year": 0.04,
+        "low_rating_threshold": 55.0,
+        "low_rating_boost": 0.08
+    },
+    "draft_class_year_offset": 8,
     "deage": {
         "core_pct_min": 0.6,
         "core_pct_max": 0.75,
