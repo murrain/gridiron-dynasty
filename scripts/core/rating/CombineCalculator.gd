@@ -7,7 +7,12 @@ class_name CombineCalculator
 ## - combine_cfg is your main.json["combine_tuning"] (optional) for context adjustments
 ##
 
-static func compute_all(player: Dictionary, combine_cfg: Dictionary, tests_cfg: Dictionary) -> Dictionary:
+static func compute_all(
+	player: Dictionary,
+	combine_cfg: Dictionary,
+	tests_cfg: Dictionary,
+	rng: RandomNumberGenerator = null
+) -> Dictionary:
 	var out: Dictionary = {}
 	var defaults: Dictionary = tests_cfg.get("defaults", {}) as Dictionary
 	var tests: Dictionary = tests_cfg.get("tests", {}) as Dictionary
@@ -16,7 +21,7 @@ static func compute_all(player: Dictionary, combine_cfg: Dictionary, tests_cfg: 
 
 	for key in tests.keys():
 		var test_cfg: Dictionary = (tests[key] as Dictionary).duplicate(true)
-		out[key] = _compute_single(player, test_cfg, defaults, combine_cfg)
+		out[key] = _compute_single(player, test_cfg, defaults, combine_cfg, rng)
 
 	return out
 
@@ -24,7 +29,13 @@ static func compute_all(player: Dictionary, combine_cfg: Dictionary, tests_cfg: 
 # -----------------------------
 # Core per-test computation
 # -----------------------------
-static func _compute_single(player: Dictionary, test_cfg: Dictionary, defaults: Dictionary, combine_cfg: Dictionary) -> float:
+static func _compute_single(
+	player: Dictionary,
+	test_cfg: Dictionary,
+	defaults: Dictionary,
+	combine_cfg: Dictionary,
+	rng: RandomNumberGenerator = null
+) -> float:
 	# Merge defaults in (test fields win)
 	var cfg: Dictionary = _merged_with_defaults(test_cfg, defaults)
 
@@ -36,7 +47,7 @@ static func _compute_single(player: Dictionary, test_cfg: Dictionary, defaults: 
 	var value: float = _map_scalar_to_output(t, cfg)
 
 	# 3) Add stochastic noise
-	value = _apply_noise(value, cfg)
+	value = _apply_noise(value, cfg, rng)
 
 	# 4) Apply body/position adjustments (mass-aware)
 	value = _apply_body_adjust(player, value, cfg)
@@ -163,13 +174,13 @@ static func _map_scalar_to_output(t: float, cfg: Dictionary) -> float:
 		s = 1.0 - s
 	return lerp(min_v, max_v, s)
 
-static func _apply_noise(value: float, cfg: Dictionary) -> float:
+static func _apply_noise(value: float, cfg: Dictionary, rng: RandomNumberGenerator = null) -> float:
 	var noise: Dictionary = cfg.get("noise", {}) as Dictionary
 	var dist: String = String(noise.get("dist","none"))
 	if dist == "gauss":
 		var sigma: float = float(noise.get("sigma", 0.0))
 		if sigma > 0.0:
-			value += StatHelpers.gaussian(0.0, sigma)
+			value += StatHelpers.gaussian(0.0, sigma, rng)
 	return value
 
 

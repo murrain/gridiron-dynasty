@@ -5,19 +5,40 @@ class_name StatsHelper
 ## Uses per-position overrides when available in positions_data[pos].distributions[stat].
 ## Fallback to stats_cfg.stats[*] defaults (expects {name, mu, sigma, min, max}).
 
-static func _sample_gauss(mu: float, sigma: float, lo: float, hi: float) -> float:
+static func _sample_gauss(
+	mu: float,
+	sigma: float,
+	lo: float,
+	hi: float,
+	rng: RandomNumberGenerator = null
+) -> float:
 	if sigma <= 0.0:
 		return clamp(mu, lo, hi)
-	return clamp(mu + randfn(0.0, sigma), lo, hi)
+	var noise: float = rng.randfn(0.0, sigma) if rng != null else randfn(0.0, sigma)
+	return clamp(mu + noise, lo, hi)
 
-static func _sample_mix(mu: float, sigma: float, lo: float, hi: float, gaussian_share: float) -> float:
+static func _sample_mix(
+	mu: float,
+	sigma: float,
+	lo: float,
+	hi: float,
+	gaussian_share: float,
+	rng: RandomNumberGenerator = null
+) -> float:
 	gaussian_share = clamp(gaussian_share, 0.0, 1.0)
-	if randf() < gaussian_share:
-		return _sample_gauss(mu, sigma, lo, hi)
+	var roll: float = rng.randf() if rng != null else randf()
+	if roll < gaussian_share:
+		return _sample_gauss(mu, sigma, lo, hi, rng)
 	# light uniform tail for outliers
-	return randf_range(lo, hi)
+	return rng.randf_range(lo, hi) if rng != null else randf_range(lo, hi)
 
-static func roll_all(stats_cfg: Dictionary, pos: String, positions_data: Dictionary, gaussian_share: float) -> Dictionary:
+static func roll_all(
+	stats_cfg: Dictionary,
+	pos: String,
+	positions_data: Dictionary,
+	gaussian_share: float,
+	rng: RandomNumberGenerator = null
+) -> Dictionary:
 	var out: Dictionary = {}
 
 	var pos_dist: Dictionary = positions_data.get(pos, {}).get("distributions", {}) as Dictionary
@@ -37,7 +58,7 @@ static func roll_all(stats_cfg: Dictionary, pos: String, positions_data: Diction
 		var lo := float(d.get("min",   row.get("min",  0.0)))
 		var hi := float(d.get("max",   row.get("max",100.0)))
 
-		var v := _sample_mix(mu, sg, lo, hi, gaussian_share)
+		var v := _sample_mix(mu, sg, lo, hi, gaussian_share, rng)
 		out[name] = clamp(v, 0.0, 100.0)
 	return out
 
