@@ -122,7 +122,7 @@ func score_player(
 	var comp_now := float(res_now.get("composite", 0.0))
 	var comp_pot := float(res_pot.get("composite", 0.0))
 
-	var raw := current_weight * comp_now + potential_weight * comp_pot
+	var raw: float = current_weight * comp_now + potential_weight * comp_pot
 
 	# board calibration (no position bias)
 	raw = board_offset_pts + board_slope * raw

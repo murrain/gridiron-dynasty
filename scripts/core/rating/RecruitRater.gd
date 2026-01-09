@@ -126,9 +126,12 @@ func rate_and_rank(
 				var wt:  float = float((d.get("physicals", {}) as Dictionary).get("weight_lb", 190.0))
 				size_speed.append(clamp(spd * (wt / 300.0), 0.0, 100.0))
 
-		cores.sort(); secs.sort(); ments.sort(); aths.sort()
+		cores = _parallel_sorted(cores, threads)
+		secs = _parallel_sorted(secs, threads)
+		ments = _parallel_sorted(ments, threads)
+		aths = _parallel_sorted(aths, threads)
 		if use_size_adj_speed:
-			size_speed.sort()
+			size_speed = _parallel_sorted(size_speed, threads)
 
 		# compute composite per player (serial is fine here; small N per pos)
 		for g2 in group:
@@ -183,7 +186,7 @@ func rate_and_rank(
 			var ss_val: float = float((d as Dictionary).get("star_score", 0.0))
 			var pv: float = float(pos_value.get(pos_lab, 1.0))
 			basis.append(ss_val * pv)
-		basis.sort()
+		basis = _parallel_sorted(basis, threads)
 
 		for d2 in arr:
 			var ss2: float = float(d2.get("star_score", 0.0))
@@ -210,6 +213,77 @@ func rate_and_rank(
 	)
 	for i2 in range(players.size()):
 		(players[i2] as Dictionary)["rank_overall"] = i2 + 1
+
+
+static func _parallel_sorted(values: Array, threads: int) -> Array:
+	if values.size() < 256 or threads <= 1:
+		values.sort()
+		return values
+
+	var chunks: Array = _chunk(values, min(threads, values.size()))
+	var sorted_chunks: Array = ThreadPool.map(
+		chunks,
+		func(slice):
+			var local: Array = slice.duplicate()
+			local.sort()
+			return local,
+		min(threads, chunks.size())
+	)
+	return _merge_sorted_arrays(sorted_chunks)
+
+
+static func _merge_sorted_arrays(sorted_chunks: Array) -> Array:
+	if sorted_chunks.is_empty():
+		return []
+	if sorted_chunks.size() == 1:
+		return sorted_chunks[0] as Array
+
+	var merged: Array = sorted_chunks[0] as Array
+	for i in range(1, sorted_chunks.size()):
+		merged = _merge_two_sorted(merged, sorted_chunks[i] as Array)
+	return merged
+
+
+static func _merge_two_sorted(a: Array, b: Array) -> Array:
+	var merged: Array = []
+	merged.resize(a.size() + b.size())
+	var i: int = 0
+	var j: int = 0
+	var k: int = 0
+	while i < a.size() and j < b.size():
+		if float(a[i]) <= float(b[j]):
+			merged[k] = a[i]
+			i += 1
+		else:
+			merged[k] = b[j]
+			j += 1
+		k += 1
+	while i < a.size():
+		merged[k] = a[i]
+		i += 1
+		k += 1
+	while j < b.size():
+		merged[k] = b[j]
+		j += 1
+		k += 1
+	return merged
+
+
+static func _chunk(arr: Array, parts: int) -> Array:
+	var chunks: Array = []
+	parts = max(1, parts)
+	var n: int = arr.size()
+	var base: int = n / parts
+	var rem: int = n % parts
+	var start: int = 0
+	for p in range(parts):
+		var take: int = base + (1 if p < rem else 0)
+		if take <= 0:
+			chunks.append([])
+		else:
+			chunks.append(arr.slice(start, start + take))
+			start += take
+	return chunks
 
 
 # ----------------------------
