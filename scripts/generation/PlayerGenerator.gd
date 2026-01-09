@@ -45,13 +45,28 @@ func generate_class(count: int, gaussian_share: float) -> Array:
 		func(seed_val):
 			var rng := RandomNumberGenerator.new()
 			rng.seed = int(seed_val)
-			var player := _make_single_player(gaussian_share, rng)
-			var combine_rng := RandomNumberGenerator.new()
-			combine_rng.seed = int(seed_val) ^ 0x85EBCA6B
-			player["combine"] = CombineCalculator.compute_all(player, combine_tuning, combine_tests, combine_rng)
-			return player,
+			return _make_single_player(gaussian_share, rng),
 		threads
 	)
+
+	# Calculate combine numbers (can be done in parallel too)
+	var combine_seeds: Array = []
+	combine_seeds.resize(result.size())
+	for i in result.size():
+		combine_seeds[i] = randi() ^ (i * 0x85EBCA6B)
+
+	var combine_items: Array = []
+	combine_items.resize(result.size())
+	for i in result.size():
+		combine_items[i] = {"player": result[i], "seed": combine_seeds[i]}
+
+	var combine_callable := func(item):
+		var p: Dictionary = item["player"]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(item["seed"])
+		p["combine"] = CombineCalculator.compute_all(p, combine_tuning, combine_tests, rng)
+		return p
+	result = ThreadPool.map(combine_items, combine_callable, threads)
 	return result
 
 ## Creates one player (pure function w.r.t. shared state).
