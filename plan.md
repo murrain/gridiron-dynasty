@@ -151,6 +151,28 @@ world-state containers; add them if missing before wiring handlers.
 
 ---
 
+### Phase 2 carryover (schedule during Phase 3+)
+**Goal:** Finish Phase 2 elements that are still missing in code.
+
+**Agent: Engineer**
+1. Implement HS school generation with eliteness tiers and regional tags.
+2. Implement HS assignment logic with eliteness, proximity, and player strength weighting.
+3. Add HS player fields (`hs_year`, `hs_grad_year`, `eligibility_status`,
+   `hs_school_id`, `home_region`, `proximity_bias`) and lifecycle transitions.
+4. Implement HS season progression via `PlayerLifecycle.advance_one_year`,
+   including eligibility and graduation updates.
+5. Define HS stat output bundle for recruiting and emit a stable recruit pool
+   handoff to `CollegeRecruiting.gd`.
+6. Add HS config schemas/defaults and validation (tier distributions, regions,
+   non-overlapping tiers).
+7. Introduce explicit per-step RNG derivation and log seed lineage for HS steps.
+
+**Agent: Review**
+1. Verify HS steps are deterministic with explicit RNG usage.
+2. Confirm lifecycle transitions are logged and auditable.
+
+---
+
 ## Phase 3: College generation + recruiting pipeline
 **Goal:** Generate colleges, then turn HS recruits into college
 commitments deterministically.
