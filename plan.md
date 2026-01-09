@@ -92,24 +92,56 @@ advance them year-by-year with explicit eligibility rules.
 1. Add HS fields to player dictionaries:
    - `hs_year`, `hs_grad_year`, `eligibility_status`, `hs_school_id`,
      `home_region`, `proximity_bias`.
-2. Implement HS school generation with eliteness tiers
+2. Define HS eligibility lifecycle transitions and logging:
+   - `hs_year` increments yearly.
+   - `eligibility_status` transitions (`hs_underclass` → `hs_upperclass` → `hs_grad`).
+   - Emit per-player transition logs with old/new values.
+3. Implement HS school generation with eliteness tiers
    (e.g., `scripts/world/HighSchoolGenerator.gd`):
    - Create schools with an `eliteness` rating and `region`.
    - Define assignment weights: elite schools attract stronger players,
      while allowing probabilistic outliers and proximity pulls.
-3. Implement `scripts/world/HighSchoolAssignment.gd`:
+4. Implement `scripts/world/HighSchoolAssignment.gd`:
    - Assign HS players to schools using eliteness-weighted randomness.
    - Include a proximity modifier based on `home_region` and
      player-specific `proximity_bias`.
-4. Implement `scripts/world/HighSchoolSeason.gd`:
+5. Implement `scripts/world/HighSchoolSeason.gd`:
    - Calls `PlayerLifecycle.advance_one_year`.
    - Updates eligibility and graduation.
-5. Provide minimal HS output stats to drive recruiting evaluation.
+6. Provide minimal HS output stats to drive recruiting evaluation.
+7. Define HS school schema + defaults:
+   - Required fields: `id`, `name`, `region`, `eliteness`.
+   - Optional fields: `capacity`, `metadata`.
+   - Provide defaults for eliteness tiers and regional distribution.
+8. Define assignment weighting formula:
+   - Combine eliteness, proximity, and player strength into a single weight.
+   - Specify proximity bias scale and region match multiplier.
+   - Define deterministic tie-break rules.
+9. Specify HS season output stat bundle:
+   - Emit a minimal, stable set of recruiting-facing stats (e.g., `hs_performance_score` or
+     compact stat line).
+   - Document how the stat bundle is derived and its deterministic guarantees.
+10. Add HS config validation:
+   - Distribution sums, non-overlapping tiers, non-empty regions.
+   - Fail-fast with explicit errors on invalid configs.
 
 **Agent: Engineer**
 1. Define HS performance distributions or simple stat templates.
 2. Provide HS eliteness distribution, regional split, and assignment weights.
 3. Provide config defaults for HS output (if needed).
+4. Add Phase 2 world-state containers for HS entities:
+   - `world.hs_schools`, `world.hs_players`, and any lookup indices.
+   - Use these containers for all HS steps (no ad-hoc globals).
+5. Add Phase 2 RNG derivation spec:
+   - Derive per-step RNG seeds from the year seed + phase id + step id.
+   - Log seed lineage per step (`hs_school_gen`, `hs_assignment`, `hs_season`).
+6. Define Phase 2 handler contract:
+   - Handler signature inputs (world, seed, year) and explicit outputs
+     (updated world + structured summary).
+7. Add Phase 2-to-Phase 3 recruiting handoff:
+   - Emit a stable HS recruit pool format for `CollegeRecruiting.gd`.
+   - Map HS stat bundle and eligibility status into a `recruit_profile`.
+   - Ensure regional tags and school ids align with Phase 3 college regions.
 
 **Agent: Review**
 1. Ensure HS progression does not bypass lifecycle rules.
