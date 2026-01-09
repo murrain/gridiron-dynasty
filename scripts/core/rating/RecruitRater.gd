@@ -126,44 +126,85 @@ func rate_and_rank(
 				var wt:  float = float((d.get("physicals", {}) as Dictionary).get("weight_lb", 190.0))
 				size_speed.append(clamp(spd * (wt / 300.0), 0.0, 100.0))
 
-		cores.sort(); secs.sort(); ments.sort(); aths.sort()
+		cores = _parallel_sorted(cores, threads)
+		secs = _parallel_sorted(secs, threads)
+		ments = _parallel_sorted(ments, threads)
+		aths = _parallel_sorted(aths, threads)
 		if use_size_adj_speed:
-			size_speed.sort()
+			size_speed = _parallel_sorted(size_speed, threads)
 
-		# compute composite per player (serial is fine here; small N per pos)
-		for g2 in group:
-			var d2: Dictionary = g2 as Dictionary
-			var core_pct: float = _percentile_in_sorted(cores,  float(d2.get("core_avg", 0.0)))
-			var sec_pct:  float = _percentile_in_sorted(secs,   float(d2.get("secondary_avg", 0.0)))
-			var men_pct:  float = _percentile_in_sorted(ments,  float(d2.get("mentals_avg", 0.0)))
-			var ath_pct:  float = _percentile_in_sorted(aths,   float(d2.get("athletic_avg", 0.0)))
+		var do_parallel_pct: bool = threads > 1 and group.size() >= 256
+		if do_parallel_pct:
+			ThreadPool.map(group, func(g2):
+				var d2: Dictionary = g2 as Dictionary
+				var core_pct: float = _percentile_in_sorted(cores,  float(d2.get("core_avg", 0.0)))
+				var sec_pct:  float = _percentile_in_sorted(secs,   float(d2.get("secondary_avg", 0.0)))
+				var men_pct:  float = _percentile_in_sorted(ments,  float(d2.get("mentals_avg", 0.0)))
+				var ath_pct:  float = _percentile_in_sorted(aths,   float(d2.get("athletic_avg", 0.0)))
 
-			if use_size_adj_speed:
-				var spd2: float = float((d2.get("stats", {}) as Dictionary).get("speed", 50.0))
-				var wt2:  float = float((d2.get("physicals", {}) as Dictionary).get("weight_lb", 190.0))
-				var idx2: float = clamp(spd2 * (wt2 / 300.0), 0.0, 100.0)
-				var szp: float  = _percentile_in_sorted(size_speed, idx2)
-				ath_pct = clamp(0.85 * ath_pct + 0.15 * szp, 0.0, 1.0)
+				if use_size_adj_speed:
+					var spd2: float = float((d2.get("stats", {}) as Dictionary).get("speed", 50.0))
+					var wt2:  float = float((d2.get("physicals", {}) as Dictionary).get("weight_lb", 190.0))
+					var idx2: float = clamp(spd2 * (wt2 / 300.0), 0.0, 100.0)
+					var szp: float  = _percentile_in_sorted(size_speed, idx2)
+					ath_pct = clamp(0.85 * ath_pct + 0.15 * szp, 0.0, 1.0)
 
-			d2["athletic_pct"] = ath_pct  # keep for downstream logic/printing
+				d2["athletic_pct"] = ath_pct  # keep for downstream logic/printing
 
-			var percentiles: Dictionary = {
-				"pos": String(pos_key),
-				"core_pct": core_pct,
-				"sec_pct": sec_pct,
-				"men_pct": men_pct,
-				"ath_pct": ath_pct
-			}
-			var res: Dictionary = RecruitRater.compute(
-				d2, positions_data, {}, class_rules, percentiles
-			) as Dictionary
+				var percentiles: Dictionary = {
+					"pos": String(pos_key),
+					"core_pct": core_pct,
+					"sec_pct": sec_pct,
+					"men_pct": men_pct,
+					"ath_pct": ath_pct
+				}
+				var res: Dictionary = RecruitRater.compute(
+					d2, positions_data, {}, class_rules, percentiles
+				) as Dictionary
 
-			d2["composite_score"] = _round2(float(res.get("composite", 0.0)))
-			var star_score: float = (
-				float(d2.get("core_avg",0.0)) * star_core_w
-				+ float(d2["composite_score"]) * star_comp_w
-			) / star_wsum
-			d2["star_score"] = _round2(star_score)
+				d2["composite_score"] = _round2(float(res.get("composite", 0.0)))
+				var star_score: float = (
+					float(d2.get("core_avg",0.0)) * star_core_w
+					+ float(d2["composite_score"]) * star_comp_w
+				) / star_wsum
+				d2["star_score"] = _round2(star_score)
+				return null,
+			threads)
+		else:
+			# compute composite per player (serial is fine here; small N per pos)
+			for g2 in group:
+				var d2: Dictionary = g2 as Dictionary
+				var core_pct: float = _percentile_in_sorted(cores,  float(d2.get("core_avg", 0.0)))
+				var sec_pct:  float = _percentile_in_sorted(secs,   float(d2.get("secondary_avg", 0.0)))
+				var men_pct:  float = _percentile_in_sorted(ments,  float(d2.get("mentals_avg", 0.0)))
+				var ath_pct:  float = _percentile_in_sorted(aths,   float(d2.get("athletic_avg", 0.0)))
+
+				if use_size_adj_speed:
+					var spd2: float = float((d2.get("stats", {}) as Dictionary).get("speed", 50.0))
+					var wt2:  float = float((d2.get("physicals", {}) as Dictionary).get("weight_lb", 190.0))
+					var idx2: float = clamp(spd2 * (wt2 / 300.0), 0.0, 100.0)
+					var szp: float  = _percentile_in_sorted(size_speed, idx2)
+					ath_pct = clamp(0.85 * ath_pct + 0.15 * szp, 0.0, 1.0)
+
+				d2["athletic_pct"] = ath_pct  # keep for downstream logic/printing
+
+				var percentiles: Dictionary = {
+					"pos": String(pos_key),
+					"core_pct": core_pct,
+					"sec_pct": sec_pct,
+					"men_pct": men_pct,
+					"ath_pct": ath_pct
+				}
+				var res: Dictionary = RecruitRater.compute(
+					d2, positions_data, {}, class_rules, percentiles
+				) as Dictionary
+
+				d2["composite_score"] = _round2(float(res.get("composite", 0.0)))
+				var star_score: float = (
+					float(d2.get("core_avg",0.0)) * star_core_w
+					+ float(d2["composite_score"]) * star_comp_w
+				) / star_wsum
+				d2["star_score"] = _round2(star_score)
 
 	# ---------- PASS 3: stars & ranks ----------
 	for pos3 in by_pos.keys():
@@ -183,26 +224,49 @@ func rate_and_rank(
 			var ss_val: float = float((d as Dictionary).get("star_score", 0.0))
 			var pv: float = float(pos_value.get(pos_lab, 1.0))
 			basis.append(ss_val * pv)
-		basis.sort()
+		basis = _parallel_sorted(basis, threads)
 
-		for d2 in arr:
-			var ss2: float = float(d2.get("star_score", 0.0))
-			var pv2: float = float(pos_value.get(pos_lab, 1.0))
-			var pct: float = _percentile_in_sorted(basis, ss2 * pv2)
-			var stars: int = _stars_from_percentile(pct, star_thresholds, pos_lab, cap_specialists_to_3)
+		var do_parallel_stars: bool = threads > 1 and arr.size() >= 256
+		if do_parallel_stars:
+			ThreadPool.map(arr, func(d2):
+				var ss2: float = float(d2.get("star_score", 0.0))
+				var pv2: float = float(pos_value.get(pos_lab, 1.0))
+				var pct: float = _percentile_in_sorted(basis, ss2 * pv2)
+				var stars: int = _stars_from_percentile(pct, star_thresholds, pos_lab, cap_specialists_to_3)
 
-			# exceptional override
-			var allow_positions: Array = exceptional.get("allow_for_positions", []) as Array
-			var ok_pos: bool = allow_positions.has(pos_lab)
-			var ath_ok: bool = float(d2.get("athletic_pct",0.0)) >= float(exceptional.get("athletic_pct_min", 0.90))
-			var star_ok: bool = float(d2.get("star_score",0.0))   >= float(exceptional.get("star_score_min", 92.0))
-			var is_spec: bool = (pos_lab == "K" or pos_lab == "P")
-			var ignore_cap: bool = bool(exceptional.get("ignore_specialist_cap", false))
-			if ok_pos and ath_ok and star_ok:
-				if not is_spec or ignore_cap:
-					stars = max(stars, 5)
+				# exceptional override
+				var allow_positions: Array = exceptional.get("allow_for_positions", []) as Array
+				var ok_pos: bool = allow_positions.has(pos_lab)
+				var ath_ok: bool = float(d2.get("athletic_pct",0.0)) >= float(exceptional.get("athletic_pct_min", 0.90))
+				var star_ok: bool = float(d2.get("star_score",0.0))   >= float(exceptional.get("star_score_min", 92.0))
+				var is_spec: bool = (pos_lab == "K" or pos_lab == "P")
+				var ignore_cap: bool = bool(exceptional.get("ignore_specialist_cap", false))
+				if ok_pos and ath_ok and star_ok:
+					if not is_spec or ignore_cap:
+						stars = max(stars, 5)
 
-			d2["star_rating"] = stars
+				d2["star_rating"] = stars
+				return null,
+			threads)
+		else:
+			for d2 in arr:
+				var ss2: float = float(d2.get("star_score", 0.0))
+				var pv2: float = float(pos_value.get(pos_lab, 1.0))
+				var pct: float = _percentile_in_sorted(basis, ss2 * pv2)
+				var stars: int = _stars_from_percentile(pct, star_thresholds, pos_lab, cap_specialists_to_3)
+
+				# exceptional override
+				var allow_positions: Array = exceptional.get("allow_for_positions", []) as Array
+				var ok_pos: bool = allow_positions.has(pos_lab)
+				var ath_ok: bool = float(d2.get("athletic_pct",0.0)) >= float(exceptional.get("athletic_pct_min", 0.90))
+				var star_ok: bool = float(d2.get("star_score",0.0))   >= float(exceptional.get("star_score_min", 92.0))
+				var is_spec: bool = (pos_lab == "K" or pos_lab == "P")
+				var ignore_cap: bool = bool(exceptional.get("ignore_specialist_cap", false))
+				if ok_pos and ath_ok and star_ok:
+					if not is_spec or ignore_cap:
+						stars = max(stars, 5)
+
+				d2["star_rating"] = stars
 
 	# overall rank by composite
 	players.sort_custom(func(a, b):
@@ -210,6 +274,77 @@ func rate_and_rank(
 	)
 	for i2 in range(players.size()):
 		(players[i2] as Dictionary)["rank_overall"] = i2 + 1
+
+
+static func _parallel_sorted(values: Array, threads: int) -> Array:
+	if values.size() < 256 or threads <= 1:
+		values.sort()
+		return values
+
+	var chunks: Array = _chunk(values, min(threads, values.size()))
+	var sorted_chunks: Array = ThreadPool.map(
+		chunks,
+		func(slice):
+			var local: Array = slice.duplicate()
+			local.sort()
+			return local,
+		min(threads, chunks.size())
+	)
+	return _merge_sorted_arrays(sorted_chunks)
+
+
+static func _merge_sorted_arrays(sorted_chunks: Array) -> Array:
+	if sorted_chunks.is_empty():
+		return []
+	if sorted_chunks.size() == 1:
+		return sorted_chunks[0] as Array
+
+	var merged: Array = sorted_chunks[0] as Array
+	for i in range(1, sorted_chunks.size()):
+		merged = _merge_two_sorted(merged, sorted_chunks[i] as Array)
+	return merged
+
+
+static func _merge_two_sorted(a: Array, b: Array) -> Array:
+	var merged: Array = []
+	merged.resize(a.size() + b.size())
+	var i: int = 0
+	var j: int = 0
+	var k: int = 0
+	while i < a.size() and j < b.size():
+		if float(a[i]) <= float(b[j]):
+			merged[k] = a[i]
+			i += 1
+		else:
+			merged[k] = b[j]
+			j += 1
+		k += 1
+	while i < a.size():
+		merged[k] = a[i]
+		i += 1
+		k += 1
+	while j < b.size():
+		merged[k] = b[j]
+		j += 1
+		k += 1
+	return merged
+
+
+static func _chunk(arr: Array, parts: int) -> Array:
+	var chunks: Array = []
+	parts = max(1, parts)
+	var n: int = arr.size()
+	var base: int = n / parts
+	var rem: int = n % parts
+	var start: int = 0
+	for p in range(parts):
+		var take: int = base + (1 if p < rem else 0)
+		if take <= 0:
+			chunks.append([])
+		else:
+			chunks.append(arr.slice(start, start + take))
+			start += take
+	return chunks
 
 
 # ----------------------------

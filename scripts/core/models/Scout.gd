@@ -56,16 +56,27 @@ func setup(stats_cfg: Dictionary, defaults: Dictionary) -> void:
 		current_weight = clamp(current_weight + j, 0.55, 0.95)
 		potential_weight = clamp(1.0 - current_weight, 0.05, 0.45)
 
-func estimate_stat(true_value: float, stat: String, context_quality: float = 0.75) -> float:
+func estimate_stat(
+	true_value: float,
+	stat: String,
+	context_quality: float = 0.75,
+	rng: RandomNumberGenerator = null
+) -> float:
 	var m := float(_meas.get(stat, 0.5))
 	var skill := float(stat_skill.get(stat, base_skill))
 	var sigma_span : float = max(0.0, _obs_cfg["sigma_max"] - _obs_cfg["sigma_min"])
 	var sigma : float = _obs_cfg["sigma_min"] + sigma_span * (1.0 - skill) * (1.0 - clamp(context_quality, _obs_cfg["quality_floor"], 1.0)) * (1.0 + (1.0 - m))
 	var mult := float(estimation_multipliers.get(stat, 1.0))
-	var est := true_value * mult + randfn(0.0, sigma)
+	var noise: float = rng.randfn(0.0, sigma) if rng != null else randfn(0.0, sigma)
+	var est := true_value * mult + noise
 	return clamp(est, _obs_cfg["bounded_min"], _obs_cfg["bounded_max"])
 
-func _perceived_player(src: Dictionary, which: String, stats_cfg: Dictionary) -> Dictionary:
+func _perceived_player(
+	src: Dictionary,
+	which: String,
+	stats_cfg: Dictionary,
+	rng: RandomNumberGenerator = null
+) -> Dictionary:
 	# which == "current" uses src.stats, "potential" uses src.potential (fallback to stats)
 	var p := src.duplicate(true)
 	var stats: Dictionary = (src.get("stats", {}) as Dictionary).duplicate()
@@ -78,7 +89,7 @@ func _perceived_player(src: Dictionary, which: String, stats_cfg: Dictionary) ->
 		var k := String(row.get("name",""))
 		var true_v := float(target.get(k, float(stats.get(k, 50.0))))
 		var cq : float = _context_q.get("game", 0.8) # default use “game tape”
-		var est := estimate_stat(true_v, k, cq)
+		var est := estimate_stat(true_v, k, cq, rng)
 		# valuation multipliers as a lens on the number itself (keeps downstream simple)
 		est *= float(valuation_multipliers.get(k, 1.0))
 		out[k] = clamp(est, 0.0, 100.0)
@@ -86,10 +97,16 @@ func _perceived_player(src: Dictionary, which: String, stats_cfg: Dictionary) ->
 	return p
 
 # Central single-entry scout grade (returns a composite-like 0..100)
-func score_player(player: Dictionary, positions_data: Dictionary, stats_cfg: Dictionary, class_rules: Dictionary) -> float:
+func score_player(
+	player: Dictionary,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator = null
+) -> float:
 	# perceived profiles
-	var view_now := _perceived_player(player, "current", stats_cfg)
-	var view_pot := _perceived_player(player, "potential", stats_cfg)
+	var view_now := _perceived_player(player, "current", stats_cfg, rng)
+	var view_pot := _perceived_player(player, "potential", stats_cfg, rng)
 
 	# per-scout bucket weights drive the rater
 	var tmp_rules := class_rules.duplicate(true)
@@ -105,10 +122,11 @@ func score_player(player: Dictionary, positions_data: Dictionary, stats_cfg: Dic
 	var comp_now := float(res_now.get("composite", 0.0))
 	var comp_pot := float(res_pot.get("composite", 0.0))
 
-	var raw := current_weight * comp_now + potential_weight * comp_pot
+	var raw: float = current_weight * comp_now + potential_weight * comp_pot
 
 	# board calibration (no position bias)
 	raw = board_offset_pts + board_slope * raw
-	raw += randfn(0.0, board_noise_sigma)
+	var board_noise: float = rng.randfn(0.0, board_noise_sigma) if rng != null else randfn(0.0, board_noise_sigma)
+	raw += board_noise
 
 	return clamp(raw, 30.0, 95.0)

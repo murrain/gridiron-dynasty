@@ -116,14 +116,31 @@ func _do_one_trial(size: int, threads: int) -> float:
 	# Optionally include rating + scouts in the timed window
 	if include_rating or include_scouts:
 		var rater := RecruitRater.new()
-		rater.rate_and_rank(players, _positions, gen.class_rules)
+		rater.rate_and_rank(players, _positions, gen.class_rules, threads)
 
 		if include_scouts and not _scouts_built.is_empty():
 			var sample_n: int = min(scout_sample_cap, players.size())
+			var scout_seeds: Array = []
+			scout_seeds.resize(sample_n)
 			for i in range(sample_n):
-				var p: Dictionary = players[i]
-				for s in _scouts_built:
-					s.score_player(p, _positions, _stats_cfg, gen.class_rules)
+				scout_seeds[i] = randi() ^ (i * 0x27D4EB2D)
+
+			var scout_items: Array = []
+			scout_items.resize(sample_n)
+			for i in range(sample_n):
+				scout_items[i] = {"player": players[i], "seed": scout_seeds[i]}
+
+			ThreadPool.map(
+				scout_items,
+				func(item):
+					var rng := RandomNumberGenerator.new()
+					rng.seed = int(item["seed"])
+					var p: Dictionary = item["player"]
+					for s in _scouts_built:
+						s.score_player(p, _positions, _stats_cfg, gen.class_rules, rng)
+					return true,
+				threads
+			)
 
 	var t1 := Time.get_ticks_msec()
 

@@ -43,28 +43,27 @@ func generate_class(count: int, gaussian_share: float) -> Array:
 	var result := ThreadPool.map(
 		seeds,
 		func(seed_val):
-			seed(int(seed_val))
-			return _make_single_player(gaussian_share),
+			var rng := RandomNumberGenerator.new()
+			rng.seed = int(seed_val)
+			var player := _make_single_player(gaussian_share, rng)
+			var combine_rng := RandomNumberGenerator.new()
+			combine_rng.seed = int(seed_val) ^ 0x85EBCA6B
+			player["combine"] = CombineCalculator.compute_all(player, combine_tuning, combine_tests, combine_rng)
+			return player,
 		threads
 	)
-
-	# Calculate combine numbers (can be done in parallel too)
-	var combine_callable := func(p):
-		p["combine"] = CombineCalculator.compute_all(p, combine_tuning, combine_tests)
-		return p
-	result = ThreadPool.map(result, combine_callable, threads)
 	return result
 
 ## Creates one player (pure function w.r.t. shared state).
 ## Fill in your existing logic (position pick, stats, tags, etc.).
-func _make_single_player(gaussian_share: float) -> Dictionary:
+func _make_single_player(gaussian_share: float, rng: RandomNumberGenerator) -> Dictionary:
 	var p: Dictionary = {}
 	# … your existing player creation steps …
 	# Required skeleton fields:
-	p["name"] = NamesHelper.random_full(names_cfg)
-	p["position"] = PositionHelper.pick_position(positions_data, class_rules)
-	p["physicals"] = PhysicalsHelper.roll_for_position(p["position"], positions_data)
-	p["stats"] = StatsHelper.roll_all(stats_cfg, p["position"], positions_data, gaussian_share)
+	p["name"] = NamesHelper.random_full(names_cfg, rng)
+	p["position"] = PositionHelper.pick_position(positions_data, class_rules, rng)
+	p["physicals"] = PhysicalsHelper.roll_for_position(p["position"], positions_data, rng)
+	p["stats"] = StatsHelper.roll_all(stats_cfg, p["position"], positions_data, gaussian_share, rng)
 	StatsHelper.apply_defaults(p["stats"], stats_cfg, true)
 	p["tags"] = []
 	return p

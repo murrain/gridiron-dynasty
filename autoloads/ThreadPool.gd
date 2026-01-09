@@ -4,12 +4,56 @@
 extends RefCounted
 class_name ThreadPool
 
-## Internal worker record.
-class _Job:
-	var thread: Thread
-	var callable: Callable
-	var slice: Array
-	var out: Array = []
+class _Pool:
+	var threads: int
+	var _workers: Array = []
+	var _queue: Array = []
+	var _mutex := Mutex.new()
+	var _semaphore := Semaphore.new()
+	var _running: bool = true
+
+	func _init(count: int) -> void:
+		threads = count
+		for i in range(count):
+			var worker := Thread.new()
+			worker.start(Callable(self, "_worker_loop"))
+			_workers.append(worker)
+
+	func enqueue(callable: Callable, slice: Array, out: Array, offset: int, done: Semaphore) -> void:
+		_mutex.lock()
+		_queue.append({
+			"callable": callable,
+			"slice": slice,
+			"out": out,
+			"offset": offset,
+			"done": done
+		})
+		_mutex.unlock()
+		_semaphore.post()
+
+	func _worker_loop() -> void:
+		while true:
+			_semaphore.wait()
+			if not _running:
+				return
+			var task: Dictionary = {}
+			_mutex.lock()
+			if _queue.is_empty():
+				_mutex.unlock()
+				continue
+			task = _queue.pop_front() as Dictionary
+			_mutex.unlock()
+			var slice: Array = task["slice"] as Array
+			var callable: Callable = task["callable"] as Callable
+			var out: Array = task["out"] as Array
+			var offset: int = int(task["offset"])
+			var done: Semaphore = task["done"] as Semaphore
+			var part: Array = ThreadPool._run_slice(callable, slice)
+			for i in range(part.size()):
+				out[offset + i] = part[i]
+			done.post()
+
+static var _pools: Dictionary = {}
 
 static func _run_slice(callable: Callable, slice: Array) -> Array:
 	var out: Array = []
@@ -35,6 +79,13 @@ static func _chunk(arr: Array, parts: int) -> Array:
 			start += take
 	return chunks
 
+static func _get_pool(threads: int) -> _Pool:
+	if _pools.has(threads):
+		return _pools[threads] as _Pool
+	var pool := _Pool.new(threads)
+	_pools[threads] = pool
+	return pool
+
 ## Map a callable across `items` using `threads` workers.
 ## Returns an Array with the mapped results in input order.
 ##
@@ -52,22 +103,19 @@ static func map(items: Array, callable: Callable, threads: int) -> Array:
 		return []
 
 	var t: int = max(1, threads)
+	if t <= 1:
+		return _run_slice(callable, items)
+
 	var chunks: Array = _chunk(items, min(t, items.size()))
-
-	# Launch
-	var jobs: Array = []
-	for chunk in chunks:
-		var job := _Job.new()
-		job.thread = Thread.new()
-		job.callable = callable
-		job.slice = chunk
-		job.thread.start(Callable(ThreadPool, "_run_slice").bind(job.callable, job.slice))
-		jobs.append(job)
-
-	# Join and stitch back together in order
 	var out: Array = []
-	for job in jobs:
-		var part: Array = job.thread.wait_to_finish()
-		if part != null:
-			out.append_array(part)
+	out.resize(items.size())
+	var done := Semaphore.new()
+	var pool := _get_pool(min(t, chunks.size()))
+	var offset: int = 0
+	for chunk in chunks:
+		pool.enqueue(callable, chunk, out, offset, done)
+		offset += chunk.size()
+
+	for i in range(chunks.size()):
+		done.wait()
 	return out
