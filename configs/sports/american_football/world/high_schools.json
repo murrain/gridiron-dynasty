@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "school_count": 420,
+  "default_capacity": 125,
+  "name_format": "HS %04d",
+  "regions": [
+    {"id": "south", "label": "South", "weight": 0.34},
+    {"id": "midwest", "label": "Midwest", "weight": 0.22},
+    {"id": "west", "label": "West", "weight": 0.18},
+    {"id": "northeast", "label": "Northeast", "weight": 0.26}
+  ],
+  "eliteness_tiers": [
+    {"id": "elite", "min": 86.0, "max": 100.0, "weight": 0.06},
+    {"id": "good", "min": 72.0, "max": 86.0, "weight": 0.22},
+    {"id": "avg", "min": 55.0, "max": 72.0, "weight": 0.52},
+    {"id": "low", "min": 35.0, "max": 55.0, "weight": 0.20}
+  ],
+  "eligibility": {
+    "hs_years": 4,
+    "underclass_years": 2
+  },
+  "assignment": {
+    "eliteness_weight": 0.45,
+    "player_strength_weight": 0.35,
+    "proximity_weight": 0.20,
+    "region_match_multiplier": 1.35,
+    "proximity_bias_min": 0.4,
+    "proximity_bias_max": 1.0,
+    "outlier_chance": 0.03
+  },
+  "performance": {
+    "base_min": 42.0,
+    "base_max": 68.0,
+    "rating_weight": 0.62,
+    "school_eliteness_weight": 0.22,
+    "noise_min": -8.0,
+    "noise_max": 8.0
+  }
+}

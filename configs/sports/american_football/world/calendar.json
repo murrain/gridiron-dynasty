@@ -10,16 +10,16 @@
       "placeholder": false
     },
     {
-      "id": "hs_season",
-      "label": "HS season",
+      "id": "hs_assignment",
+      "label": "HS assignment",
       "start_tick": 1,
       "end_tick": 1,
       "tags": ["hs"],
       "placeholder": false
     },
     {
-      "id": "hs_assignment",
-      "label": "HS assignment",
+      "id": "hs_season",
+      "label": "HS season",
       "start_tick": 2,
       "end_tick": 2,
       "tags": ["hs"],
