@@ -47,5 +47,11 @@
       "mid": 1.00,
       "low": 0.96
     }
+  },
+  "early_declaration": {
+    "min_year": 3,
+    "rating_threshold": 85.0,
+    "base_chance": 0.15,
+    "rating_bonus_per_point": 0.01
   }
 }

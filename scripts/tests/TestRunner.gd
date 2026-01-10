@@ -27,6 +27,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_class_generator.gd",
 	"res://scripts/tests/test_draft_class_generator.gd",
 	"res://scripts/tests/test_college_recruiting.gd",
+	"res://scripts/tests/test_college_season.gd",
 	"res://scripts/tests/test_advance_world_year_helpers.gd",
 	"res://scripts/tests/test_pipeline_seed_helpers.gd",
 	"res://scripts/tests/test_world_history_preview.gd",
