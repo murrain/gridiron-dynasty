@@ -59,7 +59,10 @@ static func _advance_player_one_year(
 	var p := player.duplicate(true)
 	p["age"] = int(p.get("age", 18)) + 1
 
-	_apply_development(p, positions_cfg, main_cfg, stats_cfg, rng)
+	var development_report := _apply_development(p, positions_cfg, main_cfg, stats_cfg, rng)
+	var injury_report := _apply_injury(p, main_cfg, rng)
+	p["development_report"] = development_report
+	p["injury_report"] = injury_report
 
 	if _should_retire(p, positions_cfg, main_cfg, rng):
 		return {"player": p, "retired": true}
@@ -72,9 +75,9 @@ static func _apply_development(
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	rng: RandomNumberGenerator
-) -> void:
+) -> Dictionary:
 	if not player.has("stats"):
-		return
+		return {"skipped": true}
 
 	var age := int(player.get("age", 18))
 	var position := String(player.get("position", ""))
@@ -110,6 +113,32 @@ static func _apply_development(
 		"injury_impacts": {"active": [], "recovered": []}
 	}
 
+	var phase := "growth"
+	if age < peak_age:
+		phase = "growth"
+	elif age < decline_start:
+		phase = "prime"
+	else:
+		phase = "decline"
+
+	var report := {
+		"age": age,
+		"phase": phase,
+		"modifiers": {
+			"growth_mult": growth_mult,
+			"prime_mult": prime_mult,
+			"decline_mult": decline_mult,
+			"base_min": base_min,
+			"base_max": base_max,
+			"prime_min": prime_min,
+			"prime_max": prime_max,
+			"decline_min": decline_min,
+			"decline_max": decline_max,
+			"cap": cap
+		},
+		"stat_entries": []
+	}
+
 	for key in stats.keys():
 		var stat_name := String(key)
 		var val := float(stats.get(stat_name, 0.0))
@@ -118,20 +147,34 @@ static func _apply_development(
 			continue
 
 		var delta := 0.0
-		if age < peak_age:
-			delta = rng.randf_range(base_min, base_max) * growth_mult
-		elif age < decline_start:
-			delta = rng.randf_range(prime_min, prime_max) * prime_mult
+		var raw_draw := 0.0
+		var applied_mult := 0.0
+		if phase == "growth":
+			raw_draw = rng.randf_range(base_min, base_max)
+			applied_mult = growth_mult
+			delta = raw_draw * applied_mult
+		elif phase == "prime":
+			raw_draw = rng.randf_range(prime_min, prime_max)
+			applied_mult = prime_mult
+			delta = raw_draw * applied_mult
 		else:
 			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
 			var injury_decline_mult := float(decline_mults.get(stat_name, 1.0))
 			if injury_decline_mult != 1.0:
 				delta *= injury_decline_mult
+			raw_draw = rng.randf_range(decline_min, decline_max)
+			applied_mult = decline_mult
+			delta = -raw_draw * applied_mult
 
+		var unclamped := delta
 		delta = clamp(delta, -cap, cap)
+		var was_clamped := not is_equal_approx(unclamped, delta)
 		var next_val: float = float(clamp(val + delta, 0.0, 100.0))
+		var capped_by_potential := false
 		if delta > 0.0:
-			next_val = min(next_val, pot)
+			var limited := min(next_val, pot)
+			capped_by_potential = not is_equal_approx(limited, next_val)
+			next_val = limited
 		stats[stat_name] = next_val
 		(report_entry["stat_deltas"] as Dictionary)[stat_name] = delta
 
@@ -139,10 +182,48 @@ static func _apply_development(
 	_apply_recovery_updates(injuries, report_entry)
 	_apply_long_term_penalties(stats, potential, injuries, report_entry)
 
+		report["stat_entries"].append({
+			"stat": stat_name,
+			"before": val,
+			"potential": pot,
+			"raw_draw": raw_draw,
+			"multiplier": applied_mult,
+			"delta_unclamped": unclamped,
+			"delta": delta,
+			"clamped": was_clamped,
+			"capped_by_potential": capped_by_potential,
+			"after": next_val
+		})
+
 	player["stats"] = stats
 	player["potential"] = potential
 	player["injuries"] = injuries
 	_append_development_report(player, report_entry)
+	return report
+
+static func _apply_injury(
+	player: Dictionary,
+	main_cfg: Dictionary,
+	rng: RandomNumberGenerator
+) -> Dictionary:
+	var cfg: Dictionary = main_cfg.get("injury", {}) as Dictionary
+	var base_chance := float(cfg.get("base_chance", 0.0))
+	var proneness_slope := float(cfg.get("proneness_slope", 0.0))
+	var stats: Dictionary = player.get("stats", {}) as Dictionary
+	var proneness := float(stats.get("injury_proneness", 50.0))
+	var chance := base_chance + ((proneness - 50.0) / 100.0) * proneness_slope
+	chance = clamp(chance, 0.0, 0.95)
+
+	var roll := rng.randf()
+	var injured := roll < chance
+	return {
+		"base_chance": base_chance,
+		"proneness": proneness,
+		"proneness_slope": proneness_slope,
+		"chance": chance,
+		"roll": roll,
+		"injured": injured
+	}
 
 static func _should_retire(
 	player: Dictionary,

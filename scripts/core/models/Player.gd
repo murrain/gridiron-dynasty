@@ -54,10 +54,35 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 # --- Health / Lifecycle ---
 var injuries: Array[Dictionary] = []
 var development_report: Array[Dictionary] = []
+# --- Contract ---
+# Schema lives on the player to keep the roster state explicit and serializable.
+# Contract lifecycle is deterministic and replayable when the input decisions
+# are logged; do not derive hidden randomness at mutation time.
+# - Signing: set current_year = 1 and total_years > 0 with explicit values for
+#   annual_value/guaranteed/range_min/range_max and the source_eval_id.
+# - Extension: update total_years and financial fields explicitly; never
+#   increment current_year implicitly.
+# - Release: clear current_year/total_years and zero out financials explicitly.
+@export var contract: Dictionary = {}
+# --- Contracts ---
+var contract: Dictionary = {}                 # contract/valuation payloads
+# --- Contract ---
+# Deterministic valuation markers must be persisted to avoid hidden randomness.
+@export var contract_current_year: int = 0
+@export var contract_total_years: int = 0
+@export var contract_annual_value: float = 0.0
+@export var contract_guaranteed: float = 0.0
+@export var contract_range_min: float = 0.0
+@export var contract_range_max: float = 0.0
+@export var contract_valuation_source: String = "" # e.g., valuation model ID
+@export var contract_valuation_seed: int = 0       # seed/reference for recomputation
 
 # =========================
 # Lifecycle / Utilities
 # =========================
+
+func _init() -> void:
+	contract = _default_contract()
 
 func get_full_name() -> String:
 	return ("%s %s" % [first_name, last_name]).strip_edges()
@@ -74,6 +99,7 @@ func from_dict(d: Dictionary) -> void:
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
+	contract = (d.get("contract", contract) as Dictionary).duplicate(true)
 
 	# Physicals
 	var phys: Dictionary = d.get("physicals", {})
@@ -109,6 +135,26 @@ func from_dict(d: Dictionary) -> void:
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
 	injuries = (d.get("injuries", injuries) as Array).duplicate(true)
 	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
+	var contract_data: Dictionary = d.get("contract", {})
+	contract = _default_contract()
+	contract["current_year"] = int(contract_data.get("current_year", contract["current_year"]))
+	contract["total_years"] = int(contract_data.get("total_years", contract["total_years"]))
+	contract["annual_value"] = float(contract_data.get("annual_value", contract["annual_value"]))
+	contract["guaranteed"] = float(contract_data.get("guaranteed", contract["guaranteed"]))
+	contract["range_min"] = float(contract_data.get("range_min", contract["range_min"]))
+	contract["range_max"] = float(contract_data.get("range_max", contract["range_max"]))
+	contract["source_eval_id"] = String(contract_data.get("source_eval_id", contract["source_eval_id"]))
+
+	# Contract
+	var contract: Dictionary = d.get("contract", {})
+	contract_current_year = int(contract.get("current_year", contract_current_year))
+	contract_total_years = int(contract.get("total_years", contract_total_years))
+	contract_annual_value = float(contract.get("annual_value", contract_annual_value))
+	contract_guaranteed = float(contract.get("guaranteed", contract_guaranteed))
+	contract_range_min = float(contract.get("range_min", contract_range_min))
+	contract_range_max = float(contract.get("range_max", contract_range_max))
+	contract_valuation_source = String(contract.get("valuation_source", contract_valuation_source))
+	contract_valuation_seed = int(contract.get("valuation_seed", contract_valuation_seed))
 
 func to_dict() -> Dictionary:
 	return {
@@ -121,6 +167,7 @@ func to_dict() -> Dictionary:
 		"gen_mode": gen_mode,
 		"school_tag": school_tag,
 		"notes": notes,
+		"contract": contract.duplicate(true),
 		"physicals": {
 			"height_in": height_in,
 			"weight_lb": weight_lb,
@@ -148,6 +195,16 @@ func to_dict() -> Dictionary:
 		"hidden_traits": hidden_traits.duplicate(),
 		"injuries": injuries.duplicate(true),
 		"development_report": development_report.duplicate(true)
+		"contract": {
+			"current_year": contract_current_year,
+			"total_years": contract_total_years,
+			"annual_value": contract_annual_value,
+			"guaranteed": contract_guaranteed,
+			"range_min": contract_range_min,
+			"range_max": contract_range_max,
+			"valuation_source": contract_valuation_source,
+			"valuation_seed": contract_valuation_seed
+		}
 	}
 
 # --- Derived stat recompute ---
@@ -190,6 +247,17 @@ func _build_formula_scope() -> Dictionary:
 		"shuttle20": twenty_yd_shuttle_s, "cone3": three_cone_s, "shuttle60": sixty_yd_shuttle_s,
 		# stats (merge)
 		"stats": stats
+	}
+
+func _default_contract() -> Dictionary:
+	return {
+		"current_year": 0,
+		"total_years": 0,
+		"annual_value": 0.0,
+		"guaranteed": 0.0,
+		"range_min": 0.0,
+		"range_max": 0.0,
+		"source_eval_id": ""
 	}
 
 # Very tiny formula interpreter just for placeholders; replace with your own expression engine.

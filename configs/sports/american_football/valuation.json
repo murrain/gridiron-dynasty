@@ -1,0 +1,36 @@
+{
+  "version": "v1",
+  "position_premiums": {
+    "QB": 1.35,
+    "WR": 1.15,
+    "RB": 1.05,
+    "TE": 1.05,
+    "OL": 1.00,
+    "DL": 1.05,
+    "LB": 1.00,
+    "CB": 1.10,
+    "S": 1.05,
+    "K": 0.70,
+    "P": 0.60,
+    "ATH": 1.00,
+    "DEFAULT": 1.00
+  },
+  "age_multipliers": [
+    { "min": 18, "max": 20, "mult": 1.12 },
+    { "min": 21, "max": 24, "mult": 1.05 },
+    { "min": 25, "max": 27, "mult": 1.00 },
+    { "min": 28, "max": 30, "mult": 0.90 },
+    { "min": 31, "max": 34, "mult": 0.80 },
+    { "min": 35, "max": 50, "mult": 0.65 }
+  ],
+  "current_vs_potential": {
+    "current_weight": 0.65,
+    "potential_weight": 0.35
+  },
+  "score_to_value": {
+    "base": 0.0,
+    "per_point": 1.0
+  },
+  "range_spread_pct": 0.18,
+  "jitter_sigma_pct": 0.02
+}
