@@ -4,6 +4,7 @@ class_name NflDraft
 const Rand = preload("res://autoloads/Rand.gd")
 const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
 const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
+const ScoreCache = preload("res://scripts/core/scouting/ScoreCache.gd")
 
 ## Runs the NFL draft for a given year.
 ##
@@ -69,6 +70,10 @@ func run(
 	var remaining_pool := draft_pool.duplicate()
 	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
 
+	# Scout evaluation cache for the entire draft
+	# Cache is shared across all rounds/teams since player states don't change during draft
+	var score_cache := {}
+
 	# Execute each round
 	for round_num in range(1, rounds + 1):
 		if remaining_pool.is_empty():
@@ -82,7 +87,7 @@ func run(
 			var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
 			var scout: Dictionary = team_scouts.get(team_id, {}) as Dictionary
 
-			# Score all remaining players
+			# Score all remaining players (with caching)
 			var scored_players := _score_draft_pool(
 				remaining_pool,
 				roster,
@@ -90,7 +95,8 @@ func run(
 				positions_cfg,
 				stats_cfg,
 				class_rules,
-				pick_rng
+				pick_rng,
+				score_cache
 			)
 
 			if scored_players.is_empty():
@@ -229,7 +235,8 @@ func _score_draft_pool(
 	positions_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	class_rules: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	score_cache: Dictionary
 ) -> Array:
 	var needs := _calculate_position_needs(roster, positions_cfg)
 	var scored: Array = []
@@ -237,13 +244,17 @@ func _score_draft_pool(
 	for player in pool:
 		var p: Dictionary = player
 		var position := String(p.get("position", ""))
-		var base_score := ScoutRuntime.score_player(
-			scout,
+		# Use cached evaluation to avoid redundant scoring
+		# NFL Draft scores 200+ players × 7 rounds × 32 teams = 44,800 evaluations
+		# Cache dramatically reduces redundant computation
+		var base_score := ScoreCache.score_player_cached(
 			p,
+			scout,
 			positions_cfg,
 			stats_cfg,
 			class_rules,
-			rng
+			rng,
+			score_cache
 		)
 
 		# Apply position need weighting

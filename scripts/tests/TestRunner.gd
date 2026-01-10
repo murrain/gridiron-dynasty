@@ -24,6 +24,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_scout_runtime.gd",
 	"res://scripts/tests/test_scout_model.gd",
 	"res://scripts/tests/test_scout_factory.gd",
+	"res://scripts/tests/test_score_cache.gd",
 	"res://scripts/tests/test_class_generator.gd",
 	"res://scripts/tests/test_draft_class_generator.gd",
 	"res://scripts/tests/test_college_recruiting.gd",
