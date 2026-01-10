@@ -51,6 +51,9 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
+# --- Wear / Development ---
+@export var wear: Dictionary = {"snaps": 0, "collisions": 0, "injury_count": 0}
+@export var development_report: Array = []
 # --- Health / Lifecycle ---
 var injuries: Array[Dictionary] = []
 var development_report: Array[Dictionary] = []
@@ -99,6 +102,8 @@ func from_dict(d: Dictionary) -> void:
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
+	wear = (d.get("wear", wear) as Dictionary).duplicate(true)
+	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
 	contract = (d.get("contract", contract) as Dictionary).duplicate(true)
 
 	# Physicals
@@ -167,6 +172,8 @@ func to_dict() -> Dictionary:
 		"gen_mode": gen_mode,
 		"school_tag": school_tag,
 		"notes": notes,
+		"wear": wear.duplicate(true),
+		"development_report": development_report.duplicate(true),
 		"contract": contract.duplicate(true),
 		"physicals": {
 			"height_in": height_in,

@@ -20,7 +20,17 @@ func run(t) -> void:
 		"annual_base_progress_min": 1.0,
 		"annual_base_progress_max": 1.0,
 		"annual_progress_cap": 5.0,
-		"retirement": {"min_age": 21, "soft_cap_age": 21, "max_age": 21, "base_chance": 0.0}
+		"retirement": {"min_age": 21, "soft_cap_age": 21, "max_age": 21, "base_chance": 0.0},
+		"wear": {
+			"snaps_per_year": 100,
+			"collisions_per_year": 10,
+			"decline_snaps_scale": 1000.0,
+			"decline_collisions_scale": 100.0,
+			"decline_injuries_scale": 1.0,
+			"decline_per_wear": 0.1,
+			"decline_min_multiplier": 1.0,
+			"decline_max_multiplier": 2.0
+		}
 	}
 	var stats_cfg = {"stats": [
 		{"name": "accuracy", "type": "base"},
@@ -36,6 +46,12 @@ func run(t) -> void:
 	t.assert_eq(evolved.get("age"), 20, "advance_one_year increments age")
 	var stats = evolved.get("stats", {}) as Dictionary
 	t.assert_between(float(stats.get("accuracy")), 50.0, 60.0, "development should stay within potential")
+	var wear = evolved.get("wear", {}) as Dictionary
+	t.assert_eq(int(wear.get("snaps", 0)), 100, "wear snaps increment")
+	t.assert_eq(int(wear.get("collisions", 0)), 10, "wear collisions increment")
+	var report = evolved.get("development_report", []) as Array
+	t.assert_eq(report.size(), 1, "development report logged")
+	t.assert_eq(float((report[0] as Dictionary).get("decline_multiplier", 0.0)), 1.0, "decline multiplier is neutral before decline")
 	t.assert_true(evolved.has("development_report"), "development report should be attached")
 	t.assert_true(evolved.has("injury_report"), "injury report should be attached")
 
