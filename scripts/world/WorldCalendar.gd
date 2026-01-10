@@ -3,8 +3,17 @@ class_name WorldCalendar
 
 const DEFAULT_CONFIG_KEY := "world/calendar"
 
-func phases_for_year(year: int, config_key: String = DEFAULT_CONFIG_KEY) -> Array:
-	var cfg := Config.get_config(config_key)
+func phases_for_year(
+	year: int,
+	config_key: String = DEFAULT_CONFIG_KEY,
+	config_provider: Object = null
+) -> Array:
+	var config = _resolve_config(config_provider)
+	if config == null:
+		push_error("WorldCalendar: Config provider not available.")
+		return []
+
+	var cfg: Dictionary = config.get_config(config_key)
 	if cfg.is_empty():
 		push_error("WorldCalendar: missing calendar config at '%s'." % config_key)
 		return []
@@ -29,6 +38,18 @@ func phases_for_year(year: int, config_key: String = DEFAULT_CONFIG_KEY) -> Arra
 		phases.append(descriptor)
 
 	return phases
+
+func _resolve_config(config_provider: Object) -> Object:
+	if config_provider != null:
+		return config_provider
+
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root := (main_loop as SceneTree).root
+		if root.has_node("Config"):
+			return root.get_node("Config")
+
+	return null
 
 func _validate_calendar(cfg: Dictionary) -> bool:
 	if not cfg.has("phases"):

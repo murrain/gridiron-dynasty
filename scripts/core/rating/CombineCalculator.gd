@@ -6,6 +6,7 @@ class_name CombineCalculator
 ## - tests_cfg is the WHOLE combine_tests.json (with "defaults" and "tests")
 ## - combine_cfg is your main.json["combine_tuning"] (optional) for context adjustments
 ##
+const StatHelpers = preload("res://scripts/generation/StatHelpers.gd")
 
 static func compute_all(
 	player: Dictionary,

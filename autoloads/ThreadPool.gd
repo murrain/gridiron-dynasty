@@ -48,10 +48,17 @@ class _Pool:
 			var out: Array = task["out"] as Array
 			var offset: int = int(task["offset"])
 			var done: Semaphore = task["done"] as Semaphore
-			var part: Array = ThreadPool._run_slice(callable, slice)
+			var part: Array = _run_slice(callable, slice)
 			for i in range(part.size()):
 				out[offset + i] = part[i]
 			done.post()
+
+	func _run_slice(callable: Callable, slice: Array) -> Array:
+		var out: Array = []
+		out.resize(slice.size())
+		for i in range(slice.size()):
+			out[i] = callable.call(slice[i])
+		return out
 
 static var _pools: Dictionary = {}
 

@@ -1,6 +1,9 @@
 extends RefCounted
 class_name HighSchoolSeason
 
+const Rand = preload("res://autoloads/Rand.gd")
+const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+
 func run(
 	players: Array,
 	schools: Array,
@@ -20,7 +23,7 @@ func run(
 	var perf_rng := RandomNumberGenerator.new()
 	perf_rng.seed = Rand.splitmix64(seed ^ 0x1E0C7A11)
 
-	var progressed := PlayerLifecycle.advance_one_year(
+	var progressed: Dictionary = PlayerLifecycle.advance_one_year(
 		players,
 		positions_cfg,
 		main_cfg,

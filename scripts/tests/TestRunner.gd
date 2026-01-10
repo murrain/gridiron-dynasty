@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")
+
 const TEST_SCRIPTS := [
 	"res://scripts/tests/test_rand.gd",
 	"res://scripts/tests/test_threadpool.gd",
@@ -20,12 +22,12 @@ const TEST_SCRIPTS := [
 func _init() -> void:
 	var total_failures: Array = []
 	for path in TEST_SCRIPTS:
-		var script := load(path)
+		var script = load(path)
 		if script == null:
 			total_failures.append("Failed to load %s" % path)
 			continue
-		var test_instance := script.new()
-		var helper := TestHelpers.new()
+		var test_instance = script.new()
+		var helper = TestHelpers.new()
 		test_instance.run(helper)
 		for failure in helper.failures:
 			total_failures.append("%s: %s" % [path, failure])

@@ -3,8 +3,17 @@ class_name HighSchoolGenerator
 
 const DEFAULT_CONFIG_KEY := "world/high_schools"
 
-func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
-	var cfg := Config.get_config(config_key)
+func generate(
+	seed: int,
+	config_key: String = DEFAULT_CONFIG_KEY,
+	config_provider: Object = null
+) -> Dictionary:
+	var config = _resolve_config(config_provider)
+	if config == null:
+		push_error("HighSchoolGenerator: Config provider not available.")
+		return {"schools": [], "config": {}}
+
+	var cfg: Dictionary = config.get_config(config_key)
 	if cfg.is_empty():
 		push_error("HighSchoolGenerator: missing config '%s'." % config_key)
 		return {"schools": [], "config": {}}
@@ -43,6 +52,18 @@ func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
 		schools[i] = school
 
 	return {"schools": schools, "config": cfg}
+
+func _resolve_config(config_provider: Object) -> Object:
+	if config_provider != null:
+		return config_provider
+
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root := (main_loop as SceneTree).root
+		if root.has_node("Config"):
+			return root.get_node("Config")
+
+	return null
 
 func _validate_config(cfg: Dictionary) -> bool:
 	var school_count := int(cfg.get("school_count", 0))

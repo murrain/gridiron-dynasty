@@ -2,6 +2,8 @@
 ## Global app services: thread count + a convenience parallel map wrapper.
 extends Node
 
+const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+
 var _thread_count: int = 1
 
 func _ready() -> void:
