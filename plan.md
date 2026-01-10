@@ -307,6 +307,20 @@ pipeline orchestration so Phase 4 builds on verified foundations.
 1. Verify new tests are deterministic with explicit RNG usage.
 2. Confirm tests cover seed lineage outputs for pipeline steps.
 
+**Tests required to pass (Phase 3.5 validation):**
+- `scripts/tests/test_recruit_rater.gd`: percentile/star threshold logic and specialist cap.
+- `scripts/tests/test_scout_runtime.gd`: deterministic scout scoring with fixed RNG.
+- `scripts/tests/test_scout_model.gd`: deterministic Scout resource scoring and bounds.
+- `scripts/tests/test_scout_factory.gd`: deterministic scout generation and team scouts.
+- `scripts/tests/test_class_generator.gd`: class generation steps (potential copy + de-age).
+- `scripts/tests/test_draft_class_generator.gd`: class tagging + deterministic seed path.
+- `scripts/tests/test_college_recruiting.gd`: deterministic offers/commitments outputs.
+- `scripts/tests/test_advance_world_year_helpers.gd`: phase seed derivation + recruit profile output.
+- `scripts/tests/test_pipeline_seed_helpers.gd`: bootstrap/future/one-shot seed helpers.
+- `scripts/tests/test_core_utilities.gd`: App.map_parallel, RngBox, Threader coverage.
+- `scripts/tests/test_player_model.gd`: Player serialization round-trip.
+- `scripts/tests/TestRunner.gd`: registration of all Phase 3.5 tests.
+
 ---
 
 ## Phase 4: Team + roster scaffolding
@@ -330,6 +344,10 @@ pipeline orchestration so Phase 4 builds on verified foundations.
 1. Confirm scaffolding remains minimal (no full simulation).
 2. Validate deterministic handling of roster placement.
 3. Ensure Coach model scopes to team-level behavior only.
+
+**Tests required to pass (Phase 4 scaffolding):**
+- `scripts/tests/test_phase4_scaffolding.gd`: guarded scaffolding test that
+  asserts Team/Roster/Coach/LeagueContainer instantiate once implemented.
 
 ---
 
