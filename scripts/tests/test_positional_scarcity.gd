@@ -22,9 +22,9 @@ func test_starter_slots_defined(t) -> void:
 		t.assert_true(slots > 0, "%s has defined starter slots" % pos)
 
 	# Verify some specific values
-	t.assert_equal(PositionalScarcity.STARTER_SLOTS["QB"], 1, "QB requires 1 starter")
-	t.assert_equal(PositionalScarcity.STARTER_SLOTS["WR"], 3, "WR requires 3 starters")
-	t.assert_equal(PositionalScarcity.STARTER_SLOTS["OL"], 5, "OL requires 5 starters")
+	t.assert_eq(PositionalScarcity.STARTER_SLOTS["QB"], 1, "QB requires 1 starter")
+	t.assert_eq(PositionalScarcity.STARTER_SLOTS["WR"], 3, "WR requires 3 starters")
+	t.assert_eq(PositionalScarcity.STARTER_SLOTS["OL"], 5, "OL requires 5 starters")
 
 ## Test scarcity when supply exactly matches demand (32 teams).
 func test_scarcity_perfect_balance(t) -> void:
