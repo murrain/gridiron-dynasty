@@ -36,6 +36,8 @@ func run(t) -> void:
 	t.assert_eq(evolved.get("age"), 20, "advance_one_year increments age")
 	var stats = evolved.get("stats", {}) as Dictionary
 	t.assert_between(float(stats.get("accuracy")), 50.0, 60.0, "development should stay within potential")
+	t.assert_true(evolved.has("development_report"), "development report should be attached")
+	t.assert_true(evolved.has("injury_report"), "injury report should be attached")
 
 	var result_retire = PlayerLifecycle.advance_one_year([{"age": 21, "position": "QB", "stats": {"accuracy": 40.0}}], positions_cfg, main_cfg, stats_cfg, rng)
 	t.assert_eq((result_retire.get("retired", []) as Array).size(), 1, "retirement at max age")
