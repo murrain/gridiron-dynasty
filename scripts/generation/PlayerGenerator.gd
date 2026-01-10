@@ -85,6 +85,8 @@ func _make_single_player(gaussian_share: float, rng: RandomNumberGenerator) -> D
 	p["stats"] = StatsHelper.roll_all(stats_cfg, p["position"], positions_data, gaussian_share, rng)
 	StatsHelper.apply_defaults(p["stats"], stats_cfg, true)
 	p["tags"] = []
+	p["wear"] = {"snaps": 0, "collisions": 0, "injury_count": 0}
+	p["development_report"] = []
 	return p
 
 ## De-age a class to HS year 1 (threaded wrapper).

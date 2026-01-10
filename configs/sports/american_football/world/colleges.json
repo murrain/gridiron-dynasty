@@ -32,5 +32,20 @@
     "baseline_weight": 0.30,
     "visit_chance": 0.25,
     "visit_bonus": 0.06
+  },
+  "usage_profile": {
+    "games_played_min": 9,
+    "games_played_max": 13,
+    "snaps_min": 250,
+    "snaps_max": 900,
+    "starter_chance": 0.45
+  },
+  "competition": {
+    "tier_growth_multipliers": {
+      "elite": 1.08,
+      "power": 1.04,
+      "mid": 1.00,
+      "low": 0.96
+    }
   }
 }
