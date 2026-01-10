@@ -26,7 +26,8 @@ func _get_config() -> Node:
 
 func run(world_state: Dictionary, year: int, year_seed: int) -> Dictionary:
 	var calendar := WorldCalendar.new()
-	var phases := calendar.phases_for_year(year)
+	var config := _get_config()
+	var phases := calendar.phases_for_year(year, "world/calendar", config)
 	var results: Array = []
 	var state := world_state if world_state != null else {}
 
@@ -100,7 +101,8 @@ func _handle_hs_generation(
 	var schools: Array = world_state.get("hs_schools", []) as Array
 	if schools.is_empty():
 		var school_gen := HighSchoolGenerator.new()
-		var generated := school_gen.generate(step_seeds["hs_school_gen"])
+		var config := _get_config()
+		var generated := school_gen.generate(step_seeds["hs_school_gen"], "world/high_schools", config)
 		schools = generated.get("schools", []) as Array
 		world_state["hs_schools"] = schools
 
