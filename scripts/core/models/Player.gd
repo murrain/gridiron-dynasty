@@ -51,6 +51,10 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
+# --- Health / Lifecycle ---
+var injuries: Array[Dictionary] = []
+var development_report: Array[Dictionary] = []
+
 # =========================
 # Lifecycle / Utilities
 # =========================
@@ -103,6 +107,8 @@ func from_dict(d: Dictionary) -> void:
 	derived = (d.get("derived", derived) as Dictionary).duplicate(true)
 	traits = (d.get("traits", traits) as Array).duplicate()
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
+	injuries = (d.get("injuries", injuries) as Array).duplicate(true)
+	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
 
 func to_dict() -> Dictionary:
 	return {
@@ -139,7 +145,9 @@ func to_dict() -> Dictionary:
 		"potential": potential.duplicate(true),
 		"derived": derived.duplicate(true),
 		"traits": traits.duplicate(),
-		"hidden_traits": hidden_traits.duplicate()
+		"hidden_traits": hidden_traits.duplicate(),
+		"injuries": injuries.duplicate(true),
+		"development_report": development_report.duplicate(true)
 	}
 
 # --- Derived stat recompute ---
