@@ -10,20 +10,20 @@ func setup(stats_cfg_in: Dictionary, scouts_cfg_in: Dictionary) -> void:
 	stats_cfg = stats_cfg_in
 	scouts_cfg = scouts_cfg_in
 
-func create_random_scout(name_hint: String = "Regional Scout") -> Resource:
+func create_random_scout(name_hint: String, rng: RandomNumberGenerator) -> Resource:
 	var s := Scout.new()
 	s.name = name_hint
-	s.years_exp = randi_range(3, 15)
+	s.years_exp = rng.randi_range(3, 15)
 
 	var gen := scouts_cfg.get("generation", {})
 	var defs := scouts_cfg.get("defaults", {})
 	var spec := defs.get("specialty", {})
 
 	# Base traits
-	s.base_skill = _rand_clip(gen.get("skill_distributions", {}).get("base_skill", {"mu":0.55,"sigma":0.12,"min":0.3,"max":0.85}))
-	s.overrate_athletes = _rand_clip(gen.get("skill_distributions", {}).get("overrate_athletes", {"mu":0.0,"sigma":0.25,"min":-0.8,"max":0.8}))
-	s.tape_grinder = _rand_clip(gen.get("skill_distributions", {}).get("tape_grinder", {"mu":0.3,"sigma":0.2,"min":0.0,"max":1.0}))
-	s.risk_aversion = _rand_clip(gen.get("skill_distributions", {}).get("risk_aversion", {"mu":0.1,"sigma":0.1,"min":0.0,"max":0.6}))
+	s.base_skill = _rand_clip(gen.get("skill_distributions", {}).get("base_skill", {"mu":0.55,"sigma":0.12,"min":0.3,"max":0.85}), rng)
+	s.overrate_athletes = _rand_clip(gen.get("skill_distributions", {}).get("overrate_athletes", {"mu":0.0,"sigma":0.25,"min":-0.8,"max":0.8}), rng)
+	s.tape_grinder = _rand_clip(gen.get("skill_distributions", {}).get("tape_grinder", {"mu":0.3,"sigma":0.2,"min":0.0,"max":1.0}), rng)
+	s.risk_aversion = _rand_clip(gen.get("skill_distributions", {}).get("risk_aversion", {"mu":0.1,"sigma":0.1,"min":0.0,"max":0.6}), rng)
 
 	# Build specialty candidate pool from stats.json using thresholds
 	var excl_easy_at := float(spec.get("exclude_easy_at", 0.80))
@@ -51,8 +51,8 @@ func create_random_scout(name_hint: String = "Regional Scout") -> Resource:
 	# Choose number of specialties
 	var nmin := int(spec.get("num_min", 2))
 	var nmax := int(spec.get("num_max", 4))
-	var want := randi_range(nmin, nmax)
-	var chosen := _weighted_sample_no_replacement(pool, want)
+	var want := rng.randi_range(nmin, nmax)
+	var chosen := _weighted_sample_no_replacement(pool, want, rng)
 
 	# Assign per-stat skills
 	var sp_min := float(spec.get("skill_for_specialty_min", 0.80))
@@ -62,13 +62,13 @@ func create_random_scout(name_hint: String = "Regional Scout") -> Resource:
 	s.stat_skill = {}
 	var specialty_set := {}
 	for it in chosen:
-		s.stat_skill[it["name"]] = randf_range(sp_min, sp_max)
+		s.stat_skill[it["name"]] = rng.randf_range(sp_min, sp_max)
 		specialty_set[it["name"]] = true
 	# Optionally give baseline skills to the rest
 	for sd in stats_cfg.get("stats", []):
 		var nm := String((sd as Dictionary).get("name",""))
 		if specialty_set.has(nm): continue
-		s.stat_skill[nm] = randf_range(ns_min, ns_max)
+		s.stat_skill[nm] = rng.randf_range(ns_min, ns_max)
 
 	# Set up per-stat bias envelopes from generation settings (optional)
 	var bdist := gen.get("bias_distributions", {})
@@ -84,21 +84,21 @@ func create_random_scout(name_hint: String = "Regional Scout") -> Resource:
 	for it in chosen:
 		var st := String(it["name"])
 		# draw mild per-stat tendencies
-		var mu := clamp(mean_mu + randfn(0.0, mean_sd), clamp_min, clamp_max)
-		var sg := max(0.1, sig_mu + randfn(0.0, sig_sd))
+		var mu := clamp(mean_mu + rng.randfn(0.0, mean_sd), clamp_min, clamp_max)
+		var sg := max(0.1, sig_mu + rng.randfn(0.0, sig_sd))
 		s.stat_bias_mean[st] = mu
 		s.stat_bias_sigma[st] = sg
 
 	# Initialize meas cache and context in the Scout for later use
-	s.setup(stats_cfg, {"sigma_min":1.0,"sigma_max":12.0,"quality_floor":0.15,"bounded_min":0.0,"bounded_max":100.0})
+	s.setup(stats_cfg, {"sigma_min":1.0,"sigma_max":12.0,"quality_floor":0.15,"bounded_min":0.0,"bounded_max":100.0}, rng)
 
 	return s
 
 func create_team_scouts(team_name: String, count: int = 3, rng: RandomNumberGenerator = null) -> Array:
 	var scouts: Array = []
 	if rng == null:
-		rng = RandomNumberGenerator.new()
-		rng.randomize()
+		push_error("ScoutFactory: create_team_scouts requires an RNG.")
+		return scouts
 
 	var defaults: Dictionary = scouts_cfg.get("defaults", {}) as Dictionary
 	var templates: Array = scouts_cfg.get("national_scouts", []) as Array
@@ -122,7 +122,7 @@ func create_team_scouts(team_name: String, count: int = 3, rng: RandomNumberGene
 		_jitter_multipliers(scout.estimation_multipliers, rng)
 		_normalize_bucket_weights(scout.bucket_weights)
 
-		scout.setup(stats_cfg, defaults)
+		scout.setup(stats_cfg, defaults, rng)
 		scouts.append(scout)
 
 	return scouts
@@ -209,14 +209,14 @@ func _normalize_bucket_weights(weights: Dictionary) -> void:
 
 # --- helpers ---
 
-func _rand_clip(dist: Dictionary) -> float:
+func _rand_clip(dist: Dictionary, rng: RandomNumberGenerator) -> float:
 	var mu := float(dist.get("mu", 0.5))
 	var sd := float(dist.get("sigma", 0.1))
 	var mn := float(dist.get("min", 0.0))
 	var mx := float(dist.get("max", 1.0))
-	return clamp(mu + randfn(0.0, sd), mn, mx)
+	return clamp(mu + rng.randfn(0.0, sd), mn, mx)
 
-func _weighted_sample_no_replacement(items: Array, k: int) -> Array:
+func _weighted_sample_no_replacement(items: Array, k: int, rng: RandomNumberGenerator) -> Array:
 	var picked: Array = []
 	var pool := items.duplicate()
 	for i in range(min(k, pool.size())):
@@ -225,7 +225,7 @@ func _weighted_sample_no_replacement(items: Array, k: int) -> Array:
 		if total <= 0.0:
 			picked.append(pool.pop_back())
 			continue
-		var r := randf() * total
+		var r := rng.randf() * total
 		var acc := 0.0
 		var idx := 0
 		for j in range(pool.size()):

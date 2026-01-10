@@ -7,14 +7,11 @@ static func advance_years(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var active: Array = players.duplicate()
 	var retired_all: Array = []
 	var rng_use := rng
-	if rng_use == null:
-		rng_use = RandomNumberGenerator.new()
-		rng_use.randomize()
 
 	for _year in range(max(0, years)):
 		var result := advance_one_year(active, positions_cfg, main_cfg, stats_cfg, rng_use)
@@ -28,12 +25,9 @@ static func advance_one_year(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var rng_use := rng
-	if rng_use == null:
-		rng_use = RandomNumberGenerator.new()
-		rng_use.randomize()
 
 	var updated: Array = []
 	var retired: Array = []

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "college_count": 130,
+  "default_capacity": 85,
+  "name_format": "College %03d",
+  "regions": [
+    {"id": "south", "label": "South", "weight": 0.34},
+    {"id": "midwest", "label": "Midwest", "weight": 0.22},
+    {"id": "west", "label": "West", "weight": 0.18},
+    {"id": "northeast", "label": "Northeast", "weight": 0.26}
+  ],
+  "eliteness_tiers": [
+    {"id": "elite", "min": 88.0, "max": 100.0, "weight": 0.08},
+    {"id": "power", "min": 76.0, "max": 88.0, "weight": 0.28},
+    {"id": "mid", "min": 62.0, "max": 76.0, "weight": 0.40},
+    {"id": "low", "min": 45.0, "max": 62.0, "weight": 0.24}
+  ],
+  "roster_capacity": {
+    "min": 75,
+    "max": 105
+  },
+  "recruiting": {
+    "class_size_min": 18,
+    "class_size_max": 26,
+    "offer_limit": 35,
+    "board_limit": 120,
+    "rating_weight": 0.55,
+    "eliteness_weight": 0.25,
+    "proximity_weight": 0.20,
+    "region_match_multiplier": 1.35,
+    "scout_weight": 0.70,
+    "baseline_weight": 0.30,
+    "visit_chance": 0.25,
+    "visit_bonus": 0.06
+  }
+}

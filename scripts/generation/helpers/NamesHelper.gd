@@ -4,17 +4,13 @@ class_name NamesHelper
 ## - random_full(names_cfg) -> "First Last"
 ## Supports a few common shapes of names config.
 
-static func _pick_any(arr: Array, fallback: String, rng: RandomNumberGenerator = null) -> String:
+static func _pick_any(arr: Array, fallback: String, rng: RandomNumberGenerator) -> String:
 	if arr.is_empty():
 		return fallback
-	var idx: int
-	if rng != null:
-		idx = int(rng.randi() % arr.size())
-	else:
-		idx = int(randi() % arr.size())
+	var idx: int = int(rng.randi() % arr.size())
 	return String(arr[idx])
 
-static func random_full(names_cfg: Dictionary, rng: RandomNumberGenerator = null) -> String:
+static func random_full(names_cfg: Dictionary, rng: RandomNumberGenerator) -> String:
 	var firsts: Array = []
 	var lasts: Array = []
 	# Try several common keys

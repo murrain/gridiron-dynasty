@@ -27,7 +27,8 @@ static func de_age(
 	player: Dictionary,
 	positions: Dictionary,
 	deage_cfg: Dictionary,
-	stats_cfg: Dictionary
+	stats_cfg: Dictionary,
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var new_player := player.duplicate(true)
 
@@ -63,10 +64,6 @@ static func de_age(
 	var core_var := float(deage_cfg.get("core_var", 0.10))
 	var sec_var  := float(deage_cfg.get("secondary_var", 0.15))
 	var oth_var  := float(deage_cfg.get("other_var", 0.20))
-
-	# RNG
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
 
 	# ---- Scale stats ----
 	if new_player.has("stats"):

@@ -7,7 +7,7 @@ class_name PositionHelper
 static func pick_position(
 	positions_data: Dictionary,
 	class_rules: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> String:
 	var keys: Array = positions_data.keys()
 	keys.sort() # stable
@@ -17,7 +17,7 @@ static func pick_position(
 	var weights: Dictionary = class_rules.get("position_weights", {}) as Dictionary
 	if weights.is_empty():
 		# fall back to equal chance
-		var idx: int = int((rng.randi() if rng != null else randi()) % keys.size())
+		var idx: int = int(rng.randi() % keys.size())
 		return String(keys[idx])
 
 	# Build weight vector in positions order
@@ -29,10 +29,10 @@ static func pick_position(
 		w.append(v)
 		wsum += v
 	if wsum <= 0.0:
-		var idx2: int = int((rng.randi() if rng != null else randi()) % keys.size())
+		var idx2: int = int(rng.randi() % keys.size())
 		return String(keys[idx2])
 
-	var r := (rng.randf() if rng != null else randf()) * wsum
+	var r := rng.randf() * wsum
 	for i in range(keys.size()):
 		if r < w[i]:
 			return String(keys[i])
