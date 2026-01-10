@@ -7,6 +7,12 @@ class_name Team
 @export var name: String = ""
 
 # --- Cap accounting ---
+# cap_used = sum(contract.annual_value for active roster players)
+# cap_space = cap_limit - cap_used
+@export var cap_limit: float = 0.0
+@export var cap_used: float = 0.0
+@export var cap_space: float = 0.0
+@export var is_over_cap: bool = false
 # league_cap should be supplied from league config or a future LeagueContainer.
 @export var league_cap: float = 0.0
 @export var roster: SportRoster = SportRoster.new()
@@ -32,6 +38,10 @@ func from_dict(d: Dictionary) -> void:
 	name = String(d.get("name", name))
 
 	var cap: Dictionary = d.get("cap", {})
+	cap_limit = float(cap.get("cap_limit", cap_limit))
+	cap_used = float(cap.get("cap_used", cap_used))
+	cap_space = float(cap.get("cap_space", cap_space))
+	is_over_cap = bool(d.get("is_over_cap", is_over_cap))
 	league_cap = float(cap.get("league_cap", cap.get("cap_limit", league_cap)))
 
 	var roster_payload: Dictionary = d.get("roster", {})
@@ -53,6 +63,7 @@ func to_dict() -> Dictionary:
 			"cap_used": cap_used,
 			"cap_space": cap_space
 		},
+		"is_over_cap": is_over_cap,
 		"roster": roster_dict,
 		"player_ids": player_ids.duplicate()
 	}

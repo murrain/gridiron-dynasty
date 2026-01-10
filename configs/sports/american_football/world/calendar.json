@@ -58,10 +58,18 @@
       "placeholder": true
     },
     {
-      "id": "nfl_draft",
-      "label": "NFL draft",
+      "id": "cap_validation",
+      "label": "Cap validation",
       "start_tick": 7,
       "end_tick": 7,
+      "tags": ["nfl", "cap"],
+      "placeholder": false
+    },
+    {
+      "id": "nfl_draft",
+      "label": "NFL draft",
+      "start_tick": 8,
+      "end_tick": 8,
       "tags": ["nfl"],
       "placeholder": true
     }
