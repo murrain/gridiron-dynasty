@@ -1,10 +1,12 @@
 extends RefCounted
 
+const ConfigService = preload("res://autoloads/Config.gd")
 const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
 
 func run(t) -> void:
-	var stats_cfg := Config.get_config("stats")
-	var scouts_cfg := Config.get_config("scouts")
+	var config := ConfigService.new()
+	var stats_cfg := config.get_config("stats")
+	var scouts_cfg := config.get_config("scouts")
 
 	var factory := ScoutFactory.new()
 	factory.setup(stats_cfg, scouts_cfg)

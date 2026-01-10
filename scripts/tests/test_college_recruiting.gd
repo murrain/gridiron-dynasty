@@ -1,12 +1,14 @@
 extends RefCounted
 
 const CollegeRecruiting = preload("res://scripts/pipelines/CollegeRecruiting.gd")
+const ConfigService = preload("res://autoloads/Config.gd")
 
 func run(t) -> void:
-	var positions_cfg := Config.get_config("positions")
-	var stats_cfg := Config.get_config("stats")
-	var scouts_cfg := Config.get_config("scouts")
-	var class_rules := Config.get_config("main").get("class_rules", {})
+	var config := ConfigService.new()
+	var positions_cfg := config.get_config("positions")
+	var stats_cfg := config.get_config("stats")
+	var scouts_cfg := config.get_config("scouts")
+	var class_rules: Dictionary = config.get_config("main").get("class_rules", {}) as Dictionary
 
 	var recruits := [
 		_make_recruit("p1", "QB", "north", 0.8, 88.0),
@@ -20,7 +22,7 @@ func run(t) -> void:
 		{"id": "c2", "name": "South State", "region": "south", "eliteness": 65.0}
 	]
 
-	var config := {
+	var pipeline_cfg := {
 		"recruiting": {
 			"offer_limit": 3,
 			"board_limit": 10,
@@ -41,7 +43,7 @@ func run(t) -> void:
 	var result_a := pipeline.run(
 		recruits,
 		colleges,
-		config,
+		pipeline_cfg,
 		positions_cfg,
 		stats_cfg,
 		class_rules,
@@ -53,7 +55,7 @@ func run(t) -> void:
 	var result_b := pipeline.run(
 		recruits,
 		colleges,
-		config,
+		pipeline_cfg,
 		positions_cfg,
 		stats_cfg,
 		class_rules,

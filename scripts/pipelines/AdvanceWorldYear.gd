@@ -316,11 +316,11 @@ func _derive_seed(year_seed: int, phase_id: String, step_id: String) -> int:
 	return Rand.splitmix64(year_seed ^ hash)
 
 func _fnv1a_64(text: String) -> int:
-	var hash := 0xcbf29ce484222325
-	var prime := 0x100000001b3
+	var hash: int = -3750763034362895579
+	var prime: int = 1099511628211
 	for b in text.to_utf8_buffer():
-		hash = int(hash ^ b) & 0xFFFFFFFFFFFFFFFF
-		hash = int(hash * prime) & 0xFFFFFFFFFFFFFFFF
+		hash = int(hash ^ b) & -1
+		hash = int(hash * prime) & -1
 	return hash
 
 func _school_index(schools: Array) -> Dictionary:

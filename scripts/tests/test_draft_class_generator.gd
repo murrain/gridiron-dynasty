@@ -1,9 +1,11 @@
 extends RefCounted
 
 const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
+const ConfigService = preload("res://autoloads/Config.gd")
 
 func run(t) -> void:
-	var main_cfg := Config.get_config("main")
+	var config := ConfigService.new()
+	var main_cfg := config.get_config("main")
 	var class_rules := (main_cfg.get("class_rules", {}) as Dictionary).duplicate(true)
 	class_rules["class_size"] = 8
 	class_rules["max_freaks_per_class"] = 1

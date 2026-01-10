@@ -38,9 +38,10 @@ func _run_once(seed: int) -> Dictionary:
 	}
 	var result = PlayerLifecycle.advance_one_year([player], positions_cfg, main_cfg, stats_cfg, rng)
 	var evolved = (result.get("players", []) as Array)[0] as Dictionary
+	var report = (result.get("development_reports", []) as Array)[0] as Dictionary
 	return {
 		"stats": evolved.get("stats", {}) as Dictionary,
-		"development_report": evolved.get("development_report", {}) as Dictionary,
+		"development_report": report,
 		"injury_report": evolved.get("injury_report", {}) as Dictionary
 	}
 
