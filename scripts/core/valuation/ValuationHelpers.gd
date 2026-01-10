@@ -7,13 +7,13 @@ static func valuation_range(
 	min_value: float = -INF,
 	max_value: float = INF
 ) -> Dictionary:
-	var delta := abs(base_value) * variance_pct
-	var lo := base_value - delta
-	var hi := base_value + delta
+	var delta: float = abs(base_value) * variance_pct
+	var lo: float = base_value - delta
+	var hi: float = base_value + delta
 	lo = max(lo, min_value)
 	hi = min(hi, max_value)
 	if hi < lo:
-		var tmp := lo
+		var tmp: float = lo
 		lo = hi
 		hi = tmp
 	return {"min": lo, "max": hi}

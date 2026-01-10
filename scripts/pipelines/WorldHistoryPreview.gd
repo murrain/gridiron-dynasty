@@ -2,6 +2,10 @@
 extends Node
 class_name WorldHistoryPreview
 
+const ConfigService = preload("res://autoloads/Config.gd")
+const Rand = preload("res://autoloads/Rand.gd")
+const AdvanceWorldYear = preload("res://scripts/pipelines/AdvanceWorldYear.gd")
+
 const DEFAULT_HISTORY_YEARS: int = 20
 const PRO_READY_MIN_AGE: int = 22
 const PRO_READY_MAX_AGE: int = 32
@@ -28,15 +32,16 @@ func run() -> Dictionary:
 	if output_label != null and output_config.clear_on_run:
 		output_label.clear()
 
-	var _cfg_all: Dictionary = Config.get_all()
-	var main_cfg: Dictionary = Config.get_config("main")
-	var positions_cfg: Dictionary = Config.get_config("positions")
-	var stats_cfg: Dictionary = Config.get_config("stats")
+	var config: Node = ConfigService.new()
+	var _cfg_all: Dictionary = config.get_all()
+	var main_cfg: Dictionary = config.get_config("main")
+	var positions_cfg: Dictionary = config.get_config("positions")
+	var stats_cfg: Dictionary = config.get_config("stats")
 
-	var start_year := int(main_cfg.get("starting_year", 2025))
-	var base_seed := int(main_cfg.get("random_seed", 0))
-	var years := max(1, history_years)
-	var first_year := start_year - years + 1
+	var start_year: int = int(main_cfg.get("starting_year", 2025))
+	var base_seed: int = int(main_cfg.get("random_seed", 0))
+	var years: int = max(1, history_years)
+	var first_year: int = start_year - years + 1
 
 	_emit_output("🌎 Bootstrapping world history %d → %d (%d seasons)" % [first_year, start_year, years])
 
@@ -196,12 +201,12 @@ func _emit_program_rankings(summary: Array, descending: bool, limit: int) -> voi
 		_emit_output("- None (no college classes yet).")
 		return
 	var sorted: Array = summary.duplicate()
-	sorted.sort_custom(func(a, b):
-		var av := float((a as Dictionary).get("avg_score", 0.0))
-		var bv := float((b as Dictionary).get("avg_score", 0.0))
+	sorted.sort_custom(func(a, b) -> bool:
+		var av: float = float((a as Dictionary).get("avg_score", 0.0))
+		var bv: float = float((b as Dictionary).get("avg_score", 0.0))
 		return av > bv if descending else av < bv
 	)
-	var count := min(limit, sorted.size())
+	var count: int = min(limit, sorted.size())
 	for i in range(count):
 		var entry: Dictionary = sorted[i]
 		_emit_output("- %s | avg: %.2f | class: %d" % [
@@ -301,13 +306,13 @@ func _core_rating(player: Dictionary, positions_cfg: Dictionary, stats_cfg: Dict
 	return total / float(count)
 
 func _mean_of_stats(stats: Dictionary, stats_cfg: Dictionary) -> float:
-	var stat_defs := _stat_defs(stats_cfg)
-	var total := 0.0
-	var count := 0
-	for key in stats.keys():
+	var stat_defs: Dictionary = _stat_defs(stats_cfg)
+	var total: float = 0.0
+	var count: int = 0
+	for key: String in stats.keys():
 		if stat_defs.has(key) and stat_defs[key].get("type", "base") != "base":
 			continue
-		var val := stats.get(key)
+		var val: Variant = stats.get(key)
 		if typeof(val) == TYPE_FLOAT or typeof(val) == TYPE_INT:
 			total += float(val)
 			count += 1

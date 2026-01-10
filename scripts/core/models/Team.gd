@@ -7,11 +7,9 @@ class_name Team
 @export var name: String = ""
 
 # --- Cap accounting ---
-# cap_used = sum(contract.annual_value for active roster players)
-# cap_space = cap_limit - cap_used
+# cap_limit is the team's specific cap limit (may be adjusted from league_cap)
+# is_over_cap tracks whether cap_used exceeds cap_limit
 @export var cap_limit: float = 0.0
-@export var cap_used: float = 0.0
-@export var cap_space: float = 0.0
 @export var is_over_cap: bool = false
 # league_cap should be supplied from league config or a future LeagueContainer.
 @export var league_cap: float = 0.0
