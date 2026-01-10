@@ -4,11 +4,12 @@ extends Resource
 class_name TradeOffer
 
 ## Trade offer with explicit send/receive bundles.
-## Pick descriptors are dictionaries with keys: year, round, slot.
+## Picks are Pick resources or dictionaries with keys:
+## year, round, slot, original_team_id, current_owner_id.
 @export var send_player_ids: Array[String] = []
-@export var send_picks: Array[Dictionary] = []
+@export var send_picks: Array = []
 @export var receive_player_ids: Array[String] = []
-@export var receive_picks: Array[Dictionary] = []
+@export var receive_picks: Array = []
 
 func get_bundle(is_send: bool) -> Dictionary:
 	if is_send:
