@@ -10,11 +10,11 @@ static func _sample_gauss(
 	sigma: float,
 	lo: float,
 	hi: float,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> float:
 	if sigma <= 0.0:
 		return clamp(mu, lo, hi)
-	var noise: float = rng.randfn(0.0, sigma) if rng != null else randfn(0.0, sigma)
+	var noise: float = rng.randfn(0.0, sigma)
 	return clamp(mu + noise, lo, hi)
 
 static func _sample_mix(
@@ -23,21 +23,21 @@ static func _sample_mix(
 	lo: float,
 	hi: float,
 	gaussian_share: float,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> float:
 	gaussian_share = clamp(gaussian_share, 0.0, 1.0)
-	var roll: float = rng.randf() if rng != null else randf()
+	var roll: float = rng.randf()
 	if roll < gaussian_share:
 		return _sample_gauss(mu, sigma, lo, hi, rng)
 	# light uniform tail for outliers
-	return rng.randf_range(lo, hi) if rng != null else randf_range(lo, hi)
+	return rng.randf_range(lo, hi)
 
 static func roll_all(
 	stats_cfg: Dictionary,
 	pos: String,
 	positions_data: Dictionary,
 	gaussian_share: float,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var out: Dictionary = {}
 

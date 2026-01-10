@@ -26,26 +26,42 @@
       "placeholder": false
     },
     {
-      "id": "college_season",
-      "label": "College season",
+      "id": "college_generation",
+      "label": "College generation",
       "start_tick": 3,
       "end_tick": 3,
+      "tags": ["college"],
+      "placeholder": false
+    },
+    {
+      "id": "college_recruiting",
+      "label": "College recruiting",
+      "start_tick": 4,
+      "end_tick": 4,
+      "tags": ["college"],
+      "placeholder": false
+    },
+    {
+      "id": "college_season",
+      "label": "College season",
+      "start_tick": 5,
+      "end_tick": 5,
       "tags": ["college"],
       "placeholder": true
     },
     {
       "id": "draft_prep",
       "label": "Draft prep",
-      "start_tick": 4,
-      "end_tick": 4,
+      "start_tick": 6,
+      "end_tick": 6,
       "tags": ["nfl"],
       "placeholder": true
     },
     {
       "id": "nfl_draft",
       "label": "NFL draft",
-      "start_tick": 5,
-      "end_tick": 5,
+      "start_tick": 7,
+      "end_tick": 7,
       "tags": ["nfl"],
       "placeholder": true
     }

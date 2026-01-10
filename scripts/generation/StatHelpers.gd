@@ -2,15 +2,9 @@
 extends RefCounted
 class_name StatHelpers
 
-static func gaussian(mu: float, sigma: float, rng: RandomNumberGenerator = null) -> float:
-	var u1: float
-	var u2: float
-	if rng != null:
-		u1 = max(1e-9, rng.randf())
-		u2 = rng.randf()
-	else:
-		u1 = max(1e-9, randf())
-		u2 = randf()
+static func gaussian(mu: float, sigma: float, rng: RandomNumberGenerator) -> float:
+	var u1: float = max(1e-9, rng.randf())
+	var u2: float = rng.randf()
 	var z: float = sqrt(-2.0 * log(u1)) * cos(2.0 * PI * u2)
 	return mu + sigma * z
 
@@ -33,7 +27,7 @@ static func sample_with_caps(
 		values_for_percentile: Array,
 		role: String,
 		outlier: Dictionary,
-		rng: RandomNumberGenerator = null
+		rng: RandomNumberGenerator
 	) -> float:
 	var v: float = clamp(gaussian(mu, sigma, rng), 0.0, 100.0)
 	var cap_val: float = percentile_value(values_for_percentile, cap_pct)
@@ -42,7 +36,7 @@ static func sample_with_caps(
 		return min(v, cap_val)
 
 	var prob: float = float(outlier.get("prob", 0.0))
-	var roll: float = rng.randf() if rng != null else randf()
+	var roll: float = rng.randf()
 	if roll < prob:
 		var max_pct: float = float(outlier.get("max_pct", cap_pct))
 		var rare_cap: float = percentile_value(values_for_percentile, max_pct)

@@ -86,11 +86,7 @@ func run() -> void:
 	gen.combine_tests = combine_tests
 	gen.combine_tuning = combine_tests.get("defaults", {})
 
-	# RNG seeding
-	if main_cfg.has("random_seed"):
-		seed(int(main_cfg["random_seed"]))
-	else:
-		randomize()
+	var base_seed := _resolve_seed(main_cfg)
 
 	# knobs
 	var class_size := int(gen.class_rules.get("class_size", 2000))
@@ -100,10 +96,10 @@ func run() -> void:
 	var freak_max := float(gen.class_rules.get("freak_percentile_max", 0.90))
 
 	# 1) generate
-	var players: Array = gen.generate_class(class_size, gaussian_share)
+	var players: Array = gen.generate_class(class_size, gaussian_share, _step_rng(base_seed, "generate"))
 
 	# 2) freaks (single-threaded tagging usually fine; tiny workload)
-	gen.assign_dynamic_freaks(players, max_freaks, freak_min, freak_max)
+	gen.assign_dynamic_freaks(players, max_freaks, freak_min, freak_max, _step_rng(base_seed, "freaks"))
 
 	# 3) rate & rank (threaded internal)
 	var rater := RecruitRater.new()
@@ -114,8 +110,9 @@ func run() -> void:
 	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
 	_emit_output("✅ Generated %d prospects → %s" % [players.size(), out_path])
 
-	_print_top_detailed(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules, 10)
-	_print_all_five_stars(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules)
+	var scout_rng := _step_rng(base_seed, "scout_preview")
+	_print_top_detailed(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules, scout_rng, 10)
+	_print_all_five_stars(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules, scout_rng)
 
 	# 4) copy potential (threaded)
 	var copied := ThreadPool.map(players, func(p):
@@ -127,10 +124,28 @@ func run() -> void:
 		players[i] = copied[i]
 
 	# 5) de-age (threaded wrapper in generator)
-	gen.de_age_players(players, gen.positions_data, main_cfg.get("deage", {}), stats_cfg)
+	gen.de_age_players(players, gen.positions_data, main_cfg.get("deage", {}), stats_cfg, _step_rng(base_seed, "de_age"))
 
 	# 6) save
 	gen.save_to_json(out_path, players)
+
+func _resolve_seed(main_cfg: Dictionary) -> int:
+	if main_cfg.has("random_seed"):
+		return int(main_cfg["random_seed"])
+	return int(main_cfg.get("starting_year", 2025))
+
+func _step_rng(seed: int, label: String) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = Rand.splitmix64(seed ^ _fnv1a_64(label))
+	return rng
+
+func _fnv1a_64(text: String) -> int:
+	var hash := 0xcbf29ce484222325
+	var prime := 0x100000001b3
+	for b in text.to_utf8_buffer():
+		hash = int(hash ^ b) & 0xFFFFFFFFFFFFFFFF
+		hash = int(hash * prime) & 0xFFFFFFFFFFFFFFFF
+	return hash
 
 # --- Printing helpers below (same interface, documented) ---
 
@@ -250,7 +265,8 @@ func print_player_detailed(
 	stats_cfg: Dictionary,
 	combine_tests_cfg: Dictionary,
 	scouts_cfg: Dictionary,
-	class_rules: Dictionary
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
 ) -> void:
 	var name_s := String(p.get("name","Unknown"))
 	var pos_s := String(p.get("position","ATH"))
@@ -290,9 +306,18 @@ func print_player_detailed(
 	else:
 		_emit_output("• Mentals: %5.2f   • Tags: %s" % [mentals_avg_f, ", ".join(tags_arr)])
 
-	_print_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules)
+	_print_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules, rng)
 
-func _print_top_detailed(players: Array, positions_data: Dictionary, stats_cfg: Dictionary, combine_tests_cfg: Dictionary, scouts_cfg: Dictionary, class_rules: Dictionary, top_n: int = 10) -> void:
+func _print_top_detailed(
+	players: Array,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	combine_tests_cfg: Dictionary,
+	scouts_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator,
+	top_n: int = 10
+) -> void:
 	var pool := players.filter(func(pp):
 		var pos := String((pp as Dictionary).get("position",""))
 		return pos != "K" and pos != "P"
@@ -300,17 +325,32 @@ func _print_top_detailed(players: Array, positions_data: Dictionary, stats_cfg: 
 	var limit : int = min(top_n, pool.size())
 	_emit_output("\n🏆 Top %d (detailed):\n" % limit)
 	for i in limit:
-		print_player_detailed(pool[i] as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules)
+		print_player_detailed(pool[i] as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng)
 
-func _print_all_five_stars(players: Array, positions_data: Dictionary, stats_cfg: Dictionary, combine_tests_cfg: Dictionary, scouts_cfg: Dictionary, class_rules: Dictionary) -> void:
+func _print_all_five_stars(
+	players: Array,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	combine_tests_cfg: Dictionary,
+	scouts_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
+) -> void:
 	var five := players.filter(func(pp):
 		return int((pp as Dictionary).get("star_rating",0)) == 5
 	)
 	_emit_output("\n🌟 All 5★ recruits (%d):\n" % five.size())
 	for p in five:
-		print_player_detailed(p as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules)
+		print_player_detailed(p as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng)
 
-func _print_scouts_section(player: Dictionary, scouts_cfg: Dictionary, positions_data: Dictionary, stats_cfg: Dictionary, class_rules: Dictionary) -> void:
+func _print_scouts_section(
+	player: Dictionary,
+	scouts_cfg: Dictionary,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
+) -> void:
 	var scouts: Array = (scouts_cfg.get("national_scouts", []) as Array)
 	if scouts.is_empty():
 		return
@@ -320,7 +360,7 @@ func _print_scouts_section(player: Dictionary, scouts_cfg: Dictionary, positions
 		var scout: Dictionary = s as Dictionary
 		var scout_name := String(scout.get("name", "Scout"))
 		# let your Scout resource/class handle perception+valuation internally
-		var score := ScoutRuntime.score_player(scout, player, positions_data, stats_cfg, class_rules)
+		var score := ScoutRuntime.score_player(scout, player, positions_data, stats_cfg, class_rules, rng)
 		cells.append("%s: %.2f" % [scout_name, score])
 	for i in range(0, cells.size(), 5):
 		_emit_output("   " + "   ".join(cells.slice(i, i + 5)))

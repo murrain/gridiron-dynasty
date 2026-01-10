@@ -37,7 +37,7 @@ var _meas: Dictionary = {}
 var _obs_cfg := { "sigma_min": 1.0, "sigma_max": 12.0, "quality_floor": 0.15, "bounded_min": 0.0, "bounded_max": 100.0 }
 var _context_q := { "combine": 0.95, "practice": 0.65, "game": 0.80, "rumor": 0.30 }
 
-func setup(stats_cfg: Dictionary, defaults: Dictionary) -> void:
+func setup(stats_cfg: Dictionary, defaults: Dictionary, rng: RandomNumberGenerator) -> void:
 	# measurability
 	_meas.clear()
 	for sd in stats_cfg.get("stats", []):
@@ -52,7 +52,7 @@ func setup(stats_cfg: Dictionary, defaults: Dictionary) -> void:
 			pass
 	# small jitter so scouts don’t tie perfectly
 	if weight_jitter_sigma > 0.0:
-		var j := randfn(0.0, weight_jitter_sigma)
+		var j := rng.randfn(0.0, weight_jitter_sigma)
 		current_weight = clamp(current_weight + j, 0.55, 0.95)
 		potential_weight = clamp(1.0 - current_weight, 0.05, 0.45)
 
@@ -60,14 +60,14 @@ func estimate_stat(
 	true_value: float,
 	stat: String,
 	context_quality: float = 0.75,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> float:
 	var m := float(_meas.get(stat, 0.5))
 	var skill := float(stat_skill.get(stat, base_skill))
 	var sigma_span : float = max(0.0, _obs_cfg["sigma_max"] - _obs_cfg["sigma_min"])
 	var sigma : float = _obs_cfg["sigma_min"] + sigma_span * (1.0 - skill) * (1.0 - clamp(context_quality, _obs_cfg["quality_floor"], 1.0)) * (1.0 + (1.0 - m))
 	var mult := float(estimation_multipliers.get(stat, 1.0))
-	var noise: float = rng.randfn(0.0, sigma) if rng != null else randfn(0.0, sigma)
+	var noise: float = rng.randfn(0.0, sigma)
 	var est := true_value * mult + noise
 	return clamp(est, _obs_cfg["bounded_min"], _obs_cfg["bounded_max"])
 
@@ -75,7 +75,7 @@ func _perceived_player(
 	src: Dictionary,
 	which: String,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	# which == "current" uses src.stats, "potential" uses src.potential (fallback to stats)
 	var p := src.duplicate(true)
@@ -102,7 +102,7 @@ func score_player(
 	positions_data: Dictionary,
 	stats_cfg: Dictionary,
 	class_rules: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> float:
 	# perceived profiles
 	var view_now := _perceived_player(player, "current", stats_cfg, rng)
@@ -126,7 +126,7 @@ func score_player(
 
 	# board calibration (no position bias)
 	raw = board_offset_pts + board_slope * raw
-	var board_noise: float = rng.randfn(0.0, board_noise_sigma) if rng != null else randfn(0.0, board_noise_sigma)
+	var board_noise: float = rng.randfn(0.0, board_noise_sigma)
 	raw += board_noise
 
 	return clamp(raw, 30.0, 95.0)

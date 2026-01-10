@@ -10,7 +10,7 @@
 ## - combine_tuning: Dictionary
 ##
 ## Key methods:
-## - generate_class(count, gaussian_share)  -> Array[Dictionary]
+## - generate_class(count, gaussian_share, rng)  -> Array[Dictionary]
 ##   Uses App.threads_count() inside and parallelizes per-player creation.
 ##
 ## Example:
@@ -18,7 +18,9 @@
 ## var gen := PlayerGenerator.new()
 ## gen.positions_data = App.cfg("football/positions")
 ## gen.stats_cfg = App.cfg("football/stats")
-## var players := gen.generate_class(2000, 0.75)
+## var rng := RandomNumberGenerator.new()
+## rng.seed = 1234
+## var players := gen.generate_class(2000, 0.75, rng)
 ## [/codeblock]
 extends RefCounted
 class_name PlayerGenerator
@@ -32,13 +34,9 @@ var combine_tests: Dictionary
 var combine_tuning: Dictionary
 
 ## Generate a full class of `count` players, threading per-player creation.
-func generate_class(count: int, gaussian_share: float) -> Array:
+func generate_class(count: int, gaussian_share: float, rng: RandomNumberGenerator) -> Array:
 	var threads :int = App.threads_count()
-	var seeds: Array = []
-	seeds.resize(count)
-	for i in count:
-		# deterministic seeds per index prevents RNG contention
-		seeds[i] = randi() ^ (i * 0x9E3779B1)
+	var seeds := _derive_seeds(count, rng, 0x9E3779B1)
 
 	var result := ThreadPool.map(
 		seeds,
@@ -50,10 +48,7 @@ func generate_class(count: int, gaussian_share: float) -> Array:
 	)
 
 	# Calculate combine numbers (can be done in parallel too)
-	var combine_seeds: Array = []
-	combine_seeds.resize(result.size())
-	for i in result.size():
-		combine_seeds[i] = randi() ^ (i * 0x85EBCA6B)
+	var combine_seeds := _derive_seeds(result.size(), rng, 0x85EBCA6B)
 
 	var combine_items: Array = []
 	combine_items.resize(result.size())
@@ -88,11 +83,20 @@ func de_age_players(
 	players: Array,
 	positions: Dictionary,
 	deage_cfg: Dictionary,
-	stats_cfg: Dictionary
+	stats_cfg: Dictionary,
+	rng: RandomNumberGenerator
 ) -> void:
 	var threads := App.threads_count()
-	var deaged := ThreadPool.map(players, func(p):
-		return DeAger.de_age(p, positions, deage_cfg, stats_cfg)
+	var seeds := _derive_seeds(players.size(), rng, 0x6C8E9CF5)
+	var items: Array = []
+	items.resize(players.size())
+	for i in range(players.size()):
+		items[i] = {"player": players[i], "seed": seeds[i]}
+
+	var deaged := ThreadPool.map(items, func(item):
+		var rng_local := RandomNumberGenerator.new()
+		rng_local.seed = int(item["seed"])
+		return DeAger.de_age(item["player"], positions, deage_cfg, stats_cfg, rng_local)
 	, threads)
 
 	for i in players.size():
@@ -100,7 +104,13 @@ func de_age_players(
 
 # Add somewhere in PlayerGenerator.gd (e.g., below generate_class)
 # Selects up to `max_freaks` athletes in a percentile band and gives them a small athletic bump + tag.
-func assign_dynamic_freaks(players: Array, max_freaks: int, pct_min: float, pct_max: float) -> void:
+func assign_dynamic_freaks(
+	players: Array,
+	max_freaks: int,
+	pct_min: float,
+	pct_max: float,
+	rng: RandomNumberGenerator
+) -> void:
 	if players.is_empty() or max_freaks <= 0:
 		return
 
@@ -157,7 +167,7 @@ func assign_dynamic_freaks(players: Array, max_freaks: int, pct_min: float, pct_
 	)
 
 	# 4) Shuffle and take up to max_freaks
-	cand.shuffle()
+	_shuffle_in_place(cand, rng)
 	var take : int = min(max_freaks, cand.size())
 
 	# 5) Apply small athletic “freak” bump + tag
@@ -169,9 +179,9 @@ func assign_dynamic_freaks(players: Array, max_freaks: int, pct_min: float, pct_
 		# Gentle, believable bump (3–7 pts) with a bit less for strength by default
 		for ak in ATH_KEYS:
 			if st.has(ak):
-				var add := randf_range(3.0, 7.0)
+				var add := rng.randf_range(3.0, 7.0)
 				if ak == "strength":
-					add = randf_range(2.0, 5.0)
+					add = rng.randf_range(2.0, 5.0)
 				st[ak] = clamp(float(st[ak]) + add, 0.0, 100.0)
 
 		# Flag it
@@ -182,7 +192,23 @@ func assign_dynamic_freaks(players: Array, max_freaks: int, pct_min: float, pct_
 			tags.append("PotentialSuperstar")
 
 		pl["stats"] = st
-		players[idx] = pl
+	players[idx] = pl
+
+func _derive_seeds(count: int, rng: RandomNumberGenerator, salt: int) -> Array:
+	var seeds: Array = []
+	seeds.resize(count)
+	for i in count:
+		# derived seeds prevent RNG contention in threaded paths
+		var mixed := Rand.splitmix64(int(rng.randi()) ^ int(i * salt))
+		seeds[i] = mixed
+	return seeds
+
+func _shuffle_in_place(items: Array, rng: RandomNumberGenerator) -> void:
+	for i in range(items.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = items[i]
+		items[i] = items[j]
+		items[j] = tmp
 
 ## Save to JSON on disk (single-threaded I/O).
 func save_to_json(path: String, players: Array) -> void:

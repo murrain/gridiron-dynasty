@@ -47,6 +47,8 @@ func _phase_handlers() -> Dictionary:
 		"hs_generation": Callable(self, "_handle_hs_generation"),
 		"hs_assignment": Callable(self, "_handle_hs_assignment"),
 		"hs_season": Callable(self, "_handle_hs_season"),
+		"college_generation": Callable(self, "_handle_college_generation"),
+		"college_recruiting": Callable(self, "_handle_college_recruiting"),
 		"college_season": Callable(self, "_handle_placeholder_phase"),
 		"draft_prep": Callable(self, "_handle_placeholder_phase"),
 		"nfl_draft": Callable(self, "_handle_placeholder_phase")
@@ -158,6 +160,87 @@ func _handle_hs_season(
 		"transition_count": (output.get("transitions", []) as Array).size(),
 		"recruit_profiles": profiles.size(),
 		"step_seeds": {"hs_season": step_seed}
+	}
+
+func _handle_college_generation(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "college_generation")
+	_log_step_seed(year, phase_id, "college_generation", step_seed)
+
+	var colleges: Array = world_state.get("colleges", []) as Array
+	if colleges.is_empty():
+		var generator := CollegeGenerator.new()
+		var generated := generator.generate(step_seed)
+		colleges = generated.get("colleges", []) as Array
+		world_state["colleges"] = colleges
+
+	return {
+		"year": year,
+		"count": colleges.size(),
+		"step_seeds": {"college_generation": step_seed}
+	}
+
+func _handle_college_recruiting(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "college_recruiting")
+	_log_step_seed(year, phase_id, "college_recruiting", step_seed)
+
+	var colleges: Array = world_state.get("colleges", []) as Array
+	var recruit_pool: Dictionary = world_state.get("hs_recruit_pool", {}) as Dictionary
+	var recruits: Array = recruit_pool.get(year, []) as Array
+
+	if colleges.is_empty() or recruits.is_empty():
+		return {
+			"year": year,
+			"offers": 0,
+			"commitments": 0,
+			"uncommitted": recruits.size(),
+			"step_seeds": {"college_recruiting": step_seed}
+		}
+
+	var main_cfg := Config.get_config("main")
+	var positions_cfg := Config.get_config("positions")
+	var stats_cfg := Config.get_config("stats")
+	var scouts_cfg := Config.get_config("scouts")
+	var colleges_cfg := Config.get_config("world/colleges")
+
+	var pipeline := CollegeRecruiting.new()
+	var output := pipeline.run(
+		recruits,
+		colleges,
+		colleges_cfg,
+		positions_cfg,
+		stats_cfg,
+		main_cfg.get("class_rules", {}),
+		scouts_cfg,
+		step_seed,
+		year
+	)
+
+	var commitments: Array = output.get("commitments", []) as Array
+	var college_commitments: Dictionary = world_state.get("college_commitments", {}) as Dictionary
+	college_commitments[year] = commitments
+	world_state["college_commitments"] = college_commitments
+	world_state["college_classes"] = output.get("college_classes", {})
+
+	return {
+		"year": year,
+		"offers": int(output.get("offers", 0)),
+		"commitments": commitments.size(),
+		"uncommitted": (output.get("uncommitted", []) as Array).size(),
+		"step_seeds": {"college_recruiting": step_seed}
 	}
 
 func _handle_placeholder_phase(
@@ -280,6 +363,9 @@ func _build_recruit_profiles(graduates: Array, year: int) -> Array:
 			"eligibility_status": String(p.get("eligibility_status", "")),
 			"hs_grad_year": int(p.get("hs_grad_year", year)),
 			"hs_stats": p.get("hs_stats", {}),
+			"stats": p.get("stats", {}),
+			"potential": p.get("potential", {}),
+			"physicals": p.get("physicals", {}),
 			"ratings": {
 				"composite_score": float(p.get("composite_score", 0.0)),
 				"star_score": float(p.get("star_score", 0.0)),

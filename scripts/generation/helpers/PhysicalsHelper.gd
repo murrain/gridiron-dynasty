@@ -10,17 +10,17 @@ static func _sample_gauss(
 	sigma: float,
 	lo: float,
 	hi: float,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> float:
 	if sigma <= 0.0:
 		return clamp(mu, lo, hi)
-	var noise: float = rng.randfn(0.0, sigma) if rng != null else randfn(0.0, sigma)
+	var noise: float = rng.randfn(0.0, sigma)
 	return clamp(mu + noise, lo, hi)
 
 static func roll_for_position(
 	pos: String,
 	positions_data: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var out: Dictionary = {}
 	var pdef: Dictionary = positions_data.get(pos, {}) as Dictionary

@@ -100,18 +100,18 @@ func _do_one_trial(size: int, threads: int) -> float:
 	gen.names_cfg = {}  # skip heavy name gen for benchmark
 	gen.class_rules = _main_cfg.get("class_rules", {})
 
-	# Stable RNG if desired
-	if _main_cfg.has("random_seed"):
-		seed(int(_main_cfg["random_seed"]))
-	else:
-		randomize()
+	var base_seed := int(_main_cfg.get("random_seed", 0))
+	if base_seed == 0:
+		base_seed = int(_main_cfg.get("starting_year", 2025))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = base_seed
 
 	var gaussian_share: float = float(gen.class_rules.get("gaussian_share", 0.75))
 
 	var t0 := Time.get_ticks_msec()
 
 	# Generation (threading happens inside via Config.threads_count())
-	var players: Array = gen.generate_class(size, gaussian_share)
+	var players: Array = gen.generate_class(size, gaussian_share, rng)
 
 	# Optionally include rating + scouts in the timed window
 	if include_rating or include_scouts:
@@ -123,7 +123,7 @@ func _do_one_trial(size: int, threads: int) -> float:
 			var scout_seeds: Array = []
 			scout_seeds.resize(sample_n)
 			for i in range(sample_n):
-				scout_seeds[i] = randi() ^ (i * 0x27D4EB2D)
+				scout_seeds[i] = Rand.splitmix64(int(rng.randi()) ^ (i * 0x27D4EB2D))
 
 			var scout_items: Array = []
 			scout_items.resize(sample_n)

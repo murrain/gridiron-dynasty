@@ -17,12 +17,12 @@ func run() -> Dictionary:
 
 	var first_year := start_year - years_back + 1
 	for class_year in range(first_year, start_year + 1):
-		var seed_override := base_seed + class_year if base_seed != 0 else 0
-		var class_players := draft_gen.generate_for_year(class_year, seed_override)
+		var class_seed := _resolve_seed(base_seed, class_year)
+		var class_players := draft_gen.generate_for_year(class_year, class_seed)
 		var years_to_advance := start_year - class_year
 		if years_to_advance > 0:
 			var rng := RandomNumberGenerator.new()
-			rng.seed = int(seed_override) if seed_override != 0 else randi()
+			rng.seed = Rand.splitmix64(class_seed ^ 0xB1C4A7)
 			var progressed := PlayerLifecycle.advance_years(
 				class_players,
 				years_to_advance,
@@ -43,3 +43,8 @@ func run() -> Dictionary:
 		"classes": class_results,
 		"current_year": start_year
 	}
+
+func _resolve_seed(base_seed: int, class_year: int) -> int:
+	if base_seed != 0:
+		return Rand.splitmix64(base_seed ^ class_year)
+	return Rand.splitmix64(class_year)

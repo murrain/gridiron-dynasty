@@ -14,9 +14,16 @@ class_name ScoutRuntime
 ## [codeblock]
 ## var scouts_cfg := App.cfg("football/scouts")
 ## var scout := (scouts_cfg["national_scouts"] as Array)[0]
-## var score := ScoutRuntime.score_player(scout, player, positions, stats_cfg, class_rules)
+## var score := ScoutRuntime.score_player(scout, player, positions, stats_cfg, class_rules, rng)
 ## [/codeblock]
-static func score_player(scout: Dictionary, player: Dictionary, positions_data: Dictionary, stats_cfg: Dictionary, class_rules: Dictionary) -> float:
+static func score_player(
+	scout: Dictionary,
+	player: Dictionary,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
+) -> float:
 	# 1) perceive current and potential separately (re-using your measurement_difficulty)
 	var base_skill := float(scout.get("base_skill", 0.55))
 	var tape_grinder := float(scout.get("tape_grinder", 0.25))
@@ -26,8 +33,8 @@ static func score_player(scout: Dictionary, player: Dictionary, positions_data: 
 	var est_mult: Dictionary = scout.get("estimation_multipliers", {}) as Dictionary
 	var val_mult: Dictionary = scout.get("valuation_multipliers", {}) as Dictionary
 
-	var curr := _perceive(player, stats_cfg, base_skill, stat_skill, est_mult, 0.80)
-	var pot := _perceive_potential(player, stats_cfg, base_skill, stat_skill, est_mult, 0.70)
+	var curr := _perceive(player, stats_cfg, base_skill, stat_skill, est_mult, 0.80, rng)
+	var pot := _perceive_potential(player, stats_cfg, base_skill, stat_skill, est_mult, 0.70, rng)
 
 	# 2) blend current/potential (scout-specific)
 	var pot_bias : float = clamp(0.15 + 0.35 * tape_grinder - 0.20 * risk_aversion, 0.0, 0.5)
@@ -44,7 +51,15 @@ static func score_player(scout: Dictionary, player: Dictionary, positions_data: 
 
 # --- helpers for ScoutRuntime ---
 
-static func _perceive(player: Dictionary, stats_cfg: Dictionary, base_skill: float, stat_skill: Dictionary, est_mult: Dictionary, ctx_quality: float) -> Dictionary:
+static func _perceive(
+	player: Dictionary,
+	stats_cfg: Dictionary,
+	base_skill: float,
+	stat_skill: Dictionary,
+	est_mult: Dictionary,
+	ctx_quality: float,
+	rng: RandomNumberGenerator
+) -> Dictionary:
 	var p2 := player.duplicate(true)
 	var stats: Dictionary = p2.get("stats", {}) as Dictionary
 	var list: Array = (stats_cfg.get("stats", []) as Array)
@@ -56,13 +71,21 @@ static func _perceive(player: Dictionary, stats_cfg: Dictionary, base_skill: flo
 		var sigma : float = (1.0 - md) * (1.0 - skill) * 12.0 * (1.0 - ctx_quality)
 		var est := float(stats.get(sname, 50.0))
 		if sigma > 0.0:
-			est += StatHelpers.gaussian(0.0, sigma)
+			est += StatHelpers.gaussian(0.0, sigma, rng)
 		var mult := float(est_mult.get(sname, 1.0))
 		stats[sname] = clamp(est * mult, 0.0, 100.0)
 	p2["stats"] = stats
 	return p2
 
-static func _perceive_potential(player: Dictionary, stats_cfg: Dictionary, base_skill: float, stat_skill: Dictionary, est_mult: Dictionary, ctx_quality: float) -> Dictionary:
+static func _perceive_potential(
+	player: Dictionary,
+	stats_cfg: Dictionary,
+	base_skill: float,
+	stat_skill: Dictionary,
+	est_mult: Dictionary,
+	ctx_quality: float,
+	rng: RandomNumberGenerator
+) -> Dictionary:
 	var p2 := player.duplicate(true)
 	var curr: Dictionary = p2.get("stats", {}) as Dictionary
 	var pot: Dictionary = p2.get("potential", curr) as Dictionary
@@ -76,7 +99,7 @@ static func _perceive_potential(player: Dictionary, stats_cfg: Dictionary, base_
 		var sigma : float = (1.0 - md) * (1.0 - skill) * 12.0 * (1.0 - ctx_quality)
 		var est := float(pot.get(sname, curr.get(sname, 50.0)))
 		if sigma > 0.0:
-			est += StatHelpers.gaussian(0.0, sigma)
+			est += StatHelpers.gaussian(0.0, sigma, rng)
 		var mult := float(est_mult.get(sname, 1.0))
 		out_stats[sname] = clamp(est * mult, 0.0, 100.0)
 	p2["stats"] = out_stats

@@ -11,7 +11,7 @@ static func compute_all(
 	player: Dictionary,
 	combine_cfg: Dictionary,
 	tests_cfg: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var out: Dictionary = {}
 	var defaults: Dictionary = tests_cfg.get("defaults", {}) as Dictionary
@@ -34,7 +34,7 @@ static func _compute_single(
 	test_cfg: Dictionary,
 	defaults: Dictionary,
 	combine_cfg: Dictionary,
-	rng: RandomNumberGenerator = null
+	rng: RandomNumberGenerator
 ) -> float:
 	# Merge defaults in (test fields win)
 	var cfg: Dictionary = _merged_with_defaults(test_cfg, defaults)
@@ -53,7 +53,7 @@ static func _compute_single(
 	value = _apply_body_adjust(player, value, cfg)
 
 	# 5) Apply contextual adjustments (fatigue/morale/boom-bust)
-	value = _apply_context_adjustments(player, value, cfg, combine_cfg)
+	value = _apply_context_adjustments(player, value, cfg, combine_cfg, rng)
 
 	# 5.5) Optional synergy bonus (e.g., elite speed+accel shave hundredths)
 	value = _apply_synergy_bonus(player, value, cfg)
@@ -174,7 +174,7 @@ static func _map_scalar_to_output(t: float, cfg: Dictionary) -> float:
 		s = 1.0 - s
 	return lerp(min_v, max_v, s)
 
-static func _apply_noise(value: float, cfg: Dictionary, rng: RandomNumberGenerator = null) -> float:
+static func _apply_noise(value: float, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 	var noise: Dictionary = cfg.get("noise", {}) as Dictionary
 	var dist: String = String(noise.get("dist","none"))
 	if dist == "gauss":
@@ -285,7 +285,13 @@ static func _apply_synergy_bonus(player: Dictionary, value: float, cfg: Dictiona
 # -----------------------------
 # Helpers: context adjustments
 # -----------------------------
-static func _apply_context_adjustments(player: Dictionary, value: float, cfg: Dictionary, combine_cfg: Dictionary) -> float:
+static func _apply_context_adjustments(
+	player: Dictionary,
+	value: float,
+	cfg: Dictionary,
+	combine_cfg: Dictionary,
+	rng: RandomNumberGenerator
+) -> float:
 	if combine_cfg.is_empty():
 		return value
 
@@ -318,7 +324,7 @@ static func _apply_context_adjustments(player: Dictionary, value: float, cfg: Di
 	var bb_mult: float  = float(adj.get("boom_bust_sigma_mult", 1.0))
 	var bb: float = bb_sigma * bb_mult
 	if bb > 0.0:
-		var bump: float = StatHelpers.gaussian(0.0, bb)
+		var bump: float = StatHelpers.gaussian(0.0, bb, rng)
 		value *= (1.0 + bump)
 
 	return value
