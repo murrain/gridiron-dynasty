@@ -113,10 +113,11 @@ func run() -> void:
 	var rater := RecruitRater.new()
 	rater.rate_and_rank(players, gen.positions_data, gen.class_rules)
 
-	# preview output
+	# Preview output with styled header
 	var current_year := int(main_cfg.get("starting_year", 2025))
 	var out_path := "res://configs/sports/american_football/CLASS_OF_%d.json" % (current_year + CLASS_YEAR_OFFSET)
-	_emit_output("✅ Generated %d prospects → %s" % [players.size(), out_path])
+	_emit_output("[center][font_size=18][b][color=#00ff00]✅ CLASS GENERATION COMPLETE[/color][/b][/font_size][/center]")
+	_emit_output("[center]Generated [b]%d prospects[/b] → [i]%s[/i][/center]\n" % [players.size(), out_path])
 
 	var scout_rng := _step_rng(base_seed, "scout_preview")
 	_print_top_detailed(players, gen.positions_data, gen.stats_cfg, combine_tests, scouts_cfg, gen.class_rules, scout_rng, 10)
@@ -156,34 +157,55 @@ func _fnv1a_64(text: String) -> int:
 		hash = int(hash * prime) & -1
 	return hash
 
-# --- Printing helpers below (same interface, documented) ---
+# --- BBCode Formatting Helpers ---
 
+## Color scheme for value-based semantic coloring
+func _bbcode_color_for_value(v: float) -> String:
+	if v >= 90.0: return "#00ff00"  # Bright green (elite)
+	if v >= 80.0: return "#66ff66"  # Light green (great)
+	if v >= 70.0: return "#99ff99"  # Pale green (good)
+	if v >= 60.0: return "#ffff00"  # Yellow (above average)
+	if v >= 50.0: return "#ffaa00"  # Orange (average)
+	if v >= 40.0: return "#ff6600"  # Dark orange (below average)
+	return "#ff0000"  # Red (poor)
+
+## Wrap text in BBCode color tag
+func _colored(text: String, color: String) -> String:
+	return "[color=%s]%s[/color]" % [color, text]
+
+## Color value based on numeric score
+func _colored_value(value: float, format_str: String = "%.2f") -> String:
+	var formatted := format_str % value
+	return _colored(formatted, _bbcode_color_for_value(value))
+
+## Create a simple 2-column key-value table row
+func _kv_row(key: String, value: String, color_value: bool = false) -> String:
+	return "[cell]%s[/cell][cell]%s[/cell]" % [key, value]
+
+## Create a colored key-value row with numeric value
+func _kv_row_scored(key: String, value: float) -> String:
+	return "[cell]%s[/cell][cell]%s[/cell]" % [key, _colored_value(value)]
+
+## Start a table with N columns
+func _table_begin(columns: int = 2) -> String:
+	return "[table=%d]" % columns
+
+## End a table
+func _table_end() -> String:
+	return "[/table]"
+
+## Create section header with visual emphasis
+func _section_header(text: String, icon: String = "") -> String:
+	var header := text if icon.is_empty() else "%s %s" % [icon, text]
+	return "[b][font_size=16]%s[/font_size][/b]" % header
+
+## Create subsection header
+func _subsection_header(text: String) -> String:
+	return "[b]%s[/b]" % text
+
+## Utility functions
 func _round2(x: float) -> float:
 	return snappedf(x, 0.01)
-
-func _join_array(parts: Array, sep: String) -> String:
-	var out := ""
-	for i in range(parts.size()):
-		out += String(parts[i])
-		if i < parts.size() - 1:
-			out += sep
-	return out
-
-func _ansi(code: String, text: String) -> String:
-	var esc := char(27)
-	return esc + "[" + code + "m" + text + esc + "[0m"
-
-func _color_code_for_score(v: float) -> String:
-	if v >= 90.0: return "1;32"
-	if v >= 80.0: return "32"
-	if v >= 60.0: return "33"
-	if v >= 40.0: return "31"
-	return "1;31"
-
-func _fmt_kv_colored(key: String, value: float) -> String:
-	var label := "%-16s" % (key + ":")
-	var num := "%6.2f" % value
-	return label + " " + (_ansi(_color_code_for_score(value), num) if USE_COLOR else num)
 
 func _fmt_height(height_in: float) -> String:
 	var feet := int(height_in / 12.0)
@@ -194,19 +216,27 @@ func _fmt_height(height_in: float) -> String:
 		inches = 0
 	return "%d'%d\"" % [feet, inches]
 
-func _fmt_physicals(phys: Dictionary) -> String:
-	var h : float = phys.get("height_in", 0.0)
-	var w : float = phys.get("weight_lb", 0.0)
-	var a : float = phys.get("arm_length_in", 0.0)
-	var ws : float = phys.get("wingspan_in", 0.0)
-	var hand : float = phys.get("hand_size_in", 0.0)
-	var parts: Array = []
-	if h != null: parts.append("Ht " + _fmt_height(float(h)))
-	if w != null: parts.append("Wt " + str(int(round(float(w)))) + " lb")
-	if a != null: parts.append("Arm " + str(_round2(float(a))) + " in")
-	if ws != null: parts.append("Wing " + str(_round2(float(ws))) + " in")
-	if hand != null: parts.append("Hand " + str(_round2(float(hand))) + " in")
-	return _join_array(parts, "  |  ")
+## Format physicals as BBCode table (3 columns for compact display)
+func _fmt_physicals_table(phys: Dictionary) -> String:
+	var output := _table_begin(3)
+
+	var h: float = phys.get("height_in", 0.0)
+	var w: float = phys.get("weight_lb", 0.0)
+	var a: float = phys.get("arm_length_in", 0.0)
+	var ws: float = phys.get("wingspan_in", 0.0)
+	var hand: float = phys.get("hand_size_in", 0.0)
+
+	# Row 1: Height, Weight, Arm Length
+	if h > 0: output += _kv_row("Height", _fmt_height(h))
+	if w > 0: output += _kv_row("Weight", "%d lb" % int(round(w)))
+	if a > 0: output += _kv_row("Arm", "%.2f in" % _round2(a))
+
+	# Row 2: Wingspan, Hand Size (if present)
+	if ws > 0: output += _kv_row("Wingspan", "%.2f in" % _round2(ws))
+	if hand > 0: output += _kv_row("Hand", "%.2f in" % _round2(hand))
+
+	output += _table_end()
+	return output
 
 func _collect_role_sets(positions_data: Dictionary, pos: String) -> Dictionary:
 	var spec: Dictionary = positions_data.get(pos, {}) as Dictionary
@@ -229,44 +259,49 @@ func _all_base_stats(stats_cfg: Dictionary) -> Array:
 			names.append(sd["name"])
 	return names
 
-func _fmt_stat_block(stats: Dictionary, keys: Array, title: String, per_row: int = 6) -> String:
+## Format stats block as BBCode table with color-coded values
+func _fmt_stat_block_table(stats: Dictionary, keys: Array, title: String, columns: int = 4) -> String:
 	if keys.is_empty(): return ""
-	var lines: Array = []; lines.append("• " + title + ":")
-	var sorted_keys: Array = keys.duplicate(); sorted_keys.sort()
-	var row: Array = []
-	for i in sorted_keys.size():
-		var k := String(sorted_keys[i])
-		var v := float(stats.get(k, 0.0))
-		row.append("%-16s %6.2f" % [k + ":", v])
-		if (i + 1) % per_row == 0:
-			lines.append("  " + _join_array(row, "  ")); row.clear()
-	if not row.is_empty():
-		lines.append("  " + _join_array(row, "  "))
-	return _join_array(lines, "\n")
 
+	var sorted_keys: Array = keys.duplicate()
+	sorted_keys.sort()
+
+	var output := _subsection_header(title) + "\n"
+	output += _table_begin(columns)
+
+	for k in sorted_keys:
+		var stat_name := String(k)
+		var stat_value := float(stats.get(k, 0.0))
+		output += _kv_row_scored(stat_name, stat_value)
+
+	output += _table_end()
+	return output
+
+## Print combine results as a clean table
 func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> void:
-	_emit_output("\n🧪 Combine Results:")
 	var tests: Dictionary = combine_cfg.get("tests", {}) as Dictionary
 	var items: Array = []
+
 	for key in tests.keys():
 		if combine.has(key):
 			var tcfg: Dictionary = tests[key] as Dictionary
 			var disp_name := String(tcfg.get("display_name", key))
-			var val := str(combine[key])
+			var val := combine[key]
 			items.append([disp_name, val])
-	if items.is_empty(): return
-	var max_name_len := 0; var max_val_len := 0
+
+	if items.is_empty():
+		return
+
+	_emit_output("\n" + _subsection_header("🧪 Combine Results"))
+	var output := _table_begin(4)  # 4 columns for compact display
+
 	for item in items:
-		max_name_len = max(max_name_len, String(item[0]).length())
-		max_val_len = max(max_val_len, String(item[1]).length())
-	for i in range(0, items.size(), 3):
-		var row_items: Array = items.slice(i, i + 3)
-		var row_str := ""
-		for cell in row_items:
-			var name_pad := String(cell[0]).lpad(max_name_len)
-			var val_pad := String(cell[1]).rpad(max_val_len)
-			row_str += "%s: %s   " % [name_pad, val_pad]
-		_emit_output("   " + row_str.strip_edges())
+		var test_name := String(item[0])
+		var test_value := str(item[1])
+		output += _kv_row(test_name, test_value)
+
+	output += _table_end()
+	_emit_output(output)
 
 func print_player_detailed(
 	p: Dictionary,
@@ -284,10 +319,35 @@ func print_player_detailed(
 	var comp_f := float(p.get("composite_score",0.0))
 	var star_score_f := float(p.get("star_score",0.0))
 
-	_emit_output("──────────────────────────────────────────────────────────────────────────────")
-	_emit_output("%2d) ★%d  %-24s [%s]    comp:%6.2f   star:%6.2f" % [rank_i, stars_i, name_s, pos_s, comp_f, star_score_f])
-	_emit_output("    " + _fmt_physicals(p.get("physicals", {}) as Dictionary))
-	if p.has("combine"): _print_combine_section(p["combine"], combine_tests_cfg)
+	# === PLAYER HEADER ===
+	_emit_output("\n[bgcolor=#1a1a1a]" + "=".repeat(80) + "[/bgcolor]")
+
+	# Player identity table (rank, stars, name, position)
+	var header := _table_begin(4)
+	header += _kv_row("[b]Rank[/b]", "[b]#%d[/b]" % rank_i)
+	header += _kv_row("[b]Stars[/b]", "[b][color=#ffd700]" + "★".repeat(stars_i) + "[/color][/b]")
+	header += _kv_row("[b]Name[/b]", "[b][font_size=14]%s[/font_size][/b]" % name_s)
+	header += _kv_row("[b]Position[/b]", "[b][font_size=14]%s[/font_size][/b]" % pos_s)
+	header += _table_end()
+	_emit_output(header)
+
+	# Key metrics table (composite and star score - color coded)
+	var metrics := _table_begin(2)
+	metrics += "[cell][b]Composite Score[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(comp_f)
+	metrics += "[cell][b]Star Score[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(star_score_f)
+	metrics += _table_end()
+	_emit_output(metrics)
+
+	# === PHYSICALS ===
+	_emit_output("\n" + _section_header("Physical Attributes", "💪"))
+	_emit_output(_fmt_physicals_table(p.get("physicals", {}) as Dictionary))
+
+	# === COMBINE ===
+	if p.has("combine"):
+		_print_combine_section(p["combine"], combine_tests_cfg)
+
+	# === STATS ===
+	_emit_output("\n" + _section_header("Player Stats", "📊"))
 
 	var roles := _collect_role_sets(positions_data, pos_s)
 	var core_keys: Array = roles.get("core", []) as Array
@@ -301,20 +361,35 @@ func print_player_detailed(
 		if not union_cs.has(k): other_keys.append(k)
 
 	var stats: Dictionary = p.get("stats", {}) as Dictionary
-	var blk_core := _fmt_stat_block(stats, core_keys, "Core", 6)
-	if blk_core != "": _emit_output(blk_core)
-	var blk_sec := _fmt_stat_block(stats, sec_keys, "Secondary", 6)
-	if blk_sec != "": _emit_output(blk_sec)
-	var blk_other := _fmt_stat_block(stats, other_keys, "Other", 6)
-	if blk_other != "": _emit_output(blk_other)
 
+	# Core stats (most important for position)
+	if not core_keys.is_empty():
+		var blk_core := _fmt_stat_block_table(stats, core_keys, "⭐ Core Stats", 4)
+		_emit_output(blk_core)
+
+	# Secondary stats (situational/positional)
+	if not sec_keys.is_empty():
+		var blk_sec := _fmt_stat_block_table(stats, sec_keys, "🔹 Secondary Stats", 4)
+		_emit_output("\n" + blk_sec)
+
+	# Other stats (less important for this position)
+	if not other_keys.is_empty():
+		var blk_other := _fmt_stat_block_table(stats, other_keys, "○ Other Stats", 4)
+		_emit_output("\n" + blk_other)
+
+	# === MENTALS & TAGS ===
+	_emit_output("\n" + _section_header("Intangibles", "🧠"))
 	var mentals_avg_f := float(p.get("mentals_avg", 0.0))
 	var tags_arr: Array = p.get("tags", []) as Array
-	if tags_arr.is_empty():
-		_emit_output("• Mentals: %5.2f" % mentals_avg_f)
-	else:
-		_emit_output("• Mentals: %5.2f   • Tags: %s" % [mentals_avg_f, ", ".join(tags_arr)])
 
+	var intangibles := _table_begin(2)
+	intangibles += _kv_row_scored("[b]Mental Rating[/b]", mentals_avg_f)
+	if not tags_arr.is_empty():
+		intangibles += _kv_row("[b]Tags[/b]", "[color=#00aaff]%s[/color]" % ", ".join(tags_arr))
+	intangibles += _table_end()
+	_emit_output(intangibles)
+
+	# === SCOUT OPINIONS ===
 	_print_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules, rng)
 
 func _print_top_detailed(
@@ -332,7 +407,10 @@ func _print_top_detailed(
 		return pos != "K" and pos != "P"
 	)
 	var limit : int = min(top_n, pool.size())
-	_emit_output("\n🏆 Top %d (detailed):\n" % limit)
+
+	# Print section header with prominent styling
+	_emit_output("\n\n[center][font_size=20][b]🏆 TOP %d PROSPECTS 🏆[/b][/font_size][/center]\n" % limit)
+
 	for i in limit:
 		print_player_detailed(pool[i] as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng)
 
@@ -348,10 +426,14 @@ func _print_all_five_stars(
 	var five := players.filter(func(pp):
 		return int((pp as Dictionary).get("star_rating",0)) == 5
 	)
-	_emit_output("\n🌟 All 5★ recruits (%d):\n" % five.size())
+
+	# Print section header with prominent styling
+	_emit_output("\n\n[center][font_size=20][b][color=#ffd700]🌟 ALL 5-STAR RECRUITS (%d) 🌟[/color][/b][/font_size][/center]\n" % five.size())
+
 	for p in five:
 		print_player_detailed(p as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng)
 
+## Print scout opinions in a clean table with color-coded scores
 func _print_scouts_section(
 	player: Dictionary,
 	scouts_cfg: Dictionary,
@@ -363,13 +445,18 @@ func _print_scouts_section(
 	var scouts: Array = (scouts_cfg.get("national_scouts", []) as Array)
 	if scouts.is_empty():
 		return
-	_emit_output("\n🕵️ What the scouts say:")
-	var cells: Array = []
+
+	_emit_output("\n" + _section_header("Scout Opinions", "🕵️"))
+
+	var output := _table_begin(3)  # 3 columns for compact display
+
 	for s in scouts:
 		var scout: Dictionary = s as Dictionary
 		var scout_name := String(scout.get("name", "Scout"))
-		# let your Scout resource/class handle perception+valuation internally
 		var score := ScoutRuntime.score_player(scout, player, positions_data, stats_cfg, class_rules, rng)
-		cells.append("%s: %.2f" % [scout_name, score])
-	for i in range(0, cells.size(), 5):
-		_emit_output("   " + "   ".join(cells.slice(i, i + 5)))
+
+		# Color-code scout opinion based on score
+		output += "[cell][b]%s[/b][/cell][cell]%s[/cell]" % [scout_name, _colored_value(score)]
+
+	output += _table_end()
+	_emit_output(output)
