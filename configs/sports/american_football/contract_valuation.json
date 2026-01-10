@@ -1,0 +1,63 @@
+{
+  "eval_source": "ScoutRuntime.score_player",
+  "eval_score_bounds": { "min": 0.0, "max": 100.0 },
+  "base_range_curve": [
+    { "min": 0.0, "max": 39.9, "range_min": 0.30, "range_max": 0.70 },
+    { "min": 40.0, "max": 54.9, "range_min": 0.70, "range_max": 1.50 },
+    { "min": 55.0, "max": 69.9, "range_min": 1.50, "range_max": 3.00 },
+    { "min": 70.0, "max": 79.9, "range_min": 3.00, "range_max": 5.50 },
+    { "min": 80.0, "max": 89.9, "range_min": 5.50, "range_max": 8.00 },
+    { "min": 90.0, "max": 100.0, "range_min": 8.00, "range_max": 12.00 }
+  ],
+  "position_tiers": {
+    "premium": ["QB", "EDGE", "CB", "WR"],
+    "core": ["OL", "DL", "LB", "S", "TE", "RB"],
+    "specialist": ["K", "P"]
+  },
+  "position_weights": {
+    "QB": 1.35,
+    "EDGE": 1.25,
+    "CB": 1.20,
+    "WR": 1.20,
+    "OL": 1.05,
+    "DL": 1.05,
+    "LB": 1.00,
+    "S": 0.95,
+    "TE": 0.95,
+    "RB": 0.90,
+    "K": 0.60,
+    "P": 0.60
+  },
+  "age_multipliers": [
+    { "min": 18, "max": 21, "mult": 1.15 },
+    { "min": 22, "max": 25, "mult": 1.05 },
+    { "min": 26, "max": 29, "mult": 1.00 },
+    { "min": 30, "max": 32, "mult": 0.90 },
+    { "min": 33, "max": 40, "mult": 0.75 }
+  ],
+  "potential_delta": {
+    "use_position_core_stats": true,
+    "young_age_max": 22,
+    "old_age_min": 28,
+    "weight_curve": [
+      { "age": 18, "weight": 0.65 },
+      { "age": 22, "weight": 0.55 },
+      { "age": 26, "weight": 0.35 },
+      { "age": 30, "weight": 0.15 }
+    ],
+    "delta_scale": 0.60,
+    "max_bonus_pct": 0.20,
+    "max_penalty_pct": -0.15
+  },
+  "range_spread": {
+    "min_pct": 0.90,
+    "max_pct": 1.10
+  },
+  "range_jitter": {
+    "enabled": false,
+    "pct": 0.04,
+    "apply_to": ["range_min", "range_max"],
+    "rng_source": "passed_in"
+  },
+  "currency_unit": "cap_units"
+}
