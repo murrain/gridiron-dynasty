@@ -16,6 +16,7 @@ This directory contains all project documentation organized by purpose.
 docs/
 ├── README.md                      (this file)
 ├── COMPLETED.md                   Archive of finished work
+├── PHASE_F_ROADMAP.md             Performance optimization plan
 ├── tasks/                         Individual task files (ready to work)
 │   ├── TASK_E5_player_value_calculator.md
 │   ├── TASK_E6_update_contract_valuation.md
@@ -23,6 +24,14 @@ docs/
 │   ├── TASK_E8_wire_valuation_flow.md
 │   ├── TASK_E9_valuation_configs.md
 │   ├── TASK_E10_valuation_tests.md
+│   ├── TASK_F1_profiling_report.md
+│   ├── TASK_F2_recruiting_optimization.md
+│   ├── TASK_F3_scout_caching.md
+│   ├── TASK_F4_deep_copy_reduction.md
+│   ├── TASK_F5_parallel_lifecycle.md
+│   ├── TASK_F6_config_optimization.md
+│   ├── TASK_F7_development_report_deferral.md
+│   ├── TASK_F8_benchmark_suite.md
 │   ├── TASK_TEST_FIXTURES.md
 │   └── TASK_TEST_PARALLEL.md
 └── architectural_notes/           Historical decisions & resolutions
@@ -62,6 +71,18 @@ Each task file contains:
 - Reference to next task
 
 **Current tasks available**:
+
+#### Performance Optimization (Track F) - Critical Priority
+- **F1**: Profiling report and analysis (Complete)
+- **F2**: College recruiting optimization (2-3 days) - P0
+- **F3**: Scout evaluation caching (1-2 days) - P1
+- **F4**: Deep copy reduction (1-2 days) - P2
+- **F5**: Parallel player lifecycle (1-2 days) - P3
+- **F6**: Config access optimization (0.5-1 day) - P5
+- **F7**: Development report deferral (0.5 day) - P4
+- **F8**: Benchmark suite (1 day) - Required
+
+See `PHASE_F_ROADMAP.md` for complete optimization plan.
 
 #### Player Valuation (Track E) - High Priority
 - **E5**: Unified PlayerValue calculator (1-2 days)
