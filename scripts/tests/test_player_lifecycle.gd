@@ -52,6 +52,8 @@ func run(t) -> void:
 	var report = evolved.get("development_report", []) as Array
 	t.assert_eq(report.size(), 1, "development report logged")
 	t.assert_eq(float((report[0] as Dictionary).get("decline_multiplier", 0.0)), 1.0, "decline multiplier is neutral before decline")
+	t.assert_true(evolved.has("development_report"), "development report should be attached")
+	t.assert_true(evolved.has("injury_report"), "injury report should be attached")
 
 	var result_retire = PlayerLifecycle.advance_one_year([{"age": 21, "position": "QB", "stats": {"accuracy": 40.0}}], positions_cfg, main_cfg, stats_cfg, rng)
 	t.assert_eq((result_retire.get("retired", []) as Array).size(), 1, "retirement at max age")

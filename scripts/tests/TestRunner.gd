@@ -15,6 +15,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_player_model.gd",
 	"res://scripts/tests/test_high_school_assignment.gd",
 	"res://scripts/tests/test_player_lifecycle.gd",
+	"res://scripts/tests/test_player_lifecycle_reports.gd",
 	"res://scripts/tests/test_world_calendar.gd",
 	"res://scripts/tests/test_high_school_generator.gd",
 	"res://scripts/tests/test_high_school_season.gd",
@@ -29,6 +30,9 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_advance_world_year_helpers.gd",
 	"res://scripts/tests/test_pipeline_seed_helpers.gd",
 	"res://scripts/tests/test_world_history_preview.gd",
+	"res://scripts/tests/test_valuation_helpers.gd",
+	"res://scripts/tests/test_cap_accounting.gd",
+	"res://scripts/tests/test_trade_valuation.gd",
 	"res://scripts/tests/test_phase4_scaffolding.gd"
 ]
 

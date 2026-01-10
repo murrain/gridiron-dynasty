@@ -31,6 +31,30 @@
         "decline_per_wear": 0.2,
         "decline_min_multiplier": 1.0,
         "decline_max_multiplier": 1.6
+    "modifiers": {
+        "defaults_note": "Neutral multipliers/scales are 1.0 to preserve baseline outputs.",
+        "program_quality_multipliers": {
+            "development": 1.0,
+            "peak": 1.0,
+            "decline": 1.0,
+            "injury": 1.0
+        },
+        "specialist_coach_multipliers": {
+            "skill_training": 1.0,
+            "injury_prevention": 1.0,
+            "rehab_speed": 1.0
+        },
+        "usage_competition_multipliers": {
+            "low_usage": 1.0,
+            "baseline_usage": 1.0,
+            "high_usage": 1.0,
+            "low_competition": 1.0,
+            "high_competition": 1.0
+        },
+        "injury_scales": {
+            "suppression": 1.0,
+            "penalty": 1.0
+        }
     },
     "retirement": {
         "min_age": 27,
