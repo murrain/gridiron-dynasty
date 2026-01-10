@@ -22,9 +22,15 @@ func run(
 	lifecycle_rng.seed = Rand.splitmix64(seed ^ 0xA54C3D5E)
 	var perf_rng := RandomNumberGenerator.new()
 	perf_rng.seed = Rand.splitmix64(seed ^ 0x1E0C7A11)
+	var context_rng := RandomNumberGenerator.new()
+	context_rng.seed = Rand.splitmix64(seed ^ 0x4F8C21BD)
 
+	_apply_development_context(players, main_cfg, config, context_rng, year)
+
+	var school_map := _school_index(schools)
+	var prepared_players := _apply_development_contexts(players, school_map, config)
 	var progressed: Dictionary = PlayerLifecycle.advance_one_year(
-		players,
+		prepared_players,
 		positions_cfg,
 		main_cfg,
 		stats_cfg,
@@ -32,7 +38,6 @@ func run(
 	)
 	var updated_players: Array = progressed.get("players", []) as Array
 
-	var school_map := _school_index(schools)
 	var transitions: Array = []
 	var graduates: Array = []
 	var active: Array = []
@@ -78,6 +83,118 @@ func run(
 		"players": active,
 		"graduates": graduates,
 		"transitions": transitions
+	}
+
+func _apply_development_contexts(players: Array, school_map: Dictionary, config: Dictionary) -> Array:
+	var program_cfg: Dictionary = config.get("program_quality", {}) as Dictionary
+	var default_program_mult := float(program_cfg.get("default_dev_multiplier", 1.0))
+	var position_specialists: Dictionary = config.get("position_specialists", {}) as Dictionary
+
+	var updated: Array = []
+	updated.resize(players.size())
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if p == null:
+			updated[i] = p
+			continue
+		var school_id := String(p.get("hs_school_id", ""))
+		var school: Dictionary = school_map.get(school_id, {}) as Dictionary
+		var context := _development_context_for(p, school, default_program_mult, position_specialists)
+		var next := p.duplicate(true)
+		next["development_context"] = context
+		updated[i] = next
+	return updated
+
+func _development_context_for(
+	player: Dictionary,
+	school: Dictionary,
+	default_program_mult: float,
+	position_specialists: Dictionary
+) -> Dictionary:
+	var program_mult := float(school.get("program_quality_multiplier", default_program_mult))
+	if program_mult <= 0.0:
+		program_mult = default_program_mult
+
+	var specialist_mult := 1.0
+	var specialist_position := String(school.get("coach_specialist_position", ""))
+	var position := String(player.get("position", ""))
+	if specialist_position != "" and position == specialist_position:
+		specialist_mult = float(position_specialists.get(specialist_position, 1.0))
+
+	var total_mult := program_mult * specialist_mult
+	var applied_traits: Array = []
+	if specialist_position != "" and position == specialist_position:
+		applied_traits.append("position_specialist:%s" % specialist_position)
+
+	return {
+		"multipliers": {
+			"growth": total_mult,
+			"prime": total_mult,
+			"decline": total_mult
+		},
+		"program_quality_tier": String(school.get("program_quality_tier", "")),
+		"program_quality_multiplier": program_mult,
+		"coach_traits": school.get("coach_traits", []) as Array,
+		"applied_traits": applied_traits
+func _apply_development_context(
+	players: Array,
+	main_cfg: Dictionary,
+	config: Dictionary,
+	rng: RandomNumberGenerator,
+	year: int
+) -> void:
+	var usage_cfg: Dictionary = config.get("usage_profile", {}) as Dictionary
+	var competition_cfg: Dictionary = config.get("competition", {}) as Dictionary
+	var dev_context_cfg: Dictionary = main_cfg.get("development_context", {}) as Dictionary
+	var scheme_cfg: Dictionary = dev_context_cfg.get("scheme_fit", {}) as Dictionary
+	var score_min := float(scheme_cfg.get("score_min", -0.15))
+	var score_max := float(scheme_cfg.get("score_max", 0.15))
+
+	var region_tiers: Dictionary = competition_cfg.get("region_tiers", {}) as Dictionary
+	var tier_growths: Dictionary = competition_cfg.get("tier_growth_multipliers", {}) as Dictionary
+	var default_tier := String(competition_cfg.get("default_tier", ""))
+
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if p == null:
+			continue
+
+		var usage_profile := _build_usage_profile(usage_cfg, rng)
+		var region_id := String(p.get("home_region", ""))
+		var tier_id := String(region_tiers.get(region_id, default_tier))
+		var growth_mult := float(tier_growths.get(tier_id, 1.0))
+		var scheme_score := rng.randf_range(score_min, score_max)
+
+		p["development_context"] = {
+			"season": "hs",
+			"year": year,
+			"usage_profile": usage_profile,
+			"competition": {
+				"tier_id": tier_id,
+				"growth_multiplier": growth_mult,
+				"region_id": region_id
+			},
+			"scheme_fit": {
+				"score": scheme_score
+			}
+		}
+		players[i] = p
+
+func _build_usage_profile(usage_cfg: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var games_min := int(usage_cfg.get("games_played_min", 8))
+	var games_max := int(usage_cfg.get("games_played_max", 12))
+	var snaps_min := int(usage_cfg.get("snaps_min", 150))
+	var snaps_max := int(usage_cfg.get("snaps_max", 650))
+	var starter_chance := float(usage_cfg.get("starter_chance", 0.35))
+
+	var games_played := rng.randi_range(games_min, max(games_min, games_max))
+	var snaps := rng.randi_range(snaps_min, max(snaps_min, snaps_max))
+	var starter := rng.randf() < starter_chance
+
+	return {
+		"games_played": games_played,
+		"snaps": snaps,
+		"starter": starter
 	}
 
 func _performance_bundle(

@@ -1,5 +1,7 @@
+@icon("res://icon.svg")
+# res://scripts/core/models/Team.gd
 extends Resource
-class_name SportTeam
+class_name Team
 
 @export var id: String = ""
 @export var name: String = ""
