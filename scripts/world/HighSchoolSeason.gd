@@ -27,8 +27,10 @@ func run(
 
 	_apply_development_context(players, main_cfg, config, context_rng, year)
 
+	var school_map := _school_index(schools)
+	var prepared_players := _apply_development_contexts(players, school_map, config)
 	var progressed: Dictionary = PlayerLifecycle.advance_one_year(
-		players,
+		prepared_players,
 		positions_cfg,
 		main_cfg,
 		stats_cfg,
@@ -36,7 +38,6 @@ func run(
 	)
 	var updated_players: Array = progressed.get("players", []) as Array
 
-	var school_map := _school_index(schools)
 	var transitions: Array = []
 	var graduates: Array = []
 	var active: Array = []
@@ -84,6 +85,57 @@ func run(
 		"transitions": transitions
 	}
 
+func _apply_development_contexts(players: Array, school_map: Dictionary, config: Dictionary) -> Array:
+	var program_cfg: Dictionary = config.get("program_quality", {}) as Dictionary
+	var default_program_mult := float(program_cfg.get("default_dev_multiplier", 1.0))
+	var position_specialists: Dictionary = config.get("position_specialists", {}) as Dictionary
+
+	var updated: Array = []
+	updated.resize(players.size())
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if p == null:
+			updated[i] = p
+			continue
+		var school_id := String(p.get("hs_school_id", ""))
+		var school: Dictionary = school_map.get(school_id, {}) as Dictionary
+		var context := _development_context_for(p, school, default_program_mult, position_specialists)
+		var next := p.duplicate(true)
+		next["development_context"] = context
+		updated[i] = next
+	return updated
+
+func _development_context_for(
+	player: Dictionary,
+	school: Dictionary,
+	default_program_mult: float,
+	position_specialists: Dictionary
+) -> Dictionary:
+	var program_mult := float(school.get("program_quality_multiplier", default_program_mult))
+	if program_mult <= 0.0:
+		program_mult = default_program_mult
+
+	var specialist_mult := 1.0
+	var specialist_position := String(school.get("coach_specialist_position", ""))
+	var position := String(player.get("position", ""))
+	if specialist_position != "" and position == specialist_position:
+		specialist_mult = float(position_specialists.get(specialist_position, 1.0))
+
+	var total_mult := program_mult * specialist_mult
+	var applied_traits: Array = []
+	if specialist_position != "" and position == specialist_position:
+		applied_traits.append("position_specialist:%s" % specialist_position)
+
+	return {
+		"multipliers": {
+			"growth": total_mult,
+			"prime": total_mult,
+			"decline": total_mult
+		},
+		"program_quality_tier": String(school.get("program_quality_tier", "")),
+		"program_quality_multiplier": program_mult,
+		"coach_traits": school.get("coach_traits", []) as Array,
+		"applied_traits": applied_traits
 func _apply_development_context(
 	players: Array,
 	main_cfg: Dictionary,

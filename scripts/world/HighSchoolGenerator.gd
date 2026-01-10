@@ -31,6 +31,12 @@ func generate(
 	var tiers: Array = cfg.get("eliteness_tiers", []) as Array
 	var region_weights := _weights_for(regions)
 	var tier_weights := _weights_for(tiers)
+	var program_cfg: Dictionary = cfg.get("program_quality", {}) as Dictionary
+	var program_tiers: Array = program_cfg.get("tiers", []) as Array
+	var program_weights := _weights_for(program_tiers)
+	var default_program_mult := float(program_cfg.get("default_dev_multiplier", 1.0))
+	var specialist_chance := float(cfg.get("specialist_coach_chance", 0.0))
+	var position_specialists: Dictionary = cfg.get("position_specialists", {}) as Dictionary
 
 	var schools: Array = []
 	schools.resize(school_count)
@@ -38,6 +44,11 @@ func generate(
 		var region: Dictionary = _weighted_pick(regions, region_weights, rng)
 		var tier: Dictionary = _weighted_pick(tiers, tier_weights, rng)
 		var eliteness := rng.randf_range(float(tier.get("min", 0.0)), float(tier.get("max", 100.0)))
+		var program_tier: Dictionary = _weighted_pick(program_tiers, program_weights, rng)
+		var program_id := String(program_tier.get("id", ""))
+		var program_mult := float(program_tier.get("dev_multiplier", default_program_mult))
+		if program_id == "":
+			program_mult = default_program_mult
 
 		var school_id := "hs_%04d" % (i + 1)
 		var school := {
@@ -45,10 +56,15 @@ func generate(
 			"name": name_format % (i + 1),
 			"region": String(region.get("id", "")),
 			"eliteness": eliteness,
-			"tier": String(tier.get("id", ""))
+			"tier": String(tier.get("id", "")),
+			"program_quality_tier": program_id,
+			"program_quality_multiplier": program_mult,
+			"coach_traits": [],
+			"coach_specialist_position": ""
 		}
 		if default_capacity > 0:
 			school["capacity"] = default_capacity
+		_apply_specialist_trait(school, position_specialists, specialist_chance, rng)
 		schools[i] = school
 
 	return {"schools": schools, "config": cfg}
@@ -146,6 +162,47 @@ func _validate_config(cfg: Dictionary) -> bool:
 			push_error("HighSchoolGenerator: tier ranges overlap (%s, %s)." % [prev.id, curr.id])
 			return false
 
+	var program_cfg: Dictionary = cfg.get("program_quality", {}) as Dictionary
+	if not program_cfg.is_empty():
+		var program_tiers: Array = program_cfg.get("tiers", []) as Array
+		if program_tiers.is_empty():
+			push_error("HighSchoolGenerator: program_quality must include non-empty 'tiers'.")
+			return false
+		var program_weight_total := 0.0
+		for tier in program_tiers:
+			var tier_dict: Dictionary = tier
+			var tier_id := String(tier_dict.get("id", ""))
+			if tier_id == "":
+				push_error("HighSchoolGenerator: program_quality tier missing 'id'.")
+				return false
+			var mult := float(tier_dict.get("dev_multiplier", 0.0))
+			if mult <= 0.0:
+				push_error("HighSchoolGenerator: program_quality tier '%s' has non-positive multiplier." % tier_id)
+				return false
+			var weight := float(tier_dict.get("weight", 0.0))
+			if weight <= 0.0:
+				push_error("HighSchoolGenerator: program_quality tier '%s' has non-positive weight." % tier_id)
+				return false
+			program_weight_total += weight
+		if program_weight_total <= 0.0:
+			push_error("HighSchoolGenerator: program_quality tier weights must sum > 0.")
+			return false
+		if abs(program_weight_total - 1.0) > 0.01:
+			push_error("HighSchoolGenerator: program_quality tier weights must sum to 1.0 (got %.3f)." % program_weight_total)
+			return false
+
+	var specialist_chance := float(cfg.get("specialist_coach_chance", 0.0))
+	if specialist_chance < 0.0 or specialist_chance > 1.0:
+		push_error("HighSchoolGenerator: 'specialist_coach_chance' must be between 0 and 1.")
+		return false
+
+	var position_specialists: Dictionary = cfg.get("position_specialists", {}) as Dictionary
+	for key in position_specialists.keys():
+		var mult := float(position_specialists.get(key, 0.0))
+		if mult <= 0.0:
+			push_error("HighSchoolGenerator: position_specialists '%s' must be > 0." % String(key))
+			return false
+
 	return true
 
 func _weights_for(items: Array) -> Array:
@@ -160,7 +217,7 @@ func _weighted_pick(items: Array, weights: Array, rng: RandomNumberGenerator) ->
 	for w in weights:
 		total += float(w)
 	if total <= 0.0:
-		return items[0] as Dictionary
+		return items[0] as Dictionary if not items.is_empty() else {}
 
 	var roll := rng.randf() * total
 	var running := 0.0
@@ -170,3 +227,28 @@ func _weighted_pick(items: Array, weights: Array, rng: RandomNumberGenerator) ->
 			return items[i] as Dictionary
 
 	return items[items.size() - 1] as Dictionary
+
+func _apply_specialist_trait(
+	school: Dictionary,
+	position_specialists: Dictionary,
+	specialist_chance: float,
+	rng: RandomNumberGenerator
+) -> void:
+	if position_specialists.is_empty():
+		return
+	if specialist_chance <= 0.0:
+		return
+	if rng.randf() >= specialist_chance:
+		return
+
+	var keys := position_specialists.keys()
+	if keys.is_empty():
+		return
+	var pick_index := rng.randi_range(0, keys.size() - 1)
+	var position := String(keys[pick_index])
+	school["coach_specialist_position"] = position
+	var traits: Array = school.get("coach_traits", []) as Array
+	var trait_label := "position_specialist:%s" % position
+	if not traits.has(trait_label):
+		traits.append(trait_label)
+	school["coach_traits"] = traits
