@@ -50,7 +50,7 @@ func _phase_handlers() -> Dictionary:
 		"college_generation": Callable(self, "_handle_college_generation"),
 		"college_recruiting": Callable(self, "_handle_college_recruiting"),
 		"college_season": Callable(self, "_handle_placeholder_phase"),
-		"draft_prep": Callable(self, "_handle_placeholder_phase"),
+		"draft_prep": Callable(self, "_handle_draft_prep"),
 		"nfl_draft": Callable(self, "_handle_placeholder_phase")
 	}
 
@@ -242,6 +242,24 @@ func _handle_college_recruiting(
 		"uncommitted": (output.get("uncommitted", []) as Array).size(),
 		"step_seeds": {"college_recruiting": step_seed}
 	}
+
+func _handle_draft_prep(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "valuation")
+	_log_step_seed(year, phase_id, "valuation", step_seed)
+
+	var output := ValuationFlow.run(world_state, year, phase_id, step_seed)
+	var snapshots: Dictionary = world_state.get("valuation_snapshots", {}) as Dictionary
+	snapshots[year] = output
+	world_state["valuation_snapshots"] = snapshots
+
+	return output
 
 func _handle_placeholder_phase(
 	_world_state: Dictionary,

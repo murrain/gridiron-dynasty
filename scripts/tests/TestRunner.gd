@@ -29,6 +29,9 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_advance_world_year_helpers.gd",
 	"res://scripts/tests/test_pipeline_seed_helpers.gd",
 	"res://scripts/tests/test_world_history_preview.gd",
+	"res://scripts/tests/test_valuation_helpers.gd",
+	"res://scripts/tests/test_cap_accounting.gd",
+	"res://scripts/tests/test_trade_valuation.gd",
 	"res://scripts/tests/test_phase4_scaffolding.gd"
 ]
 

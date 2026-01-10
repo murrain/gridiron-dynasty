@@ -61,6 +61,18 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 #   increment current_year implicitly.
 # - Release: clear current_year/total_years and zero out financials explicitly.
 @export var contract: Dictionary = {}
+# --- Contracts ---
+var contract: Dictionary = {}                 # contract/valuation payloads
+# --- Contract ---
+# Deterministic valuation markers must be persisted to avoid hidden randomness.
+@export var contract_current_year: int = 0
+@export var contract_total_years: int = 0
+@export var contract_annual_value: float = 0.0
+@export var contract_guaranteed: float = 0.0
+@export var contract_range_min: float = 0.0
+@export var contract_range_max: float = 0.0
+@export var contract_valuation_source: String = "" # e.g., valuation model ID
+@export var contract_valuation_seed: int = 0       # seed/reference for recomputation
 
 # =========================
 # Lifecycle / Utilities
@@ -84,6 +96,7 @@ func from_dict(d: Dictionary) -> void:
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
+	contract = (d.get("contract", contract) as Dictionary).duplicate(true)
 
 	# Physicals
 	var phys: Dictionary = d.get("physicals", {})
@@ -127,6 +140,17 @@ func from_dict(d: Dictionary) -> void:
 	contract["range_max"] = float(contract_data.get("range_max", contract["range_max"]))
 	contract["source_eval_id"] = String(contract_data.get("source_eval_id", contract["source_eval_id"]))
 
+	# Contract
+	var contract: Dictionary = d.get("contract", {})
+	contract_current_year = int(contract.get("current_year", contract_current_year))
+	contract_total_years = int(contract.get("total_years", contract_total_years))
+	contract_annual_value = float(contract.get("annual_value", contract_annual_value))
+	contract_guaranteed = float(contract.get("guaranteed", contract_guaranteed))
+	contract_range_min = float(contract.get("range_min", contract_range_min))
+	contract_range_max = float(contract.get("range_max", contract_range_max))
+	contract_valuation_source = String(contract.get("valuation_source", contract_valuation_source))
+	contract_valuation_seed = int(contract.get("valuation_seed", contract_valuation_seed))
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -138,6 +162,7 @@ func to_dict() -> Dictionary:
 		"gen_mode": gen_mode,
 		"school_tag": school_tag,
 		"notes": notes,
+		"contract": contract.duplicate(true),
 		"physicals": {
 			"height_in": height_in,
 			"weight_lb": weight_lb,
@@ -163,7 +188,16 @@ func to_dict() -> Dictionary:
 		"derived": derived.duplicate(true),
 		"traits": traits.duplicate(),
 		"hidden_traits": hidden_traits.duplicate(),
-		"contract": contract.duplicate(true)
+		"contract": {
+			"current_year": contract_current_year,
+			"total_years": contract_total_years,
+			"annual_value": contract_annual_value,
+			"guaranteed": contract_guaranteed,
+			"range_min": contract_range_min,
+			"range_max": contract_range_max,
+			"valuation_source": contract_valuation_source,
+			"valuation_seed": contract_valuation_seed
+		}
 	}
 
 # --- Derived stat recompute ---
