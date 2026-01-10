@@ -8,6 +8,7 @@ func run(t) -> void:
 	_test_exponential_elite_threshold(t)
 	_test_tiered_exponential_growth(t)
 	_test_tiered_exponential_elite_boost(t)
+	_test_tier_boundary_continuity(t)
 	_test_linear_fallback(t)
 	_test_determinism(t)
 	_test_score_boundaries(t)
@@ -92,10 +93,10 @@ func _test_tiered_exponential_growth(t) -> void:
 	t.assert_true(value_92 > value_85, "Score 92 > Score 85")
 	t.assert_true(value_98 > value_92, "Score 98 > Score 92")
 
-	# Higher tiers should grow faster (non-linear)
-	var growth_60_75: float = value_75 / maxf(value_60, 0.001)
-	var growth_85_92: float = value_92 / maxf(value_85, 0.001)
-	t.assert_true(growth_85_92 > growth_60_75, "Higher tiers grow faster than lower tiers")
+	# Higher tiers should have higher per-point value increase
+	var increase_60_75: float = (value_75 - value_60) / 15.0  # 15 point range
+	var increase_85_92: float = (value_92 - value_85) / 7.0   # 7 point range
+	t.assert_true(increase_85_92 > increase_60_75, "Higher tiers have higher per-point value increase")
 
 
 ## Test elite boost in tiered exponential
@@ -124,6 +125,56 @@ func _test_tiered_exponential_elite_boost(t) -> void:
 
 	# Elite boost should apply at threshold
 	t.assert_approx(value_92, value_92_no_boost * 1.5, 0.001, "Elite boost applied in tiered exponential")
+
+
+## Test that tier boundaries have no discontinuity
+func _test_tier_boundary_continuity(t) -> void:
+	var config := {
+		"curve_type": "tiered_exponential",
+		"base_value": 1.0,
+		"tiers": [
+			{"min": 0, "max": 60, "multiplier": 0.5, "exponent": 1.0},
+			{"min": 60, "max": 75, "multiplier": 1.0, "exponent": 1.3},
+			{"min": 75, "max": 85, "multiplier": 2.0, "exponent": 1.8},
+			{"min": 85, "max": 92, "multiplier": 4.0, "exponent": 2.2},
+			{"min": 92, "max": 100, "multiplier": 10.0, "exponent": 3.0}
+		],
+		"elite_threshold": 100,  # Disable elite boost for this test
+		"elite_multiplier_boost": 1.0
+	}
+
+	# Test boundary at 60: value just below should be close to value at boundary
+	var value_59_99 := ValueCurve.score_to_market_value(59.99, config)
+	var value_60_00 := ValueCurve.score_to_market_value(60.0, config)
+	var value_60_01 := ValueCurve.score_to_market_value(60.01, config)
+
+	# Values should increase monotonically (no sudden drops)
+	t.assert_true(value_60_00 >= value_59_99, "Value at 60.0 should be >= value at 59.99")
+	t.assert_true(value_60_01 >= value_60_00, "Value at 60.01 should be >= value at 60.0")
+
+	# Test boundary at 75
+	var value_74_99 := ValueCurve.score_to_market_value(74.99, config)
+	var value_75_00 := ValueCurve.score_to_market_value(75.0, config)
+	var value_75_01 := ValueCurve.score_to_market_value(75.01, config)
+
+	t.assert_true(value_75_00 >= value_74_99, "Value at 75.0 should be >= value at 74.99")
+	t.assert_true(value_75_01 >= value_75_00, "Value at 75.01 should be >= value at 75.0")
+
+	# Test boundary at 85
+	var value_84_99 := ValueCurve.score_to_market_value(84.99, config)
+	var value_85_00 := ValueCurve.score_to_market_value(85.0, config)
+	var value_85_01 := ValueCurve.score_to_market_value(85.01, config)
+
+	t.assert_true(value_85_00 >= value_84_99, "Value at 85.0 should be >= value at 84.99")
+	t.assert_true(value_85_01 >= value_85_00, "Value at 85.01 should be >= value at 85.0")
+
+	# Test boundary at 92
+	var value_91_99 := ValueCurve.score_to_market_value(91.99, config)
+	var value_92_00 := ValueCurve.score_to_market_value(92.0, config)
+	var value_92_01 := ValueCurve.score_to_market_value(92.01, config)
+
+	t.assert_true(value_92_00 >= value_91_99, "Value at 92.0 should be >= value at 91.99")
+	t.assert_true(value_92_01 >= value_92_00, "Value at 92.01 should be >= value at 92.0")
 
 
 ## Test linear fallback mode

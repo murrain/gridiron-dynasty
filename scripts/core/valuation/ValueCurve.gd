@@ -1,5 +1,14 @@
 ## Non-linear value curve for player valuation.
 ##
+## Architecture: This class is part of the valuation layer, which transforms
+## raw evaluation scores (from scouts, combines, etc.) into market values. The
+## separation exists because:
+## - Evaluation logic measures player ability (pure, context-free)
+## - Valuation logic assigns market worth (depends on curve shape, elite
+##   thresholds, and economic factors)
+## This separation allows evaluation to remain stable while valuation curves
+## can be tuned independently for game balance.
+##
 ## Purpose: Transform raw evaluation scores into market values using non-linear
 ## curves that appropriately value elite players. A 95-rated player should be
 ## worth significantly more than a 90-rated player, not just 5% more.
@@ -115,8 +124,8 @@ static func _cumulative_tier_value(threshold: float, tiers: Array, base: float) 
 		var tier_min := float(tier_dict.get("min", 0.0))
 		var tier_max := float(tier_dict.get("max", 100.0))
 
-		# Only count tiers that are entirely below the threshold
-		if tier_max < threshold:
+		# Only count tiers that are entirely below or at the threshold
+		if tier_max <= threshold:
 			var tier_mult := float(tier_dict.get("multiplier", 1.0))
 			var tier_exp := float(tier_dict.get("exponent", 1.0))
 			# Full tier contribution at exponent=1.0 (top of tier)
