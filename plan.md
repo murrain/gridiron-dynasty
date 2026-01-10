@@ -393,6 +393,178 @@ work needed to reach complete coverage for the new models and flows.
 
 ---
 
+## Phase 3.7: Bootstrap preview – game-ready world state
+**Goal:** Extend the Bootstrap preview scene to produce a fully game-ready world
+state after ~20 generations of player generation and world simulation. The output
+should include populated HS schools, college programs with multi-year rosters,
+and a pro-ready player pool derived from the full HS→College→Pro pipeline.
+
+**Current State (Architect Review):**
+- `BootstrapPreview.gd` exists as a UI wrapper calling `BootstrapWorld.run()`.
+- `WorldHistoryPreview.gd` runs `AdvanceWorldYear` for N years, producing a
+  world_state with HS schools, HS players, colleges, and recruiting results.
+- The `BootstrapWorld.gd` pipeline generates pro players independently via
+  draft class generation + advancement, NOT flowing through the full
+  HS→College→Pro pipeline.
+- Key gaps identified:
+  1. **College season is a placeholder** – recruits commit but never advance
+     through 4 college years to become draft-eligible.
+  2. **No college roster tracking** – `college_classes` stores commitments but
+     doesn't track multi-year rosters or eligibility advancement.
+  3. **NFL teams are undefined** – `league.json` only has `cap_limit`, no team
+     definitions or roster structures.
+  4. **No unified game-ready output** – separate `world_state` (from AdvanceWorldYear)
+     and `pro_state` (from BootstrapWorld) are not merged into a coherent format.
+  5. **Pro pool is synthetic** – players are generated at draft age and de-aged,
+     rather than flowing through the simulated HS→College pipeline.
+
+**Agent: Engineer**
+1. **Implement CollegeSeason.gd handler** (`scripts/world/CollegeSeason.gd`):
+   - Accept world_state, year, seed, phase descriptor.
+   - For each college in `world_state.colleges`:
+     - Retrieve roster from `world_state.college_rosters[college_id]`.
+     - Call `PlayerLifecycle.advance_one_year` with development_context derived
+       from college tier/program quality.
+     - Update `college_year` (1→2→3→4) and `college_eligibility_status`.
+     - Seniors and early declares transition to `draft_eligible` status.
+     - Remove graduated/departed players from roster; retain underclassmen.
+   - Update `world_state.college_rosters` with active rosters.
+   - Emit `world_state.draft_pool[year]` with draft-eligible players.
+   - Return structured output with roster counts, graduate counts, draft-eligible
+     count, and step_seeds.
+
+2. **Add college roster containers to world_state**:
+   - In `_handle_college_recruiting` (AdvanceWorldYear.gd), after commitments
+     are recorded, initialize or merge into `world_state.college_rosters`:
+     ```
+     college_rosters[college_id] = {
+       "players": [pid1, pid2, ...],  # Full player dicts, not just IDs
+       "class_years": {1: [...], 2: [...], 3: [...], 4: [...]}
+     }
+     ```
+   - Store full player dictionaries (not just IDs) so lifecycle can advance them.
+   - Ensure recruits start with `college_year: 1`, `college_eligibility_status: "freshman"`.
+
+3. **Wire college_season phase handler in AdvanceWorldYear.gd**:
+   - Replace `_handle_placeholder_phase` with `_handle_college_season`.
+   - Call `CollegeSeason.new().run(...)` with appropriate seed derivation.
+   - Update world_state with returned rosters and draft pool.
+
+4. **Add NFL team definitions to league.json**:
+   - Expand `configs/sports/american_football/world/league.json`:
+     ```json
+     {
+       "version": 2,
+       "cap_limit": 200.0,
+       "team_count": 32,
+       "teams": [
+         {"id": "nfl_001", "name": "Team 001", "region": "south", "cap_space": 200.0},
+         ...
+       ],
+       "roster_limits": {"active": 53, "practice_squad": 16}
+     }
+     ```
+   - Generate 32 teams with deterministic IDs, distributed across regions.
+
+5. **Add NflTeamGenerator.gd** (`scripts/world/NflTeamGenerator.gd`):
+   - Generate teams from league config if `world_state.nfl_teams` is empty.
+   - Each team has: id, name, region, cap_space, roster (empty initially).
+   - Return structured output with team count and seed lineage.
+
+6. **Wire NFL team generation into AdvanceWorldYear**:
+   - Add `nfl_team_generation` phase to calendar.json (after college_generation).
+   - Implement `_handle_nfl_team_generation` in AdvanceWorldYear.gd.
+   - Generate teams once (like college_generation).
+
+7. **Implement unified BootstrapGameWorld.gd** (`scripts/pipelines/BootstrapGameWorld.gd`):
+   - New entry point that produces a complete game-ready world state.
+   - Accept parameters: `years_to_simulate` (default 20), `base_seed`.
+   - Flow:
+     1. Initialize empty world_state.
+     2. For year in range [start_year - years_to_simulate + 1, start_year]:
+        - Call `AdvanceWorldYear.run(world_state, year, year_seed)`.
+     3. After all years, extract game-ready outputs:
+        - `hs_schools`: all generated HS schools.
+        - `hs_players`: active HS underclassmen.
+        - `colleges`: all generated colleges.
+        - `college_rosters`: current rosters per college (all class years).
+        - `nfl_teams`: generated NFL teams (empty rosters initially).
+        - `draft_pool`: players eligible for current year's draft.
+        - `pro_ready_pool`: accumulated draft-eligible players from recent years
+          (for populating NFL rosters in a later phase).
+   - Return unified game_state dictionary with above containers.
+
+8. **Update BootstrapPreview.gd to use BootstrapGameWorld**:
+   - Replace call to `BootstrapWorld.run()` with `BootstrapGameWorld.run()`.
+   - Update output to show:
+     - HS schools/players counts.
+     - College program counts and roster sizes.
+     - NFL team count.
+     - Draft pool size.
+     - Pro-ready cohort summary.
+
+9. **Add player fields for college tracking**:
+   - In `_handle_college_recruiting` or initial recruit profile creation:
+     - `college_id`: assigned college.
+     - `college_year`: 1-4.
+     - `college_eligibility_status`: freshman/sophomore/junior/senior/draft_eligible.
+     - `draft_declaration`: null or year declared.
+   - In CollegeSeason, advance these fields yearly.
+
+10. **Add early declaration logic**:
+    - In CollegeSeason, after advancing juniors (college_year 3→4):
+      - Roll for early declaration based on player rating and config threshold.
+      - Early declares get `draft_declaration: year`, `college_eligibility_status: "draft_eligible"`.
+    - Config fields in `world/colleges.json`:
+      ```json
+      "early_declaration": {
+        "min_year": 3,
+        "rating_threshold": 85.0,
+        "base_chance": 0.15,
+        "rating_bonus_per_point": 0.01
+      }
+      ```
+
+11. **Add test coverage for new components**:
+    - `scripts/tests/test_college_season.gd`:
+      - Verify roster advancement, eligibility transitions, draft pool output.
+      - Assert determinism with fixed seed.
+    - `scripts/tests/test_bootstrap_game_world.gd`:
+      - Verify unified output structure contains all required containers.
+      - Assert multi-year simulation produces non-empty HS, college, and draft pools.
+      - Assert determinism across runs with same seed.
+    - `scripts/tests/test_nfl_team_generator.gd`:
+      - Verify team generation matches config team_count.
+      - Assert deterministic IDs and region distribution.
+
+12. **Register new tests in TestRunner.gd**.
+
+**Agent: Review**
+1. Verify CollegeSeason correctly advances rosters without data loss.
+2. Confirm draft pool includes both seniors and early declares.
+3. Validate BootstrapGameWorld output contains all game-ready containers.
+4. Ensure all new code uses explicit RNG with seed lineage logging.
+5. Confirm calendar.json phase ordering is correct (HS→College gen→NFL gen→
+   College recruiting→College season→Draft prep→...).
+
+**Files to create:**
+- `scripts/world/CollegeSeason.gd`
+- `scripts/world/NflTeamGenerator.gd`
+- `scripts/pipelines/BootstrapGameWorld.gd`
+- `scripts/tests/test_college_season.gd`
+- `scripts/tests/test_bootstrap_game_world.gd`
+- `scripts/tests/test_nfl_team_generator.gd`
+
+**Files to modify:**
+- `scripts/pipelines/AdvanceWorldYear.gd` (add college_season + nfl_team_generation handlers)
+- `scripts/pipelines/BootstrapPreview.gd` (use BootstrapGameWorld)
+- `configs/sports/american_football/world/calendar.json` (add nfl_team_generation phase)
+- `configs/sports/american_football/world/league.json` (add teams array)
+- `configs/sports/american_football/world/colleges.json` (add early_declaration config)
+- `scripts/tests/TestRunner.gd` (register new tests)
+
+---
+
 ## Phase 4: Team + roster scaffolding
 **Goal:** Provide minimal containers for players across HS/college/NFL.
 
