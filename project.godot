@@ -19,3 +19,5 @@ config/icon="res://icon.svg"
 
 App="*res://autoloads/App.gd"
 Config="*res://autoloads/Config.gd"
+Rand="*res://autoloads/Rand.gd"
+RngBox="*res://autoloads/RngBox.gd"
