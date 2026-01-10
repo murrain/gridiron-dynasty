@@ -21,6 +21,17 @@
             "late": { "growth": 0.9, "prime": 0.30, "decline": 0.85 }
         }
     },
+    "wear": {
+        "snaps_per_year": 650,
+        "collisions_per_year": 220,
+        "position_multipliers": {},
+        "decline_snaps_scale": 8000.0,
+        "decline_collisions_scale": 2600.0,
+        "decline_injuries_scale": 6.0,
+        "decline_per_wear": 0.2,
+        "decline_min_multiplier": 1.0,
+        "decline_max_multiplier": 1.6
+    },
     "retirement": {
         "min_age": 27,
         "soft_cap_age": 33,
