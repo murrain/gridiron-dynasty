@@ -305,8 +305,17 @@ func _test_rng_consistency(t, stats_cfg, positions_cfg, class_rules) -> void:
 	var score3b := ScoreCache.score_player_cached(player2, scout, positions_cfg, stats_cfg, class_rules, rng3, cache3)
 	var rng3_final := rng3.state
 
-	# After cache hit, RNG state should be as if we evaluated twice
-	t.assert_equal(rng1_final, rng3_final, "ScoreCache: RNG state correct after cache hit")
+	# Path 4: No cache, evaluate player1 twice to match Path 3's evaluations
+	var rng4 := RandomNumberGenerator.new()
+	rng4.seed = seed
+	var _score4a := ScoutRuntime.score_player(scout, player1, positions_cfg, stats_cfg, class_rules, rng4)
+	var _score4a_repeat := ScoutRuntime.score_player(scout, player1, positions_cfg, stats_cfg, class_rules, rng4)  # Second evaluation
+	var _score4b := ScoutRuntime.score_player(scout, player2, positions_cfg, stats_cfg, class_rules, rng4)
+	var rng4_final := rng4.state
+
+	# Cache hit should consume same RNG as real evaluation
+	t.assert_equal(rng4_final, rng3_final, "ScoreCache: RNG state correct after cache hit (matches double evaluation)")
+	t.assert_approx(score3a, score3a_hit, 0.001, "ScoreCache: Cache hit returns same score")
 
 
 ## Test: Hash key uniqueness
