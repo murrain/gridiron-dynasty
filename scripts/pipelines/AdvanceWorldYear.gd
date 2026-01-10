@@ -51,6 +51,7 @@ func _phase_handlers() -> Dictionary:
 		"college_recruiting": Callable(self, "_handle_college_recruiting"),
 		"college_season": Callable(self, "_handle_placeholder_phase"),
 		"draft_prep": Callable(self, "_handle_draft_prep"),
+		"cap_validation": Callable(self, "_handle_cap_validation"),
 		"nfl_draft": Callable(self, "_handle_placeholder_phase")
 	}
 
@@ -260,6 +261,20 @@ func _handle_draft_prep(
 	world_state["valuation_snapshots"] = snapshots
 
 	return output
+
+func _handle_cap_validation(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	_year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var league_cfg := Config.get_config("world/league")
+	var league_state: Dictionary = world_state.get("league", {}) as Dictionary
+	var cap_limit := float(league_state.get("cap_limit", league_cfg.get("cap_limit", 0.0)))
+
+	return CapValidationFlow.run(world_state, year, phase_id, cap_limit)
 
 func _handle_placeholder_phase(
 	_world_state: Dictionary,

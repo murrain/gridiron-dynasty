@@ -10,6 +10,7 @@ class_name SportTeam
 @export var cap_limit: float = 0.0
 @export var cap_used: float = 0.0
 @export var cap_space: float = 0.0
+@export var is_over_cap: bool = false
 
 # Roster scaffolding
 @export var player_ids: Array[String] = []
@@ -22,6 +23,7 @@ func from_dict(d: Dictionary) -> void:
 	cap_limit = float(cap.get("cap_limit", cap_limit))
 	cap_used = float(cap.get("cap_used", cap_used))
 	cap_space = float(cap.get("cap_space", cap_space))
+	is_over_cap = bool(d.get("is_over_cap", is_over_cap))
 
 	player_ids = (d.get("player_ids", player_ids) as Array).duplicate()
 
@@ -34,5 +36,6 @@ func to_dict() -> Dictionary:
 			"cap_used": cap_used,
 			"cap_space": cap_space
 		},
+		"is_over_cap": is_over_cap,
 		"player_ids": player_ids.duplicate()
 	}
