@@ -397,7 +397,7 @@ work needed to reach complete coverage for the new models and flows.
 **Goal:** Extend the Bootstrap preview scene to produce a fully game-ready world
 state after ~20 generations of player generation and world simulation. The output
 should include populated HS schools, college programs with multi-year rosters,
-and a pro-ready player pool derived from the full HS→College→Pro pipeline.
+a draft pool from the pipeline, and the synthetic pro-ready pool for validation.
 
 **Current State (Architect Review):**
 - `BootstrapPreview.gd` exists as a UI wrapper calling `BootstrapWorld.run()`.
@@ -415,8 +415,12 @@ and a pro-ready player pool derived from the full HS→College→Pro pipeline.
      definitions or roster structures.
   4. **No unified game-ready output** – separate `world_state` (from AdvanceWorldYear)
      and `pro_state` (from BootstrapWorld) are not merged into a coherent format.
-  5. **Pro pool is synthetic** – players are generated at draft age and de-aged,
-     rather than flowing through the simulated HS→College pipeline.
+
+- Intentional design (not a gap):
+  - **BootstrapWorld synthetic generation** – players are generated at NFL draft
+    peak potential then de-aged to HS level. This is intentional for "sniff test"
+    validation: preview the eventual draft class against real-world distributions
+    before running them through the full simulation pipeline.
 
 **Agent: Engineer**
 1. **Implement CollegeSeason.gd handler** (`scripts/world/CollegeSeason.gd`):
@@ -483,16 +487,20 @@ and a pro-ready player pool derived from the full HS→College→Pro pipeline.
      1. Initialize empty world_state.
      2. For year in range [start_year - years_to_simulate + 1, start_year]:
         - Call `AdvanceWorldYear.run(world_state, year, year_seed)`.
-     3. After all years, extract game-ready outputs:
+     3. Call `BootstrapWorld.run()` to generate synthetic pro pool for validation.
+     4. After all years, extract game-ready outputs:
         - `hs_schools`: all generated HS schools.
         - `hs_players`: active HS underclassmen.
         - `colleges`: all generated colleges.
         - `college_rosters`: current rosters per college (all class years).
         - `nfl_teams`: generated NFL teams (empty rosters initially).
-        - `draft_pool`: players eligible for current year's draft.
-        - `pro_ready_pool`: accumulated draft-eligible players from recent years
-          (for populating NFL rosters in a later phase).
+        - `draft_pool`: players eligible for current year's draft (from pipeline).
+        - `synthetic_pro_pool`: from BootstrapWorld for sniff-test validation
+          (players generated at peak potential then de-aged).
    - Return unified game_state dictionary with above containers.
+   - Note: `synthetic_pro_pool` and `draft_pool` serve different purposes:
+     - `draft_pool`: pipeline-derived, for actual game flow.
+     - `synthetic_pro_pool`: validation reference for draft class quality.
 
 8. **Update BootstrapPreview.gd to use BootstrapGameWorld**:
    - Replace call to `BootstrapWorld.run()` with `BootstrapGameWorld.run()`.
