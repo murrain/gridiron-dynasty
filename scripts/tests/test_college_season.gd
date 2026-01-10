@@ -43,7 +43,7 @@ func _test_roster_advancement(t, colleges_cfg: Dictionary, positions_cfg: Dictio
 	t.assert_true(found_sophomore, "found advanced player in roster")
 
 func _test_eligibility_transitions(t, colleges_cfg: Dictionary, positions_cfg: Dictionary, main_cfg: Dictionary, stats_cfg: Dictionary) -> void:
-	var world_state := _make_world_state_with_rosters()
+	var world_state := _make_world_state_with_mixed_years()
 	var season := CollegeSeason.new()
 	var _result := season.run(world_state, 2025, 12345, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
 
@@ -63,8 +63,9 @@ func _test_eligibility_transitions(t, colleges_cfg: Dictionary, positions_cfg: D
 			3:
 				t.assert_eq(status, "junior", "%s should be junior" % player_id)
 			4:
-				# Seniors should be in draft pool, not roster
-				t.fail("senior %s should not be in active roster" % player_id)
+				t.assert_eq(status, "senior", "%s should be senior" % player_id)
+			_:
+				t.fail("unexpected college_year %d for %s" % [college_year, player_id])
 
 func _test_draft_pool_output(t, colleges_cfg: Dictionary, positions_cfg: Dictionary, main_cfg: Dictionary, stats_cfg: Dictionary) -> void:
 	var world_state := _make_world_state_with_seniors()
@@ -129,6 +130,33 @@ func _make_world_state_with_rosters() -> Dictionary:
 				1: ["p3"],
 				2: [],
 				3: [],
+				4: []
+			}
+		}
+	}
+
+	return {
+		"colleges": colleges,
+		"college_rosters": rosters,
+		"draft_pool": {}
+	}
+
+func _make_world_state_with_mixed_years() -> Dictionary:
+	var colleges := [
+		{"id": "c1", "name": "College 1", "tier": "elite", "eliteness": 90.0, "region": "north"}
+	]
+
+	var rosters := {
+		"c1": {
+			"players": [
+				_make_player("p1", "QB", 1, "freshman", 75.0),
+				_make_player("p2", "WR", 2, "sophomore", 72.0),
+				_make_player("p3", "RB", 3, "junior", 68.0)
+			],
+			"class_years": {
+				1: ["p1"],
+				2: ["p2"],
+				3: ["p3"],
 				4: []
 			}
 		}

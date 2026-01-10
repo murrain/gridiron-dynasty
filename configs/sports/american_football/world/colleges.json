@@ -38,7 +38,9 @@
     "games_played_max": 13,
     "snaps_min": 250,
     "snaps_max": 900,
-    "starter_chance": 0.45
+    "starter_chance": 0.45,
+    "starter_multiplier": 1.2,
+    "bench_multiplier": 0.8
   },
   "competition": {
     "tier_growth_multipliers": {

@@ -70,28 +70,30 @@ func run(
 				continue
 
 			var old_year := int(p.get("college_year", 1))
-			var new_year := old_year + 1
-			p["college_year"] = new_year
-
-			var new_status := _eligibility_status(new_year)
-			p["college_eligibility_status"] = new_status
-
 			var is_draft_eligible := false
-			if new_year >= 4:
-				# Seniors are automatically draft eligible
+
+			# Check draft eligibility before incrementing year
+			# Players who completed their senior year (old_year >= 4) graduate
+			if old_year >= 4:
 				is_draft_eligible = true
 				total_graduates += 1
-			elif new_year == 3:
-				# Check for early declaration
-				if _check_early_declaration(p, early_decl_cfg, early_decl_rng):
+			# Juniors (old_year == 3) who completed junior year can declare early
+			elif old_year == 3:
+				if _check_early_declaration_by_year(p, old_year, early_decl_cfg, early_decl_rng):
 					is_draft_eligible = true
 					total_early_declares += 1
 
 			if is_draft_eligible:
+				# Keep their current year since they're leaving for draft
 				p["draft_eligible"] = true
 				p["draft_year"] = year
 				draft_eligible.append(p)
 			else:
+				# Advance to next year for returning players
+				var new_year := old_year + 1
+				p["college_year"] = new_year
+				var new_status := _eligibility_status(new_year)
+				p["college_eligibility_status"] = new_status
 				active.append(p)
 				if new_year >= 1 and new_year <= 4:
 					(class_years[new_year] as Array).append(String(p.get("player_id", "")))
@@ -160,8 +162,9 @@ func _apply_development_context(
 
 func _roll_usage(usage_cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 	var starter_chance := float(usage_cfg.get("starter_chance", 0.45))
-	var starter_mult := 1.2
-	var bench_mult := 0.8
+	# Development boost for starters vs bench players
+	var starter_mult := float(usage_cfg.get("starter_multiplier", 1.2))
+	var bench_mult := float(usage_cfg.get("bench_multiplier", 0.8))
 
 	if rng.randf() < starter_chance:
 		return starter_mult
@@ -181,8 +184,9 @@ func _eligibility_status(college_year: int) -> String:
 		_:
 			return "senior"
 
-func _check_early_declaration(
+func _check_early_declaration_by_year(
 	player: Dictionary,
+	college_year: int,
 	early_decl_cfg: Dictionary,
 	rng: RandomNumberGenerator
 ) -> bool:
@@ -191,7 +195,7 @@ func _check_early_declaration(
 	var base_chance := float(early_decl_cfg.get("base_chance", 0.15))
 	var rating_bonus_per_point := float(early_decl_cfg.get("rating_bonus_per_point", 0.01))
 
-	var college_year := int(player.get("college_year", 1))
+	# Check if player has completed enough years to be eligible
 	if college_year < min_year:
 		return false
 
@@ -199,7 +203,9 @@ func _check_early_declaration(
 	if rating < rating_threshold:
 		return false
 
+	# Calculate declaration probability based on rating above threshold
 	var chance := base_chance + (rating - rating_threshold) * rating_bonus_per_point
+	# Cap at reasonable maximum to preserve some uncertainty
 	chance = clamp(chance, 0.0, 0.95)
 
 	return rng.randf() < chance

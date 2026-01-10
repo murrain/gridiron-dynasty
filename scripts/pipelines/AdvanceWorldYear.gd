@@ -236,7 +236,7 @@ func _handle_college_recruiting(
 	world_state["college_commitments"] = college_commitments
 	world_state["college_classes"] = output.get("college_classes", {})
 
-	# A1: Initialize college rosters from commitments
+	# Convert commitments into structured rosters for college season simulation
 	_initialize_college_rosters(world_state, year, commitments, recruits)
 
 	return {
