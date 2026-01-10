@@ -32,8 +32,5 @@ func value_picks(picks: Array) -> float:
 		return 0.0
 	var total := 0.0
 	for pick in picks:
-		var pick_dict := pick as Dictionary
-		var round := int(pick_dict.get("round", 0))
-		var slot := int(pick_dict.get("slot", 0))
-		total += pick_curve.get_value(round, slot)
+		total += pick_curve.get_value_for_pick(pick)
 	return total

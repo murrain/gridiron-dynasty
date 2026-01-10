@@ -2,7 +2,7 @@
 extends RefCounted
 class_name PickValueCurve
 
-const DEFAULT_PATH: String = "res://configs/trades/pick_value_curve.json"
+const DEFAULT_PATH: String = "res://configs/sports/american_football/draft_picks.json"
 
 var round_defaults: Dictionary = {}
 var slot_values: Dictionary = {}
@@ -31,11 +31,24 @@ func load_from_path(path: String) -> void:
 
 func get_value(round: int, slot: int) -> float:
 	var round_key := str(round)
-	var slot_key := str(slot)
-	if slot_values.has(round_key):
+	if slot > 0 and slot_values.has(round_key):
+		var slot_key := str(slot)
 		var round_map := slot_values[round_key] as Dictionary
 		if round_map.has(slot_key):
 			return float(round_map[slot_key])
 	if round_defaults.has(round_key):
 		return float(round_defaults[round_key])
+	return 0.0
+
+func get_value_for_pick(pick: Variant) -> float:
+	if pick == null:
+		return 0.0
+	if pick is Pick:
+		var typed_pick := pick as Pick
+		return get_value(typed_pick.round, typed_pick.slot)
+	if pick is Dictionary:
+		var pick_dict := pick as Dictionary
+		var round := int(pick_dict.get("round", 0))
+		var slot := int(pick_dict.get("slot", 0))
+		return get_value(round, slot)
 	return 0.0
