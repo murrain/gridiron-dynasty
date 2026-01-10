@@ -1,0 +1,6 @@
+{
+  "phases": [
+    {"id": "preseason", "label": "Preseason", "start_tick": 0, "end_tick": 9, "tags": ["prep"]},
+    {"id": "season", "label": "Season", "start_tick": 10, "end_tick": 30, "tags": ["games"]}
+  ]
+}

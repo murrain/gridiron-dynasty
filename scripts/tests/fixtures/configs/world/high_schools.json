@@ -1,0 +1,13 @@
+{
+  "school_count": 3,
+  "name_format": "HS %02d",
+  "default_capacity": 2,
+  "regions": [
+    {"id": "north", "weight": 0.5},
+    {"id": "south", "weight": 0.5}
+  ],
+  "eliteness_tiers": [
+    {"id": "low", "min": 20, "max": 40, "weight": 0.6},
+    {"id": "high", "min": 60, "max": 80, "weight": 0.4}
+  ]
+}
