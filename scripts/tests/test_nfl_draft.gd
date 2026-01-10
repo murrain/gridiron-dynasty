@@ -175,12 +175,14 @@ func _make_world_state_with_draft_pool(pool_size: int) -> Dictionary:
 			"draft_order": i + 1
 		})
 
-	# Create draft pool
+	# Create draft pool with deterministic ratings
 	var draft_pool: Array = []
-	var positions: Array = ["QB", "RB", "WR", "TE", "OL", "DL", "EDGE", "LB", "CB", "S"]
+	var positions: Array[String] = ["QB", "RB", "WR", "TE", "OL", "DL", "EDGE", "LB", "CB", "S"]
+	var pool_rng := RandomNumberGenerator.new()
+	pool_rng.seed = 55555  # Fixed seed for determinism
 	for i in range(pool_size):
-		var pos := String(positions[i % positions.size()])
-		draft_pool.append(_make_draft_player("dp_%04d" % (i + 1), pos, 70.0 + randf() * 20.0))
+		var pos: String = positions[i % positions.size()]
+		draft_pool.append(_make_draft_player("dp_%04d" % (i + 1), pos, 70.0 + pool_rng.randf() * 20.0))
 
 	return {
 		"nfl_teams": teams,

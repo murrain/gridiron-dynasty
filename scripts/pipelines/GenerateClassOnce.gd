@@ -15,6 +15,13 @@
 ## [/codeblock]
 extends Node
 
+const ConfigService = preload("res://autoloads/Config.gd")
+const Rand = preload("res://autoloads/Rand.gd")
+const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+const PlayerGenerator = preload("res://scripts/generation/PlayerGenerator.gd")
+const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
+const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
+
 const USE_COLOR: bool = true
 # Recruiting classes are stored 8 years after the "starting_year" baseline.
 const CLASS_YEAR_OFFSET: int = 8
@@ -68,13 +75,14 @@ func run() -> void:
 	if output_label != null and output_config.clear_on_run:
 		output_label.clear()
 	# Force full config load once so downstream lookups are consistent.
-	var _all_cfg: Dictionary = Config.get_all()
-	var main_cfg: Dictionary      = Config.get_config("main")
-	var positions: Dictionary     = Config.get_config("positions")
-	var stats_cfg: Dictionary     = Config.get_config("stats")
-	var names_cfg: Dictionary     = Config.get_config("names")
-	var scouts_cfg: Dictionary    = Config.get_config("scouts")
-	var combine_tests: Dictionary = Config.get_config("combine_tests")
+	var config: Node = ConfigService.new()
+	var _all_cfg: Dictionary = config.get_all()
+	var main_cfg: Dictionary      = config.get_config("main")
+	var positions: Dictionary     = config.get_config("positions")
+	var stats_cfg: Dictionary     = config.get_config("stats")
+	var names_cfg: Dictionary     = config.get_config("names")
+	var scouts_cfg: Dictionary    = config.get_config("scouts")
+	var combine_tests: Dictionary = config.get_config("combine_tests")
 
 
 	var gen := PlayerGenerator.new()
@@ -119,7 +127,7 @@ func run() -> void:
 		if not p.has("potential") or (p["potential"] as Dictionary).is_empty():
 			p["potential"] = (p["stats"] as Dictionary).duplicate(true)
 		return p,
-		App.threads_count()
+		config.threads_count()
 	)
 	for i in players.size():
 		players[i] = copied[i]

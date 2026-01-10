@@ -19,10 +19,10 @@ func run(t) -> void:
 		t.assert_true(true, "Phase4 LeagueContainer not yet implemented")
 		return
 
-	var team := load(team_path).new()
-	var roster := load(roster_path).new()
-	var coach := load(coach_path).new()
-	var league := load(league_path).new()
+	var team: Variant = load(team_path).new()
+	var roster: Variant = load(roster_path).new()
+	var coach: Variant = load(coach_path).new()
+	var league: Variant = load(league_path).new()
 
 	t.assert_true(team != null, "Team model instantiates")
 	t.assert_true(roster != null, "Roster model instantiates")
