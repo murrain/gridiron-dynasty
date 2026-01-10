@@ -1,5 +1,7 @@
 extends RefCounted
 
+const WorldHistoryPreview = preload("res://scripts/pipelines/WorldHistoryPreview.gd")
+
 func run(t) -> void:
 	var preview := WorldHistoryPreview.new()
 	preview.history_years = 2
