@@ -244,26 +244,16 @@ When a commit touches simulation logic:
 
 ## Pull Request Requirements
 
-Every PR MUST include:
+Every PR MUST follow `PR_STYLE.md`. The required sections are:
 
-### 1. High-Level Summary
+* Summary
+* Why
+* Assumptions
+* Determinism notes
+* Tests run
 
-* What does this PR introduce or change?
-
-### 2. Motivation
-
-* Why this is necessary
-* What it unlocks or fixes
-
-### 3. Scope
-
-* What is explicitly included
-* What is explicitly out of scope
-
-### 4. Review Guidance
-
-* Files or concepts reviewers should focus on
-* Known rough edges
+`Review guidance` is optional and should only be included when it helps
+reviewers.
 
 ---
 
@@ -272,6 +262,13 @@ Every PR MUST include:
 * Squash commits are allowed ONLY if each commit already follows this standard
 * Do not rely on PR descriptions to explain missing commit context
 * Commits must stand alone
+
+## Merge Commits
+
+Avoid merge commits in agent-created work. Prefer rebasing or squashing with
+properly formatted commit messages so each commit stands on its own. If a merge
+commit is unavoidable (e.g., upstream integration), ensure the PR title and
+description still meet the `PR_STYLE.md` requirements.
 
 ---
 
