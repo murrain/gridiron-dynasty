@@ -1,13 +1,15 @@
 extends RefCounted
 
 const ClassGenerator = preload("res://scripts/generation/ClassGenerator.gd")
+const ConfigService = preload("res://autoloads/Config.gd")
 
 func run(t) -> void:
-	var main_cfg := Config.get_config("main")
-	var positions_cfg := Config.get_config("positions")
-	var stats_cfg := Config.get_config("stats")
-	var names_cfg := Config.get_config("names")
-	var combine_cfg := Config.get_config("combine_tests")
+	var config := ConfigService.new()
+	var main_cfg := config.get_config("main")
+	var positions_cfg := config.get_config("positions")
+	var stats_cfg := config.get_config("stats")
+	var names_cfg := config.get_config("names")
+	var combine_cfg := config.get_config("combine_tests")
 
 	var class_rules := (main_cfg.get("class_rules", {}) as Dictionary).duplicate(true)
 	class_rules["class_size"] = 6

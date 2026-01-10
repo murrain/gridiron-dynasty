@@ -56,7 +56,7 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var development_report: Array = []
 # --- Health / Lifecycle ---
 var injuries: Array[Dictionary] = []
-var development_report: Array[Dictionary] = []
+
 # --- Contract ---
 # Schema lives on the player to keep the roster state explicit and serializable.
 # Contract lifecycle is deterministic and replayable when the input decisions
@@ -67,18 +67,6 @@ var development_report: Array[Dictionary] = []
 #   increment current_year implicitly.
 # - Release: clear current_year/total_years and zero out financials explicitly.
 @export var contract: Dictionary = {}
-# --- Contracts ---
-var contract: Dictionary = {}                 # contract/valuation payloads
-# --- Contract ---
-# Deterministic valuation markers must be persisted to avoid hidden randomness.
-@export var contract_current_year: int = 0
-@export var contract_total_years: int = 0
-@export var contract_annual_value: float = 0.0
-@export var contract_guaranteed: float = 0.0
-@export var contract_range_min: float = 0.0
-@export var contract_range_max: float = 0.0
-@export var contract_valuation_source: String = "" # e.g., valuation model ID
-@export var contract_valuation_seed: int = 0       # seed/reference for recomputation
 
 # =========================
 # Lifecycle / Utilities
@@ -104,7 +92,6 @@ func from_dict(d: Dictionary) -> void:
 	notes = String(d.get("notes", notes))
 	wear = (d.get("wear", wear) as Dictionary).duplicate(true)
 	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
-	contract = (d.get("contract", contract) as Dictionary).duplicate(true)
 
 	# Physicals
 	var phys: Dictionary = d.get("physicals", {})
@@ -116,21 +103,17 @@ func from_dict(d: Dictionary) -> void:
 
 	# Combine
 	var cmb: Dictionary = d.get("combine", {})
-
-	forty_sec        = float(cmb.get("forty_sec", forty_sec))
-	shuttle20_sec    = float(cmb.get("shuttle20_sec", shuttle20_sec))
-	cone3_sec        = float(cmb.get("cone3_sec", cone3_sec))
-	shuttle60_sec    = float(cmb.get("shuttle60_sec", shuttle60_sec))
-
-	vertical_in      = float(cmb.get("vertical_in", vertical_in))
-	broad_in         = float(cmb.get("broad_in", broad_in))
-	bench_225_reps   = int(cmb.get("bench_225_reps", bench_225_reps))
-
-	wonderlic        = int(cmb.get("wonderlic", wonderlic))
-	cybex_index      = float(cmb.get("cybex_index", cybex_index))
-
-	injury_eval      = String(cmb.get("injury_eval", injury_eval))
-	drug_screen      = String(cmb.get("drug_screen", drug_screen))
+	forty_sec = float(cmb.get("forty_sec", forty_sec))
+	shuttle20_sec = float(cmb.get("shuttle20_sec", shuttle20_sec))
+	cone3_sec = float(cmb.get("cone3_sec", cone3_sec))
+	shuttle60_sec = float(cmb.get("shuttle60_sec", shuttle60_sec))
+	vertical_in = float(cmb.get("vertical_in", vertical_in))
+	broad_in = float(cmb.get("broad_in", broad_in))
+	bench_225_reps = int(cmb.get("bench_225_reps", bench_225_reps))
+	wonderlic = int(cmb.get("wonderlic", wonderlic))
+	cybex_index = float(cmb.get("cybex_index", cybex_index))
+	injury_eval = String(cmb.get("injury_eval", injury_eval))
+	drug_screen = String(cmb.get("drug_screen", drug_screen))
 
 	# Ratings & traits
 	stats = (d.get("stats", stats) as Dictionary).duplicate(true)
@@ -140,26 +123,12 @@ func from_dict(d: Dictionary) -> void:
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
 	injuries = (d.get("injuries", injuries) as Array).duplicate(true)
 	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
-	var contract_data: Dictionary = d.get("contract", {})
-	contract = _default_contract()
-	contract["current_year"] = int(contract_data.get("current_year", contract["current_year"]))
-	contract["total_years"] = int(contract_data.get("total_years", contract["total_years"]))
-	contract["annual_value"] = float(contract_data.get("annual_value", contract["annual_value"]))
-	contract["guaranteed"] = float(contract_data.get("guaranteed", contract["guaranteed"]))
-	contract["range_min"] = float(contract_data.get("range_min", contract["range_min"]))
-	contract["range_max"] = float(contract_data.get("range_max", contract["range_max"]))
-	contract["source_eval_id"] = String(contract_data.get("source_eval_id", contract["source_eval_id"]))
 
 	# Contract
-	var contract: Dictionary = d.get("contract", {})
-	contract_current_year = int(contract.get("current_year", contract_current_year))
-	contract_total_years = int(contract.get("total_years", contract_total_years))
-	contract_annual_value = float(contract.get("annual_value", contract_annual_value))
-	contract_guaranteed = float(contract.get("guaranteed", contract_guaranteed))
-	contract_range_min = float(contract.get("range_min", contract_range_min))
-	contract_range_max = float(contract.get("range_max", contract_range_max))
-	contract_valuation_source = String(contract.get("valuation_source", contract_valuation_source))
-	contract_valuation_seed = int(contract.get("valuation_seed", contract_valuation_seed))
+	var contract_data: Dictionary = d.get("contract", {}) as Dictionary
+	contract = _default_contract()
+	for key in contract_data.keys():
+		contract[key] = contract_data[key]
 
 func to_dict() -> Dictionary:
 	return {
@@ -200,18 +169,7 @@ func to_dict() -> Dictionary:
 		"derived": derived.duplicate(true),
 		"traits": traits.duplicate(),
 		"hidden_traits": hidden_traits.duplicate(),
-		"injuries": injuries.duplicate(true),
-		"development_report": development_report.duplicate(true)
-		"contract": {
-			"current_year": contract_current_year,
-			"total_years": contract_total_years,
-			"annual_value": contract_annual_value,
-			"guaranteed": contract_guaranteed,
-			"range_min": contract_range_min,
-			"range_max": contract_range_max,
-			"valuation_source": contract_valuation_source,
-			"valuation_seed": contract_valuation_seed
-		}
+		"injuries": injuries.duplicate(true)
 	}
 
 # --- Derived stat recompute ---
@@ -246,12 +204,19 @@ func set_stat(name: String, value: float) -> void:
 func _build_formula_scope() -> Dictionary:
 	return {
 		# physicals
-		"height": height_in, "weight": weight_lb,
-		"hand_size": hand_size_in, "arm_length": arm_length_in, "wingspan": wingspan_in,
+		"height": height_in,
+		"weight": weight_lb,
+		"hand_size": hand_size_in,
+		"arm_length": arm_length_in,
+		"wingspan": wingspan_in,
 		# combine (expose some under simpler names if you like)
-		"forty": forty_yd_dash_s, "bench_reps": bench_reps_225,
-		"vert": vertical_jump_in, "broad": broad_jump_in,
-		"shuttle20": twenty_yd_shuttle_s, "cone3": three_cone_s, "shuttle60": sixty_yd_shuttle_s,
+		"forty": forty_sec,
+		"bench_reps": bench_225_reps,
+		"vert": vertical_in,
+		"broad": broad_in,
+		"shuttle20": shuttle20_sec,
+		"cone3": cone3_sec,
+		"shuttle60": shuttle60_sec,
 		# stats (merge)
 		"stats": stats
 	}
@@ -264,6 +229,8 @@ func _default_contract() -> Dictionary:
 		"guaranteed": 0.0,
 		"range_min": 0.0,
 		"range_max": 0.0,
+		"valuation_source": "",
+		"valuation_seed": 0,
 		"source_eval_id": ""
 	}
 

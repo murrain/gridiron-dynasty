@@ -6,6 +6,9 @@
 extends RefCounted
 class_name ScoutRuntime
 
+const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
+const StatHelpers = preload("res://scripts/generation/StatHelpers.gd")
+
 ## Scores a player using a JSON scout dictionary (from scouts.json).
 ## Internally performs perception noise + potential/current blending and
 ## calls the SAME rater math for comparability.
@@ -46,7 +49,7 @@ static func score_player(
 		blended["stats"][k] = clamp(float(blended["stats"][k]) * m, 0.0, 100.0)
 
 	# 4) compute composite (no cohort percentiles; compute() will fallback to avg→pct)
-	var res := RecruitRater.compute(blended, positions_data, {}, class_rules, {})
+	var res: Dictionary = RecruitRater.compute(blended, positions_data, {}, class_rules, {})
 	return float(res.get("composite", 0.0))
 
 # --- helpers for ScoutRuntime ---

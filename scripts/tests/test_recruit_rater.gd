@@ -38,7 +38,7 @@ func run(t) -> void:
 	for i in range(5):
 		players.append(_make_player("K", 62 + i * 8, 58 + i * 4))
 
-	var rater := RecruitRater.new()
+	var rater: RecruitRater = RecruitRater.new()
 	rater.rate_and_rank(players, positions_data, class_rules)
 
 	var qb_stars := _max_star_for_pos(players, "QB")
@@ -52,14 +52,14 @@ func run(t) -> void:
 	t.assert_true(sample.has("rank_overall"), "overall rank assigned")
 	t.assert_true(sample.has("rank_in_pos"), "position rank assigned")
 
-	var percentile_hi := RecruitRater.compute(sample, positions_data, {}, class_rules, {
+	var percentile_hi: Dictionary = RecruitRater.compute(sample, positions_data, {}, class_rules, {
 		"pos": "QB",
 		"core_pct": 1.0,
 		"sec_pct": 1.0,
 		"men_pct": 1.0,
 		"ath_pct": 1.0
 	})
-	var percentile_lo := RecruitRater.compute(sample, positions_data, {}, class_rules, {
+	var percentile_lo: Dictionary = RecruitRater.compute(sample, positions_data, {}, class_rules, {
 		"pos": "QB",
 		"core_pct": 0.1,
 		"sec_pct": 0.1,

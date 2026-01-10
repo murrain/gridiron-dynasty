@@ -118,8 +118,9 @@ func run() -> void:
 	var copied := ThreadPool.map(players, func(p):
 		if not p.has("potential") or (p["potential"] as Dictionary).is_empty():
 			p["potential"] = (p["stats"] as Dictionary).duplicate(true)
-		return p
-	, App.threads_count())
+		return p,
+		App.threads_count()
+	)
 	for i in players.size():
 		players[i] = copied[i]
 
@@ -140,11 +141,11 @@ func _step_rng(seed: int, label: String) -> RandomNumberGenerator:
 	return rng
 
 func _fnv1a_64(text: String) -> int:
-	var hash := 0xcbf29ce484222325
-	var prime := 0x100000001b3
+	var hash: int = -3750763034362895579
+	var prime: int = 1099511628211
 	for b in text.to_utf8_buffer():
-		hash = int(hash ^ b) & 0xFFFFFFFFFFFFFFFF
-		hash = int(hash * prime) & 0xFFFFFFFFFFFFFFFF
+		hash = int(hash ^ b) & -1
+		hash = int(hash * prime) & -1
 	return hash
 
 # --- Printing helpers below (same interface, documented) ---

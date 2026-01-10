@@ -20,6 +20,6 @@ func run(t) -> void:
 	t.assert_eq(keys, ["alpha", "beta"], "list_keys sorted")
 
 	var required_names: Array[String] = ["alpha", "missing"]
-	var required = cfg.require(required_names)
+	var required = cfg.require(required_names, false)
 	t.assert_true(required.has("alpha"), "require returns found config")
 	t.assert_true(required.has("missing"), "require includes missing key")

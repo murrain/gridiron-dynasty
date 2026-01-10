@@ -1,6 +1,8 @@
 extends Node
 class_name ScoutFactory
 
+const Scout = preload("res://scripts/core/models/Scout.gd")
+
 var stats_cfg: Dictionary
 var scouts_cfg: Dictionary
 const _MULT_MIN: float = 0.5
@@ -11,13 +13,13 @@ func setup(stats_cfg_in: Dictionary, scouts_cfg_in: Dictionary) -> void:
 	scouts_cfg = scouts_cfg_in
 
 func create_random_scout(name_hint: String, rng: RandomNumberGenerator) -> Resource:
-	var s := Scout.new()
+	var s: Scout = Scout.new()
 	s.name = name_hint
 	s.years_exp = rng.randi_range(3, 15)
 
-	var gen := scouts_cfg.get("generation", {})
-	var defs := scouts_cfg.get("defaults", {})
-	var spec := defs.get("specialty", {})
+	var gen: Dictionary = scouts_cfg.get("generation", {}) as Dictionary
+	var defs: Dictionary = scouts_cfg.get("defaults", {}) as Dictionary
+	var spec: Dictionary = defs.get("specialty", {}) as Dictionary
 
 	# Base traits
 	s.base_skill = _rand_clip(gen.get("skill_distributions", {}).get("base_skill", {"mu":0.55,"sigma":0.12,"min":0.3,"max":0.85}), rng)
@@ -31,7 +33,7 @@ func create_random_scout(name_hint: String, rng: RandomNumberGenerator) -> Resou
 	var alpha := float(spec.get("weight_alpha", 1.25))
 	var w_floor := float(spec.get("weight_floor", 0.01))
 
-	var meas := {} # {stat: m}
+	var meas: Dictionary = {} # {stat: m}
 	var pool: Array = []  # [ {"name":stat, "m":m, "w":weight}, ... ]
 	for sd in stats_cfg.get("stats", []):
 		var d: Dictionary = sd
@@ -71,7 +73,7 @@ func create_random_scout(name_hint: String, rng: RandomNumberGenerator) -> Resou
 		s.stat_skill[nm] = rng.randf_range(ns_min, ns_max)
 
 	# Set up per-stat bias envelopes from generation settings (optional)
-	var bdist := gen.get("bias_distributions", {})
+	var bdist: Dictionary = gen.get("bias_distributions", {}) as Dictionary
 	var mean_mu := float(bdist.get("mean_points_mu", 0.0))
 	var mean_sd := float(bdist.get("mean_points_sigma", 0.8))
 	var sig_mu := float(bdist.get("sigma_points_mu", 0.8))
@@ -84,8 +86,8 @@ func create_random_scout(name_hint: String, rng: RandomNumberGenerator) -> Resou
 	for it in chosen:
 		var st := String(it["name"])
 		# draw mild per-stat tendencies
-		var mu := clamp(mean_mu + rng.randfn(0.0, mean_sd), clamp_min, clamp_max)
-		var sg := max(0.1, sig_mu + rng.randfn(0.0, sig_sd))
+		var mu: float = clamp(mean_mu + rng.randfn(0.0, mean_sd), clamp_min, clamp_max)
+		var sg: float = max(0.1, sig_mu + rng.randfn(0.0, sig_sd))
 		s.stat_bias_mean[st] = mu
 		s.stat_bias_sigma[st] = sg
 
@@ -106,7 +108,7 @@ func create_team_scouts(team_name: String, count: int = 3, rng: RandomNumberGene
 
 	for i in range(count):
 		var template: Dictionary = templates[rng.randi_range(0, templates.size() - 1)] if not templates.is_empty() else {}
-		var scout := Scout.new()
+		var scout: Scout = Scout.new()
 		apply_scout_dict(scout, template)
 		scout.role = "Team"
 		if scout.name == "Scout":

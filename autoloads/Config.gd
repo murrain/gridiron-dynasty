@@ -87,11 +87,11 @@ func get_config(name: String) -> Dictionary:
 	return out
 
 ## Convenience: fetch several configs at once
-func require(names: Array[String]) -> Dictionary:
+func require(names: Array[String], strict: bool = true) -> Dictionary:
 	var out: Dictionary = {}
 	for n in names:
 		var cfg := get_config(n)
-		if cfg.is_empty():
+		if cfg.is_empty() and strict:
 			push_error("Config: required config '" + n + "' not found in base/save.")
 		out[n] = cfg
 	return out

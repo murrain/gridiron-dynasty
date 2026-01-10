@@ -12,9 +12,8 @@ static func advance_years(
 	rng: RandomNumberGenerator,
 	development_context: Dictionary = {}
 ) -> Dictionary:
-	var active: Array = players.duplicate()
+	var active: Array = players.duplicate(true)
 	var retired_all: Array = []
-	var rng_use := rng
 
 	for _year in range(max(0, years)):
 		var result := advance_one_year(
@@ -22,7 +21,7 @@ static func advance_years(
 			positions_cfg,
 			main_cfg,
 			stats_cfg,
-			rng_use,
+			rng,
 			development_context
 		)
 		retired_all.append_array(result.get("retired", []))
@@ -38,15 +37,13 @@ static func advance_one_year(
 	rng: RandomNumberGenerator,
 	development_context: Dictionary = {}
 ) -> Dictionary:
-	var rng_use := rng
-
 	var updated: Array = []
 	var retired: Array = []
 	var development_reports: Array = []
 	updated.resize(players.size())
 	development_reports.resize(players.size())
 
-	for i in players.size():
+	for i in range(players.size()):
 		var p: Dictionary = players[i]
 		if p == null:
 			updated[i] = p
@@ -57,7 +54,7 @@ static func advance_one_year(
 			positions_cfg,
 			main_cfg,
 			stats_cfg,
-			rng_use,
+			rng,
 			development_context
 		)
 		if evolved.get("retired", false):
@@ -84,20 +81,23 @@ static func _advance_player_one_year(
 	var p := player.duplicate(true)
 	p["age"] = int(p.get("age", 18)) + 1
 
+	var merged_context := _merge_development_context(
+		development_context,
+		p.get("development_context", {}) as Dictionary
+	)
+	p["development_context"] = merged_context
+
 	var development_report := _apply_development(
 		p,
 		positions_cfg,
 		main_cfg,
 		stats_cfg,
 		rng,
-		development_context
+		merged_context
 	)
 	var wear_snapshot := _update_wear(p, positions_cfg, main_cfg)
-	var dev_report := _apply_development(p, positions_cfg, main_cfg, stats_cfg, rng)
-	_append_development_report(p, wear_snapshot, dev_report)
-	var development_report := _apply_development(p, positions_cfg, main_cfg, stats_cfg, rng)
+	_append_development_report(p, wear_snapshot, development_report)
 	var injury_report := _apply_injury(p, main_cfg, rng)
-	p["development_report"] = development_report
 	p["injury_report"] = injury_report
 
 	if _should_retire(p, positions_cfg, main_cfg, rng):
@@ -113,16 +113,22 @@ static func _advance_player_one_year(
 		"development_report": development_report
 	}
 
+static func _merge_development_context(global_ctx: Dictionary, player_ctx: Dictionary) -> Dictionary:
+	var merged := global_ctx.duplicate(true)
+	for key in player_ctx.keys():
+		merged[key] = player_ctx[key]
+	return merged
+
 static func _apply_development(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary
 ) -> Dictionary:
 	if not player.has("stats"):
-		return {"decline_multiplier": 1.0}
-		return {"skipped": true}
+		return {"stat_entries": [], "decline_multiplier": 1.0}
 
 	var age := int(player.get("age", 18))
 	var position := String(player.get("position", ""))
@@ -139,11 +145,6 @@ static func _apply_development(
 	var prime_mult := float(curve_cfg.get("prime", 0.35))
 	var decline_mult := float(curve_cfg.get("decline", 1.0))
 
-	var dev_context: Dictionary = player.get("development_context", {}) as Dictionary
-	var context_mults: Dictionary = dev_context.get("multipliers", {}) as Dictionary
-	var context_growth := float(context_mults.get("growth", 1.0))
-	var context_prime := float(context_mults.get("prime", 1.0))
-	var context_decline := float(context_mults.get("decline", 1.0))
 	var dev_context_cfg: Dictionary = main_cfg.get("development_context", {}) as Dictionary
 	var scheme_cfg: Dictionary = dev_context_cfg.get("scheme_fit", {}) as Dictionary
 	var scheme_role_weights: Dictionary = scheme_cfg.get("role_weights", {}) as Dictionary
@@ -161,19 +162,12 @@ static func _apply_development(
 	var stats: Dictionary = player.get("stats", {}) as Dictionary
 	var potential: Dictionary = player.get("potential", stats) as Dictionary
 	var stat_defs: Dictionary = _stat_defs(stats_cfg)
+
 	var modifiers := _development_modifiers(development_context)
 	var combined_multiplier := _combined_multiplier(modifiers)
-	var report := {}
 	var wear_multiplier := 1.0
 	if age >= decline_start:
 		wear_multiplier = _wear_decline_multiplier(player, main_cfg)
-	var injuries := _normalized_injuries(player)
-	var decline_mults := _injury_decline_multipliers(injuries)
-	var report_entry := {
-		"age": age,
-		"stat_deltas": {},
-		"injury_impacts": {"active": [], "recovered": []}
-	}
 
 	var phase := "growth"
 	if age < peak_age:
@@ -186,24 +180,12 @@ static func _apply_development(
 	var report := {
 		"age": age,
 		"phase": phase,
-		"modifiers": {
-			"growth_mult": growth_mult,
-			"prime_mult": prime_mult,
-			"decline_mult": decline_mult,
-			"base_min": base_min,
-			"base_max": base_max,
-			"prime_min": prime_min,
-			"prime_max": prime_max,
-			"decline_min": decline_min,
-			"decline_max": decline_max,
-			"cap": cap
-		},
-		"stat_entries": []
+		"stat_entries": [],
+		"decline_multiplier": wear_multiplier,
+		"context_modifiers": modifiers.duplicate(true),
+		"injury_impacts": {"active": [], "recovered": []}
 	}
 
-	var development_context: Dictionary = player.get("development_context", {}) as Dictionary
-	var competition_ctx: Dictionary = development_context.get("competition", {}) as Dictionary
-	var competition_mult := float(competition_ctx.get("growth_multiplier", 1.0))
 	var scheme_ctx: Dictionary = development_context.get("scheme_fit", {}) as Dictionary
 	var scheme_score := float(scheme_ctx.get("score", 0.0))
 
@@ -214,34 +196,9 @@ static func _apply_development(
 		if stat_defs.has(stat_name) and stat_defs[stat_name].get("type", "base") != "base":
 			continue
 
-		var delta := 0.0
-		var stage := ""
-		if age < peak_age:
-			delta = rng.randf_range(base_min, base_max) * growth_mult
-			stage = "growth"
-		elif age < decline_start:
-			delta = rng.randf_range(prime_min, prime_max) * prime_mult
-			stage = "prime"
-		else:
-			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
-			stage = "decline"
-
-		var base_delta := delta
-		delta *= combined_multiplier
-		delta = clamp(delta, -cap, cap)
-		report[stat_name] = {
-			"stage": stage,
-			"base_delta": base_delta,
-			"modifiers": modifiers.duplicate(true),
-			"final_delta": delta
-		}
-			delta = rng.randf_range(base_min, base_max) * growth_mult * context_growth
-		elif age < decline_start:
-			delta = rng.randf_range(prime_min, prime_max) * prime_mult * context_prime
-		else:
-			delta = -rng.randf_range(decline_min, decline_max) * decline_mult * context_decline
 		var raw_draw := 0.0
 		var applied_mult := 0.0
+		var delta := 0.0
 		if phase == "growth":
 			raw_draw = rng.randf_range(base_min, base_max)
 			applied_mult = growth_mult
@@ -251,37 +208,30 @@ static func _apply_development(
 			applied_mult = prime_mult
 			delta = raw_draw * applied_mult
 		else:
-			delta = -rng.randf_range(decline_min, decline_max) * decline_mult * wear_multiplier
-			var injury_decline_mult := float(decline_mults.get(stat_name, 1.0))
-			if injury_decline_mult != 1.0:
-				delta *= injury_decline_mult
 			raw_draw = rng.randf_range(decline_min, decline_max)
-			applied_mult = decline_mult
+			applied_mult = decline_mult * wear_multiplier
 			delta = -raw_draw * applied_mult
 
+		delta *= combined_multiplier
 		if delta > 0.0:
 			var role := _stat_role_for_position(position, stat_name, positions_cfg)
 			var role_weight := float(scheme_role_weights.get(role, 0.0))
-			var role_mult := clamp(1.0 + scheme_score * role_weight, scheme_mult_min, scheme_mult_max)
-			delta *= competition_mult * role_mult
+			var role_mult: float = clamp(1.0 + scheme_score * role_weight, scheme_mult_min, scheme_mult_max)
+			delta *= role_mult
 
-		var unclamped := delta
+		var unclamped: float = delta
 		delta = clamp(delta, -cap, cap)
-		var was_clamped := not is_equal_approx(unclamped, delta)
+		var was_clamped: bool = not is_equal_approx(unclamped, delta)
 		var next_val: float = float(clamp(val + delta, 0.0, 100.0))
 		var capped_by_potential := false
 		if delta > 0.0:
-			var limited := min(next_val, pot)
+			var limited: float = min(next_val, pot)
 			capped_by_potential = not is_equal_approx(limited, next_val)
 			next_val = limited
+
 		stats[stat_name] = next_val
-		(report_entry["stat_deltas"] as Dictionary)[stat_name] = delta
 
-	_apply_active_injury_suppression(stats, injuries, report_entry)
-	_apply_recovery_updates(injuries, report_entry)
-	_apply_long_term_penalties(stats, potential, injuries, report_entry)
-
-		report["stat_entries"].append({
+		var entry := {
 			"stat": stat_name,
 			"before": val,
 			"potential": pot,
@@ -292,9 +242,16 @@ static func _apply_development(
 			"clamped": was_clamped,
 			"capped_by_potential": capped_by_potential,
 			"after": next_val
-		})
+		}
+		(report["stat_entries"] as Array).append(entry)
+
+	var injuries := _normalized_injuries(player)
+	_apply_active_injury_suppression(stats, injuries, report)
+	_apply_recovery_updates(injuries, report)
+	_apply_long_term_penalties(stats, potential, injuries, report)
 
 	player["stats"] = stats
+	player["potential"] = potential
 	return report
 
 static func _development_modifiers(development_context: Dictionary) -> Dictionary:
@@ -311,7 +268,6 @@ static func _combined_multiplier(modifiers: Dictionary) -> float:
 	for value in modifiers.values():
 		combined *= float(value)
 	return combined
-	return {"decline_multiplier": wear_multiplier}
 
 static func _update_wear(
 	player: Dictionary,
@@ -380,10 +336,6 @@ static func _append_development_report(
 		"decline_multiplier": float(dev_report.get("decline_multiplier", 1.0))
 	})
 	player["development_report"] = report
-	player["potential"] = potential
-	player["injuries"] = injuries
-	_append_development_report(player, report_entry)
-	return report
 
 static func _apply_injury(
 	player: Dictionary,
@@ -489,6 +441,7 @@ static func _stat_role_for_position(
 	if core_stats.has(stat_name):
 		return "core"
 	return "other"
+
 static func _normalized_injuries(player: Dictionary) -> Array:
 	var injuries: Array = player.get("injuries", []) as Array
 	var normalized: Array = []
@@ -552,7 +505,7 @@ static func _apply_active_injury_suppression(
 		if years_remaining <= 0:
 			continue
 		var severity := float(injury.get("severity", 0.0))
-		var suppression_mult := clamp(1.0 - (severity * INJURY_SUPPRESSION_PER_SEVERITY), 0.4, 1.0)
+		var suppression_mult: float = clamp(1.0 - (severity * INJURY_SUPPRESSION_PER_SEVERITY), 0.4, 1.0)
 		var suppressed := {}
 		for stat in (injury.get("affected_stats", []) as Array):
 			var stat_name := String(stat)
@@ -608,13 +561,13 @@ static func _apply_long_term_penalties(
 			var cap := float(stat_caps.get(stat_name, 100.0))
 			if stats.has(stat_name):
 				var before := float(stats.get(stat_name, 0.0))
-				var after := min(before, cap)
+				var after: float = min(before, cap)
 				if after != before:
 					stats[stat_name] = after
 					applied_caps[stat_name] = {"before": before, "after": after, "cap": cap}
 			if potential.has(stat_name):
 				var pot_before := float(potential.get(stat_name, 0.0))
-				var pot_after := min(pot_before, cap)
+				var pot_after: float = min(pot_before, cap)
 				if pot_after != pot_before:
 					potential[stat_name] = pot_after
 		if not applied_caps.is_empty() or not decline_multipliers.is_empty():
@@ -625,8 +578,3 @@ static func _apply_long_term_penalties(
 				"decline_multipliers": decline_multipliers.duplicate(true),
 				"recovery_timeline": timeline.duplicate(true)
 			})
-
-static func _append_development_report(player: Dictionary, report_entry: Dictionary) -> void:
-	var report: Array = player.get("development_report", []) as Array
-	report.append(report_entry)
-	player["development_report"] = report

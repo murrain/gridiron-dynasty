@@ -17,6 +17,6 @@ func run(t) -> void:
 	t.assert_eq(first.get("year"), 2025, "phase year matches")
 
 	var invalid = {"phases": [{"id": "dup", "start_tick": 2, "end_tick": 1}]}
-	t.assert_true(not cal._validate_calendar(invalid), "_validate_calendar rejects invalid")
+	t.assert_true(not cal._validate_calendar(invalid, false), "_validate_calendar rejects invalid")
 
 	config.configure(original_base, original_save, original_recurse)

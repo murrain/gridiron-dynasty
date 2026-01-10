@@ -51,43 +51,49 @@ func _resolve_config(config_provider: Object) -> Object:
 
 	return null
 
-func _validate_calendar(cfg: Dictionary) -> bool:
+func _validate_calendar(cfg: Dictionary, log_errors: bool = true) -> bool:
 	if not cfg.has("phases"):
-		push_error("WorldCalendar: calendar config missing 'phases' array.")
+		if log_errors:
+			push_error("WorldCalendar: calendar config missing 'phases' array.")
 		return false
 
 	var phases: Array = cfg.get("phases", []) as Array
 	if phases.is_empty():
-		push_error("WorldCalendar: calendar config has no phases.")
+		if log_errors:
+			push_error("WorldCalendar: calendar config has no phases.")
 		return false
 
 	var seen := {}
 	for idx in phases.size():
 		var phase: Dictionary = phases[idx]
-		if not _validate_phase(phase, idx):
+		if not _validate_phase(phase, idx, log_errors):
 			return false
 		var phase_id := String(phase.get("id", ""))
 		if seen.has(phase_id):
-			push_error("WorldCalendar: duplicate phase id '%s'." % phase_id)
+			if log_errors:
+				push_error("WorldCalendar: duplicate phase id '%s'." % phase_id)
 			return false
 		seen[phase_id] = true
 
 	return true
 
-func _validate_phase(phase: Dictionary, index: int) -> bool:
+func _validate_phase(phase: Dictionary, index: int, log_errors: bool = true) -> bool:
 	var phase_id := String(phase.get("id", ""))
 	if phase_id == "":
-		push_error("WorldCalendar: phase %d missing 'id'." % index)
+		if log_errors:
+			push_error("WorldCalendar: phase %d missing 'id'." % index)
 		return false
 
 	if not phase.has("start_tick") or not phase.has("end_tick"):
-		push_error("WorldCalendar: phase '%s' missing start_tick/end_tick." % phase_id)
+		if log_errors:
+			push_error("WorldCalendar: phase '%s' missing start_tick/end_tick." % phase_id)
 		return false
 
 	var start_tick := int(phase.get("start_tick", 0))
 	var end_tick := int(phase.get("end_tick", 0))
 	if end_tick < start_tick:
-		push_error("WorldCalendar: phase '%s' end_tick before start_tick." % phase_id)
+		if log_errors:
+			push_error("WorldCalendar: phase '%s' end_tick before start_tick." % phase_id)
 		return false
 
 	return true

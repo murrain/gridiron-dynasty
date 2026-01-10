@@ -1,6 +1,8 @@
 extends Resource
 class_name Scout
 
+const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
+
 @export var name: String = "Scout"
 @export var role: String = "Regional"
 @export var years_exp: int = 0
@@ -14,6 +16,8 @@ var risk_aversion: float = 0.1
 var stat_skill: Dictionary = {}
 var valuation_multipliers: Dictionary = {}
 var estimation_multipliers: Dictionary = {}
+var stat_bias_mean: Dictionary = {}
+var stat_bias_sigma: Dictionary = {}
 
 # bucket weights (these change how the rater “feels” after perception)
 # e.g. athletic 0.50, core 0.25, secondary 0.15, mentals 0.10 for a traits-first scout
@@ -46,10 +50,6 @@ func setup(stats_cfg: Dictionary, defaults: Dictionary, rng: RandomNumberGenerat
 	# defaults (context + current/potential)
 	if defaults.has("context_quality"):
 		_context_q = defaults["context_quality"]
-	if defaults.has("current_vs_potential"):
-		var cvp: Dictionary = defaults["current_vs_potential"]
-		if not ( "current_weight" in self ):
-			pass
 	# small jitter so scouts don’t tie perfectly
 	if weight_jitter_sigma > 0.0:
 		var j := rng.randfn(0.0, weight_jitter_sigma)
@@ -59,8 +59,8 @@ func setup(stats_cfg: Dictionary, defaults: Dictionary, rng: RandomNumberGenerat
 func estimate_stat(
 	true_value: float,
 	stat: String,
-	context_quality: float = 0.75,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	context_quality: float = 0.75
 ) -> float:
 	var m := float(_meas.get(stat, 0.5))
 	var skill := float(stat_skill.get(stat, base_skill))
@@ -89,7 +89,7 @@ func _perceived_player(
 		var k := String(row.get("name",""))
 		var true_v := float(target.get(k, float(stats.get(k, 50.0))))
 		var cq : float = _context_q.get("game", 0.8) # default use “game tape”
-		var est := estimate_stat(true_v, k, cq, rng)
+		var est := estimate_stat(true_v, k, rng, cq)
 		# valuation multipliers as a lens on the number itself (keeps downstream simple)
 		est *= float(valuation_multipliers.get(k, 1.0))
 		out[k] = clamp(est, 0.0, 100.0)

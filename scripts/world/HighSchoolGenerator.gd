@@ -81,15 +81,17 @@ func _resolve_config(config_provider: Object) -> Object:
 
 	return null
 
-func _validate_config(cfg: Dictionary) -> bool:
+func _validate_config(cfg: Dictionary, log_errors: bool = true) -> bool:
 	var school_count := int(cfg.get("school_count", 0))
 	if school_count <= 0:
-		push_error("HighSchoolGenerator: 'school_count' must be > 0.")
+		if log_errors:
+			push_error("HighSchoolGenerator: 'school_count' must be > 0.")
 		return false
 
 	var regions: Array = cfg.get("regions", []) as Array
 	if regions.is_empty():
-		push_error("HighSchoolGenerator: config must include non-empty 'regions'.")
+		if log_errors:
+			push_error("HighSchoolGenerator: config must include non-empty 'regions'.")
 		return false
 
 	var region_ids := {}
@@ -99,27 +101,33 @@ func _validate_config(cfg: Dictionary) -> bool:
 		var region_id := String(region_dict.get("id", ""))
 		var weight := float(region_dict.get("weight", 0.0))
 		if region_id == "":
-			push_error("HighSchoolGenerator: region missing 'id'.")
+			if log_errors:
+				push_error("HighSchoolGenerator: region missing 'id'.")
 			return false
 		if region_ids.has(region_id):
-			push_error("HighSchoolGenerator: duplicate region id '%s'." % region_id)
+			if log_errors:
+				push_error("HighSchoolGenerator: duplicate region id '%s'." % region_id)
 			return false
 		if weight <= 0.0:
-			push_error("HighSchoolGenerator: region '%s' has non-positive weight." % region_id)
+			if log_errors:
+				push_error("HighSchoolGenerator: region '%s' has non-positive weight." % region_id)
 			return false
 		region_ids[region_id] = true
 		region_weight_total += weight
 
 	if region_weight_total <= 0.0:
-		push_error("HighSchoolGenerator: region weights must sum > 0.")
+		if log_errors:
+			push_error("HighSchoolGenerator: region weights must sum > 0.")
 		return false
 	if abs(region_weight_total - 1.0) > 0.01:
-		push_error("HighSchoolGenerator: region weights must sum to 1.0 (got %.3f)." % region_weight_total)
+		if log_errors:
+			push_error("HighSchoolGenerator: region weights must sum to 1.0 (got %.3f)." % region_weight_total)
 		return false
 
 	var tiers: Array = cfg.get("eliteness_tiers", []) as Array
 	if tiers.is_empty():
-		push_error("HighSchoolGenerator: config must include non-empty 'eliteness_tiers'.")
+		if log_errors:
+			push_error("HighSchoolGenerator: config must include non-empty 'eliteness_tiers'.")
 		return false
 
 	var tier_weight_total := 0.0
@@ -128,28 +136,34 @@ func _validate_config(cfg: Dictionary) -> bool:
 		var tier_dict: Dictionary = tier
 		var tier_id := String(tier_dict.get("id", ""))
 		if tier_id == "":
-			push_error("HighSchoolGenerator: tier missing 'id'.")
+			if log_errors:
+				push_error("HighSchoolGenerator: tier missing 'id'.")
 			return false
 		var min_val := float(tier_dict.get("min", 0.0))
 		var max_val := float(tier_dict.get("max", 0.0))
 		var weight := float(tier_dict.get("weight", 0.0))
 		if max_val <= min_val:
-			push_error("HighSchoolGenerator: tier '%s' has invalid min/max." % tier_id)
+			if log_errors:
+				push_error("HighSchoolGenerator: tier '%s' has invalid min/max." % tier_id)
 			return false
 		if min_val < 0.0 or max_val > 100.0:
-			push_error("HighSchoolGenerator: tier '%s' out of 0-100 range." % tier_id)
+			if log_errors:
+				push_error("HighSchoolGenerator: tier '%s' out of 0-100 range." % tier_id)
 			return false
 		if weight <= 0.0:
-			push_error("HighSchoolGenerator: tier '%s' has non-positive weight." % tier_id)
+			if log_errors:
+				push_error("HighSchoolGenerator: tier '%s' has non-positive weight." % tier_id)
 			return false
 		tier_ranges.append({"min": min_val, "max": max_val, "id": tier_id})
 		tier_weight_total += weight
 
 	if tier_weight_total <= 0.0:
-		push_error("HighSchoolGenerator: tier weights must sum > 0.")
+		if log_errors:
+			push_error("HighSchoolGenerator: tier weights must sum > 0.")
 		return false
 	if abs(tier_weight_total - 1.0) > 0.01:
-		push_error("HighSchoolGenerator: tier weights must sum to 1.0 (got %.3f)." % tier_weight_total)
+		if log_errors:
+			push_error("HighSchoolGenerator: tier weights must sum to 1.0 (got %.3f)." % tier_weight_total)
 		return false
 
 	tier_ranges.sort_custom(func(a, b):
@@ -159,41 +173,49 @@ func _validate_config(cfg: Dictionary) -> bool:
 		var prev: Dictionary = tier_ranges[i - 1]
 		var curr: Dictionary = tier_ranges[i]
 		if float(prev.max) > float(curr.min):
-			push_error("HighSchoolGenerator: tier ranges overlap (%s, %s)." % [prev.id, curr.id])
+			if log_errors:
+				push_error("HighSchoolGenerator: tier ranges overlap (%s, %s)." % [prev.id, curr.id])
 			return false
 
 	var program_cfg: Dictionary = cfg.get("program_quality", {}) as Dictionary
 	if not program_cfg.is_empty():
 		var program_tiers: Array = program_cfg.get("tiers", []) as Array
 		if program_tiers.is_empty():
-			push_error("HighSchoolGenerator: program_quality must include non-empty 'tiers'.")
+			if log_errors:
+				push_error("HighSchoolGenerator: program_quality must include non-empty 'tiers'.")
 			return false
 		var program_weight_total := 0.0
 		for tier in program_tiers:
 			var tier_dict: Dictionary = tier
 			var tier_id := String(tier_dict.get("id", ""))
 			if tier_id == "":
-				push_error("HighSchoolGenerator: program_quality tier missing 'id'.")
+				if log_errors:
+					push_error("HighSchoolGenerator: program_quality tier missing 'id'.")
 				return false
 			var mult := float(tier_dict.get("dev_multiplier", 0.0))
 			if mult <= 0.0:
-				push_error("HighSchoolGenerator: program_quality tier '%s' has non-positive multiplier." % tier_id)
+				if log_errors:
+					push_error("HighSchoolGenerator: program_quality tier '%s' has non-positive multiplier." % tier_id)
 				return false
 			var weight := float(tier_dict.get("weight", 0.0))
 			if weight <= 0.0:
-				push_error("HighSchoolGenerator: program_quality tier '%s' has non-positive weight." % tier_id)
+				if log_errors:
+					push_error("HighSchoolGenerator: program_quality tier '%s' has non-positive weight." % tier_id)
 				return false
 			program_weight_total += weight
 		if program_weight_total <= 0.0:
-			push_error("HighSchoolGenerator: program_quality tier weights must sum > 0.")
+			if log_errors:
+				push_error("HighSchoolGenerator: program_quality tier weights must sum > 0.")
 			return false
 		if abs(program_weight_total - 1.0) > 0.01:
-			push_error("HighSchoolGenerator: program_quality tier weights must sum to 1.0 (got %.3f)." % program_weight_total)
+			if log_errors:
+				push_error("HighSchoolGenerator: program_quality tier weights must sum to 1.0 (got %.3f)." % program_weight_total)
 			return false
 
 	var specialist_chance := float(cfg.get("specialist_coach_chance", 0.0))
 	if specialist_chance < 0.0 or specialist_chance > 1.0:
-		push_error("HighSchoolGenerator: 'specialist_coach_chance' must be between 0 and 1.")
+		if log_errors:
+			push_error("HighSchoolGenerator: 'specialist_coach_chance' must be between 0 and 1.")
 		return false
 
 	var position_specialists: Dictionary = cfg.get("position_specialists", {}) as Dictionary

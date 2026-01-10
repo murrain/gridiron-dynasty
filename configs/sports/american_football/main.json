@@ -32,6 +32,8 @@
                 "secondary": 0.08,
                 "other": -0.12
             }
+        }
+    },
     "wear": {
         "snaps_per_year": 650,
         "collisions_per_year": 220,
@@ -42,6 +44,7 @@
         "decline_per_wear": 0.2,
         "decline_min_multiplier": 1.0,
         "decline_max_multiplier": 1.6
+    },
     "modifiers": {
         "defaults_note": "Neutral multipliers/scales are 1.0 to preserve baseline outputs.",
         "program_quality_multipliers": {

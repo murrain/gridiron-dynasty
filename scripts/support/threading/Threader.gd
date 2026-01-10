@@ -10,16 +10,16 @@ static func for_indices(count: int, threads: int, cb: Callable) -> void:
 	if count <= 0:
 		return
 	threads = max(1, min(threads, count))
-	var chunk := int(ceil(count / float(threads)))
+	var chunk: int = int(ceil(count / float(threads)))
 
 	var ts: Array[Thread] = []
 	ts.resize(threads)
 
 	for t in range(threads):
-		var start_i := t * chunk
-		var end_i := min(count, start_i + chunk)
+		var start_i: int = t * chunk
+		var end_i: int = min(count, start_i + chunk)
 		if start_i >= end_i: break
-		var thr := Thread.new()
+		var thr: Thread = Thread.new()
 		ts[t] = thr
 		thr.start(Callable(Threader, "_worker_indices").bind(start_i, end_i, cb))
 

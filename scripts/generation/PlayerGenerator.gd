@@ -107,8 +107,9 @@ func de_age_players(
 	var deaged = ThreadPool.map(items, func(item):
 		var rng_local = RandomNumberGenerator.new()
 		rng_local.seed = int(item["seed"])
-		return DeAger.de_age(item["player"], positions, deage_cfg, stats_cfg, rng_local)
-	, threads)
+		return DeAger.de_age(item["player"], positions, deage_cfg, stats_cfg, rng_local),
+		threads
+	)
 
 	for i in players.size():
 		players[i] = deaged[i]

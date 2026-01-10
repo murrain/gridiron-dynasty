@@ -18,6 +18,8 @@
 extends RefCounted
 class_name RecruitRater
 
+const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+
 # ----------------------------
 # Public: whole-class rating (threaded)
 # ----------------------------
@@ -158,7 +160,7 @@ func rate_and_rank(
 					"men_pct": men_pct,
 					"ath_pct": ath_pct
 				}
-				var res: Dictionary = RecruitRater.compute(
+				var res: Dictionary = compute(
 					d2, positions_data, {}, class_rules, percentiles
 				) as Dictionary
 
@@ -195,7 +197,7 @@ func rate_and_rank(
 					"men_pct": men_pct,
 					"ath_pct": ath_pct
 				}
-				var res: Dictionary = RecruitRater.compute(
+				var res: Dictionary = compute(
 					d2, positions_data, {}, class_rules, percentiles
 				) as Dictionary
 

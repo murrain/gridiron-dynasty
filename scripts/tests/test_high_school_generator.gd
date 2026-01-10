@@ -17,6 +17,6 @@ func run(t) -> void:
 	t.assert_true(first.has("capacity"), "default capacity applied")
 
 	var bad_cfg = {"school_count": 0, "regions": [], "eliteness_tiers": []}
-	t.assert_true(not gen._validate_config(bad_cfg), "validate should reject missing data")
+	t.assert_true(not gen._validate_config(bad_cfg, false), "validate should reject missing data")
 
 	config.configure(original_base, original_save, original_recurse)
