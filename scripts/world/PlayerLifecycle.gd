@@ -7,14 +7,22 @@ static func advance_years(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary = {}
 ) -> Dictionary:
 	var active: Array = players.duplicate()
 	var retired_all: Array = []
 	var rng_use := rng
 
 	for _year in range(max(0, years)):
-		var result := advance_one_year(active, positions_cfg, main_cfg, stats_cfg, rng_use)
+		var result := advance_one_year(
+			active,
+			positions_cfg,
+			main_cfg,
+			stats_cfg,
+			rng_use,
+			development_context
+		)
 		retired_all.append_array(result.get("retired", []))
 		active = (result.get("players", []) as Array).filter(func(p): return p != null)
 
@@ -25,54 +33,87 @@ static func advance_one_year(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary = {}
 ) -> Dictionary:
 	var rng_use := rng
 
 	var updated: Array = []
 	var retired: Array = []
+	var development_reports: Array = []
 	updated.resize(players.size())
+	development_reports.resize(players.size())
 
 	for i in players.size():
 		var p: Dictionary = players[i]
 		if p == null:
 			updated[i] = p
+			development_reports[i] = {}
 			continue
-		var evolved := _advance_player_one_year(p, positions_cfg, main_cfg, stats_cfg, rng_use)
+		var evolved := _advance_player_one_year(
+			p,
+			positions_cfg,
+			main_cfg,
+			stats_cfg,
+			rng_use,
+			development_context
+		)
 		if evolved.get("retired", false):
 			retired.append(evolved.get("player", p))
 			updated[i] = null
 		else:
 			updated[i] = evolved.get("player", p)
+		development_reports[i] = evolved.get("development_report", {})
 
-	return {"players": updated, "retired": retired}
+	return {
+		"players": updated,
+		"retired": retired,
+		"development_reports": development_reports
+	}
 
 static func _advance_player_one_year(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary
 ) -> Dictionary:
 	var p := player.duplicate(true)
 	p["age"] = int(p.get("age", 18)) + 1
 
-	_apply_development(p, positions_cfg, main_cfg, stats_cfg, rng)
+	var development_report := _apply_development(
+		p,
+		positions_cfg,
+		main_cfg,
+		stats_cfg,
+		rng,
+		development_context
+	)
 
 	if _should_retire(p, positions_cfg, main_cfg, rng):
-		return {"player": p, "retired": true}
+		return {
+			"player": p,
+			"retired": true,
+			"development_report": development_report
+		}
 
-	return {"player": p, "retired": false}
+	return {
+		"player": p,
+		"retired": false,
+		"development_report": development_report
+	}
 
 static func _apply_development(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
-) -> void:
+	rng: RandomNumberGenerator,
+	development_context: Dictionary
+) -> Dictionary:
 	if not player.has("stats"):
-		return
+		return {}
 
 	var age := int(player.get("age", 18))
 	var position := String(player.get("position", ""))
@@ -100,6 +141,9 @@ static func _apply_development(
 	var stats: Dictionary = player.get("stats", {}) as Dictionary
 	var potential: Dictionary = player.get("potential", stats) as Dictionary
 	var stat_defs: Dictionary = _stat_defs(stats_cfg)
+	var modifiers := _development_modifiers(development_context)
+	var combined_multiplier := _combined_multiplier(modifiers)
+	var report := {}
 
 	for key in stats.keys():
 		var stat_name := String(key)
@@ -109,20 +153,48 @@ static func _apply_development(
 			continue
 
 		var delta := 0.0
+		var stage := ""
 		if age < peak_age:
 			delta = rng.randf_range(base_min, base_max) * growth_mult
+			stage = "growth"
 		elif age < decline_start:
 			delta = rng.randf_range(prime_min, prime_max) * prime_mult
+			stage = "prime"
 		else:
 			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
+			stage = "decline"
 
+		var base_delta := delta
+		delta *= combined_multiplier
 		delta = clamp(delta, -cap, cap)
+		report[stat_name] = {
+			"stage": stage,
+			"base_delta": base_delta,
+			"modifiers": modifiers.duplicate(true),
+			"final_delta": delta
+		}
 		var next_val: float = float(clamp(val + delta, 0.0, 100.0))
 		if delta > 0.0:
 			next_val = min(next_val, pot)
 		stats[stat_name] = next_val
 
 	player["stats"] = stats
+	return report
+
+static func _development_modifiers(development_context: Dictionary) -> Dictionary:
+	return {
+		"program_quality": float(development_context.get("program_quality", 1.0)),
+		"coach_specialization": float(development_context.get("coach_specialization", 1.0)),
+		"usage": float(development_context.get("usage", 1.0)),
+		"competition_tier": float(development_context.get("competition_tier", 1.0)),
+		"rehab_quality": float(development_context.get("rehab_quality", 1.0))
+	}
+
+static func _combined_multiplier(modifiers: Dictionary) -> float:
+	var combined := 1.0
+	for value in modifiers.values():
+		combined *= float(value)
+	return combined
 
 static func _should_retire(
 	player: Dictionary,
