@@ -16,6 +16,8 @@ func run(t) -> void:
 	player.potential = {"speed": 78.0, "throw_accuracy": 85.0}
 	player.derived = {"burst": 1.2}
 	player.traits = ["Leader"]
+	player.wear = {"snaps": 120, "collisions": 45, "injury_count": 1}
+	player.development_report = [{"age": 19, "wear": {"snaps": 120, "collisions": 45, "injury_count": 1}}]
 
 	var serialized := player.to_dict()
 	var clone := SportPlayer.new()
@@ -29,3 +31,5 @@ func run(t) -> void:
 	t.assert_eq((round_trip.get("potential", {}) as Dictionary).get("throw_accuracy", 0.0), 85.0, "potential round-trip")
 	t.assert_eq((round_trip.get("derived", {}) as Dictionary).get("burst", 0.0), 1.2, "derived round-trip")
 	t.assert_eq((round_trip.get("traits", []) as Array).size(), 1, "traits round-trip")
+	t.assert_eq((round_trip.get("wear", {}) as Dictionary).get("snaps", 0), 120, "wear round-trip")
+	t.assert_eq((round_trip.get("development_report", []) as Array).size(), 1, "development report round-trip")
