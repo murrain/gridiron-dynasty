@@ -270,6 +270,45 @@ commitments deterministically.
 
 ---
 
+## Phase 3.5: Test coverage expansion
+**Goal:** Close deterministic test gaps for generation, recruiting, and
+pipeline orchestration so Phase 4 builds on verified foundations.
+
+**Agent: Engineer**
+1. Add deterministic coverage for recruiting/scouting ratings:
+   - `scripts/core/rating/RecruitRater.gd`
+   - `scripts/core/scouting/ScoutRuntime.gd`
+   - `scripts/core/models/Scout.gd`
+   - `scripts/generation/ScoutFactory.gd`
+   - Ensure tests cover percentile logic, star thresholds, scout
+     perception noise, and deterministic seeding.
+2. Add orchestration coverage for class generation:
+   - `scripts/generation/ClassGenerator.gd`
+   - `scripts/generation/DraftClassGenerator.gd`
+   - Validate tagging (`class_tag`, `draft_year`), potential copy, and
+     de-aging steps with fixed seeds.
+3. Add pipeline coverage for world + college steps:
+   - `scripts/pipelines/AdvanceWorldYear.gd`
+   - `scripts/pipelines/BootstrapWorld.gd`
+   - `scripts/pipelines/GenerateFutureDraftClasses.gd`
+   - `scripts/pipelines/GenerateClassOnce.gd` (smoke test if headless-friendly)
+   - `scripts/pipelines/CollegeRecruiting.gd`
+   - `scripts/world/CollegeGenerator.gd`
+   - Validate phase ordering, seed lineage outputs, and deterministic
+     commitments/offers.
+4. Add core utility/model coverage:
+   - `scripts/core/models/Player.gd` (round-trip serialization)
+   - `autoloads/App.gd` (thread count/map_parallel behavior)
+   - `autoloads/RngBox.gd` (per-thread RNG isolation sanity)
+   - `scripts/support/threading/Threader.gd` (index coverage)
+5. Register new test scripts in `scripts/tests/TestRunner.gd`.
+
+**Agent: Review**
+1. Verify new tests are deterministic with explicit RNG usage.
+2. Confirm tests cover seed lineage outputs for pipeline steps.
+
+---
+
 ## Phase 4: Team + roster scaffolding
 **Goal:** Provide minimal containers for players across HS/college/NFL.
 
