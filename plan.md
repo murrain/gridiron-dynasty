@@ -323,6 +323,76 @@ pipeline orchestration so Phase 4 builds on verified foundations.
 
 ---
 
+## Phase 3.6: Contract + player development test completeness
+**Goal:** Validate current contract/development coverage and define the test
+work needed to reach complete coverage for the new models and flows.
+
+**Agent: Architect**
+1. Current coverage audit (validated via `scripts/tests/`):
+   - Cap accounting and cap validation flows:
+     - `scripts/tests/test_cap_accounting.gd`
+     - `scripts/tests/test_cap_validation_flow.gd`
+   - Player development lifecycle and reports:
+     - `scripts/tests/test_player_lifecycle.gd`
+     - `scripts/tests/test_player_lifecycle_reports.gd`
+     - `scripts/tests/test_high_school_season.gd`
+   - Player model serialization (development_report only):
+     - `scripts/tests/test_player_model.gd`
+2. Gaps for complete coverage (contracts + development + new models):
+   - Contract lifecycle transitions:
+     - `scripts/world/ContractLifecycle.gd`
+   - Contract valuation payloads and jitter determinism:
+     - `scripts/core/valuation/ContractValuation.gd`
+   - Valuation scaffolding phase output:
+     - `scripts/world/ValuationFlow.gd`
+   - Team/Roster cap accounting and serialization:
+     - `scripts/core/models/Team.gd`
+     - `scripts/core/models/Roster.gd`
+   - Player contract fields serialization parity:
+     - `scripts/core/models/Player.gd` contract fields not round-tripped in tests.
+   - Contract + roster edge cases:
+     - Cap exemptions, dead money exclusion, missing contract fields.
+   - Development context inputs:
+     - `scripts/world/HighSchoolSeason.gd` context injection and resulting modifiers.
+     - `scripts/world/PlayerLifecycle.gd` development_context modifiers.
+
+**Agent: Engineer**
+1. Add contract lifecycle tests:
+   - New test `scripts/tests/test_contract_lifecycle.gd`.
+   - Cover unsigned→signed, signed→expired, signed→released transitions.
+   - Assert cap_impact deltas and status fields match expectations.
+2. Add contract valuation tests:
+   - New test `scripts/tests/test_contract_valuation.gd`.
+   - Cover `build_payload` with/without jitter.
+   - Assert deterministic outputs for fixed RNG seed.
+   - Validate `write_to_player_contract` stores payload under contract.valuation.
+3. Add valuation flow test:
+   - New test `scripts/tests/test_valuation_flow.gd`.
+   - Assert phase_id/year/seed echoed, no RNG consumption side effects,
+     and deterministic output for fixed seed.
+4. Expand Player model serialization coverage:
+   - Update `scripts/tests/test_player_model.gd` to include contract fields:
+     current_year, total_years, annual_value, guaranteed, range_min/range_max,
+     valuation_source, valuation_seed.
+5. Add Team/Roster tests:
+   - New test `scripts/tests/test_team_roster_models.gd`.
+   - Validate `SportRoster.get_cap_used` honors cap_exempt flags and ignores
+     dead_money fields.
+   - Validate Team.from_dict/to_dict round-trip including cap + roster payloads.
+6. Add development context tests:
+   - New test `scripts/tests/test_development_context.gd`.
+   - Validate HighSchoolSeason development_context injection (program_quality,
+     coach_specialization, usage, competition_tier, rehab_quality).
+   - Assert PlayerLifecycle modifiers adjust growth/decline in a deterministic
+     way with fixed seed.
+7. Register new tests in `scripts/tests/TestRunner.gd`.
+
+**Agent: Review**
+1. Confirm all new tests are deterministic and seed-driven.
+2. Ensure contract tests cover both cap math and serialization edge cases.
+
+---
+
 ## Phase 4: Team + roster scaffolding
 **Goal:** Provide minimal containers for players across HS/college/NFL.
 
