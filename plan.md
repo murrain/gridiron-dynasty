@@ -10,9 +10,10 @@ For completed work, see `COMPLETED.md`.
 - Avoid UI unless required by simulation correctness
 - Configuration over magic numbers
 
-## Current Priority
+## Current Priorities
 
-**Track E (Player Valuation)** - Complete the valuation system integration
+1. **Track E (Player Valuation)** - Complete the valuation system integration (80% complete)
+2. **Track F (Performance Optimization)** - Bootstrap performance improvement (Ready to start)
 
 ---
 
@@ -22,33 +23,60 @@ Tasks are organized by priority and dependencies. Each task is a complete, self-
 
 ### High Priority: Player Valuation (Track E)
 
-**Status**: 4/10 tasks completed (E1-E4 ✅)
+**Status**: 8/10 tasks completed (E1-E7 ✅)
 
-Foundation components are complete:
+Components complete:
 - ✅ E1: Non-linear value curve (`ValueCurve.gd`)
 - ✅ E2: Replacement level (`ReplacementLevel.gd`)
 - ✅ E3: Positional scarcity (`PositionalScarcity.gd`)
 - ✅ E4: Team impact valuation (`TeamImpact.gd`)
+- ✅ E5: Unified PlayerValue calculator (`PlayerValue.gd`)
+- ✅ E6: ContractValuation integration (`ContractValuation.gd`)
+- ✅ E7: Market supply tracking (`MarketSupply.gd`)
+- ✅ E9: Consolidated configs (`valuation.json`)
 
 **Remaining integration work** (do in order):
 
 | Task | File | Dependencies | Effort | Status |
 |------|------|--------------|--------|--------|
-| **E5** | `docs/tasks/TASK_E5_player_value_calculator.md` | E1-E4 (✅) | 1-2 days | 🔴 Not started |
-| **E6** | `docs/tasks/TASK_E6_update_contract_valuation.md` | E5 | 1 day | 🔴 Not started |
-| **E7** | `docs/tasks/TASK_E7_market_supply.md` | E2 (✅) | 0.5 days | 🔴 Not started |
-| **E8** | `docs/tasks/TASK_E8_wire_valuation_flow.md` | E5, E6, E7 | 1-2 days | 🔴 Not started |
-| **E9** | `docs/tasks/TASK_E9_valuation_configs.md` | None (parallel) | 0.5 days | 🔴 Not started |
+| **E8** | `docs/tasks/TASK_E8_wire_valuation_flow.md` | E5, E6, E7 (✅) | 1-2 days | 🔴 Ready to start |
 | **E10** | `docs/tasks/TASK_E10_valuation_tests.md` | E1-E9 | 2 days | 🔴 Not started |
 
-**To start next task**: Read `docs/tasks/TASK_E5_player_value_calculator.md`
+**To start next task**: Read `docs/tasks/TASK_E8_wire_valuation_flow.md`
 
 **Implementation sequence**:
 ```
-E5 (PlayerValue) ─┬─→ E6 (ContractValuation) ─┐
-E7 (MarketSupply) ─┴─→ E8 (ValuationFlow) ─────┤
-E9 (Configs) ─────────────────────────────────┬─┘
+✅ E5 (PlayerValue) ─┬─→ ✅ E6 (ContractValuation) ─┐
+✅ E7 (MarketSupply) ─┴─→ E8 (ValuationFlow) ───────┤
+✅ E9 (Configs) ─────────────────────────────────┬─┘
 E10 (Tests) ──────────────────────────────────┘
+```
+
+---
+
+### Critical Priority: Performance Optimization (Track F)
+
+**Status**: Planning complete, ready to implement
+
+| Task | File | Dependencies | Effort | Status | Impact |
+|------|------|--------------|--------|--------|--------|
+| **F1** | `docs/tasks/TASK_F1_profiling_report.md` | None | - | ✅ Complete | Foundation |
+| **F8** | `docs/tasks/TASK_F8_benchmark_suite.md` | F1 | 1 day | 🔴 Not started | Required |
+| **F2** | `docs/tasks/TASK_F2_recruiting_optimization.md` | F8 | 2-3 days | 🔴 Not started | 50-70% reduction |
+| **F3** | `docs/tasks/TASK_F3_scout_caching.md` | F2 | 1-2 days | 🔴 Not started | 20-30% reduction |
+| **F4** | `docs/tasks/TASK_F4_deep_copy_reduction.md` | F3 | 1-2 days | 🔴 Not started | 10-20% reduction |
+| **F5** | `docs/tasks/TASK_F5_parallel_lifecycle.md` | F4 | 1-2 days | 🔴 Not started | 10-15% reduction |
+| **F6** | `docs/tasks/TASK_F6_config_optimization.md` | F5 | 0.5-1 day | 🔴 Not started | 5-10% reduction |
+| **F7** | `docs/tasks/TASK_F7_development_report_deferral.md` | F5 | 0.5 day | 🔴 Not started | Memory focus |
+
+**Current baseline**: 20-year bootstrap takes ~12 minutes (~36s per year)
+**Target**: Reduce to under 3 minutes (75% improvement)
+
+**To start next task**: Read `docs/PHASE_F_ROADMAP.md` for overview, then `docs/tasks/TASK_F8_benchmark_suite.md`
+
+**Implementation sequence**:
+```
+✅ F1 (Profiling) → F8 (Benchmarks) → F2 (Recruiting) → F3 (Caching) → F4 (Deep Copy) → F5 (Parallel) → F6/F7 (Polish)
 ```
 
 ---
