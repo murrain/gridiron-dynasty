@@ -1,6 +1,11 @@
 extends RefCounted
 class_name CollegeRecruiting
 
+const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
+const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
+const Scout = preload("res://scripts/core/models/Scout.gd")
+const Rand = preload("res://autoloads/Rand.gd")
+
 func run(
 	recruits: Array,
 	colleges: Array,
@@ -53,8 +58,8 @@ func run(
 		if college_id == "":
 			continue
 		var college_rng := _rng_for(seed, college_id)
-		var scout := factory.create_random_scout("%s Recruiter" % String(college_dict.get("name", "Recruiter")), college_rng)
-		var board := _build_board(
+		var scout: Resource = factory.create_random_scout("%s Recruiter" % String(college_dict.get("name", "Recruiter")), college_rng)
+		var board: Array = _build_board(
 			recruits,
 			college_dict,
 			scout,
@@ -75,7 +80,7 @@ func run(
 		)
 		boards_by_college[college_id] = board
 
-		var offer_count := min(offer_limit, board.size())
+		var offer_count: int = min(offer_limit, board.size())
 		for i in range(offer_count):
 			var offer: Dictionary = board[i]
 			var player_id := String(offer.get("player_id", ""))
@@ -181,12 +186,12 @@ func _build_board(
 	for i in range(recruits.size()):
 		var recruit: Dictionary = recruits[i]
 		var player_id := String(recruit.get("player_id", ""))
-		var scout_score := scout.score_player(recruit, positions_cfg, stats_cfg, class_rules, rng)
-		var base_score := float(baseline_scores.get(player_id, 0.0))
-		var combined_rating := (
+		var scout_score: float = float(scout.score_player(recruit, positions_cfg, stats_cfg, class_rules, rng))
+		var base_score: float = float(baseline_scores.get(player_id, 0.0))
+		var combined_rating: float = (
 			scout_score * scout_weight + base_score * baseline_weight
 		) / max(0.0001, scout_weight + baseline_weight)
-		var rating_norm := clamp(combined_rating / 100.0, 0.0, 1.0)
+		var rating_norm: float = clamp(combined_rating / 100.0, 0.0, 1.0)
 
 		var proximity_factor := 1.0
 		var home_region := String(recruit.get("home_region", ""))
@@ -194,16 +199,16 @@ func _build_board(
 			var bias := float(recruit.get("proximity_bias", 0.0))
 			proximity_factor = 1.0 + (region_match_multiplier - 1.0) * bias
 
-		var score := rating_norm * rating_weight
-		score += college_elite * eliteness_weight
-		score += proximity_factor * proximity_weight
+		var final_score: float = rating_norm * rating_weight
+		final_score += college_elite * eliteness_weight
+		final_score += proximity_factor * proximity_weight
 
 		if visit_chance > 0.0 and rng.randf() < visit_chance:
-			score *= (1.0 + visit_bonus)
+			final_score *= (1.0 + visit_bonus)
 
 		board[i] = {
 			"player_id": player_id,
-			"score": score,
+			"score": final_score,
 			"scout_score": scout_score,
 			"base_score": base_score
 		}

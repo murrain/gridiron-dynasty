@@ -2,6 +2,7 @@ extends Node
 class_name DraftClassGenerator
 
 const ConfigService = preload("res://autoloads/Config.gd")
+const Rand = preload("res://autoloads/Rand.gd")
 const DeAger = preload("res://scripts/generation/helpers/DeAger.gd")
 const PlayerGenerator = preload("res://scripts/generation/PlayerGenerator.gd")
 const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")

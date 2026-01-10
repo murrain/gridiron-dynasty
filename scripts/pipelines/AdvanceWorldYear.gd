@@ -1,6 +1,29 @@
 extends Node
 class_name AdvanceWorldYear
 
+const Config = preload("res://autoloads/Config.gd")
+const Rand = preload("res://autoloads/Rand.gd")
+const WorldCalendar = preload("res://scripts/world/WorldCalendar.gd")
+const HighSchoolGenerator = preload("res://scripts/world/HighSchoolGenerator.gd")
+const HighSchoolAssignment = preload("res://scripts/world/HighSchoolAssignment.gd")
+const HighSchoolSeason = preload("res://scripts/world/HighSchoolSeason.gd")
+const CollegeGenerator = preload("res://scripts/world/CollegeGenerator.gd")
+const CollegeRecruiting = preload("res://scripts/pipelines/CollegeRecruiting.gd")
+const CollegeSeason = preload("res://scripts/world/CollegeSeason.gd")
+const NflTeamGenerator = preload("res://scripts/world/NflTeamGenerator.gd")
+const NflDraft = preload("res://scripts/world/NflDraft.gd")
+const NflSeason = preload("res://scripts/world/NflSeason.gd")
+const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
+const ValuationFlow = preload("res://scripts/world/ValuationFlow.gd")
+const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
+
+var _config_instance: Node = null
+
+func _get_config() -> Node:
+	if _config_instance == null:
+		_config_instance = Config.new()
+	return _config_instance
+
 func run(world_state: Dictionary, year: int, year_seed: int) -> Dictionary:
 	var calendar := WorldCalendar.new()
 	var phases := calendar.phases_for_year(year)
@@ -53,7 +76,8 @@ func _phase_handlers() -> Dictionary:
 		"college_season": Callable(self, "_handle_college_season"),
 		"draft_prep": Callable(self, "_handle_draft_prep"),
 		"cap_validation": Callable(self, "_handle_cap_validation"),
-		"nfl_draft": Callable(self, "_handle_placeholder_phase")
+		"nfl_draft": Callable(self, "_handle_nfl_draft"),
+		"nfl_season": Callable(self, "_handle_nfl_season")
 	}
 
 func _handle_hs_generation(
@@ -64,7 +88,7 @@ func _handle_hs_generation(
 	year_seed: int
 ) -> Dictionary:
 	var phase_id := String(phase.get("phase_id", ""))
-	var hs_cfg := Config.get_config("world/high_schools")
+	var hs_cfg: Dictionary = _get_config().get_config("world/high_schools")
 	var step_seeds := {
 		"hs_school_gen": _derive_seed(year_seed, phase_id, "hs_school_gen"),
 		"hs_player_gen": _derive_seed(year_seed, phase_id, "hs_player_gen"),
@@ -105,7 +129,7 @@ func _handle_hs_assignment(
 	year_seed: int
 ) -> Dictionary:
 	var phase_id := String(phase.get("phase_id", ""))
-	var hs_cfg := Config.get_config("world/high_schools")
+	var hs_cfg: Dictionary = _get_config().get_config("world/high_schools")
 	var step_seed := _derive_seed(year_seed, phase_id, "hs_assignment")
 	_log_step_seed(year, phase_id, "hs_assignment", step_seed)
 
@@ -136,10 +160,10 @@ func _handle_hs_season(
 	var step_seed := _derive_seed(year_seed, phase_id, "hs_season")
 	_log_step_seed(year, phase_id, "hs_season", step_seed)
 
-	var hs_cfg := Config.get_config("world/high_schools")
-	var main_cfg := Config.get_config("main")
-	var positions_cfg := Config.get_config("positions")
-	var stats_cfg := Config.get_config("stats")
+	var hs_cfg: Dictionary = _get_config().get_config("world/high_schools")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
 
 	var hs_players: Array = world_state.get("hs_players", []) as Array
 	var hs_schools: Array = world_state.get("hs_schools", []) as Array
@@ -244,11 +268,11 @@ func _handle_college_recruiting(
 			"step_seeds": {"college_recruiting": step_seed}
 		}
 
-	var main_cfg := Config.get_config("main")
-	var positions_cfg := Config.get_config("positions")
-	var stats_cfg := Config.get_config("stats")
-	var scouts_cfg := Config.get_config("scouts")
-	var colleges_cfg := Config.get_config("world/colleges")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
+	var scouts_cfg: Dictionary = _get_config().get_config("scouts")
+	var colleges_cfg: Dictionary = _get_config().get_config("world/colleges")
 
 	var pipeline := CollegeRecruiting.new()
 	var output := pipeline.run(
@@ -292,10 +316,10 @@ func _handle_college_season(
 	_log_step_seed(year, phase_id, "college_season", step_seed)
 
 	var season := CollegeSeason.new()
-	var colleges_cfg := Config.get_config("world/colleges")
-	var positions_cfg := Config.get_config("positions")
-	var main_cfg := Config.get_config("main")
-	var stats_cfg := Config.get_config("stats")
+	var colleges_cfg: Dictionary = _get_config().get_config("world/colleges")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
 	return season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
 
 func _handle_draft_prep(
@@ -324,11 +348,50 @@ func _handle_cap_validation(
 	_year_seed: int
 ) -> Dictionary:
 	var phase_id := String(phase.get("phase_id", ""))
-	var league_cfg := Config.get_config("world/league")
+	var league_cfg: Dictionary = _get_config().get_config("world/league")
 	var league_state: Dictionary = world_state.get("league", {}) as Dictionary
 	var cap_limit := float(league_state.get("cap_limit", league_cfg.get("cap_limit", 0.0)))
 
 	return CapValidationFlow.run(world_state, year, phase_id, cap_limit)
+
+func _handle_nfl_draft(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "nfl_draft")
+	_log_step_seed(year, phase_id, "nfl_draft", step_seed)
+
+	var league_cfg: Dictionary = _get_config().get_config("world/league")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
+	var scouts_cfg: Dictionary = _get_config().get_config("scouts")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+
+	var draft := NflDraft.new()
+	return draft.run(world_state, year, step_seed, league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg)
+
+func _handle_nfl_season(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "nfl_season")
+	_log_step_seed(year, phase_id, "nfl_season", step_seed)
+
+	var league_cfg: Dictionary = _get_config().get_config("world/league")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
+
+	var season := NflSeason.new()
+	return season.run(world_state, year, step_seed, league_cfg, positions_cfg, main_cfg, stats_cfg)
 
 func _handle_placeholder_phase(
 	_world_state: Dictionary,

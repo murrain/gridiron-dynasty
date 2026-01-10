@@ -1,10 +1,19 @@
 extends RefCounted
 class_name NflTeamGenerator
 
+const ConfigService = preload("res://autoloads/Config.gd")
+
 const DEFAULT_CONFIG_KEY := "world/league"
 
+var _config: Node = null
+
+func _get_config_service() -> Node:
+	if _config == null:
+		_config = ConfigService.new()
+	return _config
+
 func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
-	var cfg := Config.get_config(config_key)
+	var cfg: Dictionary = _get_config_service().get_config(config_key)
 	if cfg.is_empty():
 		push_error("NflTeamGenerator: missing config '%s'." % config_key)
 		return {"teams": [], "config": {}}

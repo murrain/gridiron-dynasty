@@ -19,8 +19,10 @@ static func run(
 	var over_cap: Array = []
 
 	for i in range(teams.size()):
-		var team_entry := teams[i]
-		var team: Dictionary = team_entry as Dictionary
+		var team_entry = teams[i]
+		if not (team_entry is Dictionary):
+			continue
+		var team: Dictionary = team_entry
 		if team.is_empty():
 			continue
 		var team_id := String(team.get("id", ""))

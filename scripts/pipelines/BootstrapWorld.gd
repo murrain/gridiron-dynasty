@@ -1,15 +1,24 @@
 extends Node
 class_name BootstrapWorld
 
+const Config = preload("res://autoloads/Config.gd")
+const Rand = preload("res://autoloads/Rand.gd")
 const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 
 @export var years_back: int = 20
 
+var _config_instance: Node = null
+
+func _get_config() -> Node:
+	if _config_instance == null:
+		_config_instance = Config.new()
+	return _config_instance
+
 func run() -> Dictionary:
-	var main_cfg: Dictionary = Config.get_config("main")
-	var positions_cfg: Dictionary = Config.get_config("positions")
-	var stats_cfg: Dictionary = Config.get_config("stats")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
 	var start_year := int(main_cfg.get("starting_year", 2025))
 	var base_seed := int(main_cfg.get("random_seed", 0))
 
