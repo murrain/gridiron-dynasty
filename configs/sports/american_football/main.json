@@ -21,6 +21,31 @@
             "late": { "growth": 0.9, "prime": 0.30, "decline": 0.85 }
         }
     },
+    "modifiers": {
+        "defaults_note": "Neutral multipliers/scales are 1.0 to preserve baseline outputs.",
+        "program_quality_multipliers": {
+            "development": 1.0,
+            "peak": 1.0,
+            "decline": 1.0,
+            "injury": 1.0
+        },
+        "specialist_coach_multipliers": {
+            "skill_training": 1.0,
+            "injury_prevention": 1.0,
+            "rehab_speed": 1.0
+        },
+        "usage_competition_multipliers": {
+            "low_usage": 1.0,
+            "baseline_usage": 1.0,
+            "high_usage": 1.0,
+            "low_competition": 1.0,
+            "high_competition": 1.0
+        },
+        "injury_scales": {
+            "suppression": 1.0,
+            "penalty": 1.0
+        }
+    },
     "retirement": {
         "min_age": 27,
         "soft_cap_age": 33,
