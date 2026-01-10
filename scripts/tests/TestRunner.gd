@@ -5,18 +5,30 @@ const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")
 const TEST_SCRIPTS := [
 	"res://scripts/tests/test_rand.gd",
 	"res://scripts/tests/test_threadpool.gd",
+	"res://scripts/tests/test_core_utilities.gd",
 	"res://scripts/tests/test_config.gd",
 	"res://scripts/tests/test_config_loader.gd",
 	"res://scripts/tests/test_helpers.gd",
 	"res://scripts/tests/test_deager.gd",
 	"res://scripts/tests/test_stathelpers.gd",
 	"res://scripts/tests/test_combine_calculator.gd",
+	"res://scripts/tests/test_player_model.gd",
 	"res://scripts/tests/test_high_school_assignment.gd",
 	"res://scripts/tests/test_player_lifecycle.gd",
 	"res://scripts/tests/test_world_calendar.gd",
 	"res://scripts/tests/test_high_school_generator.gd",
 	"res://scripts/tests/test_high_school_season.gd",
-	"res://scripts/tests/test_player_generator.gd"
+	"res://scripts/tests/test_player_generator.gd",
+	"res://scripts/tests/test_recruit_rater.gd",
+	"res://scripts/tests/test_scout_runtime.gd",
+	"res://scripts/tests/test_scout_model.gd",
+	"res://scripts/tests/test_scout_factory.gd",
+	"res://scripts/tests/test_class_generator.gd",
+	"res://scripts/tests/test_draft_class_generator.gd",
+	"res://scripts/tests/test_college_recruiting.gd",
+	"res://scripts/tests/test_advance_world_year_helpers.gd",
+	"res://scripts/tests/test_pipeline_seed_helpers.gd",
+	"res://scripts/tests/test_phase4_scaffolding.gd"
 ]
 
 func _init() -> void:
