@@ -36,6 +36,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_world_history_preview.gd",
 	"res://scripts/tests/test_valuation_helpers.gd",
 	"res://scripts/tests/test_value_curve.gd",
+	"res://scripts/tests/test_replacement_level.gd",
 	"res://scripts/tests/test_cap_accounting.gd",
 	"res://scripts/tests/test_cap_validation_flow.gd",
 	"res://scripts/tests/test_trade_valuation.gd",
