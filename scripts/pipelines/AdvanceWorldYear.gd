@@ -48,6 +48,7 @@ func _phase_handlers() -> Dictionary:
 		"hs_assignment": Callable(self, "_handle_hs_assignment"),
 		"hs_season": Callable(self, "_handle_hs_season"),
 		"college_generation": Callable(self, "_handle_college_generation"),
+		"nfl_team_generation": Callable(self, "_handle_nfl_team_generation"),
 		"college_recruiting": Callable(self, "_handle_college_recruiting"),
 		"college_season": Callable(self, "_handle_college_season"),
 		"draft_prep": Callable(self, "_handle_draft_prep"),
@@ -185,6 +186,38 @@ func _handle_college_generation(
 		"year": year,
 		"count": colleges.size(),
 		"step_seeds": {"college_generation": step_seed}
+	}
+
+func _handle_nfl_team_generation(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "nfl_team_generation")
+	_log_step_seed(year, phase_id, "nfl_team_generation", step_seed)
+
+	var teams: Array = world_state.get("nfl_teams", []) as Array
+	if not teams.is_empty():
+		return {
+			"year": year,
+			"count": teams.size(),
+			"cached": true,
+			"step_seeds": {"nfl_team_generation": step_seed}
+		}
+
+	var generator := NflTeamGenerator.new()
+	var result := generator.generate(step_seed)
+	teams = result.get("teams", []) as Array
+	world_state["nfl_teams"] = teams
+	world_state["nfl_rosters"] = {}
+
+	return {
+		"year": year,
+		"count": teams.size(),
+		"step_seeds": {"nfl_team_generation": step_seed}
 	}
 
 func _handle_college_recruiting(
