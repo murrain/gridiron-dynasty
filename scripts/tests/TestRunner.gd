@@ -37,6 +37,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_valuation_helpers.gd",
 	"res://scripts/tests/test_value_curve.gd",
 	"res://scripts/tests/test_replacement_level.gd",
+	"res://scripts/tests/test_positional_scarcity.gd",
 	"res://scripts/tests/test_team_impact.gd",
 	"res://scripts/tests/test_cap_accounting.gd",
 	"res://scripts/tests/test_cap_validation_flow.gd",
