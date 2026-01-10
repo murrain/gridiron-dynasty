@@ -2,6 +2,11 @@
 extends Node
 ## Deterministic, contention-free seed utilities (SplitMix64) + RNG helpers.
 
+const MASK_64: int = -1
+const SM64_GAMMA: int = -7046029254386353131
+const SM64_MUL1: int = -4658895280553007687
+const SM64_MUL2: int = -7723592293110705685
+
 # Keep a session base seed (you can override for reproducible runs).
 var _base_seed_64: int = 0
 
@@ -12,7 +17,7 @@ func _ready() -> void:
 
 ## Set a known base seed for reproducible runs (e.g., benchmarks/tests).
 func set_base_seed(seed64: int) -> void:
-	_base_seed_64 = seed64 & 0xFFFFFFFFFFFFFFFF
+	_base_seed_64 = seed64 & MASK_64
 
 ## Get the current session base seed.
 func base_seed() -> int:
@@ -20,14 +25,14 @@ func base_seed() -> int:
 
 ## SplitMix64 mixer — pure arithmetic, thread-safe, deterministic (64-bit).
 static func splitmix64(x: int) -> int:
-	var z := (x + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
-	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9 & 0xFFFFFFFFFFFFFFFF
-	z = (z ^ (z >> 27)) * 0x94D049BB133111EB & 0xFFFFFFFFFFFFFFFF
-	return (z ^ (z >> 31)) & 0xFFFFFFFFFFFFFFFF
+	var z := (x + SM64_GAMMA) & MASK_64
+	z = (z ^ (z >> 30)) * SM64_MUL1 & MASK_64
+	z = (z ^ (z >> 27)) * SM64_MUL2 & MASK_64
+	return (z ^ (z >> 31)) & MASK_64
 
 ## Derive N unique 64-bit seeds from the current base (or an override).
 func derive_seeds(count: int, base_override: int = -1) -> PackedInt64Array:
-	var base := _base_seed_64 if base_override == -1 else (base_override & 0xFFFFFFFFFFFFFFFF)
+	var base := _base_seed_64 if base_override == -1 else (base_override & MASK_64)
 	var out: PackedInt64Array = PackedInt64Array()
 	out.resize(count)
 	for i in count:
@@ -39,10 +44,10 @@ func derive_seeds(count: int, base_override: int = -1) -> PackedInt64Array:
 static func rng_for_seed(seed64: int) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
 	# Godot RNG `seed` is 64-bit in 4.x; mask to be safe.
-	rng.seed = seed64 & 0xFFFFFFFFFFFFFFFF
+	rng.seed = seed64 & MASK_64
 	return rng
 
 ## Convenience: RNG for an index from base (or current base).
 func rng_for_index(i: int, base_override: int = -1) -> RandomNumberGenerator:
-	var base := _base_seed_64 if base_override == -1 else (base_override & 0xFFFFFFFFFFFFFFFF)
+	var base := _base_seed_64 if base_override == -1 else (base_override & MASK_64)
 	return rng_for_seed(splitmix64(base + i))

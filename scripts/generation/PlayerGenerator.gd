@@ -15,15 +15,24 @@
 ##
 ## Example:
 ## [codeblock]
-## var gen := PlayerGenerator.new()
+## var gen = PlayerGenerator.new()
 ## gen.positions_data = App.cfg("football/positions")
 ## gen.stats_cfg = App.cfg("football/stats")
-## var rng := RandomNumberGenerator.new()
+## var rng = RandomNumberGenerator.new()
 ## rng.seed = 1234
-## var players := gen.generate_class(2000, 0.75, rng)
+## var players = gen.generate_class(2000, 0.75, rng)
 ## [/codeblock]
 extends RefCounted
 class_name PlayerGenerator
+
+const Rand = preload("res://autoloads/Rand.gd")
+const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+const CombineCalculator = preload("res://scripts/core/rating/CombineCalculator.gd")
+const DeAger = preload("res://scripts/generation/helpers/DeAger.gd")
+const NamesHelper = preload("res://scripts/generation/helpers/NamesHelper.gd")
+const PositionHelper = preload("res://scripts/generation/helpers/PositionHelper.gd")
+const PhysicalsHelper = preload("res://scripts/generation/helpers/PhysicalsHelper.gd")
+const StatsHelper = preload("res://scripts/generation/helpers/StatsHelper.gd")
 
 var main_cfg: Dictionary
 var positions_data: Dictionary
@@ -35,31 +44,31 @@ var combine_tuning: Dictionary
 
 ## Generate a full class of `count` players, threading per-player creation.
 func generate_class(count: int, gaussian_share: float, rng: RandomNumberGenerator) -> Array:
-	var threads :int = App.threads_count()
-	var seeds := _derive_seeds(count, rng, 0x9E3779B1)
+	var threads :int = _threads_count()
+	var seeds = _derive_seeds(count, rng, 0x9E3779B1)
 
-	var result := ThreadPool.map(
+	var result = ThreadPool.map(
 		seeds,
 		func(seed_val):
-			var rng := RandomNumberGenerator.new()
-			rng.seed = int(seed_val)
-			return _make_single_player(gaussian_share, rng),
+			var local_rng = RandomNumberGenerator.new()
+			local_rng.seed = int(seed_val)
+			return _make_single_player(gaussian_share, local_rng),
 		threads
 	)
 
 	# Calculate combine numbers (can be done in parallel too)
-	var combine_seeds := _derive_seeds(result.size(), rng, 0x85EBCA6B)
+	var combine_seeds = _derive_seeds(result.size(), rng, 0x85EBCA6B)
 
 	var combine_items: Array = []
 	combine_items.resize(result.size())
 	for i in result.size():
 		combine_items[i] = {"player": result[i], "seed": combine_seeds[i]}
 
-	var combine_callable := func(item):
+	var combine_callable = func(item):
 		var p: Dictionary = item["player"]
-		var rng := RandomNumberGenerator.new()
-		rng.seed = int(item["seed"])
-		p["combine"] = CombineCalculator.compute_all(p, combine_tuning, combine_tests, rng)
+		var local_rng = RandomNumberGenerator.new()
+		local_rng.seed = int(item["seed"])
+		p["combine"] = CombineCalculator.compute_all(p, combine_tuning, combine_tests, local_rng)
 		return p
 	result = ThreadPool.map(combine_items, combine_callable, threads)
 	return result
@@ -86,15 +95,15 @@ func de_age_players(
 	stats_cfg: Dictionary,
 	rng: RandomNumberGenerator
 ) -> void:
-	var threads := App.threads_count()
-	var seeds := _derive_seeds(players.size(), rng, 0x6C8E9CF5)
+	var threads = _threads_count()
+	var seeds = _derive_seeds(players.size(), rng, 0x6C8E9CF5)
 	var items: Array = []
 	items.resize(players.size())
 	for i in range(players.size()):
 		items[i] = {"player": players[i], "seed": seeds[i]}
 
-	var deaged := ThreadPool.map(items, func(item):
-		var rng_local := RandomNumberGenerator.new()
+	var deaged = ThreadPool.map(items, func(item):
+		var rng_local = RandomNumberGenerator.new()
 		rng_local.seed = int(item["seed"])
 		return DeAger.de_age(item["player"], positions, deage_cfg, stats_cfg, rng_local)
 	, threads)
@@ -118,7 +127,7 @@ func assign_dynamic_freaks(
 	pct_min = clamp(pct_min, 0.0, 1.0)
 	pct_max = clamp(pct_max, 0.0, 1.0)
 	if pct_max < pct_min:
-		var t := pct_min
+		var t = pct_min
 		pct_min = pct_max
 		pct_max = t
 
@@ -132,13 +141,13 @@ func assign_dynamic_freaks(
 	for i in players.size():
 		var p: Dictionary = players[i]
 		var stats: Dictionary = p.get("stats", {}) as Dictionary
-		var s := 0.0
-		var n := 0
+		var s = 0.0
+		var n = 0
 		for k in ATH_KEYS:
 			if stats.has(k):
 				s += float(stats[k])
 				n += 1
-		var score := (s / float(n)) if n > 0 else 0.0
+		var score = (s / float(n)) if n > 0 else 0.0
 		scores[i] = {"idx": i, "score": score}
 
 	# 2) Sort and compute percentile band
@@ -146,12 +155,12 @@ func assign_dynamic_freaks(
 		return float((a as Dictionary).score) < float((b as Dictionary).score) # ascending
 	)
 
-	var n := scores.size()
+	var n = scores.size()
 	if n == 0:
 		return
 
-	var lo_i := int(floor(pct_min * float(max(0, n - 1))))
-	var hi_i := int(floor(pct_max * float(max(0, n - 1))))
+	var lo_i = int(floor(pct_min * float(max(0, n - 1))))
+	var hi_i = int(floor(pct_max * float(max(0, n - 1))))
 	hi_i = max(lo_i, hi_i)
 
 	# 3) Collect candidates in [lo_i .. hi_i]
@@ -162,7 +171,7 @@ func assign_dynamic_freaks(
 	# Prefer non-specialists (skip K/P)
 	cand = cand.filter(func(e):
 		var p: Dictionary = players[int((e as Dictionary).idx)]
-		var pos := String(p.get("position",""))
+		var pos = String(p.get("position",""))
 		return pos != "K" and pos != "P"
 	)
 
@@ -172,14 +181,14 @@ func assign_dynamic_freaks(
 
 	# 5) Apply small athletic “freak” bump + tag
 	for k in range(take):
-		var idx := int((cand[k] as Dictionary).idx)
+		var idx = int((cand[k] as Dictionary).idx)
 		var pl: Dictionary = players[idx]
 		var st: Dictionary = pl.get("stats", {}) as Dictionary
 
 		# Gentle, believable bump (3–7 pts) with a bit less for strength by default
 		for ak in ATH_KEYS:
 			if st.has(ak):
-				var add := rng.randf_range(3.0, 7.0)
+				var add = rng.randf_range(3.0, 7.0)
 				if ak == "strength":
 					add = rng.randf_range(2.0, 5.0)
 				st[ak] = clamp(float(st[ak]) + add, 0.0, 100.0)
@@ -187,31 +196,45 @@ func assign_dynamic_freaks(
 		# Flag it
 		if not pl.has("tags"):
 			pl["tags"] = []
-		var tags := pl["tags"] as Array
+		var tags = pl["tags"] as Array
 		if not tags.has("PotentialSuperstar"):
 			tags.append("PotentialSuperstar")
 
 		pl["stats"] = st
-	players[idx] = pl
+		players[idx] = pl
 
 func _derive_seeds(count: int, rng: RandomNumberGenerator, salt: int) -> Array:
 	var seeds: Array = []
 	seeds.resize(count)
 	for i in count:
 		# derived seeds prevent RNG contention in threaded paths
-		var mixed := Rand.splitmix64(int(rng.randi()) ^ int(i * salt))
+		var mixed = Rand.splitmix64(int(rng.randi()) ^ int(i * salt))
 		seeds[i] = mixed
 	return seeds
 
 func _shuffle_in_place(items: Array, rng: RandomNumberGenerator) -> void:
 	for i in range(items.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
+		var j = rng.randi_range(0, i)
 		var tmp = items[i]
 		items[i] = items[j]
 		items[j] = tmp
 
+func _threads_count() -> int:
+	var app = _resolve_autoload("App")
+	if app == null:
+		return 1
+	return int(app.threads_count())
+
+func _resolve_autoload(name: String) -> Object:
+	var main_loop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root = (main_loop as SceneTree).root
+		if root.has_node(name):
+			return root.get_node(name)
+	return null
+
 ## Save to JSON on disk (single-threaded I/O).
 func save_to_json(path: String, players: Array) -> void:
-	var f := FileAccess.open(path, FileAccess.WRITE)
+	var f = FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(players, "\t"))
 	f.close()

@@ -117,7 +117,7 @@ static func _apply_development(
 			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
 
 		delta = clamp(delta, -cap, cap)
-		var next_val := clamp(val + delta, 0.0, 100.0)
+		var next_val: float = float(clamp(val + delta, 0.0, 100.0))
 		if delta > 0.0:
 			next_val = min(next_val, pot)
 		stats[stat_name] = next_val

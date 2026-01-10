@@ -136,9 +136,9 @@ func threads_count() -> int:
 	var max_cap: int = 8
 	var desired: int = 0
 	if eg.has("threads"):
-		var raw := eg["threads"]
+		var raw: Variant = eg["threads"]
 		if typeof(raw) == TYPE_DICTIONARY:
-			var cfg := raw as Dictionary
+			var cfg: Dictionary = raw as Dictionary
 			desired = int(cfg.get("count", 0))
 			max_cap = int(cfg.get("max", max_cap))
 		else:
@@ -153,9 +153,9 @@ func set_threads_runtime(n: int) -> void:
 	var max_cap: int = 8
 	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
 		max_cap = int((eg["threads"] as Dictionary).get("max", max_cap))
-	var clamped := clamp(n, 1, min(OS.get_processor_count(), max_cap))
+	var clamped: int = int(clamp(n, 1, min(OS.get_processor_count(), max_cap)))
 	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
-		var cfg := (eg["threads"] as Dictionary).duplicate(true)
+		var cfg: Dictionary = (eg["threads"] as Dictionary).duplicate(true)
 		cfg["count"] = clamped
 		eg["threads"] = cfg
 	else:
@@ -169,9 +169,9 @@ func save_engine_threads(n: int) -> void:
 	var max_cap: int = 8
 	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
 		max_cap = int((eg["threads"] as Dictionary).get("max", max_cap))
-	var clamped := clamp(n, 1, min(OS.get_processor_count(), max_cap))
+	var clamped: int = int(clamp(n, 1, min(OS.get_processor_count(), max_cap)))
 	if eg.has("threads") and typeof(eg["threads"]) == TYPE_DICTIONARY:
-		var cfg := (eg["threads"] as Dictionary).duplicate(true)
+		var cfg: Dictionary = (eg["threads"] as Dictionary).duplicate(true)
 		cfg["count"] = clamped
 		eg["threads"] = cfg
 	else:
