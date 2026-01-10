@@ -1,6 +1,8 @@
 extends RefCounted
 class_name PlayerLifecycle
 
+const INJURY_SUPPRESSION_PER_SEVERITY := 0.25
+
 static func advance_years(
 	players: Array,
 	years: int,
@@ -103,6 +105,13 @@ static func _apply_development(
 	var stats: Dictionary = player.get("stats", {}) as Dictionary
 	var potential: Dictionary = player.get("potential", stats) as Dictionary
 	var stat_defs: Dictionary = _stat_defs(stats_cfg)
+	var injuries := _normalized_injuries(player)
+	var decline_mults := _injury_decline_multipliers(injuries)
+	var report_entry := {
+		"age": age,
+		"stat_deltas": {},
+		"injury_impacts": {"active": [], "recovered": []}
+	}
 
 	var phase := "growth"
 	if age < peak_age:
@@ -149,6 +158,10 @@ static func _apply_development(
 			applied_mult = prime_mult
 			delta = raw_draw * applied_mult
 		else:
+			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
+			var injury_decline_mult := float(decline_mults.get(stat_name, 1.0))
+			if injury_decline_mult != 1.0:
+				delta *= injury_decline_mult
 			raw_draw = rng.randf_range(decline_min, decline_max)
 			applied_mult = decline_mult
 			delta = -raw_draw * applied_mult
@@ -163,6 +176,11 @@ static func _apply_development(
 			capped_by_potential = not is_equal_approx(limited, next_val)
 			next_val = limited
 		stats[stat_name] = next_val
+		(report_entry["stat_deltas"] as Dictionary)[stat_name] = delta
+
+	_apply_active_injury_suppression(stats, injuries, report_entry)
+	_apply_recovery_updates(injuries, report_entry)
+	_apply_long_term_penalties(stats, potential, injuries, report_entry)
 
 		report["stat_entries"].append({
 			"stat": stat_name,
@@ -178,6 +196,9 @@ static func _apply_development(
 		})
 
 	player["stats"] = stats
+	player["potential"] = potential
+	player["injuries"] = injuries
+	_append_development_report(player, report_entry)
 	return report
 
 static func _apply_injury(
@@ -266,3 +287,145 @@ static func _stat_defs(stats_cfg: Dictionary) -> Dictionary:
 		if name != "":
 			out[name] = d
 	return out
+
+static func _normalized_injuries(player: Dictionary) -> Array:
+	var injuries: Array = player.get("injuries", []) as Array
+	var normalized: Array = []
+	normalized.resize(injuries.size())
+	for i in range(injuries.size()):
+		normalized[i] = _normalize_injury(injuries[i] as Dictionary)
+	return normalized
+
+static func _normalize_injury(injury: Dictionary) -> Dictionary:
+	var normalized := injury.duplicate(true)
+	normalized["type"] = String(injury.get("type", ""))
+	normalized["severity"] = float(injury.get("severity", 0.0))
+	normalized["affected_stats"] = (injury.get("affected_stats", []) as Array).duplicate()
+	var timeline: Dictionary = injury.get("recovery_timeline", {}) as Dictionary
+	var years_total := int(timeline.get("years_total", 0))
+	var years_remaining := int(timeline.get("years_remaining", years_total))
+	var status := String(timeline.get("status", "active"))
+	if years_remaining <= 0:
+		years_remaining = 0
+		status = "recovered"
+	normalized["recovery_timeline"] = {
+		"years_total": years_total,
+		"years_remaining": years_remaining,
+		"status": status
+	}
+	var long_term: Dictionary = injury.get("long_term_penalty", {}) as Dictionary
+	var stat_caps: Dictionary = (long_term.get("stat_caps", {}) as Dictionary).duplicate(true)
+	var decline_multipliers: Dictionary = (long_term.get("decline_multipliers", {}) as Dictionary).duplicate(true)
+	normalized["long_term_penalty"] = {
+		"stat_caps": stat_caps,
+		"decline_multipliers": decline_multipliers
+	}
+	return normalized
+
+static func _injury_decline_multipliers(injuries: Array) -> Dictionary:
+	var combined := {}
+	for injury_entry in injuries:
+		var injury: Dictionary = injury_entry
+		var timeline: Dictionary = injury.get("recovery_timeline", {}) as Dictionary
+		if String(timeline.get("status", "active")) != "recovered":
+			continue
+		var long_term: Dictionary = injury.get("long_term_penalty", {}) as Dictionary
+		var multipliers: Dictionary = long_term.get("decline_multipliers", {}) as Dictionary
+		for stat_name in multipliers.keys():
+			var existing := float(combined.get(stat_name, 1.0))
+			combined[stat_name] = existing * float(multipliers.get(stat_name, 1.0))
+	return combined
+
+static func _apply_active_injury_suppression(
+	stats: Dictionary,
+	injuries: Array,
+	report_entry: Dictionary
+) -> void:
+	var active_reports: Array = report_entry["injury_impacts"]["active"] as Array
+	for injury_entry in injuries:
+		var injury: Dictionary = injury_entry
+		var timeline: Dictionary = injury.get("recovery_timeline", {}) as Dictionary
+		if String(timeline.get("status", "active")) != "active":
+			continue
+		var years_remaining := int(timeline.get("years_remaining", 0))
+		if years_remaining <= 0:
+			continue
+		var severity := float(injury.get("severity", 0.0))
+		var suppression_mult := clamp(1.0 - (severity * INJURY_SUPPRESSION_PER_SEVERITY), 0.4, 1.0)
+		var suppressed := {}
+		for stat in (injury.get("affected_stats", []) as Array):
+			var stat_name := String(stat)
+			if not stats.has(stat_name):
+				continue
+			var before := float(stats.get(stat_name, 0.0))
+			var after := float(clamp(before * suppression_mult, 0.0, 100.0))
+			if after == before:
+				continue
+			stats[stat_name] = after
+			suppressed[stat_name] = {"before": before, "after": after}
+		if not suppressed.is_empty():
+			active_reports.append({
+				"type": injury.get("type", ""),
+				"severity": severity,
+				"affected_stats": (injury.get("affected_stats", []) as Array).duplicate(),
+				"suppressed_stats": suppressed,
+				"recovery_timeline": timeline.duplicate(true)
+			})
+
+static func _apply_recovery_updates(injuries: Array, report_entry: Dictionary) -> void:
+	for injury_entry in injuries:
+		var injury: Dictionary = injury_entry
+		var timeline: Dictionary = injury.get("recovery_timeline", {}) as Dictionary
+		if String(timeline.get("status", "active")) != "active":
+			continue
+		var years_remaining := int(timeline.get("years_remaining", 0))
+		if years_remaining <= 0:
+			continue
+		years_remaining = max(0, years_remaining - 1)
+		timeline["years_remaining"] = years_remaining
+		if years_remaining == 0:
+			timeline["status"] = "recovered"
+		injury["recovery_timeline"] = timeline
+
+static func _apply_long_term_penalties(
+	stats: Dictionary,
+	potential: Dictionary,
+	injuries: Array,
+	report_entry: Dictionary
+) -> void:
+	var recovered_reports: Array = report_entry["injury_impacts"]["recovered"] as Array
+	for injury_entry in injuries:
+		var injury: Dictionary = injury_entry
+		var timeline: Dictionary = injury.get("recovery_timeline", {}) as Dictionary
+		if String(timeline.get("status", "active")) != "recovered":
+			continue
+		var long_term: Dictionary = injury.get("long_term_penalty", {}) as Dictionary
+		var stat_caps: Dictionary = long_term.get("stat_caps", {}) as Dictionary
+		var decline_multipliers: Dictionary = long_term.get("decline_multipliers", {}) as Dictionary
+		var applied_caps := {}
+		for stat_name in stat_caps.keys():
+			var cap := float(stat_caps.get(stat_name, 100.0))
+			if stats.has(stat_name):
+				var before := float(stats.get(stat_name, 0.0))
+				var after := min(before, cap)
+				if after != before:
+					stats[stat_name] = after
+					applied_caps[stat_name] = {"before": before, "after": after, "cap": cap}
+			if potential.has(stat_name):
+				var pot_before := float(potential.get(stat_name, 0.0))
+				var pot_after := min(pot_before, cap)
+				if pot_after != pot_before:
+					potential[stat_name] = pot_after
+		if not applied_caps.is_empty() or not decline_multipliers.is_empty():
+			recovered_reports.append({
+				"type": injury.get("type", ""),
+				"severity": float(injury.get("severity", 0.0)),
+				"stat_caps_applied": applied_caps,
+				"decline_multipliers": decline_multipliers.duplicate(true),
+				"recovery_timeline": timeline.duplicate(true)
+			})
+
+static func _append_development_report(player: Dictionary, report_entry: Dictionary) -> void:
+	var report: Array = player.get("development_report", []) as Array
+	report.append(report_entry)
+	player["development_report"] = report

@@ -51,6 +51,9 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
+# --- Health / Lifecycle ---
+var injuries: Array[Dictionary] = []
+var development_report: Array[Dictionary] = []
 # --- Contract ---
 # Schema lives on the player to keep the roster state explicit and serializable.
 # Contract lifecycle is deterministic and replayable when the input decisions
@@ -130,6 +133,8 @@ func from_dict(d: Dictionary) -> void:
 	derived = (d.get("derived", derived) as Dictionary).duplicate(true)
 	traits = (d.get("traits", traits) as Array).duplicate()
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
+	injuries = (d.get("injuries", injuries) as Array).duplicate(true)
+	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
 	var contract_data: Dictionary = d.get("contract", {})
 	contract = _default_contract()
 	contract["current_year"] = int(contract_data.get("current_year", contract["current_year"]))
@@ -188,6 +193,8 @@ func to_dict() -> Dictionary:
 		"derived": derived.duplicate(true),
 		"traits": traits.duplicate(),
 		"hidden_traits": hidden_traits.duplicate(),
+		"injuries": injuries.duplicate(true),
+		"development_report": development_report.duplicate(true)
 		"contract": {
 			"current_year": contract_current_year,
 			"total_years": contract_total_years,
