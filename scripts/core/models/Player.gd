@@ -51,6 +51,17 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
+# --- Contract ---
+# Deterministic valuation markers must be persisted to avoid hidden randomness.
+@export var contract_current_year: int = 0
+@export var contract_total_years: int = 0
+@export var contract_annual_value: float = 0.0
+@export var contract_guaranteed: float = 0.0
+@export var contract_range_min: float = 0.0
+@export var contract_range_max: float = 0.0
+@export var contract_valuation_source: String = "" # e.g., valuation model ID
+@export var contract_valuation_seed: int = 0       # seed/reference for recomputation
+
 # =========================
 # Lifecycle / Utilities
 # =========================
@@ -104,6 +115,17 @@ func from_dict(d: Dictionary) -> void:
 	traits = (d.get("traits", traits) as Array).duplicate()
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
 
+	# Contract
+	var contract: Dictionary = d.get("contract", {})
+	contract_current_year = int(contract.get("current_year", contract_current_year))
+	contract_total_years = int(contract.get("total_years", contract_total_years))
+	contract_annual_value = float(contract.get("annual_value", contract_annual_value))
+	contract_guaranteed = float(contract.get("guaranteed", contract_guaranteed))
+	contract_range_min = float(contract.get("range_min", contract_range_min))
+	contract_range_max = float(contract.get("range_max", contract_range_max))
+	contract_valuation_source = String(contract.get("valuation_source", contract_valuation_source))
+	contract_valuation_seed = int(contract.get("valuation_seed", contract_valuation_seed))
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -139,7 +161,17 @@ func to_dict() -> Dictionary:
 		"potential": potential.duplicate(true),
 		"derived": derived.duplicate(true),
 		"traits": traits.duplicate(),
-		"hidden_traits": hidden_traits.duplicate()
+		"hidden_traits": hidden_traits.duplicate(),
+		"contract": {
+			"current_year": contract_current_year,
+			"total_years": contract_total_years,
+			"annual_value": contract_annual_value,
+			"guaranteed": contract_guaranteed,
+			"range_min": contract_range_min,
+			"range_max": contract_range_max,
+			"valuation_source": contract_valuation_source,
+			"valuation_seed": contract_valuation_seed
+		}
 	}
 
 # --- Derived stat recompute ---
