@@ -32,13 +32,22 @@ static var STARTER_SLOTS: Dictionary = {
 ## @param config: Configuration dictionary with optional keys:
 ##   - scarcity_min: Minimum multiplier (default 0.7)
 ##   - scarcity_max: Maximum multiplier (default 1.5)
+##   - starter_slots: Dictionary mapping position to number of starters needed per team
 ## @return: Scarcity multiplier (clamped between min and max)
 static func compute_scarcity_multiplier(
 	position: String,
 	players_above_replacement: int,
 	config: Dictionary
 ) -> float:
-	var slots := STARTER_SLOTS.get(position, 1) * 32
+	# Load starter slots from config, fall back to hardcoded STARTER_SLOTS
+	var starter_slots_config: Dictionary = config.get("starter_slots", {}) as Dictionary
+	var slots_per_team: int
+	if starter_slots_config.has(position):
+		slots_per_team = int(starter_slots_config.get(position, 1))
+	else:
+		slots_per_team = int(STARTER_SLOTS.get(position, 1))
+
+	var slots := slots_per_team * 32
 	var supply := float(players_above_replacement)
 	var demand := float(slots)
 

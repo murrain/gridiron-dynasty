@@ -1,19 +1,148 @@
 {
-  "version": "v1",
+  "version": 1,
+  "_comment": "Player valuation configuration - market value, replacement levels, scarcity, and team impact",
+
   "value_curve": {
+    "_comment": "Non-linear curve for converting evaluation scores to market values",
     "curve_type": "tiered_exponential",
     "base_value": 1.0,
     "tiers": [
-      {"min": 0, "max": 60, "multiplier": 0.5, "exponent": 1.0},
-      {"min": 60, "max": 75, "multiplier": 1.0, "exponent": 1.3},
-      {"min": 75, "max": 85, "multiplier": 2.0, "exponent": 1.8},
-      {"min": 85, "max": 92, "multiplier": 4.0, "exponent": 2.2},
-      {"min": 92, "max": 100, "multiplier": 10.0, "exponent": 3.0}
+      {
+        "_comment": "Below-average players (0-60): Low multiplier, linear growth",
+        "min": 0,
+        "max": 60,
+        "multiplier": 0.5,
+        "exponent": 1.0
+      },
+      {
+        "_comment": "Average to above-average players (60-75): Moderate exponential growth",
+        "min": 60,
+        "max": 75,
+        "multiplier": 1.0,
+        "exponent": 1.3
+      },
+      {
+        "_comment": "Good to very good players (75-85): Stronger exponential growth",
+        "min": 75,
+        "max": 85,
+        "multiplier": 2.0,
+        "exponent": 1.8
+      },
+      {
+        "_comment": "Excellent players (85-92): Sharp exponential growth",
+        "min": 85,
+        "max": 92,
+        "multiplier": 4.0,
+        "exponent": 2.2
+      },
+      {
+        "_comment": "Elite players (92-100): Extreme exponential growth - superstars are worth much more",
+        "min": 92,
+        "max": 100,
+        "multiplier": 10.0,
+        "exponent": 3.0
+      }
     ],
     "elite_threshold": 92,
-    "elite_multiplier_boost": 1.5
+    "_elite_threshold_comment": "Score at which elite multiplier boost is applied",
+    "elite_multiplier_boost": 1.5,
+    "_elite_multiplier_boost_comment": "Additional multiplier for elite players (92+)"
   },
+
+  "replacement_levels": {
+    "_comment": "Baseline talent available at league minimum cost by position. Lower values = harder to find quality replacements (scarce). Higher values = easier to replace (abundant).",
+    "QB": 55.0,
+    "_QB_comment": "Quarterbacks - scarce position, hard to find quality backups",
+    "RB": 62.0,
+    "_RB_comment": "Running backs - abundant position, easy to replace",
+    "WR": 58.0,
+    "_WR_comment": "Wide receivers - moderate scarcity",
+    "TE": 56.0,
+    "_TE_comment": "Tight ends - moderate scarcity",
+    "OL": 54.0,
+    "_OL_comment": "Offensive line - thin depth, hard to find quality replacements",
+    "DL": 57.0,
+    "_DL_comment": "Defensive line - moderate availability",
+    "EDGE": 52.0,
+    "_EDGE_comment": "Edge rushers - very scarce, elite pass rushers are rare",
+    "LB": 58.0,
+    "_LB_comment": "Linebackers - more available than premium positions",
+    "CB": 53.0,
+    "_CB_comment": "Cornerbacks - scarce position, good corners are hard to find",
+    "S": 57.0,
+    "_S_comment": "Safeties - moderately available",
+    "K": 65.0,
+    "_K_comment": "Kickers - very replaceable, abundant supply",
+    "P": 65.0,
+    "_P_comment": "Punters - very replaceable, abundant supply"
+  },
+
+  "scarcity": {
+    "_comment": "Supply/demand multipliers for positional scarcity. Calculated from starter slots needed vs available above-replacement players.",
+    "scarcity_min": 0.7,
+    "_scarcity_min_comment": "Minimum multiplier when supply exceeds demand (abundant position)",
+    "scarcity_max": 1.5,
+    "_scarcity_max_comment": "Maximum multiplier when demand exceeds supply (scarce position)",
+    "starter_slots": {
+      "_comment": "Number of starters needed per team at each position. Total demand = slots × 32 teams.",
+      "QB": 1,
+      "RB": 1,
+      "WR": 3,
+      "TE": 1,
+      "OL": 5,
+      "DL": 2,
+      "EDGE": 2,
+      "LB": 3,
+      "CB": 2,
+      "S": 2,
+      "K": 1,
+      "P": 1
+    }
+  },
+
+  "team_impact": {
+    "_comment": "Depth and positional importance for team-specific value. Measures how valuable a player is to their current team based on roster composition.",
+    "no_backup_multiplier": 1.4,
+    "_no_backup_multiplier_comment": "Value multiplier when team has no backup at the position (critical roster need)",
+    "thin_depth_multiplier": 1.15,
+    "_thin_depth_multiplier_comment": "Value multiplier when team has only one backup at the position",
+    "position_win_impacts": {
+      "_comment": "Win impact weight by position. Based on NFL analytics of how each position contributes to team success.",
+      "QB": 2.5,
+      "_QB_comment": "Quarterback has outsized impact on wins - most important position",
+      "EDGE": 1.4,
+      "_EDGE_comment": "Elite pass rushers significantly impact wins",
+      "CB": 1.3,
+      "_CB_comment": "Cornerbacks are critical in pass-heavy league",
+      "WR": 1.2,
+      "_WR_comment": "Wide receivers are important offensive weapons",
+      "OL": 1.1,
+      "_OL_comment": "Offensive line is foundational but less visible",
+      "DL": 1.1,
+      "_DL_comment": "Defensive line anchors run defense",
+      "LB": 1.0,
+      "_LB_comment": "Linebackers are solid contributors",
+      "S": 0.95,
+      "_S_comment": "Safeties are versatile but less impactful than CBs",
+      "TE": 0.9,
+      "_TE_comment": "Tight ends are useful but not game-changing",
+      "RB": 0.8,
+      "_RB_comment": "Running backs are more replaceable in modern game",
+      "K": 0.5,
+      "_K_comment": "Kickers have minimal impact on wins (except clutch moments)",
+      "P": 0.4,
+      "_P_comment": "Punters have minimal impact on wins (field position matters less)"
+    }
+  },
+
+  "market": {
+    "_comment": "Contract range variance for negotiation. Determines how much contract offers can vary around estimated value.",
+    "range_spread_pct": 0.15,
+    "_range_spread_pct_comment": "Contract range = est_value ± (est_value × 0.15). A player worth $10M would have range $8.5M-$11.5M."
+  },
+
   "position_premiums": {
+    "_comment": "DEPRECATED: Use position_weights in contract_valuation.json. Kept for backward compatibility with ContractValuation.gd.",
     "QB": 1.35,
     "WR": 1.15,
     "RB": 1.05,
@@ -28,6 +157,8 @@
     "ATH": 1.00,
     "DEFAULT": 1.00
   },
+
+  "_age_multipliers_comment": "DEPRECATED: Use age_multipliers in contract_valuation.json. Array format kept for backward compatibility with ContractValuation.gd.",
   "age_multipliers": [
     { "min": 18, "max": 20, "mult": 1.12 },
     { "min": 21, "max": 24, "mult": 1.05 },
@@ -36,32 +167,19 @@
     { "min": 31, "max": 34, "mult": 0.80 },
     { "min": 35, "max": 50, "mult": 0.65 }
   ],
+
   "current_vs_potential": {
+    "_comment": "DEPRECATED: Contract blending of current vs potential stats. Kept for backward compatibility with ContractValuation.gd.",
     "current_weight": 0.65,
     "potential_weight": 0.35
   },
+
   "score_to_value": {
+    "_comment": "DEPRECATED: Simple linear score-to-value conversion. Use value_curve instead. Kept for backward compatibility.",
     "base": 0.0,
     "per_point": 1.0
   },
-  "range_spread_pct": 0.18,
+
   "jitter_sigma_pct": 0.02,
-  "team_impact": {
-    "no_backup_multiplier": 1.4,
-    "thin_depth_multiplier": 1.15,
-    "position_win_impacts": {
-      "QB": 2.5,
-      "EDGE": 1.4,
-      "CB": 1.3,
-      "WR": 1.2,
-      "OL": 1.1,
-      "DL": 1.1,
-      "LB": 1.0,
-      "S": 0.95,
-      "TE": 0.9,
-      "RB": 0.8,
-      "K": 0.5,
-      "P": 0.4
-    }
-  }
+  "_jitter_sigma_pct_comment": "DEPRECATED: Random variance for contract values. Kept for backward compatibility with ContractValuation.gd."
 }

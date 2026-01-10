@@ -1,77 +1,248 @@
 {
+  "version": 2,
+  "_comment": "Contract generation and valuation settings. Controls how contracts are structured based on player quality, age, and market conditions.",
+
+  "age_multipliers": {
+    "_comment": "Age impact on contract value. Peak years (25-27) = 1.0. Young players get slight discount for inexperience, older players get discounts for declining skills.",
+    "22": 0.85,
+    "_22_comment": "Age 22 - rookie/second year, still developing (15% discount)",
+    "23": 0.90,
+    "_23_comment": "Age 23 - third year, emerging (10% discount)",
+    "24": 0.95,
+    "_24_comment": "Age 24 - entering prime (5% discount)",
+    "25": 1.00,
+    "_25_comment": "Age 25 - peak years begin (no discount)",
+    "26": 1.00,
+    "_26_comment": "Age 26 - peak performance (no discount)",
+    "27": 1.00,
+    "_27_comment": "Age 27 - still in peak (no discount)",
+    "28": 0.95,
+    "_28_comment": "Age 28 - beginning decline (5% discount)",
+    "29": 0.90,
+    "_29_comment": "Age 29 - noticeable decline (10% discount)",
+    "30": 0.80,
+    "_30_comment": "Age 30 - clear decline (20% discount)",
+    "31": 0.70,
+    "_31_comment": "Age 31 - significant decline (30% discount)",
+    "32": 0.60,
+    "_32_comment": "Age 32 - veteran on downswing (40% discount)",
+    "33": 0.50,
+    "_33_comment": "Age 33 - aging veteran (50% discount)",
+    "34+": 0.40,
+    "_34+_comment": "Age 34+ - late career, high injury risk (60% discount)"
+  },
+
+  "contract_lengths": {
+    "_comment": "Typical contract lengths by player quality. Elite players get longer deals with more security, backups get short-term contracts.",
+    "elite": {
+      "_comment": "Elite players (90+ rating): Long-term deals to lock up franchise cornerstones",
+      "min": 4,
+      "max": 6
+    },
+    "starter": {
+      "_comment": "Quality starters (75-89 rating): Multi-year deals with team control",
+      "min": 3,
+      "max": 5
+    },
+    "backup": {
+      "_comment": "Backup quality (60-74 rating): Short-term depth contracts",
+      "min": 1,
+      "max": 3
+    },
+    "minimum": {
+      "_comment": "Below replacement level (<60 rating): Year-to-year minimum deals",
+      "min": 1,
+      "max": 1
+    }
+  },
+
+  "guarantees": {
+    "_comment": "Guaranteed money percentage by player tier. Elite players get more security, backups get minimal guarantees.",
+    "elite": 0.70,
+    "_elite_comment": "Elite players: 70% guaranteed (e.g., $60M deal = $42M guaranteed)",
+    "starter": 0.50,
+    "_starter_comment": "Starters: 50% guaranteed (e.g., $30M deal = $15M guaranteed)",
+    "backup": 0.25,
+    "_backup_comment": "Backups: 25% guaranteed (e.g., $3M deal = $750K guaranteed)",
+    "minimum": 0.10,
+    "_minimum_comment": "Minimum contracts: 10% guaranteed (minimal risk for team)"
+  },
+
+  "rookie_scale": {
+    "_comment": "Rookie contract values by draft pick. Overrides market value calculations for drafted players. All rookie deals are 4 years.",
+    "enabled": true,
+    "_enabled_comment": "When true, drafted players use rookie scale instead of market value",
+    "round_1_apy": 8.0,
+    "_round_1_apy_comment": "Round 1 picks: $8M average per year (top talent, premium compensation)",
+    "round_2_apy": 3.0,
+    "_round_2_apy_comment": "Round 2 picks: $3M average per year (solid value picks)",
+    "round_3_apy": 1.5,
+    "_round_3_apy_comment": "Round 3 picks: $1.5M average per year (developmental players)",
+    "round_4_apy": 1.0,
+    "_round_4_apy_comment": "Round 4 picks: $1M average per year (depth and competition)",
+    "round_5_apy": 0.8,
+    "_round_5_apy_comment": "Round 5 picks: $800K average per year (long shots)",
+    "round_6_apy": 0.7,
+    "_round_6_apy_comment": "Round 6 picks: $700K average per year (practice squad candidates)",
+    "round_7_apy": 0.6,
+    "_round_7_apy_comment": "Round 7 picks: $600K average per year (minimum salary range)",
+    "years": 4,
+    "_years_comment": "All rookie contracts are 4 years (with 5th year option for round 1 picks - not yet implemented)"
+  },
+
   "eval_source": "ScoutRuntime.score_player",
-  "eval_score_bounds": { "min": 0.0, "max": 100.0 },
-  "base_range_curve": [
-    { "min": 0.0, "max": 39.9, "range_min": 0.30, "range_max": 0.70 },
-    { "min": 40.0, "max": 54.9, "range_min": 0.70, "range_max": 1.50 },
-    { "min": 55.0, "max": 69.9, "range_min": 1.50, "range_max": 3.00 },
-    { "min": 70.0, "max": 79.9, "range_min": 3.00, "range_max": 5.50 },
-    { "min": 80.0, "max": 89.9, "range_min": 5.50, "range_max": 8.00 },
-    { "min": 90.0, "max": 100.0, "range_min": 8.00, "range_max": 12.00 }
-  ],
+  "_eval_source_comment": "Source of evaluation scores for contract valuation (composite 0-100 score)",
+
+  "eval_score_bounds": {
+    "_comment": "Valid range for evaluation scores",
+    "min": 0.0,
+    "max": 100.0
+  },
+
+  "base_range_curve": {
+    "_comment": "Base contract value ranges by evaluation score. Used as foundation before position/age/market adjustments.",
+    "ranges": [
+      {
+        "_comment": "Poor quality (0-39.9): Below replacement level, minimum contracts",
+        "min": 0.0,
+        "max": 39.9,
+        "range_min": 0.30,
+        "range_max": 0.70
+      },
+      {
+        "_comment": "Below average (40-54.9): Practice squad to roster bubble",
+        "min": 40.0,
+        "max": 54.9,
+        "range_min": 0.70,
+        "range_max": 1.50
+      },
+      {
+        "_comment": "Average (55-69.9): Backup to fringe starter quality",
+        "min": 55.0,
+        "max": 69.9,
+        "range_min": 1.50,
+        "range_max": 3.00
+      },
+      {
+        "_comment": "Above average (70-79.9): Quality starters",
+        "min": 70.0,
+        "max": 79.9,
+        "range_min": 3.00,
+        "range_max": 5.50
+      },
+      {
+        "_comment": "Very good (80-89.9): Pro Bowl caliber",
+        "min": 80.0,
+        "max": 89.9,
+        "range_min": 5.50,
+        "range_max": 8.00
+      },
+      {
+        "_comment": "Elite (90-100): All-Pro and MVP candidates",
+        "min": 90.0,
+        "max": 100.0,
+        "range_min": 8.00,
+        "range_max": 12.00
+      }
+    ]
+  },
+
   "position_tiers": {
+    "_comment": "Position groupings for contract valuation. Premium positions get paid more than core positions.",
     "premium": ["QB", "EDGE", "CB", "WR"],
+    "_premium_comment": "Premium positions: highest paid due to scarcity and impact",
     "core": ["OL", "DL", "LB", "S", "TE", "RB"],
-    "specialist": ["K", "P"]
+    "_core_comment": "Core positions: solid contributors, moderate pay",
+    "specialist": ["K", "P"],
+    "_specialist_comment": "Specialists: lowest paid, limited impact on wins"
   },
+
   "position_weights": {
+    "_comment": "Position multipliers for contract value. Applied after base value calculation.",
     "QB": 1.35,
+    "_QB_comment": "Quarterbacks get 35% premium (most important position)",
     "EDGE": 1.25,
+    "_EDGE_comment": "Edge rushers get 25% premium (elite pass rushers are game-changers)",
     "CB": 1.20,
+    "_CB_comment": "Cornerbacks get 20% premium (critical in pass-heavy league)",
     "WR": 1.20,
+    "_WR_comment": "Wide receivers get 20% premium (offensive weapons)",
     "OL": 1.05,
+    "_OL_comment": "Offensive line gets 5% premium (foundational but undervalued)",
     "DL": 1.05,
+    "_DL_comment": "Defensive line gets 5% premium (run defense anchor)",
     "LB": 1.00,
+    "_LB_comment": "Linebackers are baseline (no adjustment)",
     "S": 0.95,
+    "_S_comment": "Safeties get 5% discount (less valued than CBs)",
     "TE": 0.95,
+    "_TE_comment": "Tight ends get 5% discount (hybrid role, limited impact)",
     "RB": 0.90,
+    "_RB_comment": "Running backs get 10% discount (replaceable in modern NFL)",
     "K": 0.60,
-    "P": 0.60
+    "_K_comment": "Kickers get 40% discount (specialist, minimal impact)",
+    "P": 0.60,
+    "_P_comment": "Punters get 40% discount (specialist, minimal impact)"
   },
-  "age_multipliers": [
-    { "min": 18, "max": 21, "mult": 1.15 },
-    { "min": 22, "max": 25, "mult": 1.05 },
-    { "min": 26, "max": 29, "mult": 1.00 },
-    { "min": 30, "max": 32, "mult": 0.90 },
-    { "min": 33, "max": 40, "mult": 0.75 }
-  ],
+
   "potential_delta": {
+    "_comment": "Adjustments for young players with high potential vs current performance",
     "use_position_core_stats": true,
+    "_use_position_core_stats_comment": "When true, only use position-relevant stats for potential calculation",
     "young_age_max": 22,
+    "_young_age_max_comment": "Players 22 and under are considered 'young' for potential bonus",
     "old_age_min": 28,
+    "_old_age_min_comment": "Players 28+ are considered 'old' for potential penalty",
     "weight_curve": [
-      { "age": 18, "weight": 0.65 },
-      { "age": 22, "weight": 0.55 },
-      { "age": 26, "weight": 0.35 },
-      { "age": 30, "weight": 0.15 }
+      {
+        "_comment": "Age 18: Heavy weight on potential (prospects with lots of room to grow)",
+        "age": 18,
+        "weight": 0.65
+      },
+      {
+        "_comment": "Age 22: Moderate weight on potential (young players still developing)",
+        "age": 22,
+        "weight": 0.55
+      },
+      {
+        "_comment": "Age 26: Light weight on potential (prime years, mostly developed)",
+        "age": 26,
+        "weight": 0.35
+      },
+      {
+        "_comment": "Age 30+: Minimal weight on potential (veterans are what they are)",
+        "age": 30,
+        "weight": 0.15
+      }
     ],
     "delta_scale": 0.60,
+    "_delta_scale_comment": "How much potential difference affects value (0.60 = 60% of difference)",
     "max_bonus_pct": 0.20,
-    "max_penalty_pct": -0.15
+    "_max_bonus_pct_comment": "Maximum upside bonus for high-potential young players (20% boost)",
+    "max_penalty_pct": -0.15,
+    "_max_penalty_pct_comment": "Maximum downside penalty for low-potential veterans (15% reduction)"
   },
+
   "range_spread": {
+    "_comment": "Contract negotiation range around estimated value",
     "min_pct": 0.90,
-    "max_pct": 1.10
+    "_min_pct_comment": "Minimum offer = 90% of estimated value",
+    "max_pct": 1.10,
+    "_max_pct_comment": "Maximum offer = 110% of estimated value"
   },
+
   "range_jitter": {
+    "_comment": "Optional randomization of contract ranges for realism",
     "enabled": false,
+    "_enabled_comment": "When true, adds small random variation to contract ranges",
     "pct": 0.04,
+    "_pct_comment": "Jitter amount (4% variance)",
     "apply_to": ["range_min", "range_max"],
-    "rng_source": "passed_in"
+    "_apply_to_comment": "Which values get jittered",
+    "rng_source": "passed_in",
+    "_rng_source_comment": "RNG must be passed in for determinism"
   },
+
   "currency_unit": "cap_units",
-  "replacement_levels": {
-    "QB": 55.0,
-    "RB": 62.0,
-    "WR": 58.0,
-    "TE": 56.0,
-    "OL": 54.0,
-    "DL": 57.0,
-    "EDGE": 52.0,
-    "LB": 58.0,
-    "CB": 53.0,
-    "S": 57.0,
-    "K": 65.0,
-    "P": 65.0
-  }
+  "_currency_unit_comment": "Unit of currency for all contract values (abstract cap units, not real dollars)"
 }
