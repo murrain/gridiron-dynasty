@@ -9,14 +9,22 @@ static func advance_years(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary = {}
 ) -> Dictionary:
 	var active: Array = players.duplicate()
 	var retired_all: Array = []
 	var rng_use := rng
 
 	for _year in range(max(0, years)):
-		var result := advance_one_year(active, positions_cfg, main_cfg, stats_cfg, rng_use)
+		var result := advance_one_year(
+			active,
+			positions_cfg,
+			main_cfg,
+			stats_cfg,
+			rng_use,
+			development_context
+		)
 		retired_all.append_array(result.get("retired", []))
 		active = (result.get("players", []) as Array).filter(func(p): return p != null)
 
@@ -27,38 +35,63 @@ static func advance_one_year(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary = {}
 ) -> Dictionary:
 	var rng_use := rng
 
 	var updated: Array = []
 	var retired: Array = []
+	var development_reports: Array = []
 	updated.resize(players.size())
+	development_reports.resize(players.size())
 
 	for i in players.size():
 		var p: Dictionary = players[i]
 		if p == null:
 			updated[i] = p
+			development_reports[i] = {}
 			continue
-		var evolved := _advance_player_one_year(p, positions_cfg, main_cfg, stats_cfg, rng_use)
+		var evolved := _advance_player_one_year(
+			p,
+			positions_cfg,
+			main_cfg,
+			stats_cfg,
+			rng_use,
+			development_context
+		)
 		if evolved.get("retired", false):
 			retired.append(evolved.get("player", p))
 			updated[i] = null
 		else:
 			updated[i] = evolved.get("player", p)
+		development_reports[i] = evolved.get("development_report", {})
 
-	return {"players": updated, "retired": retired}
+	return {
+		"players": updated,
+		"retired": retired,
+		"development_reports": development_reports
+	}
 
 static func _advance_player_one_year(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	development_context: Dictionary
 ) -> Dictionary:
 	var p := player.duplicate(true)
 	p["age"] = int(p.get("age", 18)) + 1
 
+	var development_report := _apply_development(
+		p,
+		positions_cfg,
+		main_cfg,
+		stats_cfg,
+		rng,
+		development_context
+	)
 	var wear_snapshot := _update_wear(p, positions_cfg, main_cfg)
 	var dev_report := _apply_development(p, positions_cfg, main_cfg, stats_cfg, rng)
 	_append_development_report(p, wear_snapshot, dev_report)
@@ -68,9 +101,17 @@ static func _advance_player_one_year(
 	p["injury_report"] = injury_report
 
 	if _should_retire(p, positions_cfg, main_cfg, rng):
-		return {"player": p, "retired": true}
+		return {
+			"player": p,
+			"retired": true,
+			"development_report": development_report
+		}
 
-	return {"player": p, "retired": false}
+	return {
+		"player": p,
+		"retired": false,
+		"development_report": development_report
+	}
 
 static func _apply_development(
 	player: Dictionary,
@@ -120,6 +161,9 @@ static func _apply_development(
 	var stats: Dictionary = player.get("stats", {}) as Dictionary
 	var potential: Dictionary = player.get("potential", stats) as Dictionary
 	var stat_defs: Dictionary = _stat_defs(stats_cfg)
+	var modifiers := _development_modifiers(development_context)
+	var combined_multiplier := _combined_multiplier(modifiers)
+	var report := {}
 	var wear_multiplier := 1.0
 	if age >= decline_start:
 		wear_multiplier = _wear_decline_multiplier(player, main_cfg)
@@ -171,7 +215,26 @@ static func _apply_development(
 			continue
 
 		var delta := 0.0
+		var stage := ""
 		if age < peak_age:
+			delta = rng.randf_range(base_min, base_max) * growth_mult
+			stage = "growth"
+		elif age < decline_start:
+			delta = rng.randf_range(prime_min, prime_max) * prime_mult
+			stage = "prime"
+		else:
+			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
+			stage = "decline"
+
+		var base_delta := delta
+		delta *= combined_multiplier
+		delta = clamp(delta, -cap, cap)
+		report[stat_name] = {
+			"stage": stage,
+			"base_delta": base_delta,
+			"modifiers": modifiers.duplicate(true),
+			"final_delta": delta
+		}
 			delta = rng.randf_range(base_min, base_max) * growth_mult * context_growth
 		elif age < decline_start:
 			delta = rng.randf_range(prime_min, prime_max) * prime_mult * context_prime
@@ -232,6 +295,22 @@ static func _apply_development(
 		})
 
 	player["stats"] = stats
+	return report
+
+static func _development_modifiers(development_context: Dictionary) -> Dictionary:
+	return {
+		"program_quality": float(development_context.get("program_quality", 1.0)),
+		"coach_specialization": float(development_context.get("coach_specialization", 1.0)),
+		"usage": float(development_context.get("usage", 1.0)),
+		"competition_tier": float(development_context.get("competition_tier", 1.0)),
+		"rehab_quality": float(development_context.get("rehab_quality", 1.0))
+	}
+
+static func _combined_multiplier(modifiers: Dictionary) -> float:
+	var combined := 1.0
+	for value in modifiers.values():
+		combined *= float(value)
+	return combined
 	return {"decline_multiplier": wear_multiplier}
 
 static func _update_wear(
