@@ -186,7 +186,14 @@ func _build_board(
 	for i in range(recruits.size()):
 		var recruit: Dictionary = recruits[i]
 		var player_id := String(recruit.get("player_id", ""))
-		var scout_score: float = float(scout.score_player(recruit, positions_cfg, stats_cfg, class_rules, rng))
+		# Direct evaluation (no caching - each college has unique scout, 0% hit rate)
+		var scout_score: float = scout.score_player(
+			recruit,
+			positions_cfg,
+			stats_cfg,
+			class_rules,
+			rng
+		)
 		var base_score: float = float(baseline_scores.get(player_id, 0.0))
 		var combined_rating: float = (
 			scout_score * scout_weight + base_score * baseline_weight
