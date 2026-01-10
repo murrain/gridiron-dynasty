@@ -51,6 +51,16 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
+# --- Contract ---
+# Schema lives on the player to keep the roster state explicit and serializable.
+# Contract lifecycle is deterministic and replayable when the input decisions
+# are logged; do not derive hidden randomness at mutation time.
+# - Signing: set current_year = 1 and total_years > 0 with explicit values for
+#   annual_value/guaranteed/range_min/range_max and the source_eval_id.
+# - Extension: update total_years and financial fields explicitly; never
+#   increment current_year implicitly.
+# - Release: clear current_year/total_years and zero out financials explicitly.
+@export var contract: Dictionary = {}
 # --- Contracts ---
 var contract: Dictionary = {}                 # contract/valuation payloads
 # --- Contract ---
@@ -67,6 +77,9 @@ var contract: Dictionary = {}                 # contract/valuation payloads
 # =========================
 # Lifecycle / Utilities
 # =========================
+
+func _init() -> void:
+	contract = _default_contract()
 
 func get_full_name() -> String:
 	return ("%s %s" % [first_name, last_name]).strip_edges()
@@ -117,6 +130,15 @@ func from_dict(d: Dictionary) -> void:
 	derived = (d.get("derived", derived) as Dictionary).duplicate(true)
 	traits = (d.get("traits", traits) as Array).duplicate()
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
+	var contract_data: Dictionary = d.get("contract", {})
+	contract = _default_contract()
+	contract["current_year"] = int(contract_data.get("current_year", contract["current_year"]))
+	contract["total_years"] = int(contract_data.get("total_years", contract["total_years"]))
+	contract["annual_value"] = float(contract_data.get("annual_value", contract["annual_value"]))
+	contract["guaranteed"] = float(contract_data.get("guaranteed", contract["guaranteed"]))
+	contract["range_min"] = float(contract_data.get("range_min", contract["range_min"]))
+	contract["range_max"] = float(contract_data.get("range_max", contract["range_max"]))
+	contract["source_eval_id"] = String(contract_data.get("source_eval_id", contract["source_eval_id"]))
 
 	# Contract
 	var contract: Dictionary = d.get("contract", {})
@@ -218,6 +240,17 @@ func _build_formula_scope() -> Dictionary:
 		"shuttle20": twenty_yd_shuttle_s, "cone3": three_cone_s, "shuttle60": sixty_yd_shuttle_s,
 		# stats (merge)
 		"stats": stats
+	}
+
+func _default_contract() -> Dictionary:
+	return {
+		"current_year": 0,
+		"total_years": 0,
+		"annual_value": 0.0,
+		"guaranteed": 0.0,
+		"range_min": 0.0,
+		"range_max": 0.0,
+		"source_eval_id": ""
 	}
 
 # Very tiny formula interpreter just for placeholders; replace with your own expression engine.
