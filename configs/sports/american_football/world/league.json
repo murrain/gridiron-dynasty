@@ -1,4 +1,25 @@
 {
-  "version": 1,
-  "cap_limit": 200.0
+  "version": 2,
+  "cap_limit": 200.0,
+  "team_count": 32,
+  "name_format": "Team %03d",
+  "regions": [
+    {"id": "afc_east", "weight": 0.125},
+    {"id": "afc_north", "weight": 0.125},
+    {"id": "afc_south", "weight": 0.125},
+    {"id": "afc_west", "weight": 0.125},
+    {"id": "nfc_east", "weight": 0.125},
+    {"id": "nfc_north", "weight": 0.125},
+    {"id": "nfc_south", "weight": 0.125},
+    {"id": "nfc_west", "weight": 0.125}
+  ],
+  "roster_limits": {
+    "active": 53,
+    "practice_squad": 16,
+    "injured_reserve": 15
+  },
+  "draft": {
+    "rounds": 7,
+    "picks_per_round": 32
+  }
 }
