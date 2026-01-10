@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "school_count": 420,
   "default_capacity": 125,
   "name_format": "HS %04d",
@@ -15,6 +15,21 @@
     {"id": "avg", "min": 55.0, "max": 72.0, "weight": 0.52},
     {"id": "low", "min": 35.0, "max": 55.0, "weight": 0.20}
   ],
+  "program_quality": {
+    "default_dev_multiplier": 1.0,
+    "tiers": [
+      {"id": "elite", "label": "Elite", "dev_multiplier": 1.1, "weight": 0.08},
+      {"id": "good", "label": "Good", "dev_multiplier": 1.04, "weight": 0.24},
+      {"id": "avg", "label": "Average", "dev_multiplier": 1.0, "weight": 0.52},
+      {"id": "low", "label": "Low", "dev_multiplier": 0.96, "weight": 0.16}
+    ]
+  },
+  "specialist_coach_chance": 0.05,
+  "position_specialists": {
+    "OL": 1.15,
+    "DL": 1.12,
+    "QB": 1.1
+  },
   "eligibility": {
     "hs_years": 4,
     "underclass_years": 2
@@ -35,5 +50,27 @@
     "school_eliteness_weight": 0.22,
     "noise_min": -8.0,
     "noise_max": 8.0
+  },
+  "usage_profile": {
+    "games_played_min": 8,
+    "games_played_max": 12,
+    "snaps_min": 150,
+    "snaps_max": 650,
+    "starter_chance": 0.35
+  },
+  "competition": {
+    "default_tier": "avg",
+    "region_tiers": {
+      "south": "elite",
+      "midwest": "good",
+      "west": "avg",
+      "northeast": "good"
+    },
+    "tier_growth_multipliers": {
+      "elite": 1.06,
+      "good": 1.03,
+      "avg": 1.00,
+      "low": 0.97
+    }
   }
 }
