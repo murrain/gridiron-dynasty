@@ -1,10 +1,10 @@
-## Dry-run scene helper to bootstrap a pro-level player pool and summarize output.
+## Dry-run scene helper to bootstrap a full game world and summarize output.
 extends Node
 class_name BootstrapPreview
 
-const BootstrapWorld = preload("res://scripts/pipelines/BootstrapWorld.gd")
+const BootstrapGameWorld = preload("res://scripts/pipelines/BootstrapGameWorld.gd")
 
-const DEFAULT_YEARS_BACK: int = 20
+const DEFAULT_YEARS_TO_SIMULATE: int = 20
 
 class OutputConfig:
 	extends Resource
@@ -14,7 +14,7 @@ class OutputConfig:
 	@export var clear_on_run: bool = true
 	@export var max_lines: int = 0
 
-@export var years_back: int = DEFAULT_YEARS_BACK
+@export var years_to_simulate: int = DEFAULT_YEARS_TO_SIMULATE
 @export var output_label_path: NodePath = NodePath("OutputPanel/OutputScroll/OutputText")
 @export var output_config: OutputConfig = OutputConfig.new()
 
@@ -28,24 +28,31 @@ func run() -> Dictionary:
 	if output_label != null and output_config.clear_on_run:
 		output_label.clear()
 
-	var bootstrap := BootstrapWorld.new()
-	bootstrap.years_back = max(1, years_back)
+	var bootstrap := BootstrapGameWorld.new()
+	bootstrap.years_to_simulate = max(1, years_to_simulate)
 	var result := bootstrap.run()
 
-	var active_players: Array = result.get("active_players", []) as Array
-	var retired_players: Array = result.get("retired_players", []) as Array
-	var classes: Array = result.get("classes", []) as Array
-	var current_year := int(result.get("current_year", 0))
+	var summary: Dictionary = result.get("summary", {}) as Dictionary
+	var start_year := int(result.get("start_year", 0))
+	var first_year := int(result.get("first_year", 0))
+	var years_simulated := int(result.get("years_simulated", 0))
 
-	_emit_output("🏈 Bootstrapped pro pool through %d seasons." % bootstrap.years_back)
-	_emit_output("Current year: %d" % current_year)
-	_emit_output("Active players: %d" % active_players.size())
-	_emit_output("Retired players: %d" % retired_players.size())
-	_emit_output("Classes generated: %d" % classes.size())
-
-	var range := _class_year_range(classes)
-	if range.size() == 2:
-		_emit_output("Class years: %d → %d" % [int(range[0]), int(range[1])])
+	_emit_output("Bootstrapped game world (%d years)" % years_simulated)
+	_emit_output("Simulated years: %d -> %d" % [first_year, start_year])
+	_emit_output("")
+	_emit_output("HS Schools: %d | HS Players: %d" % [
+		int(summary.get("hs_schools", 0)),
+		int(summary.get("hs_players", 0))
+	])
+	_emit_output("Colleges: %d | College Players: %d" % [
+		int(summary.get("colleges", 0)),
+		int(summary.get("college_rosters", 0))
+	])
+	_emit_output("NFL Teams: %d | NFL Players: %d" % [
+		int(summary.get("nfl_teams", 0)),
+		int(summary.get("nfl_players", 0))
+	])
+	_emit_output("Retired: %d" % int(summary.get("retired_players", 0)))
 
 	return result
 
@@ -77,17 +84,3 @@ func _trim_output_lines() -> void:
 	buffer = buffer.slice(excess, buffer.size())
 	output_label.clear()
 	output_label.append_text("\n".join(buffer) + "\n")
-
-func _class_year_range(classes: Array) -> Array:
-	if classes.is_empty():
-		return []
-	var min_year := INF
-	var max_year := -INF
-	for entry in classes:
-		var row: Dictionary = entry
-		var year := int(row.get("year", 0))
-		min_year = min(min_year, year)
-		max_year = max(max_year, year)
-	if min_year == INF or max_year == -INF:
-		return []
-	return [min_year, max_year]
