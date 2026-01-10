@@ -1,81 +1,47 @@
-# WorldBootstrap Duplicate Class Resolution
+# WorldBootstrap Duplicate Class Resolution ✅ RESOLVED
 
 **Created**: 2026-01-10
-**Status**: Proposed
-**Priority**: High (blocks scene loading)
+**Status**: ✅ Resolved (January 2026, PR #65)
+**Resolution**: Removed both legacy files, migrated to BootstrapGameWorld
 
-## Current Issue
+---
 
-When opening any scene in Godot, compilation fails with 4 errors:
-1. **Line 2**: Class "WorldBootstrap" hides a global script class
-2. **Line 9**: Preload file "res://scripts/rating/RecruitRater.gd" does not exist
-3. **Line 96**: Too few arguments for "generate_class()" call. Expected at least 3 but received 2
-4. **Line 97**: Cannot infer the type of "rater" variable
+## Original Issue
 
-## Root Cause
+When opening scenes in Godot, compilation failed with 4 errors:
+1. Class "WorldBootstrap" hides a global script class
+2. Preload file "res://scripts/rating/RecruitRater.gd" does not exist
+3. Too few arguments for "generate_class()" call
+4. Cannot infer type of "rater" variable
 
-Two files define `class_name WorldBootstrap`:
-- `systems/WorldBootstrap.gd` (line 2)
-- `scripts/world/WorldBootstrap.gd` (line 2)
+### Root Cause
 
-Both files have identical compilation errors:
-- Wrong RecruitRater path: `scripts/rating/RecruitRater.gd` → should be `scripts/core/rating/RecruitRater.gd`
-- Missing RNG parameter: `gen.generate_class(count, gaussian_share)` → needs 3rd argument `rng`
-- Type inference fails for `rater` variable due to failed RecruitRater preload
+Two files defined `class_name WorldBootstrap`:
+- `systems/WorldBootstrap.gd` (line 2) - Original implementation
+- `scripts/world/WorldBootstrap.gd` (line 2) - Refactored version
 
-## Architecture Context
+Both had identical errors:
+- Wrong RecruitRater path
+- Missing RNG parameter in generate_class()
+- Failed type inference from broken preload
 
-**Legacy implementations** (both broken):
-- `systems/WorldBootstrap.gd` - Original bootstrap with global Config
-- `scripts/world/WorldBootstrap.gd` - Refactored bootstrap, still uses global Config
+---
 
-**Current canonical implementation** (Track D):
-- `scripts/pipelines/BootstrapGameWorld.gd` - Multi-year orchestrator
-- `scripts/pipelines/AdvanceWorldYear.gd` - Single year advancement
-- Uses `ConfigService` instances (proper architecture)
-- Deterministic seed derivation with explicit RNG threading
+## Resolution Implemented
 
-**Current usage of legacy WorldBootstrap**:
-- Only `scenes/BootstrapPreview.gd` references it (line 4)
-- Explicitly preloads `scripts/world/WorldBootstrap.gd`
-- Scene files: `bootstrap_preview.tscn`, `world_bootstrap.tscn`
+### Option 2 (Chosen): Architectural Migration
 
-## Recommended Resolution
+**Actions Taken**:
 
-### Option 1: Minimal Fix (Quick Unblock)
-
-**Goal**: Fix compilation errors to allow scene loading
-
-**Actions**:
-1. Remove `class_name WorldBootstrap` from `systems/WorldBootstrap.gd` (make it anonymous)
-2. Keep `class_name WorldBootstrap` in `scripts/world/WorldBootstrap.gd` only
-3. Fix RecruitRater path in both files: `scripts/core/rating/RecruitRater.gd`
-4. Fix generate_class calls to include RNG parameter
-
-**Pros**:
-- Quick fix (~5 minutes)
-- Unblocks scene loading immediately
-- Preserves existing BootstrapPreview functionality
-
-**Cons**:
-- Doesn't address architectural debt
-- Leaves deprecated code in place
-- May confuse future developers
-
-### Option 2: Architectural Migration (Recommended)
-
-**Goal**: Migrate to new BootstrapGameWorld architecture, deprecate legacy files
-
-**Actions**:
-
-#### Phase 1: Migrate BootstrapPreview.gd
+#### Phase 1: Migrate BootstrapPreview
+✅ Updated `scenes/BootstrapPreview.gd`:
 ```gdscript
-# Before (scenes/BootstrapPreview.gd)
+# Before (broken)
 const WorldBootstrap = preload("res://scripts/world/WorldBootstrap.gd")
 var wb := WorldBootstrap.new()
 wb.bootstrap_once()
 
-# After
+# After (working)
 const BootstrapGameWorld = preload("res://scripts/pipelines/BootstrapGameWorld.gd")
 var bootstrap := BootstrapGameWorld.new()
 bootstrap.years_to_simulate = 3
@@ -83,115 +49,107 @@ var result := bootstrap.run(12345)
 var world_state := result.get("world_state", {})
 ```
 
-#### Phase 2: Remove deprecated files
-- Delete `systems/WorldBootstrap.gd`
-- Delete `scripts/world/WorldBootstrap.gd`
-- Update `scenes/BootstrapPreview.gd` to use BootstrapGameWorld
-- Verify bootstrap_preview.tscn and world_bootstrap.tscn still work
+#### Phase 2: Remove Deprecated Files
+✅ Deleted:
+- `systems/WorldBootstrap.gd`
+- `scripts/world/WorldBootstrap.gd`
+- `systems/` directory (entire legacy architecture)
 
-#### Phase 3: Update documentation
-- Mark WORLD_BOOTSTRAP.md as deprecated
-- Point to BootstrapGameWorld in Track D documentation
+#### Phase 3: Verify Scenes Work
+✅ Tested:
+- `bootstrap_preview.tscn` loads and runs successfully
+- `generate_once.tscn` loads without compilation errors
+- All 43 tests still pass
 
-**Pros**:
-- Removes architectural debt completely
-- Consolidates to single canonical implementation
-- Uses proper ConfigService pattern
-- Aligns with Track D work
+---
 
-**Cons**:
-- Requires testing BootstrapPreview migration
-- More work (~30 minutes)
-- May need to adjust world_state access patterns
+## Benefits of Resolution
 
-### Option 3: Deprecate Without Migration
+**Before**:
+- Compilation errors blocked scene loading
+- Duplicate class definitions caused confusion
+- Legacy code used global Config autoload
 
-**Goal**: Remove both legacy files, deprecate BootstrapPreview
+**After**:
+- ✅ All scenes load without errors
+- ✅ Single canonical bootstrap implementation
+- ✅ Proper ConfigService architecture
+- ✅ Deterministic seed derivation
+- ✅ Clean architecture (pipelines/ for orchestration)
 
-**Actions**:
-1. Delete `systems/WorldBootstrap.gd`
-2. Delete `scripts/world/WorldBootstrap.gd`
-3. Add deprecation comment to `scenes/BootstrapPreview.gd`
-4. Document that `bootstrap_preview.tscn` is no longer functional
-5. Point users to `scripts/tests/test_bootstrap_game_world.gd` for bootstrap testing
+---
 
-**Pros**:
-- Cleanest architectural solution
-- Removes all deprecated code
-- Forces migration to new architecture
+## New Architecture
 
-**Cons**:
-- Breaks existing bootstrap_preview scenes
-- Requires scene rewrite if preview functionality is needed
+### Canonical Bootstrap System
 
-## Implementation Plan
+**`scripts/pipelines/BootstrapGameWorld.gd`**:
+- Multi-year world simulator
+- Configurable years_to_simulate (default: 20)
+- Returns complete world_state with summary
+- Uses ConfigService instances (not global Config)
+- Integrates with AdvanceWorldYear pipeline
 
-**Recommended**: Option 2 (Architectural Migration)
+**Usage**:
+```gdscript
+var bootstrap := BootstrapGameWorld.new()
+bootstrap.years_to_simulate = 20
+var result := bootstrap.run(base_seed)
 
-### Step 1: Migrate BootstrapPreview.gd to use BootstrapGameWorld
-
-**File**: `scenes/BootstrapPreview.gd`
-
-**Changes**:
-- Replace WorldBootstrap preload with BootstrapGameWorld
-- Update initialization to use `run()` method with seed
-- Extract `world_state` from result dictionary
-- Access leagues/teams through world_state structure instead of `wb.leagues`
-
-**Critical**: Understand world_state structure from AdvanceWorldYear:
-- `world_state["hs_schools"]` - High school teams
-- `world_state["colleges"]` - College teams
-- `world_state["nfl_teams"]` - NFL teams
-- `world_state["nfl_rosters"]` - Roster dictionaries by team_id
-
-### Step 2: Test migration
-
-Run bootstrap_preview scene and verify output matches expectations
-
-### Step 3: Remove deprecated files
-
-```bash
-git rm systems/WorldBootstrap.gd
-git rm scripts/world/WorldBootstrap.gd
+var world_state := result.world_state
+var summary := result.summary
+# summary: {hs_schools, hs_players, colleges, college_players, nfl_teams, nfl_players, retired_players}
 ```
 
-### Step 4: Commit and document
+### World State Structure
 
-Commit message:
-```
-refactor: migrate BootstrapPreview to BootstrapGameWorld, remove duplicate WorldBootstrap classes
+After bootstrap, world_state contains:
+- `hs_schools` - High school teams
+- `hs_players` - Current HS player pool
+- `colleges` - College teams
+- `college_rosters` - Rosters by college_id
+- `nfl_teams` - NFL teams
+- `nfl_rosters` - Rosters by team_id
+- `retired_players` - Historical retired players
+- `draft_pool` - Future draft classes by year
 
-- Remove duplicate class_name definitions (systems/ and scripts/world/)
-- Migrate scenes/BootstrapPreview.gd to use new Track D BootstrapGameWorld
-- Use world_state structure instead of direct league access
-- Fixes compilation errors: RecruitRater path, generate_class signature
-```
+---
 
-## Alternative: If BootstrapPreview is no longer needed
+## Comparison: Old vs New
 
-If bootstrap_preview scenes are obsolete and not used:
+| Aspect | Legacy WorldBootstrap | New BootstrapGameWorld |
+|--------|----------------------|------------------------|
+| Config | Global Config autoload | ConfigService instances |
+| Seeding | Unclear seed derivation | Explicit _resolve_year_seed() |
+| Pipeline | Monolithic bootstrap_once() | Delegates to AdvanceWorldYear |
+| Testing | Not tested | test_bootstrap_game_world.gd |
+| Architecture | Mixed concerns | Clean separation (pipeline layer) |
+| State | Unclear world_state structure | Documented dict structure |
 
-**Fastest solution**:
-1. Delete both WorldBootstrap files
-2. Delete bootstrap_preview.tscn and world_bootstrap.tscn
-3. Delete scenes/BootstrapPreview.gd
-4. Document that `test_bootstrap_game_world.gd` is the canonical bootstrap test
+---
 
-This removes ~444 lines of deprecated code and eliminates all errors immediately.
+## Lessons Learned
 
-## Verification Checklist
+### What Caused the Issue
 
-After implementing resolution:
-- [ ] `generate_once.tscn` loads without errors
-- [ ] `bootstrap_preview.tscn` loads (or is removed)
-- [ ] Test suite still passes (43 tests)
-- [ ] No class name collision errors
-- [ ] BootstrapGameWorld tests still pass
-- [ ] Documentation updated to reference correct files
+1. **Incremental refactoring** - New implementation created without removing old
+2. **Incomplete migration** - BootstrapPreview still referenced old file
+3. **No deprecation markers** - Legacy files not clearly marked obsolete
+4. **Missing path updates** - RecruitRater moved but references not updated
+
+### Prevention Strategies
+
+1. **Complete migrations** - Update all references before removing files
+2. **Test after cleanup** - Verify scenes load and tests pass
+3. **Deprecation workflow** - Mark files as deprecated before deleting
+4. **Path audits** - Search codebase for all references before moves
+
+---
 
 ## References
 
-- Track D implementation: `scripts/pipelines/BootstrapGameWorld.gd`
-- Track D tests: `scripts/tests/test_bootstrap_game_world.gd`
-- Duplicate class documentation: `docs/architectural_notes/duplicate_class_names.md`
-- Original issue reported: 2026-01-10 (generate_once scene load errors)
+- **Resolution PR**: #65 (WorldBootstrap resolution)
+- **New implementation**: `scripts/pipelines/BootstrapGameWorld.gd`
+- **Tests**: `scripts/tests/test_bootstrap_game_world.gd`
+- **Track D documentation**: See `docs/COMPLETED.md` (Track D section)
+- **Related cleanup**: See `duplicate_class_names.md`
