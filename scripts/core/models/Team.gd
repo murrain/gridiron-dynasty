@@ -7,11 +7,10 @@ class_name Team
 @export var name: String = ""
 
 # --- Cap accounting ---
-# cap_limit is the team's specific cap limit (may be adjusted from league_cap)
-# is_over_cap tracks whether cap_used exceeds cap_limit
+# cap_limit = max allowed cap space
+# league_cap should be supplied from league config or a future LeagueContainer.
 @export var cap_limit: float = 0.0
 @export var is_over_cap: bool = false
-# league_cap should be supplied from league config or a future LeagueContainer.
 @export var league_cap: float = 0.0
 @export var roster: SportRoster = SportRoster.new()
 
@@ -37,8 +36,7 @@ func from_dict(d: Dictionary) -> void:
 
 	var cap: Dictionary = d.get("cap", {})
 	cap_limit = float(cap.get("cap_limit", cap_limit))
-	cap_used = float(cap.get("cap_used", cap_used))
-	cap_space = float(cap.get("cap_space", cap_space))
+	# cap_used and cap_space are computed properties, not loaded
 	is_over_cap = bool(d.get("is_over_cap", is_over_cap))
 	league_cap = float(cap.get("league_cap", cap.get("cap_limit", league_cap)))
 
