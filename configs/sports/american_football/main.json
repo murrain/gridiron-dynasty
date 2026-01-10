@@ -21,6 +21,19 @@
             "late": { "growth": 0.9, "prime": 0.30, "decline": 0.85 }
         }
     },
+    "development_context": {
+        "scheme_fit": {
+            "score_min": -0.15,
+            "score_max": 0.15,
+            "multiplier_min": 0.85,
+            "multiplier_max": 1.15,
+            "role_weights": {
+                "core": 0.20,
+                "secondary": 0.08,
+                "other": -0.12
+            }
+        }
+    },
     "retirement": {
         "min_age": 27,
         "soft_cap_age": 33,

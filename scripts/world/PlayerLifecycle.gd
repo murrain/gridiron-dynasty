@@ -89,6 +89,12 @@ static func _apply_development(
 	var prime_mult := float(curve_cfg.get("prime", 0.35))
 	var decline_mult := float(curve_cfg.get("decline", 1.0))
 
+	var dev_context_cfg: Dictionary = main_cfg.get("development_context", {}) as Dictionary
+	var scheme_cfg: Dictionary = dev_context_cfg.get("scheme_fit", {}) as Dictionary
+	var scheme_role_weights: Dictionary = scheme_cfg.get("role_weights", {}) as Dictionary
+	var scheme_mult_min := float(scheme_cfg.get("multiplier_min", 0.85))
+	var scheme_mult_max := float(scheme_cfg.get("multiplier_max", 1.15))
+
 	var base_min := float(main_cfg.get("annual_base_progress_min", 1.0))
 	var base_max := float(main_cfg.get("annual_base_progress_max", 4.0))
 	var cap := float(main_cfg.get("annual_progress_cap", 6.0))
@@ -100,6 +106,12 @@ static func _apply_development(
 	var stats: Dictionary = player.get("stats", {}) as Dictionary
 	var potential: Dictionary = player.get("potential", stats) as Dictionary
 	var stat_defs: Dictionary = _stat_defs(stats_cfg)
+
+	var development_context: Dictionary = player.get("development_context", {}) as Dictionary
+	var competition_ctx: Dictionary = development_context.get("competition", {}) as Dictionary
+	var competition_mult := float(competition_ctx.get("growth_multiplier", 1.0))
+	var scheme_ctx: Dictionary = development_context.get("scheme_fit", {}) as Dictionary
+	var scheme_score := float(scheme_ctx.get("score", 0.0))
 
 	for key in stats.keys():
 		var stat_name := String(key)
@@ -115,6 +127,12 @@ static func _apply_development(
 			delta = rng.randf_range(prime_min, prime_max) * prime_mult
 		else:
 			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
+
+		if delta > 0.0:
+			var role := _stat_role_for_position(position, stat_name, positions_cfg)
+			var role_weight := float(scheme_role_weights.get(role, 0.0))
+			var role_mult := clamp(1.0 + scheme_score * role_weight, scheme_mult_min, scheme_mult_max)
+			delta *= competition_mult * role_mult
 
 		delta = clamp(delta, -cap, cap)
 		var next_val: float = float(clamp(val + delta, 0.0, 100.0))
@@ -186,3 +204,21 @@ static func _stat_defs(stats_cfg: Dictionary) -> Dictionary:
 		if name != "":
 			out[name] = d
 	return out
+
+static func _stat_role_for_position(
+	position: String,
+	stat_name: String,
+	positions_cfg: Dictionary
+) -> String:
+	var pos_cfg: Dictionary = positions_cfg.get(position, {}) as Dictionary
+	var distributions: Dictionary = pos_cfg.get("distributions", {}) as Dictionary
+	if distributions.has(stat_name):
+		var dist: Dictionary = distributions.get(stat_name, {}) as Dictionary
+		var role := String(dist.get("role", ""))
+		if role != "":
+			return role
+
+	var core_stats: Array = pos_cfg.get("core_stats", []) as Array
+	if core_stats.has(stat_name):
+		return "core"
+	return "other"

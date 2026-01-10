@@ -35,5 +35,27 @@
     "school_eliteness_weight": 0.22,
     "noise_min": -8.0,
     "noise_max": 8.0
+  },
+  "usage_profile": {
+    "games_played_min": 8,
+    "games_played_max": 12,
+    "snaps_min": 150,
+    "snaps_max": 650,
+    "starter_chance": 0.35
+  },
+  "competition": {
+    "default_tier": "avg",
+    "region_tiers": {
+      "south": "elite",
+      "midwest": "good",
+      "west": "avg",
+      "northeast": "good"
+    },
+    "tier_growth_multipliers": {
+      "elite": 1.06,
+      "good": 1.03,
+      "avg": 1.00,
+      "low": 0.97
+    }
   }
 }

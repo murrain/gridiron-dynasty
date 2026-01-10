@@ -22,6 +22,10 @@ func run(
 	lifecycle_rng.seed = Rand.splitmix64(seed ^ 0xA54C3D5E)
 	var perf_rng := RandomNumberGenerator.new()
 	perf_rng.seed = Rand.splitmix64(seed ^ 0x1E0C7A11)
+	var context_rng := RandomNumberGenerator.new()
+	context_rng.seed = Rand.splitmix64(seed ^ 0x4F8C21BD)
+
+	_apply_development_context(players, main_cfg, config, context_rng, year)
 
 	var progressed: Dictionary = PlayerLifecycle.advance_one_year(
 		players,
@@ -78,6 +82,67 @@ func run(
 		"players": active,
 		"graduates": graduates,
 		"transitions": transitions
+	}
+
+func _apply_development_context(
+	players: Array,
+	main_cfg: Dictionary,
+	config: Dictionary,
+	rng: RandomNumberGenerator,
+	year: int
+) -> void:
+	var usage_cfg: Dictionary = config.get("usage_profile", {}) as Dictionary
+	var competition_cfg: Dictionary = config.get("competition", {}) as Dictionary
+	var dev_context_cfg: Dictionary = main_cfg.get("development_context", {}) as Dictionary
+	var scheme_cfg: Dictionary = dev_context_cfg.get("scheme_fit", {}) as Dictionary
+	var score_min := float(scheme_cfg.get("score_min", -0.15))
+	var score_max := float(scheme_cfg.get("score_max", 0.15))
+
+	var region_tiers: Dictionary = competition_cfg.get("region_tiers", {}) as Dictionary
+	var tier_growths: Dictionary = competition_cfg.get("tier_growth_multipliers", {}) as Dictionary
+	var default_tier := String(competition_cfg.get("default_tier", ""))
+
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if p == null:
+			continue
+
+		var usage_profile := _build_usage_profile(usage_cfg, rng)
+		var region_id := String(p.get("home_region", ""))
+		var tier_id := String(region_tiers.get(region_id, default_tier))
+		var growth_mult := float(tier_growths.get(tier_id, 1.0))
+		var scheme_score := rng.randf_range(score_min, score_max)
+
+		p["development_context"] = {
+			"season": "hs",
+			"year": year,
+			"usage_profile": usage_profile,
+			"competition": {
+				"tier_id": tier_id,
+				"growth_multiplier": growth_mult,
+				"region_id": region_id
+			},
+			"scheme_fit": {
+				"score": scheme_score
+			}
+		}
+		players[i] = p
+
+func _build_usage_profile(usage_cfg: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var games_min := int(usage_cfg.get("games_played_min", 8))
+	var games_max := int(usage_cfg.get("games_played_max", 12))
+	var snaps_min := int(usage_cfg.get("snaps_min", 150))
+	var snaps_max := int(usage_cfg.get("snaps_max", 650))
+	var starter_chance := float(usage_cfg.get("starter_chance", 0.35))
+
+	var games_played := rng.randi_range(games_min, max(games_min, games_max))
+	var snaps := rng.randi_range(snaps_min, max(snaps_min, snaps_max))
+	var starter := rng.randf() < starter_chance
+
+	return {
+		"games_played": games_played,
+		"snaps": snaps,
+		"starter": starter
 	}
 
 func _performance_bundle(
