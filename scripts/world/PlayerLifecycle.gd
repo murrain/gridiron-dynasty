@@ -89,6 +89,12 @@ static func _apply_development(
 	var prime_mult := float(curve_cfg.get("prime", 0.35))
 	var decline_mult := float(curve_cfg.get("decline", 1.0))
 
+	var dev_context: Dictionary = player.get("development_context", {}) as Dictionary
+	var context_mults: Dictionary = dev_context.get("multipliers", {}) as Dictionary
+	var context_growth := float(context_mults.get("growth", 1.0))
+	var context_prime := float(context_mults.get("prime", 1.0))
+	var context_decline := float(context_mults.get("decline", 1.0))
+
 	var base_min := float(main_cfg.get("annual_base_progress_min", 1.0))
 	var base_max := float(main_cfg.get("annual_base_progress_max", 4.0))
 	var cap := float(main_cfg.get("annual_progress_cap", 6.0))
@@ -110,11 +116,11 @@ static func _apply_development(
 
 		var delta := 0.0
 		if age < peak_age:
-			delta = rng.randf_range(base_min, base_max) * growth_mult
+			delta = rng.randf_range(base_min, base_max) * growth_mult * context_growth
 		elif age < decline_start:
-			delta = rng.randf_range(prime_min, prime_max) * prime_mult
+			delta = rng.randf_range(prime_min, prime_max) * prime_mult * context_prime
 		else:
-			delta = -rng.randf_range(decline_min, decline_max) * decline_mult
+			delta = -rng.randf_range(decline_min, decline_max) * decline_mult * context_decline
 
 		delta = clamp(delta, -cap, cap)
 		var next_val: float = float(clamp(val + delta, 0.0, 100.0))

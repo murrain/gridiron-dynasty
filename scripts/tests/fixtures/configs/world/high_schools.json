@@ -9,5 +9,17 @@
   "eliteness_tiers": [
     {"id": "low", "min": 20, "max": 40, "weight": 0.6},
     {"id": "high", "min": 60, "max": 80, "weight": 0.4}
-  ]
+  ],
+  "program_quality": {
+    "default_dev_multiplier": 1.0,
+    "tiers": [
+      {"id": "low", "dev_multiplier": 0.95, "weight": 0.5},
+      {"id": "high", "dev_multiplier": 1.05, "weight": 0.5}
+    ]
+  },
+  "specialist_coach_chance": 0.1,
+  "position_specialists": {
+    "OL": 1.1,
+    "DL": 1.08
+  }
 }
