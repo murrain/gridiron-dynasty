@@ -44,10 +44,15 @@ func _test_determinism(t, gen: NflTeamGenerator) -> void:
 	var teams1 = result1.get("teams", []) as Array
 	var teams2 = result2.get("teams", []) as Array
 	t.assert_eq(teams1.size(), teams2.size(), "same seed should produce same team count")
-	if teams1.size() > 0 and teams2.size() > 0:
-		var first1 = teams1[0] as Dictionary
-		var first2 = teams2[0] as Dictionary
-		t.assert_eq(first1.get("region"), first2.get("region"), "same seed should produce same region assignment")
+
+	for i in range(teams1.size()):
+		var team1 = teams1[i] as Dictionary
+		var team2 = teams2[i] as Dictionary
+		t.assert_eq(team1.get("id"), team2.get("id"), "team %d: same id" % i)
+		t.assert_eq(team1.get("name"), team2.get("name"), "team %d: same name" % i)
+		t.assert_eq(team1.get("region"), team2.get("region"), "team %d: same region" % i)
+		t.assert_eq(team1.get("cap_space"), team2.get("cap_space"), "team %d: same cap_space" % i)
+		t.assert_eq(team1.get("draft_order"), team2.get("draft_order"), "team %d: same draft_order" % i)
 
 func _test_validation(t, gen: NflTeamGenerator) -> void:
 	var bad_cfg_no_count = {"team_count": 0, "regions": [{"id": "test", "weight": 1.0}]}
