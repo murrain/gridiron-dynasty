@@ -50,7 +50,7 @@ func _phase_handlers() -> Dictionary:
 		"college_generation": Callable(self, "_handle_college_generation"),
 		"nfl_team_generation": Callable(self, "_handle_nfl_team_generation"),
 		"college_recruiting": Callable(self, "_handle_college_recruiting"),
-		"college_season": Callable(self, "_handle_placeholder_phase"),
+		"college_season": Callable(self, "_handle_college_season"),
 		"draft_prep": Callable(self, "_handle_draft_prep"),
 		"cap_validation": Callable(self, "_handle_cap_validation"),
 		"nfl_draft": Callable(self, "_handle_placeholder_phase")
@@ -269,6 +269,9 @@ func _handle_college_recruiting(
 	world_state["college_commitments"] = college_commitments
 	world_state["college_classes"] = output.get("college_classes", {})
 
+	# A1: Initialize college rosters from commitments
+	_initialize_college_rosters(world_state, year, commitments, recruits)
+
 	return {
 		"year": year,
 		"offers": int(output.get("offers", 0)),
@@ -276,6 +279,24 @@ func _handle_college_recruiting(
 		"uncommitted": (output.get("uncommitted", []) as Array).size(),
 		"step_seeds": {"college_recruiting": step_seed}
 	}
+
+func _handle_college_season(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "college_season")
+	_log_step_seed(year, phase_id, "college_season", step_seed)
+
+	var season := CollegeSeason.new()
+	var colleges_cfg := Config.get_config("world/colleges")
+	var positions_cfg := Config.get_config("positions")
+	var main_cfg := Config.get_config("main")
+	var stats_cfg := Config.get_config("stats")
+	return season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
 
 func _handle_draft_prep(
 	world_state: Dictionary,
@@ -441,3 +462,46 @@ func _build_recruit_profiles(graduates: Array, year: int) -> Array:
 		}
 		profiles[i] = profile
 	return profiles
+
+func _initialize_college_rosters(
+	world_state: Dictionary,
+	year: int,
+	commitments: Array,
+	recruits: Array
+) -> void:
+	var rosters: Dictionary = world_state.get("college_rosters", {}) as Dictionary
+	var recruit_index := {}
+	for recruit in recruits:
+		var r: Dictionary = recruit
+		var player_id := String(r.get("player_id", ""))
+		if player_id != "":
+			recruit_index[player_id] = r
+
+	for commitment in commitments:
+		var c: Dictionary = commitment
+		var player_id := String(c.get("player_id", ""))
+		var college_id := String(c.get("college_id", ""))
+		if player_id == "" or college_id == "":
+			continue
+
+		var player: Dictionary = recruit_index.get(player_id, {}) as Dictionary
+		if player.is_empty():
+			continue
+
+		var player_copy := player.duplicate(true)
+		player_copy["college_id"] = college_id
+		player_copy["college_year"] = 1
+		player_copy["college_eligibility_status"] = "freshman"
+
+		if not rosters.has(college_id):
+			rosters[college_id] = {
+				"players": [],
+				"class_years": {1: [], 2: [], 3: [], 4: []}
+			}
+
+		var roster: Dictionary = rosters[college_id]
+		(roster["players"] as Array).append(player_copy)
+		var class_years: Dictionary = roster["class_years"]
+		(class_years[1] as Array).append(player_id)
+
+	world_state["college_rosters"] = rosters
