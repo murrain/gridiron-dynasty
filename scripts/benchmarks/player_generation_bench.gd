@@ -13,6 +13,12 @@
 extends Node
 class_name PlayerGenerationBenchmark
 
+const PlayerGenerator = preload("res://scripts/generation/PlayerGenerator.gd")
+const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
+const Scout = preload("res://scripts/core/models/Scout.gd")
+const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
+const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+
 # ---------- Tunables ----------
 @export var class_size: int = 10000
 @export var trials: int = 3
@@ -133,11 +139,11 @@ func _do_one_trial(size: int, threads: int) -> float:
 			ThreadPool.map(
 				scout_items,
 				func(item):
-					var rng := RandomNumberGenerator.new()
-					rng.seed = int(item["seed"])
+					var worker_rng := RandomNumberGenerator.new()
+					worker_rng.seed = int(item["seed"])
 					var p: Dictionary = item["player"]
 					for s in _scouts_built:
-						s.score_player(p, _positions, _stats_cfg, gen.class_rules, rng)
+						s.score_player(p, _positions, _stats_cfg, gen.class_rules, worker_rng)
 					return true,
 				threads
 			)
@@ -161,10 +167,15 @@ func _read_current_threads() -> int:
 func _build_scouts_from_config() -> void:
 	var defaults: Dictionary = _scouts_cfg.get("defaults", {}) as Dictionary
 	var list: Array = (_scouts_cfg.get("national_scouts", []) as Array)
+	var base_seed := int(_main_cfg.get("random_seed", 0))
+	if base_seed == 0:
+		base_seed = int(_main_cfg.get("starting_year", 2025))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = Rand.splitmix64(base_seed ^ 0x5C011A)
 	for d in list:
 		var row: Dictionary = d as Dictionary
 		var s := Scout.new()
 		ScoutFactory.apply_scout_dict(s, row)
-		# Important: two-arg setup as per your Scout.gd
-		s.setup(_stats_cfg, defaults)
+		# Important: seed jitter to keep scout tuning deterministic
+		s.setup(_stats_cfg, defaults, rng)
 		_scouts_built.append(s)

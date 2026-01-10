@@ -1,6 +1,9 @@
 extends Node
 class_name BootstrapWorld
 
+const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
+const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+
 @export var years_back: int = 20
 
 func run() -> Dictionary:
