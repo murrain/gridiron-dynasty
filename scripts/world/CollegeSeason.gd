@@ -80,7 +80,7 @@ func run(
 		var class_years := {1: [], 2: [], 3: [], 4: []}
 
 		for i in range(updated_players.size()):
-			var p: Dictionary = updated_players[i]
+			var p: Variant = updated_players[i]
 			if p == null:
 				continue
 
