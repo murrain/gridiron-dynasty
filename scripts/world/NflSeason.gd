@@ -6,6 +6,7 @@ const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
+const AwardSelector = preload("res://scripts/core/awards/AwardSelector.gd")
 
 ## Runs the NFL season simulation for a given year.
 ##
@@ -500,7 +501,7 @@ func _determine_nfl_playoff_teams(
 	var conference_standings := {}
 	for team_id in season_results.keys():
 		var record: Dictionary = season_results[team_id]
-		var conf := team_to_conference.get(team_id, "Unknown")
+		var conf: String = String(team_to_conference.get(team_id, "Unknown"))
 		if not conference_standings.has(conf):
 			conference_standings[conf] = []
 
@@ -603,10 +604,10 @@ func _simulate_nfl_season(
 
 		# Accumulate player stats for this game (S2.1)
 		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
-		var home_id := String(result.get("home_team_id", ""))
-		var away_id := String(result.get("away_team_id", ""))
-		var home_roster := rosters.get(home_id, {})
-		var away_roster := rosters.get(away_id, {})
+		var home_id: String = String(result.get("home_team_id", ""))
+		var away_id: String = String(result.get("away_team_id", ""))
+		var home_roster: Dictionary = rosters.get(home_id, {})
+		var away_roster: Dictionary = rosters.get(away_id, {})
 
 		if not home_roster.is_empty() and not away_roster.is_empty():
 			GameSimulator.accumulate_player_stats(
@@ -658,6 +659,10 @@ func _simulate_nfl_season(
 	# Expected RNG consumption: None (pure aggregation)
 	_update_team_history(world_state, year, season_results, String(best_record["team_id"]), teams, regions)
 
+	# Select NFL Awards (A3.2, A3.3, A3.4, A3.8)
+	# Expected RNG consumption: None (deterministic based on stats)
+	var award_summary := AwardSelector.select_all_awards(world_state, year)
+
 	# Return summary
 	return {
 		"enabled": true,
@@ -666,5 +671,6 @@ func _simulate_nfl_season(
 		"super_bowl_winner": String(best_record["team_id"]),
 		"champion_record": "%d-%d" % [int(best_record["wins"]),
 									  int(season_results[best_record["team_id"]].get("losses", 0))],
-		"sim_seed": sim_seed
+		"sim_seed": sim_seed,
+		"awards": award_summary
 	}

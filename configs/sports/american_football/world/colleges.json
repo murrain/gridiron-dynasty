@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "college_count": 130,
   "default_capacity": 85,
   "name_format": "College %03d",
@@ -57,5 +57,13 @@
   "draft_declaration": {
     "rating_threshold": 65.0,
     "note": "Only seniors with rating >= 65 declare for draft. Others graduate and leave football. See BACKWARD_CLASS_SIZING.md for analysis."
+  },
+  "game_simulation": {
+    "enabled": true,
+    "regular_season_weeks": 12,
+    "home_field_advantage": 3.0,
+    "strength_sensitivity": 0.1,
+    "upset_threshold": 5.0,
+    "calculation_method": "mean_rating"
   }
 }

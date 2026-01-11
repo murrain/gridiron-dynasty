@@ -7,6 +7,7 @@ const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfi
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
+const PlayerMorale = preload("res://scripts/core/player_agency/PlayerMorale.gd")
 
 func run(
 	world_state: Dictionary,
@@ -37,6 +38,8 @@ func run(
 	context_rng.seed = Rand.splitmix64(seed ^ 0xC011E6E2)
 	var early_decl_rng := RandomNumberGenerator.new()
 	early_decl_rng.seed = Rand.splitmix64(seed ^ 0xC011E6E3)
+	var transfer_rng := RandomNumberGenerator.new()
+	transfer_rng.seed = Rand.splitmix64(seed ^ 0xC011E6E5)
 
 	var early_decl_cfg: Dictionary = config.get("early_declaration", {}) as Dictionary
 
@@ -62,6 +65,23 @@ func run(
 	var total_graduates := 0
 	var total_early_declares := 0
 	var rosters_updated := 0
+
+	# PA6.1-PA6.2: Update player morale and satisfaction after season
+	# This happens BEFORE player lifecycle, so morale affects development this year
+	var morale_summary := _update_all_team_morale(
+		world_state,
+		year,
+		rosters,
+		college_index
+	)
+
+	# PA6.3: Determine transfer portal entries (before lifecycle/graduation)
+	var transfer_portal_entries := _process_transfer_decisions(
+		world_state,
+		year,
+		rosters,
+		transfer_rng
+	)
 
 	for college_id in rosters.keys():
 		var roster: Dictionary = rosters[college_id]
@@ -147,10 +167,13 @@ func run(
 		"draft_eligible_count": draft_eligible.size(),
 		"early_declares": total_early_declares,
 		"game_simulation": game_sim_summary,
+		"morale": morale_summary,
+		"transfer_portal_entries": transfer_portal_entries,
 		"step_seeds": {
 			"lifecycle": lifecycle_rng.seed,
 			"context": context_rng.seed,
 			"early_declaration": early_decl_rng.seed,
+			"transfer": transfer_rng.seed,
 			"game_simulation": game_sim_summary.get("sim_seed", 0)
 		}
 	}
@@ -485,10 +508,10 @@ func _simulate_college_season(
 
 		# Accumulate player stats for this game (S2.1)
 		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
-		var home_id := String(result.get("home_team_id", ""))
-		var away_id := String(result.get("away_team_id", ""))
-		var home_roster := rosters.get(home_id, {})
-		var away_roster := rosters.get(away_id, {})
+		var home_id: String = String(result.get("home_team_id", ""))
+		var away_id: String = String(result.get("away_team_id", ""))
+		var home_roster: Dictionary = rosters.get(home_id, {})
+		var away_roster: Dictionary = rosters.get(away_id, {})
 
 		if not home_roster.is_empty() and not away_roster.is_empty():
 			GameSimulator.accumulate_player_stats(
@@ -550,3 +573,138 @@ func _simulate_college_season(
 									  int(season_results[best_record["team_id"]].get("losses", 0))],
 		"sim_seed": sim_seed
 	}
+
+
+## Updates morale and satisfaction for all players across all college teams.
+##
+## Implements PA6.1 (Satisfaction Calculation) and PA6.2 (Morale System).
+##
+## RNG Pattern: None (satisfaction and morale updates are deterministic)
+## Performance: O(n) where n = total players across all rosters
+##
+## Parameters:
+##   world_state: Dictionary containing player_career_stats, awards, season_records, championships
+##   year: Current season year
+##   rosters: Dictionary of college_id -> roster
+##   college_index: Dictionary mapping college_id -> college data
+##
+## Returns:
+##   Dictionary with summary: {teams_processed, players_updated, avg_satisfaction, avg_morale}
+##
+## Side Effects:
+##   Modifies each player's "satisfaction" and "morale" fields in-place
+func _update_all_team_morale(
+	world_state: Dictionary,
+	year: int,
+	rosters: Dictionary,
+	college_index: Dictionary
+) -> Dictionary:
+	var player_career_stats: Dictionary = world_state.get("player_career_stats", {})
+	var season_records: Dictionary = world_state.get("season_records", {}).get(str(year), {})
+	var championships: Dictionary = world_state.get("championships", {})
+
+	# Build awards data structure for PlayerMorale
+	var awards := {
+		"awards": world_state.get("awards", {}),
+		"all_pro_teams": world_state.get("all_pro_teams", {}),
+		"pro_bowl_rosters": world_state.get("pro_bowl_rosters", {})
+	}
+
+	# Determine playoff teams and champion
+	var national_champion_id := String(championships.get("college", {}).get("national_champions", {}).get(str(year), ""))
+	var playoff_teams: Array = []
+	if not season_records.is_empty():
+		playoff_teams = _determine_college_playoff_teams(season_records)
+
+	var teams_processed := 0
+	var total_players_updated := 0
+	var total_satisfaction := 0.0
+	var total_morale := 0.0
+
+	for college_id in rosters.keys():
+		var roster: Dictionary = rosters[college_id]
+		var players: Array = roster.get("players", [])
+		if players.is_empty():
+			continue
+
+		# Build team record with playoff/champion flags
+		var team_record: Dictionary = season_records.get(college_id, {}).duplicate()
+		team_record["is_champion"] = (college_id == national_champion_id)
+		team_record["playoff_appearance"] = (college_id in playoff_teams)
+
+		# Update morale for entire team
+		var summary := PlayerMorale.update_team_morale(
+			players,
+			year,
+			player_career_stats,
+			awards,
+			team_record
+		)
+
+		teams_processed += 1
+		total_players_updated += int(summary.get("players_updated", 0))
+		total_satisfaction += float(summary.get("avg_satisfaction", 0.0)) * float(summary.get("players_updated", 0))
+		total_morale += float(summary.get("avg_morale", 0.0)) * float(summary.get("players_updated", 0))
+
+	return {
+		"teams_processed": teams_processed,
+		"players_updated": total_players_updated,
+		"avg_satisfaction": total_satisfaction / float(total_players_updated) if total_players_updated > 0 else 0.0,
+		"avg_morale": total_morale / float(total_players_updated) if total_players_updated > 0 else 0.0
+	}
+
+
+## Processes transfer portal decisions for all college players.
+##
+## Implements PA6.3 (Transfer Decisions Based on Satisfaction).
+##
+## RNG Pattern: Exactly 1 randf() per eligible player (non-seniors)
+## Performance: O(n) where n = total players across all rosters
+##
+## Parameters:
+##   world_state: Dictionary (will store transfer_portal data)
+##   year: Current season year
+##   rosters: Dictionary of college_id -> roster
+##   rng: RandomNumberGenerator (explicit, caller-controlled)
+##
+## Returns:
+##   int: Number of players who entered the transfer portal
+##
+## Side Effects:
+##   - Stores transfer portal players in world_state["transfer_portal"][year]
+##   - Does NOT remove players from rosters (they remain until next season)
+func _process_transfer_decisions(
+	world_state: Dictionary,
+	year: int,
+	rosters: Dictionary,
+	rng: RandomNumberGenerator
+) -> int:
+	var transfer_portal: Dictionary = world_state.get("transfer_portal", {})
+	if not transfer_portal.has(str(year)):
+		transfer_portal[str(year)] = []
+
+	var year_transfers: Array = transfer_portal[str(year)]
+	var total_transfers := 0
+
+	for college_id in rosters.keys():
+		var roster: Dictionary = rosters[college_id]
+		var players: Array = roster.get("players", [])
+		if players.is_empty():
+			continue
+
+		# Determine which players enter transfer portal
+		var transfer_players := PlayerMorale.determine_transfers(players, rng)
+
+		# Add to portal with metadata
+		for player in transfer_players:
+			var p: Dictionary = player
+			var transfer_entry := p.duplicate()
+			transfer_entry["transfer_year"] = year
+			transfer_entry["previous_team_id"] = college_id
+			year_transfers.append(transfer_entry)
+			total_transfers += 1
+
+	transfer_portal[str(year)] = year_transfers
+	world_state["transfer_portal"] = transfer_portal
+
+	return total_transfers
