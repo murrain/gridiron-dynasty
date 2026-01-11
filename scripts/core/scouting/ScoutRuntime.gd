@@ -52,6 +52,27 @@ static func score_player(
 	var res: Dictionary = RecruitRater.compute(blended, positions_data, {}, class_rules, {})
 	return float(res.get("composite", 0.0))
 
+
+## Returns the number of randf() calls consumed by score_player().
+##
+## This is used by RecruitingScoreCache to maintain determinism on cache hits.
+## Co-locating this with score_player() prevents silent determinism breaks.
+##
+## RNG consumption pattern:
+##   - _perceive(current): num_stats gaussian calls (line 39)
+##   - _perceive_potential(potential): num_stats gaussian calls (line 40)
+##   - Each gaussian (StatHelpers) uses Box-Muller transform: 2 randf calls
+##
+## Total: 2 * num_stats * 2 randf calls
+##
+## Parameters:
+##   num_stats: Number of stats being evaluated
+##
+## Returns: int number of randf() calls
+static func get_rng_calls_per_evaluation(num_stats: int) -> int:
+	return 2 * num_stats * 2
+
+
 # --- helpers for ScoutRuntime ---
 
 ## OPTIMIZATION (F4): Lightweight perception - only copy stats dictionary

@@ -130,3 +130,25 @@ func score_player(
 	raw += board_noise
 
 	return clamp(raw, 30.0, 95.0)
+
+
+## Returns the number of randf() calls consumed by score_player().
+##
+## This is used by RecruitingScoreCache to maintain determinism on cache hits.
+## Co-locating this with score_player() prevents silent determinism breaks.
+##
+## RNG consumption pattern:
+##   - _perceived_player(current): num_stats randfn calls (line 108)
+##   - _perceived_player(potential): num_stats randfn calls (line 109)
+##   - board_noise: 1 randfn call (line 129)
+##   - Each randfn uses Box-Muller transform: 2 randf calls
+##
+## Total: (2 * num_stats + 1) * 2 randf calls
+##
+## Parameters:
+##   num_stats: Number of stats being evaluated
+##
+## Returns: int number of randf() calls
+static func get_rng_calls_per_evaluation(num_stats: int) -> int:
+	var total_randfn := (2 * num_stats) + 1
+	return total_randfn * 2

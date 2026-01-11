@@ -5,6 +5,7 @@ const ThreadPool = preload("res://autoloads/ThreadPool.gd")
 const Rand = preload("res://autoloads/Rand.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
+const WearConfig = preload("res://scripts/support/config/WearConfig.gd")
 
 const INJURY_SUPPRESSION_PER_SEVERITY := 0.25
 const PARALLEL_THRESHOLD := 100  # Minimum players for parallel processing
@@ -245,10 +246,11 @@ static func advance_one_year_parallel(
 ## Usage:
 ##   var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
 ##   var ret_config := RetirementConfig.new(main_cfg)
+##   var wear_config := WearConfig.new(main_cfg)
 ##   var result := PlayerLifecycle.advance_one_year_parallel_optimized(
 ##       players, positions_cfg, stats_cfg, rng,
 ##       development_context, threads, options,
-##       dev_config, ret_config
+##       dev_config, ret_config, wear_config
 ##   )
 static func advance_one_year_parallel_optimized(
 	players: Array,
@@ -260,14 +262,15 @@ static func advance_one_year_parallel_optimized(
 	threads: int = 0,
 	options: Dictionary = {},
 	dev_config: DevelopmentConfig = null,
-	ret_config: RetirementConfig = null
+	ret_config: RetirementConfig = null,
+	wear_config: WearConfig = null
 ) -> Dictionary:
 	# Fall back to serial for small arrays or single-threaded request
 	if players.size() < PARALLEL_THRESHOLD or threads <= 1:
 		return advance_one_year_optimized(
 			players, positions_cfg, main_cfg, stats_cfg, rng,
 			development_context, options,
-			dev_config, ret_config
+			dev_config, ret_config, wear_config
 		)
 
 	# Determine thread count
@@ -306,7 +309,8 @@ static func advance_one_year_parallel_optimized(
 			"development_context": development_context_copy,
 			"skip_reports": skip_reports,
 			"dev_config": dev_config,
-			"ret_config": ret_config
+			"ret_config": ret_config,
+			"wear_config": wear_config
 		}
 
 	# Phase 2: Process players in parallel
@@ -333,7 +337,8 @@ static func advance_one_year_parallel_optimized(
 			item["development_context"] as Dictionary,
 			bool(item.get("skip_reports", false)),
 			item.get("dev_config") as DevelopmentConfig,
-			item.get("ret_config") as RetirementConfig
+			item.get("ret_config") as RetirementConfig,
+			item.get("wear_config") as WearConfig
 		)
 
 		# Attach index for result ordering
@@ -382,7 +387,8 @@ static func advance_one_year_optimized(
 	development_context: Dictionary = {},
 	options: Dictionary = {},
 	dev_config: DevelopmentConfig = null,
-	ret_config: RetirementConfig = null
+	ret_config: RetirementConfig = null,
+	wear_config: WearConfig = null
 ) -> Dictionary:
 	var skip_reports := bool(options.get("skip_reports", false))
 	var updated: Array = []
@@ -406,7 +412,8 @@ static func advance_one_year_optimized(
 			development_context,
 			skip_reports,
 			dev_config,
-			ret_config
+			ret_config,
+			wear_config
 		)
 		if evolved.get("retired", false):
 			retired.append(evolved.get("player", p))
@@ -424,8 +431,6 @@ static func advance_one_year_optimized(
 ## OPTIMIZATION (F6): Config-optimized single player advance
 ## Same as _advance_player_one_year but uses pre-extracted config helpers.
 ##
-## Note: main_cfg still needed for wear and injury configs (could be extracted to separate classes)
-##
 ## RNG consumption: Identical to _advance_player_one_year (determinism preserved)
 static func _advance_player_one_year_optimized(
 	player: Dictionary,
@@ -436,7 +441,8 @@ static func _advance_player_one_year_optimized(
 	development_context: Dictionary,
 	skip_reports: bool = false,
 	dev_config: DevelopmentConfig = null,
-	ret_config: RetirementConfig = null
+	ret_config: RetirementConfig = null,
+	wear_config: WearConfig = null
 ) -> Dictionary:
 	var p := _selective_copy(player)
 	p["age"] = int(p.get("age", 18)) + 1
@@ -456,7 +462,8 @@ static func _advance_player_one_year_optimized(
 			positions_cfg,
 			stats_cfg,
 			rng,
-			merged_context
+			merged_context,
+			wear_config
 		)
 	else:
 		# Fallback to non-optimized version
@@ -469,7 +476,13 @@ static func _advance_player_one_year_optimized(
 			merged_context
 		)
 
-	var wear_snapshot := _update_wear(p, positions_cfg, main_cfg)
+	# Use optimized wear update if config provided
+	var wear_snapshot: Dictionary
+	if wear_config != null:
+		wear_snapshot = _update_wear_optimized(p, positions_cfg, wear_config)
+	else:
+		# Fallback to non-optimized version
+		wear_snapshot = _update_wear(p, positions_cfg, main_cfg)
 
 	if not skip_reports:
 		_append_development_report(p, wear_snapshot, development_report)
@@ -626,7 +639,7 @@ static func _merge_development_context(global_ctx: Dictionary, player_ctx: Dicti
 	return merged
 
 ## OPTIMIZATION (F6): Config-optimized development application
-## Uses pre-extracted DevelopmentConfig to eliminate repeated dictionary lookups.
+## Uses pre-extracted DevelopmentConfig and WearConfig to eliminate repeated dictionary lookups.
 ## This method is identical to _apply_development but uses optimized config access.
 ##
 ## Performance impact:
@@ -641,7 +654,8 @@ static func _apply_development_optimized(
 	positions_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	rng: RandomNumberGenerator,
-	development_context: Dictionary
+	development_context: Dictionary,
+	wear_config: WearConfig = null
 ) -> Dictionary:
 	if not player.has("stats"):
 		return {"stat_entries": [], "decline_multiplier": 1.0}
@@ -681,7 +695,11 @@ static func _apply_development_optimized(
 	var combined_multiplier := _combined_multiplier(modifiers)
 	var wear_multiplier := 1.0
 	if age >= decline_start:
-		wear_multiplier = _wear_decline_multiplier_optimized(player, dev_config)
+		if wear_config != null:
+			wear_multiplier = _wear_decline_multiplier_optimized(player, wear_config)
+		else:
+			# Fallback to default multiplier if wear_config not provided
+			wear_multiplier = 1.0
 
 	var phase := "growth"
 	if age < peak_age:
@@ -944,6 +962,33 @@ static func _update_wear(
 	player["wear"] = wear
 	return wear
 
+
+## OPTIMIZATION (F6): Config-optimized wear update
+##
+## Uses WearConfig for O(1) member access instead of O(log n) dictionary lookups.
+static func _update_wear_optimized(
+	player: Dictionary,
+	positions_cfg: Dictionary,
+	wear_config: WearConfig
+) -> Dictionary:
+	var base_snaps := wear_config.snaps_per_year()
+	var base_collisions := wear_config.collisions_per_year()
+	var position_mults: Dictionary = wear_config.position_multipliers()
+	var position := String(player.get("position", ""))
+	var position_mult := float(position_mults.get(position, 1.0))
+
+	var snaps_add := int(round(base_snaps * position_mult))
+	var collisions_add := int(round(base_collisions * position_mult))
+	var injuries_last_year := int(player.get("injuries_last_year", 0))
+
+	var wear := _ensure_wear(player)
+	wear["snaps"] = int(wear.get("snaps", 0)) + max(0, snaps_add)
+	wear["collisions"] = int(wear.get("collisions", 0)) + max(0, collisions_add)
+	wear["injury_count"] = int(wear.get("injury_count", 0)) + max(0, injuries_last_year)
+
+	player["wear"] = wear
+	return wear
+
 static func _ensure_wear(player: Dictionary) -> Dictionary:
 	var wear: Dictionary = player.get("wear", {}) as Dictionary
 	return {
@@ -953,36 +998,11 @@ static func _ensure_wear(player: Dictionary) -> Dictionary:
 	}
 
 ## OPTIMIZATION (F6): Config-optimized wear decline multiplier
-## Note: This could be optimized further by extracting wear config into a WearConfig class,
-## but wear config is only accessed for players in decline phase, so the impact is smaller.
-## For now, we keep it simple and just use DevelopmentConfig which already has the values.
-static func _wear_decline_multiplier_optimized(player: Dictionary, dev_config: DevelopmentConfig) -> float:
-	# For now, we still need to access wear config from main_cfg
-	# This is a candidate for future optimization if needed
-	# The main optimization is in _apply_development_optimized which pre-extracts peak/decline ages
-	var wear := _ensure_wear(player)
-
-	# TODO: Extract these into DevelopmentConfig or WearConfig if wear becomes a bottleneck
-	# For now, this path is only taken for declining players (age >= decline_start)
-	# which is a small subset of total players
-	var snaps_scale := 8000.0
-	var collisions_scale := 2600.0
-	var injuries_scale := 6.0
-	var per_unit := 0.2
-	var min_mult := 1.0
-	var max_mult := 1.6
-
-	var snaps := float(wear.get("snaps", 0))
-	var collisions := float(wear.get("collisions", 0))
-	var injuries := float(wear.get("injury_count", 0))
-
-	var wear_score := 0.0
-	wear_score += snaps / max(1.0, snaps_scale)
-	wear_score += collisions / max(1.0, collisions_scale)
-	wear_score += injuries / max(1.0, injuries_scale)
-
-	var multiplier := 1.0 + (wear_score * per_unit)
-	return clamp(multiplier, min_mult, max_mult)
+##
+## Uses WearConfig for O(1) member access instead of hardcoded values.
+## This ensures wear config changes are reflected without code modifications.
+static func _wear_decline_multiplier_optimized(player: Dictionary, wear_config: WearConfig) -> float:
+	return wear_config.decline_multiplier(player)
 
 static func _wear_decline_multiplier(player: Dictionary, main_cfg: Dictionary) -> float:
 	var wear_cfg: Dictionary = main_cfg.get("wear", {}) as Dictionary
