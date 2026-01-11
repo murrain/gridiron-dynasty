@@ -306,7 +306,9 @@ func _handle_nfl_team_generation(
 	var result := generator.generate(step_seed)
 	teams = result.get("teams", []) as Array
 	world_state["nfl_teams"] = teams
-	world_state["nfl_rosters"] = {}
+	# Only initialize rosters if they don't exist (preserve drafted players!)
+	if not world_state.has("nfl_rosters"):
+		world_state["nfl_rosters"] = {}
 
 	return {
 		"year": year,

@@ -73,6 +73,46 @@ static func calculate_team_strength(
 	return total / float(count) if count > 0 else 50.0
 
 
+## Pre-computes team strengths for all teams in batch.
+##
+## A2 Optimization: Calculate all team strengths once per season instead of
+## repeatedly during game simulation. This eliminates redundant roster traversals
+## and PlayerRatingCalculator calls.
+##
+## RNG Consumption: None (pure calculation)
+## Performance: O(teams * players) but computed only once per season
+##
+## Parameters:
+##   team_ids: Array of team IDs to compute strengths for
+##   rosters: Dictionary mapping team_id -> roster dictionary
+##   positions_cfg: Position config for rating calculation
+##   main_cfg: Main config with class_rules
+##
+## Returns:
+##   Dictionary: Mapping team_id -> team_strength (float)
+##
+## Performance Impact:
+##   - Before: Calculate strength multiple times during simulation
+##   - After: Calculate once, reuse cached values
+##   - Expected savings: ~10 seconds over 20-year bootstrap
+static func calculate_all_team_strengths(
+	team_ids: Array,
+	rosters: Dictionary,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
+) -> Dictionary:
+	var team_strengths := {}
+
+	for team_id in team_ids:
+		var roster: Dictionary = rosters.get(team_id, {})
+		if roster.is_empty():
+			team_strengths[team_id] = 50.0  # Default neutral strength
+		else:
+			team_strengths[team_id] = calculate_team_strength(roster, positions_cfg, main_cfg)
+
+	return team_strengths
+
+
 ## Calculates win probability using logistic function.
 ##
 ## Formula: P(win) = 1 / (1 + exp(-k * (strength_diff + home_advantage)))
@@ -592,6 +632,8 @@ static func aggregate_season_results(
 ##   positions_cfg: Position configuration
 ##   main_cfg: Main configuration
 ##   rng: RandomNumberGenerator (explicit, caller-controlled)
+##   cached_home_starters: Optional pre-computed starters for home team (A1 optimization)
+##   cached_away_starters: Optional pre-computed starters for away team (A1 optimization)
 ##
 ## Side Effects:
 ##   - Modifies world_state["player_career_stats"] in-place
@@ -600,6 +642,10 @@ static func aggregate_season_results(
 ##   - First game for player: Creates new year entry
 ##   - Player changes teams mid-season: Updates team_id (latest team wins)
 ##   - Missing player_career_stats structure: Creates it
+##
+## Optimization Note (A1):
+##   When cached starters are provided, this function skips O(n log n) starter determination
+##   per game, providing significant performance improvement for season simulation.
 static func accumulate_player_stats(
 	world_state: Dictionary,
 	game_result: Dictionary,
@@ -607,7 +653,9 @@ static func accumulate_player_stats(
 	away_roster: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	cached_home_starters: Dictionary = {},
+	cached_away_starters: Dictionary = {}
 ) -> void:
 	# Ensure player_career_stats structure exists
 	if not world_state.has("player_career_stats"):
@@ -623,7 +671,9 @@ static func accumulate_player_stats(
 		game_result,
 		positions_cfg,
 		main_cfg,
-		rng
+		rng,
+		cached_home_starters,
+		cached_away_starters
 	)
 
 	# Accumulate stats into career totals

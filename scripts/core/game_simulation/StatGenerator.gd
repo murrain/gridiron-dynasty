@@ -56,13 +56,40 @@ const STARTER_POSITION_THRESHOLDS := {
 }
 
 
+## Pre-computes starters for a team based on roster and ratings.
+##
+## This function should be called once per team per season to cache starters,
+## avoiding repeated O(n log n) sorts for every game (Phase A Optimization A1).
+##
+## RNG Consumption: None (pure calculation)
+## Performance: O(n log n) where n = roster size
+##
+## Parameters:
+##   roster: Dictionary with "players" array
+##   positions_cfg: Position configuration
+##   main_cfg: Main configuration
+##
+## Returns:
+##   Dictionary: Set of starter player_ids (player_id -> true)
+static func compute_starters(
+	roster: Dictionary,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
+) -> Dictionary:
+	var players: Array = roster.get("players", [])
+	if players.is_empty():
+		return {}
+
+	return _determine_starters(players, positions_cfg, main_cfg)
+
+
 ## Generates stat lines for all active players on both teams.
 ##
 ## RNG Consumption: Variable based on position-specific algorithms (documented per function)
 ## Performance: O(n) where n = total players (~50-100 players per game)
 ##
 ## Algorithm:
-##   1. Determine starters for each team based on ratings
+##   1. Determine starters for each team based on ratings (or use cached starters)
 ##   2. Generate position-specific stats for each player
 ##   3. Track games_played and games_started
 ##   4. Return dictionary mapping player_id -> stat_line
@@ -74,6 +101,8 @@ const STARTER_POSITION_THRESHOLDS := {
 ##   positions_cfg: Position configuration
 ##   main_cfg: Main configuration
 ##   rng: RandomNumberGenerator (explicit, caller-controlled)
+##   cached_home_starters: Optional pre-computed starters for home team (optimization)
+##   cached_away_starters: Optional pre-computed starters for away team (optimization)
 ##
 ## Returns:
 ##   Dictionary: {player_id: stat_line_dict}
@@ -82,13 +111,20 @@ const STARTER_POSITION_THRESHOLDS := {
 ##   - Empty roster: Returns empty dict
 ##   - Missing position: Returns basic games_played/started only
 ##   - Invalid ratings: Defaults to 50.0
+##
+## Optimization Note (A1):
+##   When cached_home_starters and cached_away_starters are provided, this function
+##   skips the O(n log n) starter determination per team, reducing from O(games × teams × n log n)
+##   to O(teams × n log n) complexity for an entire season.
 static func generate_game_stats(
 	home_roster: Dictionary,
 	away_roster: Dictionary,
 	game_result: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	cached_home_starters: Dictionary = {},
+	cached_away_starters: Dictionary = {}
 ) -> Dictionary:
 	var all_stats := {}
 
@@ -100,7 +136,8 @@ static func generate_game_stats(
 		true,  # is_home
 		positions_cfg,
 		main_cfg,
-		rng
+		rng,
+		cached_home_starters
 	)
 	for player_id in home_stats.keys():
 		all_stats[player_id] = home_stats[player_id]
@@ -113,7 +150,8 @@ static func generate_game_stats(
 		false,  # is_home
 		positions_cfg,
 		main_cfg,
-		rng
+		rng,
+		cached_away_starters
 	)
 	for player_id in away_stats.keys():
 		all_stats[player_id] = away_stats[player_id]
@@ -126,9 +164,12 @@ static func generate_game_stats(
 ## RNG Consumption: Variable per player (documented in _generate_player_stats)
 ##
 ## Algorithm:
-##   1. Determine starters by position and rating
+##   1. Determine starters by position and rating (or use cached starters)
 ##   2. Generate stats for each player
 ##   3. Mark starters vs bench players
+##
+## Parameters:
+##   cached_starters: Optional pre-computed starters (optimization A1)
 ##
 ## Returns:
 ##   Dictionary: {player_id: stat_line_dict}
@@ -138,7 +179,8 @@ static func _generate_team_game_stats(
 	is_home: bool,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	cached_starters: Dictionary = {}
 ) -> Dictionary:
 	var players: Array = roster.get("players", [])
 	if players.is_empty():
@@ -147,9 +189,15 @@ static func _generate_team_game_stats(
 	var team_id := String(game_result.get("home_team_id" if is_home else "away_team_id", ""))
 	var won := _determine_team_won(game_result, team_id)
 
-	# Determine starters by position
+	# Determine starters by position (use cache if available, otherwise compute)
 	# RNG consumption: None (pure sorting/selection)
-	var starters := _determine_starters(players, positions_cfg, main_cfg)
+	var starters: Dictionary
+	if not cached_starters.is_empty():
+		# Use cached starters (A1 optimization - avoids O(n log n) sort)
+		starters = cached_starters
+	else:
+		# Fallback: Compute starters on-the-fly (legacy behavior)
+		starters = _determine_starters(players, positions_cfg, main_cfg)
 
 	# Generate stats for each player
 	var team_stats := {}
