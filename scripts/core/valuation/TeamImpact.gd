@@ -53,7 +53,7 @@ static func compute_team_value(
 		replacement_score = max(replacement_score, float(position_mates[0].get("eval_score", 0)))
 
 	# Impact = how much better than the replacement
-	var impact := max(0.0, player_score - replacement_score)
+	var impact: float = max(0.0, player_score - replacement_score)
 
 	# Leverage: if team has no backup, impact is amplified
 	var depth := position_mates.size()

@@ -64,7 +64,7 @@ static func estimate_value(
 	var valuation := PlayerValue.calculate(player, context, config, rng)
 
 	# Primary value is market_value (what other teams would pay)
-	var base_value := valuation.market_value
+	var base_value: float = valuation.market_value
 
 	# Apply jitter if configured
 	var jitter_sigma := float(config.get("jitter_sigma_pct", 0.0))

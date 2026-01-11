@@ -22,3 +22,8 @@ func assert_approx(actual: float, expected: float, epsilon: float, message: Stri
 func assert_between(actual: float, lo: float, hi: float, message: String) -> void:
 	if actual < lo or actual > hi:
 		failures.append("%s (expected between %.4f and %.4f, got %.4f)" % [message, lo, hi, actual])
+
+func create_seeded_rng(seed: int) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	return rng
