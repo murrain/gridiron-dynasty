@@ -35,6 +35,8 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_nfl_draft.gd",
 	"res://scripts/tests/test_nfl_season.gd",
 	"res://scripts/tests/test_advance_world_year_helpers.gd",
+	"res://scripts/tests/test_college_eligibility_filter.gd",
+	"res://scripts/tests/test_hs_to_college_filter_integration.gd",
 	"res://scripts/tests/test_pipeline_seed_helpers.gd",
 	"res://scripts/tests/test_world_history_preview.gd",
 	"res://scripts/tests/test_valuation_helpers.gd",

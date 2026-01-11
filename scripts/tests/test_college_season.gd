@@ -22,6 +22,9 @@ func run(t) -> void:
 	# Test 4: Assert determinism with fixed seed
 	_test_determinism(t, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
 
+	# Test 5: Verify draft declaration threshold filters low-rated seniors
+	_test_draft_declaration_threshold(t, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
+
 func _test_roster_advancement(t, colleges_cfg: Dictionary, positions_cfg: Dictionary, main_cfg: Dictionary, stats_cfg: Dictionary) -> void:
 	var world_state := _make_world_state_with_rosters()
 	var season := CollegeSeason.new()
@@ -179,3 +182,61 @@ func _make_player(player_id: String, pos: String, college_year: int, status: Str
 		"potential": {"speed": rating + 5.0, "acceleration": rating, "agility": rating + 2.0},
 		"composite_score": rating
 	}
+
+func _test_draft_declaration_threshold(t, colleges_cfg: Dictionary, positions_cfg: Dictionary, main_cfg: Dictionary, stats_cfg: Dictionary) -> void:
+	# Test that only seniors with rating >= 65 declare for draft
+	var colleges := [
+		{"id": "c1", "name": "College 1", "tier": "elite", "eliteness": 90.0, "region": "north"}
+	]
+
+	var rosters := {
+		"c1": {
+			"players": [
+				_make_player("p_high", "QB", 3, "junior", 88.0),    # Will become senior with rating 88 >= 65 -> declares
+				_make_player("p_mid", "WR", 3, "junior", 65.0),      # Will become senior with rating 65 >= 65 -> declares
+				_make_player("p_low", "RB", 3, "junior", 60.0),      # Will become senior with rating 60 < 65 -> does NOT declare
+				_make_player("p_very_low", "TE", 3, "junior", 50.0)  # Will become senior with rating 50 < 65 -> does NOT declare
+			],
+			"class_years": {
+				1: [],
+				2: [],
+				3: ["p_high", "p_mid", "p_low", "p_very_low"],
+				4: []
+			}
+		}
+	}
+
+	var world_state := {
+		"colleges": colleges,
+		"college_rosters": rosters,
+		"draft_pool": {}
+	}
+
+	var season := CollegeSeason.new()
+	var result := season.run(world_state, 2025, 12345, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
+
+	# Verify graduate count includes all seniors
+	var graduates := int(result.get("graduates", 0))
+	t.assert_eq(graduates, 4, "all 4 players graduated to senior status")
+
+	# Verify draft pool only contains players with rating >= 65
+	var draft_pool: Dictionary = world_state.get("draft_pool", {})
+	var draft_eligible: Array = draft_pool.get(2025, [])
+	t.assert_eq(draft_eligible.size(), 2, "only 2 players with rating >= 65 declared for draft")
+
+	# Verify high-rated players are in draft pool
+	var declared_ids := {}
+	for p in draft_eligible:
+		var player: Dictionary = p
+		var pid := String(player.get("player_id", ""))
+		declared_ids[pid] = true
+
+	t.assert_true(declared_ids.has("p_high"), "high-rated player (88) declared for draft")
+	t.assert_true(declared_ids.has("p_mid"), "mid-rated player (65) declared for draft")
+	t.assert_true(not declared_ids.has("p_low"), "low-rated player (60) did NOT declare")
+	t.assert_true(not declared_ids.has("p_very_low"), "very-low-rated player (50) did NOT declare")
+
+	# Verify low-rated players graduated but did not declare (they leave football)
+	var roster: Dictionary = rosters.get("c1", {})
+	var active_players: Array = roster.get("players", [])
+	t.assert_eq(active_players.size(), 0, "all seniors removed from roster (declared or left football)")

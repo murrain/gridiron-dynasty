@@ -16,10 +16,21 @@ const NflSeason = preload("res://scripts/world/NflSeason.gd")
 const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
 const ValuationFlow = preload("res://scripts/world/ValuationFlow.gd")
 const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
+const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 
+## Cached config instance for performance optimization.
+## The Config object is read-only during simulation and contains no mutable state
+## that affects determinism. Caching eliminates redundant file I/O across phases.
+## This is safe because:
+## 1. Config is never modified during simulation
+## 2. All phase handlers receive identical config data
+## 3. Tests can clear this via set_bootstrap_mode() or create fresh instances
 var _config_instance: Node = null
+
 var _bootstrap_mode: bool = false
 
+## Returns the cached config instance, creating it on first access.
+## Safe for caching because Config is read-only during simulation.
 func _get_config() -> Node:
 	if _config_instance == null:
 		_config_instance = Config.new()
@@ -228,8 +239,11 @@ func _handle_hs_season(
 	var graduates: Array = output.get("graduates", []) as Array
 	world_state["hs_players"] = active
 
+	# Filter graduates to only college-eligible players
+	var filtered_recruits := _filter_college_eligible(graduates, positions_cfg, main_cfg, hs_cfg)
+
 	var recruit_pool: Dictionary = world_state.get("hs_recruit_pool", {}) as Dictionary
-	var profiles := _build_recruit_profiles(graduates, year)
+	var profiles := _build_recruit_profiles(filtered_recruits, year)
 	recruit_pool[year] = profiles
 	world_state["hs_recruit_pool"] = recruit_pool
 
@@ -237,6 +251,8 @@ func _handle_hs_season(
 		"year": year,
 		"count": active.size(),
 		"graduates": graduates.size(),
+		"college_eligible": filtered_recruits.size(),
+		"ineligible": graduates.size() - filtered_recruits.size(),
 		"transition_count": (output.get("transitions", []) as Array).size(),
 		"recruit_profiles": profiles.size(),
 		"step_seeds": {"hs_season": step_seed}
@@ -530,14 +546,14 @@ func _apply_hs_player_fields(players: Array, year: int, cfg: Dictionary, seed: i
 		p["proximity_bias"] = rng.randf_range(bias_min, bias_max)
 		players[i] = p
 
-func _weights_for(items: Array) -> Array:
+static func _weights_for(items: Array) -> Array:
 	var weights: Array = []
 	weights.resize(items.size())
 	for i in range(items.size()):
 		weights[i] = float((items[i] as Dictionary).get("weight", 0.0))
 	return weights
 
-func _weighted_pick(items: Array, weights: Array, rng: RandomNumberGenerator) -> Dictionary:
+static func _weighted_pick(items: Array, weights: Array, rng: RandomNumberGenerator) -> Dictionary:
 	if items.is_empty():
 		return {}
 	var total := 0.0
@@ -553,7 +569,7 @@ func _weighted_pick(items: Array, weights: Array, rng: RandomNumberGenerator) ->
 			return items[i] as Dictionary
 	return items[items.size() - 1] as Dictionary
 
-func _build_recruit_profiles(graduates: Array, year: int) -> Array:
+static func _build_recruit_profiles(graduates: Array, year: int) -> Array:
 	var profiles: Array = []
 	profiles.resize(graduates.size())
 	for i in range(graduates.size()):
@@ -579,6 +595,35 @@ func _build_recruit_profiles(graduates: Array, year: int) -> Array:
 		}
 		profiles[i] = profile
 	return profiles
+
+## Filters HS graduates to only include college-eligible players.
+## Uses rating threshold from config to determine eligibility.
+## Returns filtered array of college-worthy players.
+##
+## RNG Usage: None (pure filtering based on existing ratings)
+## Determinism: For identical input arrays and config, produces identical output
+static func _filter_college_eligible(
+	graduates: Array,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary,
+	hs_cfg: Dictionary
+) -> Array:
+	var recruiting_cfg: Dictionary = hs_cfg.get("recruiting", {}) as Dictionary
+	var threshold := float(recruiting_cfg.get("college_eligibility_threshold", 0.0))
+	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
+
+	var eligible := []
+
+	for player in graduates:
+		var p: Dictionary = player
+		# Calculate overall rating using shared utility (same method as draft declaration)
+		var rating := PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
+
+		if rating >= threshold:
+			eligible.append(p)
+
+	return eligible
+
 
 func _initialize_college_rosters(
 	world_state: Dictionary,

@@ -5,6 +5,7 @@ const Rand = preload("res://autoloads/Rand.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
+const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 
 func run(
 	world_state: Dictionary,
@@ -92,12 +93,20 @@ func run(
 
 			var is_draft_eligible := false
 			if new_year >= 4:
-				# Seniors are automatically draft eligible
-				is_draft_eligible = true
+				# Seniors: Only declare if rating meets threshold
+				# OPTIMIZATION: Draft Declaration Threshold (from BACKWARD_CLASS_SIZING.md)
+				# Purpose: Reduce draft pool from ~2,900 to ~520 players (82% reduction)
+				# Expected impact: Faster draft processing during bootstrap
 				total_graduates += 1
+				var draft_threshold_cfg: Dictionary = config.get("draft_declaration", {}) as Dictionary
+				var rating_threshold := float(draft_threshold_cfg.get("rating_threshold", 65.0))
+				var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
+				var player_rating := PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
+				if player_rating >= rating_threshold:
+					is_draft_eligible = true
 			elif new_year == 3:
 				# Check for early declaration
-				if _check_early_declaration(p, early_decl_cfg, early_decl_rng):
+				if _check_early_declaration(p, early_decl_cfg, early_decl_rng, positions_cfg, main_cfg):
 					is_draft_eligible = true
 					total_early_declares += 1
 
@@ -202,7 +211,9 @@ func _eligibility_status(college_year: int) -> String:
 func _check_early_declaration(
 	player: Dictionary,
 	early_decl_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
 ) -> bool:
 	var min_year := int(early_decl_cfg.get("min_year", 3))
 	var rating_threshold := float(early_decl_cfg.get("rating_threshold", 85.0))
@@ -213,7 +224,8 @@ func _check_early_declaration(
 	if college_year < min_year:
 		return false
 
-	var rating := _player_rating(player)
+	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
+	var rating := PlayerRatingCalculator.calculate_overall_rating(player, positions_cfg, class_rules)
 	if rating < rating_threshold:
 		return false
 
@@ -222,21 +234,6 @@ func _check_early_declaration(
 
 	return rng.randf() < chance
 
-func _player_rating(player: Dictionary) -> float:
-	if player.has("composite_score"):
-		return float(player.get("composite_score", 0.0))
-	if player.has("core_avg"):
-		return float(player.get("core_avg", 0.0))
-
-	var stats: Dictionary = player.get("stats", {}) as Dictionary
-	var total := 0.0
-	var count := 0
-	for val in stats.values():
-		if typeof(val) == TYPE_FLOAT or typeof(val) == TYPE_INT:
-			total += float(val)
-			count += 1
-
-	return (total / float(count)) if count > 0 else 0.0
 
 func _college_index(colleges: Array) -> Dictionary:
 	var out := {}
