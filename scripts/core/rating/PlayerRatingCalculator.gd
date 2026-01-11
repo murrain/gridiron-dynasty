@@ -44,10 +44,19 @@ static func calculate_overall_rating(
 		var core_stats: Array = pos_cfg.get("core_stats", []) as Array
 
 		if not core_stats.is_empty():
+			# Stats can be nested under "stats" key or at top level
+			var stats_dict: Dictionary = player.get("stats", {}) as Dictionary
+			var use_nested := not stats_dict.is_empty()
+
 			var core_sum := 0.0
 			for stat in core_stats:
 				var stat_name := String(stat)
-				core_sum += float(player.get(stat_name, 50.0))
+				var stat_value: float
+				if use_nested:
+					stat_value = float(stats_dict.get(stat_name, 50.0))
+				else:
+					stat_value = float(player.get(stat_name, 50.0))
+				core_sum += stat_value
 
 			var core_avg := core_sum / float(core_stats.size())
 			return core_avg
