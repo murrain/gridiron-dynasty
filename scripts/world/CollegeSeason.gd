@@ -6,6 +6,7 @@ const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
+const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
 
 func run(
 	world_state: Dictionary,
@@ -46,6 +47,17 @@ func run(
 	# OPTIMIZATION (F6): Pre-extract config values once for all rosters
 	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
 	var ret_config := RetirementConfig.new(main_cfg)
+
+	# GAME SIMULATION (G1.1): Simulate season before player lifecycle
+	# This generates win-loss records, championships, and strength of schedule
+	var game_sim_summary := _simulate_college_season(
+		world_state,
+		year,
+		seed,
+		config,
+		positions_cfg,
+		main_cfg
+	)
 
 	var total_graduates := 0
 	var total_early_declares := 0
@@ -134,10 +146,12 @@ func run(
 		"graduates": total_graduates,
 		"draft_eligible_count": draft_eligible.size(),
 		"early_declares": total_early_declares,
+		"game_simulation": game_sim_summary,
 		"step_seeds": {
 			"lifecycle": lifecycle_rng.seed,
 			"context": context_rng.seed,
-			"early_declaration": early_decl_rng.seed
+			"early_declaration": early_decl_rng.seed,
+			"game_simulation": game_sim_summary.get("sim_seed", 0)
 		}
 	}
 
@@ -243,3 +257,296 @@ func _college_index(colleges: Array) -> Dictionary:
 		if cid != "":
 			out[cid] = c
 	return out
+
+
+## Updates team history tracking for all teams.
+##
+## Implements:
+##   - H4.1: Franchise Win Totals (all_time_wins, all_time_losses, first_season, last_season)
+##   - H4.2: Championship History (championship_count, championship_years)
+##   - H4.3: Playoff Appearance Count (playoff_appearances, playoff_years)
+##   - H4.4: Winning Streaks (longest_win_streak, longest_loss_streak, current_win/loss_streak)
+##   - H4.6: Drought Tracking (years_since_championship)
+##
+## RNG Pattern: None (pure aggregation, no randomness)
+##
+## Notes:
+##   - Winning/losing streaks track consecutive SEASONS with winning/losing records
+##     (winning season = wins > losses)
+##   - Playoff teams in Phase 1: Top 4 teams by record (college)
+##   - Droughts: years since last championship, -1 if never won
+func _update_team_history(
+	world_state: Dictionary,
+	year: int,
+	season_results: Dictionary,
+	champion_id: String
+) -> void:
+	var team_history: Dictionary = world_state.get("team_history", {})
+
+	# Determine playoff teams (H4.3)
+	# Phase 1 simple version: Top 4 teams by win count
+	var playoff_teams := _determine_college_playoff_teams(season_results)
+
+	# Process each team
+	for team_id in season_results.keys():
+		var record: Dictionary = season_results[team_id]
+		var wins := int(record.get("wins", 0))
+		var losses := int(record.get("losses", 0))
+
+		# Initialize team history if not exists
+		if not team_history.has(team_id):
+			team_history[team_id] = {
+				"team_id": team_id,
+				"all_time_wins": 0,
+				"all_time_losses": 0,
+				"first_season": year,
+				"last_season": year,
+				"championship_count": 0,
+				"championship_years": [],
+				"playoff_appearances": 0,
+				"playoff_years": [],
+				"longest_win_streak": 0,
+				"longest_loss_streak": 0,
+				"current_win_streak": 0,
+				"current_loss_streak": 0,
+				"years_since_championship": -1
+			}
+
+		var history: Dictionary = team_history[team_id]
+
+		# H4.1: Update franchise win totals
+		history["all_time_wins"] = int(history.get("all_time_wins", 0)) + wins
+		history["all_time_losses"] = int(history.get("all_time_losses", 0)) + losses
+		history["last_season"] = year
+
+		# H4.2: Update championship history
+		if team_id == champion_id:
+			history["championship_count"] = int(history.get("championship_count", 0)) + 1
+			var champ_years: Array = history.get("championship_years", [])
+			champ_years.append(year)
+			history["championship_years"] = champ_years
+
+		# H4.3: Update playoff appearances
+		if team_id in playoff_teams:
+			history["playoff_appearances"] = int(history.get("playoff_appearances", 0)) + 1
+			var playoff_years: Array = history.get("playoff_years", [])
+			playoff_years.append(year)
+			history["playoff_years"] = playoff_years
+
+		# H4.4: Update winning/losing streaks
+		# Streak definition: consecutive seasons with winning/losing record
+		var had_winning_season := (wins > losses)
+		var had_losing_season := (losses > wins)
+
+		if had_winning_season:
+			# Continue or start winning streak
+			history["current_win_streak"] = int(history.get("current_win_streak", 0)) + 1
+			history["current_loss_streak"] = 0
+
+			# Update longest if exceeded
+			var current_win := int(history["current_win_streak"])
+			var longest_win := int(history.get("longest_win_streak", 0))
+			if current_win > longest_win:
+				history["longest_win_streak"] = current_win
+
+		elif had_losing_season:
+			# Continue or start losing streak
+			history["current_loss_streak"] = int(history.get("current_loss_streak", 0)) + 1
+			history["current_win_streak"] = 0
+
+			# Update longest if exceeded
+			var current_loss := int(history["current_loss_streak"])
+			var longest_loss := int(history.get("longest_loss_streak", 0))
+			if current_loss > longest_loss:
+				history["longest_loss_streak"] = current_loss
+
+		else:
+			# .500 season (tied) resets both streaks
+			history["current_win_streak"] = 0
+			history["current_loss_streak"] = 0
+
+		# H4.6: Update championship drought
+		var champ_years: Array = history.get("championship_years", [])
+		if champ_years.is_empty():
+			history["years_since_championship"] = -1  # Never won
+		else:
+			var last_champ_year := int(champ_years[champ_years.size() - 1])
+			history["years_since_championship"] = year - last_champ_year
+
+		team_history[team_id] = history
+
+	world_state["team_history"] = team_history
+
+
+## Determines which teams make the playoff (college).
+##
+## Phase 1 simple version: Top 4 teams by win count.
+## Phase 2 will implement proper CFP selection with conference champions, committee rankings, etc.
+##
+## RNG Pattern: None (deterministic selection by record)
+##
+## Returns: Array of team_ids that made the playoff
+func _determine_college_playoff_teams(season_results: Dictionary) -> Array:
+	# Build array of [team_id, wins, losses] for sorting
+	var teams := []
+	for team_id in season_results.keys():
+		var record: Dictionary = season_results[team_id]
+		teams.append({
+			"team_id": team_id,
+			"wins": int(record.get("wins", 0)),
+			"losses": int(record.get("losses", 0))
+		})
+
+	# Sort by wins descending, then losses ascending (tiebreaker)
+	teams.sort_custom(func(a, b):
+		var a_wins := int(a["wins"])
+		var b_wins := int(b["wins"])
+		if a_wins != b_wins:
+			return a_wins > b_wins
+		# Tiebreaker: fewer losses
+		return int(a["losses"]) < int(b["losses"])
+	)
+
+	# Select top 4
+	var playoff_teams := []
+	var playoff_size := 4
+	for i in range(min(playoff_size, teams.size())):
+		playoff_teams.append(String(teams[i]["team_id"]))
+
+	return playoff_teams
+
+
+## Simulates college football season games and stores results.
+##
+## Implements G1.1 (Game Simulation), G1.2 (Season W-L Records), G1.5 (Championships), G1.8 (SOS)
+##
+## RNG Pattern:
+##   - Simulation seed: Rand.splitmix64(seed ^ 0xC011E6E4)
+##   - Expected consumption: 1 randf() per game + schedule shuffle
+##   - Sequential simulation per week for determinism
+##
+## Stores in world_state:
+##   - world_state["season_records"][year][team_id] -> SeasonRecord
+##   - world_state["championships"]["college"]["national_champions"][year] -> team_id
+##
+## Returns summary dict with game count, upset count, champion
+func _simulate_college_season(
+	world_state: Dictionary,
+	year: int,
+	seed: int,
+	config: Dictionary,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
+) -> Dictionary:
+	var game_sim_cfg: Dictionary = config.get("game_simulation", {})
+
+	# Check feature flag
+	if not bool(game_sim_cfg.get("enabled", false)):
+		return {
+			"enabled": false,
+			"games_simulated": 0
+		}
+
+	# Load data
+	var colleges: Array = world_state.get("colleges", [])
+	var rosters: Dictionary = world_state.get("college_rosters", {})
+
+	# Derive simulation seed (unique salt for game simulation)
+	var sim_seed := Rand.splitmix64(seed ^ 0xC011E6E4)
+
+	# Calculate team strengths (cache for all games)
+	# Expected RNG consumption: None (pure calculation)
+	var team_strengths := {}
+	for college in colleges:
+		var c: Dictionary = college
+		var college_id := String(c.get("id", ""))
+		if rosters.has(college_id):
+			var roster: Dictionary = rosters[college_id]
+			var strength := GameSimulator.calculate_team_strength(roster, positions_cfg, main_cfg)
+			team_strengths[college_id] = strength
+
+	# Generate schedule
+	# Expected RNG consumption: N swaps for shuffle (N = college count)
+	var weeks := int(game_sim_cfg.get("regular_season_weeks", 12))
+	var schedule := GameSimulator.generate_college_schedule(colleges, year, weeks, sim_seed)
+
+	# Simulate games (sequential for determinism)
+	# Expected RNG consumption: 1 randf() per game + stats generation per player
+	var rng := RandomNumberGenerator.new()
+	rng.seed = sim_seed
+	var all_results: Array = []
+	var upset_count := 0
+
+	for matchup in schedule:
+		var result := GameSimulator.determine_winner(matchup, team_strengths, rng, game_sim_cfg)
+		all_results.append(result)
+		if bool(result.get("upset", false)):
+			upset_count += 1
+
+		# Accumulate player stats for this game (S2.1)
+		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
+		var home_id := String(result.get("home_team_id", ""))
+		var away_id := String(result.get("away_team_id", ""))
+		var home_roster := rosters.get(home_id, {})
+		var away_roster := rosters.get(away_id, {})
+
+		if not home_roster.is_empty() and not away_roster.is_empty():
+			GameSimulator.accumulate_player_stats(
+				world_state,
+				result,
+				home_roster,
+				away_roster,
+				positions_cfg,
+				main_cfg,
+				rng
+			)
+
+	# Aggregate results (G1.2: Season W-L Records, G1.8: Strength of Schedule)
+	# Expected RNG consumption: None (pure aggregation)
+	var college_ids := []
+	for college in colleges:
+		var c: Dictionary = college
+		college_ids.append(String(c.get("id", "")))
+
+	var season_results := GameSimulator.aggregate_season_results(all_results, college_ids)
+
+	# Store season records in world_state (G1.2)
+	var season_records: Dictionary = world_state.get("season_records", {})
+	if not season_records.has(year):
+		season_records[year] = {}
+	for team_id in season_results.keys():
+		season_records[year][team_id] = season_results[team_id]
+	world_state["season_records"] = season_records
+
+	# Determine national champion (G1.5: Championship Tracking)
+	# Phase 1: Best record wins (simple version, playoffs in Phase 2)
+	var best_record := {"team_id": "", "wins": -1}
+	for team_id in season_results.keys():
+		var record: Dictionary = season_results[team_id]
+		var wins := int(record.get("wins", 0))
+		if wins > int(best_record["wins"]):
+			best_record = {"team_id": team_id, "wins": wins}
+
+	# Store championship (G1.5)
+	var championships: Dictionary = world_state.get("championships", {})
+	if not championships.has("college"):
+		championships["college"] = {"national_champions": {}}
+	if not championships["college"].has("national_champions"):
+		championships["college"]["national_champions"] = {}
+	championships["college"]["national_champions"][year] = String(best_record["team_id"])
+	world_state["championships"] = championships
+
+	# Update team history (H4.1-H4.6: Franchise stats, championships, streaks, droughts)
+	# Expected RNG consumption: None (pure aggregation)
+	_update_team_history(world_state, year, season_results, String(best_record["team_id"]))
+
+	# Return summary
+	return {
+		"enabled": true,
+		"games_simulated": all_results.size(),
+		"upsets": upset_count,
+		"national_champion": String(best_record["team_id"]),
+		"champion_record": "%d-%d" % [int(best_record["wins"]),
+									  int(season_results[best_record["team_id"]].get("losses", 0))],
+		"sim_seed": sim_seed
+	}

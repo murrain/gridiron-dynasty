@@ -5,6 +5,7 @@ const Rand = preload("res://autoloads/Rand.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
+const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
 
 ## Runs the NFL season simulation for a given year.
 ##
@@ -53,6 +54,17 @@ func run(
 	# OPTIMIZATION (F6): Pre-extract config values once for all teams
 	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
 	var ret_config := RetirementConfig.new(main_cfg)
+
+	# GAME SIMULATION (G1.1): Simulate season before player lifecycle
+	# This generates win-loss records, championships, and strength of schedule
+	var game_sim_summary := _simulate_nfl_season(
+		world_state,
+		year,
+		seed,
+		league_cfg,
+		positions_cfg,
+		main_cfg
+	)
 
 	var total_retirements := 0
 	var total_free_agents := 0
@@ -158,10 +170,12 @@ func run(
 		"total_players": _sum_roster_counts(roster_counts),
 		"retirements": total_retirements,
 		"free_agents": total_free_agents,
+		"game_simulation": game_sim_summary,
 		"step_seeds": {
 			"lifecycle": lifecycle_rng.seed,
 			"context": context_rng.seed,
-			"retirement": retirement_rng.seed
+			"retirement": retirement_rng.seed,
+			"game_simulation": game_sim_summary.get("sim_seed", 0)
 		}
 	}
 
@@ -334,3 +348,323 @@ func _sum_roster_counts(counts: Dictionary) -> int:
 	for count in counts.values():
 		total += int(count)
 	return total
+
+
+## Updates team history tracking for all teams.
+##
+## Implements:
+##   - H4.1: Franchise Win Totals (all_time_wins, all_time_losses, first_season, last_season)
+##   - H4.2: Championship History (championship_count, championship_years)
+##   - H4.3: Playoff Appearance Count (playoff_appearances, playoff_years)
+##   - H4.4: Winning Streaks (longest_win_streak, longest_loss_streak, current_win/loss_streak)
+##   - H4.6: Drought Tracking (years_since_championship)
+##
+## RNG Pattern: None (pure aggregation, no randomness)
+##
+## Notes:
+##   - Winning/losing streaks track consecutive SEASONS with winning/losing records
+##     (winning season = wins > losses)
+##   - Playoff teams in Phase 1: Top 7 teams per conference (14 total)
+##   - Droughts: years since last Super Bowl, -1 if never won
+func _update_team_history(
+	world_state: Dictionary,
+	year: int,
+	season_results: Dictionary,
+	champion_id: String,
+	teams: Array,
+	regions: Array
+) -> void:
+	var team_history: Dictionary = world_state.get("team_history", {})
+
+	# Determine playoff teams (H4.3)
+	# Phase 1 simple version: Top 7 teams per conference
+	var playoff_teams := _determine_nfl_playoff_teams(season_results, teams, regions)
+
+	# Process each team
+	for team_id in season_results.keys():
+		var record: Dictionary = season_results[team_id]
+		var wins := int(record.get("wins", 0))
+		var losses := int(record.get("losses", 0))
+
+		# Initialize team history if not exists
+		if not team_history.has(team_id):
+			team_history[team_id] = {
+				"team_id": team_id,
+				"all_time_wins": 0,
+				"all_time_losses": 0,
+				"first_season": year,
+				"last_season": year,
+				"championship_count": 0,
+				"championship_years": [],
+				"playoff_appearances": 0,
+				"playoff_years": [],
+				"longest_win_streak": 0,
+				"longest_loss_streak": 0,
+				"current_win_streak": 0,
+				"current_loss_streak": 0,
+				"years_since_championship": -1
+			}
+
+		var history: Dictionary = team_history[team_id]
+
+		# H4.1: Update franchise win totals
+		history["all_time_wins"] = int(history.get("all_time_wins", 0)) + wins
+		history["all_time_losses"] = int(history.get("all_time_losses", 0)) + losses
+		history["last_season"] = year
+
+		# H4.2: Update championship history
+		if team_id == champion_id:
+			history["championship_count"] = int(history.get("championship_count", 0)) + 1
+			var champ_years: Array = history.get("championship_years", [])
+			champ_years.append(year)
+			history["championship_years"] = champ_years
+
+		# H4.3: Update playoff appearances
+		if team_id in playoff_teams:
+			history["playoff_appearances"] = int(history.get("playoff_appearances", 0)) + 1
+			var playoff_years: Array = history.get("playoff_years", [])
+			playoff_years.append(year)
+			history["playoff_years"] = playoff_years
+
+		# H4.4: Update winning/losing streaks
+		# Streak definition: consecutive seasons with winning/losing record
+		var had_winning_season := (wins > losses)
+		var had_losing_season := (losses > wins)
+
+		if had_winning_season:
+			# Continue or start winning streak
+			history["current_win_streak"] = int(history.get("current_win_streak", 0)) + 1
+			history["current_loss_streak"] = 0
+
+			# Update longest if exceeded
+			var current_win := int(history["current_win_streak"])
+			var longest_win := int(history.get("longest_win_streak", 0))
+			if current_win > longest_win:
+				history["longest_win_streak"] = current_win
+
+		elif had_losing_season:
+			# Continue or start losing streak
+			history["current_loss_streak"] = int(history.get("current_loss_streak", 0)) + 1
+			history["current_win_streak"] = 0
+
+			# Update longest if exceeded
+			var current_loss := int(history["current_loss_streak"])
+			var longest_loss := int(history.get("longest_loss_streak", 0))
+			if current_loss > longest_loss:
+				history["longest_loss_streak"] = current_loss
+
+		else:
+			# .500 season (tied) resets both streaks
+			history["current_win_streak"] = 0
+			history["current_loss_streak"] = 0
+
+		# H4.6: Update championship drought
+		var champ_years: Array = history.get("championship_years", [])
+		if champ_years.is_empty():
+			history["years_since_championship"] = -1  # Never won
+		else:
+			var last_champ_year := int(champ_years[champ_years.size() - 1])
+			history["years_since_championship"] = year - last_champ_year
+
+		team_history[team_id] = history
+
+	world_state["team_history"] = team_history
+
+
+## Determines which teams make the playoff (NFL).
+##
+## Phase 1 simple version: Top 7 teams per conference by win count.
+## Phase 2 will implement proper seeding with division winners, wild cards, etc.
+##
+## RNG Pattern: None (deterministic selection by record)
+##
+## Returns: Array of team_ids that made the playoff
+func _determine_nfl_playoff_teams(
+	season_results: Dictionary,
+	teams: Array,
+	regions: Array
+) -> Array:
+	# Build team-to-conference mapping
+	var team_to_conference := {}
+	for region in regions:
+		var r: Dictionary = region
+		var conf_name := String(r.get("name", ""))
+		var divisions: Array = r.get("divisions", [])
+		for division in divisions:
+			var d: Dictionary = division
+			var team_ids: Array = d.get("team_ids", [])
+			for team_id in team_ids:
+				team_to_conference[String(team_id)] = conf_name
+
+	# Build conference standings
+	var conference_standings := {}
+	for team_id in season_results.keys():
+		var record: Dictionary = season_results[team_id]
+		var conf := team_to_conference.get(team_id, "Unknown")
+		if not conference_standings.has(conf):
+			conference_standings[conf] = []
+
+		(conference_standings[conf] as Array).append({
+			"team_id": team_id,
+			"wins": int(record.get("wins", 0)),
+			"losses": int(record.get("losses", 0))
+		})
+
+	# Sort each conference by wins descending, then losses ascending
+	for conf in conference_standings.keys():
+		var teams_in_conf: Array = conference_standings[conf]
+		teams_in_conf.sort_custom(func(a, b):
+			var a_wins := int(a["wins"])
+			var b_wins := int(b["wins"])
+			if a_wins != b_wins:
+				return a_wins > b_wins
+			# Tiebreaker: fewer losses
+			return int(a["losses"]) < int(b["losses"])
+		)
+
+	# Select top 7 from each conference
+	var playoff_teams := []
+	var playoff_size_per_conference := 7
+
+	for conf in conference_standings.keys():
+		var teams_in_conf: Array = conference_standings[conf]
+		for i in range(min(playoff_size_per_conference, teams_in_conf.size())):
+			playoff_teams.append(String(teams_in_conf[i]["team_id"]))
+
+	return playoff_teams
+
+
+## Simulates NFL season games and stores results.
+##
+## Implements G1.1 (Game Simulation), G1.2 (Season W-L Records), G1.5 (Championships), G1.8 (SOS)
+##
+## RNG Pattern:
+##   - Simulation seed: Rand.splitmix64(seed ^ 0x5EA50004)
+##   - Expected consumption: 1 randf() per game + schedule shuffle
+##   - Sequential simulation per week for determinism
+##
+## Stores in world_state:
+##   - world_state["season_records"][year][team_id] -> SeasonRecord
+##   - world_state["championships"]["nfl"]["super_bowl_winners"][year] -> team_id
+##
+## Returns summary dict with game count, upset count, Super Bowl winner
+func _simulate_nfl_season(
+	world_state: Dictionary,
+	year: int,
+	seed: int,
+	league_cfg: Dictionary,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
+) -> Dictionary:
+	var game_sim_cfg: Dictionary = league_cfg.get("game_simulation", {})
+
+	# Check feature flag
+	if not bool(game_sim_cfg.get("enabled", false)):
+		return {
+			"enabled": false,
+			"games_simulated": 0
+		}
+
+	# Load data
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var regions: Array = league_cfg.get("regions", [])
+
+	# Derive simulation seed (unique salt for game simulation)
+	var sim_seed := Rand.splitmix64(seed ^ 0x5EA50004)
+
+	# Calculate team strengths (cache for all games)
+	# Expected RNG consumption: None (pure calculation)
+	var team_strengths := {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		if rosters.has(team_id):
+			var roster: Dictionary = rosters[team_id]
+			var strength := GameSimulator.calculate_team_strength(roster, positions_cfg, main_cfg)
+			team_strengths[team_id] = strength
+
+	# Generate schedule
+	# Expected RNG consumption: N swaps for shuffle operations
+	var schedule := GameSimulator.generate_nfl_schedule(teams, regions, year, sim_seed)
+
+	# Simulate games (sequential for determinism)
+	# Expected RNG consumption: 1 randf() per game + stats generation per player
+	var rng := RandomNumberGenerator.new()
+	rng.seed = sim_seed
+	var all_results: Array = []
+	var upset_count := 0
+
+	for matchup in schedule:
+		var result := GameSimulator.determine_winner(matchup, team_strengths, rng, game_sim_cfg)
+		all_results.append(result)
+		if bool(result.get("upset", false)):
+			upset_count += 1
+
+		# Accumulate player stats for this game (S2.1)
+		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
+		var home_id := String(result.get("home_team_id", ""))
+		var away_id := String(result.get("away_team_id", ""))
+		var home_roster := rosters.get(home_id, {})
+		var away_roster := rosters.get(away_id, {})
+
+		if not home_roster.is_empty() and not away_roster.is_empty():
+			GameSimulator.accumulate_player_stats(
+				world_state,
+				result,
+				home_roster,
+				away_roster,
+				positions_cfg,
+				main_cfg,
+				rng
+			)
+
+	# Aggregate results (G1.2: Season W-L Records, G1.8: Strength of Schedule)
+	# Expected RNG consumption: None (pure aggregation)
+	var team_ids := []
+	for team in teams:
+		var t: Dictionary = team
+		team_ids.append(String(t.get("id", "")))
+
+	var season_results := GameSimulator.aggregate_season_results(all_results, team_ids)
+
+	# Store season records in world_state (G1.2)
+	var season_records: Dictionary = world_state.get("season_records", {})
+	if not season_records.has(year):
+		season_records[year] = {}
+	for team_id in season_results.keys():
+		season_records[year][team_id] = season_results[team_id]
+	world_state["season_records"] = season_records
+
+	# Determine Super Bowl winner (G1.5: Championship Tracking)
+	# Phase 1: Best record wins (simple version, playoffs in Phase 2)
+	var best_record := {"team_id": "", "wins": -1}
+	for team_id in season_results.keys():
+		var record: Dictionary = season_results[team_id]
+		var wins := int(record.get("wins", 0))
+		if wins > int(best_record["wins"]):
+			best_record = {"team_id": team_id, "wins": wins}
+
+	# Store championship (G1.5)
+	var championships: Dictionary = world_state.get("championships", {})
+	if not championships.has("nfl"):
+		championships["nfl"] = {"super_bowl_winners": {}}
+	if not championships["nfl"].has("super_bowl_winners"):
+		championships["nfl"]["super_bowl_winners"] = {}
+	championships["nfl"]["super_bowl_winners"][year] = String(best_record["team_id"])
+	world_state["championships"] = championships
+
+	# Update team history (H4.1-H4.6: Franchise stats, championships, streaks, droughts)
+	# Expected RNG consumption: None (pure aggregation)
+	_update_team_history(world_state, year, season_results, String(best_record["team_id"]), teams, regions)
+
+	# Return summary
+	return {
+		"enabled": true,
+		"games_simulated": all_results.size(),
+		"upsets": upset_count,
+		"super_bowl_winner": String(best_record["team_id"]),
+		"champion_record": "%d-%d" % [int(best_record["wins"]),
+									  int(season_results[best_record["team_id"]].get("losses", 0))],
+		"sim_seed": sim_seed
+	}
