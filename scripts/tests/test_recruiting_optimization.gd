@@ -300,8 +300,8 @@ func test_performance_comparison(t) -> void:
 	)
 	var time_par := Time.get_ticks_usec() - time_start_par
 
-	var speedup_seq := float(time_orig) / max(1.0, float(time_opt))
-	var speedup_par := float(time_orig) / max(1.0, float(time_par))
+	var speedup_seq: float = float(time_orig) / max(1.0, float(time_opt))
+	var speedup_par: float = float(time_orig) / max(1.0, float(time_par))
 
 	print("Performance comparison (200 recruits, 20 colleges):")
 	print("  Original:    %d µs" % time_orig)
@@ -354,8 +354,8 @@ func _create_test_recruits(count: int) -> Array:
 
 	for i in range(count):
 		var player_id := "recruit_%03d" % i
-		var position := positions[rng.randi() % positions.size()]
-		var region := regions[rng.randi() % regions.size()]
+		var position: String = positions[rng.randi() % positions.size()]
+		var region: String = regions[rng.randi() % regions.size()]
 		var baseline := rng.randf_range(50.0, 90.0)
 
 		recruits.append({

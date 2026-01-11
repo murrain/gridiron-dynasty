@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cvxevm5kr7322"]
 
-[ext_resource type="Script" uid="uid://cx1ng8bh7v6qk" path="res://scripts/pipelines/GenerateClassOnce.gd" id="1_li3vj"]
+[ext_resource type="Script" uid="uid://bs6h61lyi8k1o" path="res://scripts/pipelines/GenerateClassOnce.gd" id="1_li3vj"]
 
 [node name="Control" type="Control"]
 layout_mode = 3
@@ -16,22 +16,17 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_right = 448.0
+offset_bottom = 152.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="OutputScroll" type="ScrollContainer" parent="OutputPanel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 2
 
 [node name="OutputText" type="RichTextLabel" parent="OutputPanel/OutputScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 fit_content = true
-scroll_active = true
 scroll_following = true
-autowrap_mode = 3

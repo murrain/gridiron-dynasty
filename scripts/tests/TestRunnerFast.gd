@@ -22,6 +22,8 @@ const FAST_TESTS := [
 	"res://scripts/tests/test_stathelpers.gd",
 	"res://scripts/tests/test_combine_calculator.gd",
 	"res://scripts/tests/test_player_model.gd",
+	"res://scripts/tests/test_copy_optimization.gd",
+	"res://scripts/tests/test_lifecycle_p3_optimizations.gd",
 	"res://scripts/tests/test_world_calendar.gd",
 	"res://scripts/tests/test_advance_world_year_helpers.gd",
 	"res://scripts/tests/test_pipeline_seed_helpers.gd",

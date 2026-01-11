@@ -18,13 +18,44 @@ const ValuationFlow = preload("res://scripts/world/ValuationFlow.gd")
 const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
 
 var _config_instance: Node = null
+var _bootstrap_mode: bool = false
 
 func _get_config() -> Node:
 	if _config_instance == null:
 		_config_instance = Config.new()
 	return _config_instance
 
-func run(world_state: Dictionary, year: int, year_seed: int) -> Dictionary:
+## Enable or disable bootstrap mode.
+## When enabled, PlayerLifecycle operations will skip development report generation
+## to reduce memory usage during world initialization.
+func set_bootstrap_mode(enabled: bool) -> void:
+	_bootstrap_mode = enabled
+
+## Returns lifecycle options based on current bootstrap mode.
+## Used to pass skip_reports flag to season handlers.
+func _lifecycle_options() -> Dictionary:
+	return {"skip_reports": _bootstrap_mode}
+
+## Executes all phases for a given year in the world simulation.
+##
+## Parameters:
+##   world_state: Mutable state dictionary tracking all entities across leagues
+##   year: The simulation year to execute
+##   year_seed: Deterministic seed for this year (0 = randomize)
+##   capture_timing: If true, records per-phase timing in microseconds (default: false)
+##
+## Returns:
+##   Dictionary containing:
+##     - year: The simulated year
+##     - year_seed: The resolved seed used (may differ from input if randomized)
+##     - year_seed_input: The original seed parameter
+##     - phases: Array of phase results with seed lineage
+##     - world_state: Updated world state
+##     - timing: (Optional) Dictionary of phase_id -> microseconds if capture_timing=true
+##
+## RNG Usage: Each phase receives a deterministic seed derived from year_seed.
+## Determinism: capture_timing does NOT alter RNG usage or phase execution order.
+func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: bool = false) -> Dictionary:
 	var calendar := WorldCalendar.new()
 	var config := _get_config()
 	var phases := calendar.phases_for_year(year, "world/calendar", config)
@@ -39,14 +70,29 @@ func run(world_state: Dictionary, year: int, year_seed: int) -> Dictionary:
 		rng.randomize()
 		resolved_year_seed = int(rng.randi())
 
+	# Timing capture dictionary (only populated if capture_timing=true)
+	var phase_timings := {}
+
 	var handlers := _phase_handlers()
 	for phase in phases:
 		var phase_id := String(phase.get("phase_id", ""))
 		var phase_seed := _derive_seed(resolved_year_seed, phase_id, "phase")
+
+		# Start timing capture (does NOT consume RNG)
+		var phase_start_time := 0
+		if capture_timing:
+			phase_start_time = Time.get_ticks_usec()
+
 		_log_phase_start(year, phase_id, phase_seed)
 		var handler: Callable = handlers.get(phase_id, _handle_unknown_phase)
 		var output: Dictionary = handler.call(state, year, phase_seed, phase, resolved_year_seed)
 		_log_phase_end(year, phase_id, phase_seed)
+
+		# End timing capture (does NOT consume RNG)
+		if capture_timing:
+			var phase_elapsed := Time.get_ticks_usec() - phase_start_time
+			phase_timings[phase_id] = phase_elapsed
+
 		results.append({
 			"phase_id": phase_id,
 			"seed": phase_seed,
@@ -58,13 +104,19 @@ func run(world_state: Dictionary, year: int, year_seed: int) -> Dictionary:
 			"output": output
 		})
 
-	return {
+	var result := {
 		"year": year,
 		"year_seed": resolved_year_seed,
 		"year_seed_input": year_seed,
 		"phases": results,
 		"world_state": state
 	}
+
+	# Only include timing field if capture_timing was enabled
+	if capture_timing:
+		result["timing"] = phase_timings
+
+	return result
 
 func _phase_handlers() -> Dictionary:
 	return {
@@ -170,7 +222,7 @@ func _handle_hs_season(
 	var hs_players: Array = world_state.get("hs_players", []) as Array
 	var hs_schools: Array = world_state.get("hs_schools", []) as Array
 	var season := HighSchoolSeason.new()
-	var output := season.run(hs_players, hs_schools, positions_cfg, main_cfg, stats_cfg, hs_cfg, step_seed, year)
+	var output := season.run(hs_players, hs_schools, positions_cfg, main_cfg, stats_cfg, hs_cfg, step_seed, year, _lifecycle_options())
 
 	var active: Array = output.get("players", []) as Array
 	var graduates: Array = output.get("graduates", []) as Array
@@ -322,7 +374,7 @@ func _handle_college_season(
 	var positions_cfg: Dictionary = _get_config().get_config("positions")
 	var main_cfg: Dictionary = _get_config().get_config("main")
 	var stats_cfg: Dictionary = _get_config().get_config("stats")
-	return season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg)
+	return season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
 
 func _handle_draft_prep(
 	world_state: Dictionary,
@@ -393,7 +445,7 @@ func _handle_nfl_season(
 	var stats_cfg: Dictionary = _get_config().get_config("stats")
 
 	var season := NflSeason.new()
-	return season.run(world_state, year, step_seed, league_cfg, positions_cfg, main_cfg, stats_cfg)
+	return season.run(world_state, year, step_seed, league_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
 
 func _handle_placeholder_phase(
 	_world_state: Dictionary,
