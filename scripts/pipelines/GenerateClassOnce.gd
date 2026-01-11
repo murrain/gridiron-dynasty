@@ -228,8 +228,8 @@ func _fmt_height(height_in: float) -> String:
 	return "%d'%d\"" % [feet, inches]
 
 ## Format physicals as BBCode table (3 columns for compact display)
-func _fmt_physicals_table(phys: Dictionary) -> String:
-	var output := _table_begin(3)
+func _fmt_physicals_threewide(phys: Dictionary) -> String:
+	var items: Array = []
 
 	var h: float = phys.get("height_in", 0.0)
 	var w: float = phys.get("weight_lb", 0.0)
@@ -237,17 +237,13 @@ func _fmt_physicals_table(phys: Dictionary) -> String:
 	var ws: float = phys.get("wingspan_in", 0.0)
 	var hand: float = phys.get("hand_size_in", 0.0)
 
-	# Row 1: Height, Weight, Arm Length
-	if h > 0: output += _kv_row("Height", _fmt_height(h))
-	if w > 0: output += _kv_row("Weight", "%d lb" % int(round(w)))
-	if a > 0: output += _kv_row("Arm", "%.2f in" % _round2(a))
+	if h > 0: items.append({"label": "Height", "value": _fmt_height(h)})
+	if w > 0: items.append({"label": "Weight", "value": "%d lb" % int(round(w))})
+	if a > 0: items.append({"label": "Arm", "value": "%.2f in" % _round2(a)})
+	if ws > 0: items.append({"label": "Wingspan", "value": "%.2f in" % _round2(ws)})
+	if hand > 0: items.append({"label": "Hand", "value": "%.2f in" % _round2(hand)})
 
-	# Row 2: Wingspan, Hand Size (if present)
-	if ws > 0: output += _kv_row("Wingspan", "%.2f in" % _round2(ws))
-	if hand > 0: output += _kv_row("Hand", "%.2f in" % _round2(hand))
-
-	output += _table_end()
-	return output
+	return _format_threewide_rows(items)
 
 func _collect_role_sets(positions_data: Dictionary, pos: String) -> Dictionary:
 	var spec: Dictionary = positions_data.get(pos, {}) as Dictionary
@@ -271,26 +267,29 @@ func _all_base_stats(stats_cfg: Dictionary) -> Array:
 	return names
 
 ## Format stats block as BBCode table with color-coded values
-func _fmt_stat_block_table(stats: Dictionary, keys: Array, title: String, columns: int = 4) -> String:
-	if keys.is_empty(): return ""
+func _fmt_stat_block_threewide(stats: Dictionary, keys: Array, title: String) -> String:
+	if keys.is_empty():
+		return ""
 
 	var sorted_keys: Array = keys.duplicate()
 	sorted_keys.sort()
 
-	var output := _subsection_header(title) + "\n"
-	output += _table_begin(columns)
-
+	var items: Array = []
 	for k in sorted_keys:
 		var stat_name := String(k)
 		var stat_value := float(stats.get(k, 0.0))
-		output += _kv_row_scored(_display_stat_name(stat_name), stat_value)
+		items.append({
+			"label": _display_stat_name(stat_name),
+			"value": _colored_value(stat_value)
+		})
 
-	output += _table_end()
-	return output
+	return _subsection_header(title) + "\n" + _format_threewide_rows(items)
 
-func _collect_intangible_keys(stats_cfg: Dictionary, class_rules: Dictionary) -> Array:
+func _collect_mental_keys(class_rules: Dictionary) -> Array:
+	return class_rules.get("mental_keys", []) as Array
+
+func _collect_hidden_keys(stats_cfg: Dictionary) -> Array:
 	var keys: Array = []
-	var mental_keys: Array = class_rules.get("mental_keys", []) as Array
 	var extras: Array = [
 		"confidence",
 		"aggression",
@@ -305,13 +304,8 @@ func _collect_intangible_keys(stats_cfg: Dictionary, class_rules: Dictionary) ->
 	for s in stats_cfg.get("stats", []):
 		var sd: Dictionary = s
 		var name := String(sd.get("name", ""))
-		if sd.get("hidden", false) or mental_keys.has(name) or extras.has(name):
-			if not keys.has(name):
-				keys.append(name)
-
-	for mk in mental_keys:
-		if not keys.has(mk):
-			keys.append(mk)
+		if sd.get("hidden", false) and not keys.has(name):
+			keys.append(name)
 
 	for extra in extras:
 		if not keys.has(extra):
@@ -334,14 +328,34 @@ func _format_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> St
 	if items.is_empty():
 		return ""
 
-	var output := _subsection_header("🧪 Combine Results") + "\n"
-	output += _table_begin(3)
-
+	var display_items: Array = []
 	for item in items:
-		var test_name := String(item[0])
-		var test_value := str(item[1])
-		output += _kv_row(test_name, test_value)
+		display_items.append({
+			"label": String(item[0]),
+			"value": str(item[1])
+		})
 
+	return _subsection_header("🧪 Combine Results") + "\n" + _format_threewide_rows(display_items)
+
+func _format_threewide_rows(items: Array) -> String:
+	if items.is_empty():
+		return ""
+
+	var output := _table_begin(3)
+	var idx := 0
+	while idx < items.size():
+		var row_items := items.slice(idx, min(idx + 3, items.size()))
+		for entry in row_items:
+			output += "[cell][b]%s[/b][/cell]" % String(entry.get("label", "")).to_upper()
+		for _i in 3 - row_items.size():
+			output += "[cell][/cell]"
+
+		for entry in row_items:
+			output += "[cell]%s[/cell]" % String(entry.get("value", ""))
+		for _i in 3 - row_items.size():
+			output += "[cell][/cell]"
+
+		idx += 3
 	output += _table_end()
 	return output
 
@@ -386,94 +400,80 @@ func _build_player_card_bbcode(
 	var comp_f := float(p.get("composite_score",0.0))
 	var star_score_f := float(p.get("star_score",0.0))
 
-	var output := "[bgcolor=#1a1a1a]" + "=".repeat(42) + "[/bgcolor]\n"
+	var header_line := "[b]#%d[/b] [color=#ffd700]%s[/color] [b]%s[/b] %s %s / %s" % [
+		rank_i,
+		"★".repeat(stars_i),
+		name_s,
+		pos_s,
+		_colored_value(comp_f),
+		_colored_value(star_score_f)
+	]
 
-	# Player identity table (rank, stars, name, position)
-	var header := _table_begin(2)
-	header += _kv_row("[b]Rank[/b]", "[b]#%d[/b]" % rank_i)
-	header += _kv_row("[b]Stars[/b]", "[b][color=#ffd700]" + "★".repeat(stars_i) + "[/color][/b]")
-	header += _kv_row("[b]Name[/b]", "[b][font_size=13]%s[/font_size][/b]" % name_s)
-	header += _kv_row("[b]Pos[/b]", "[b][font_size=13]%s[/font_size][/b]" % pos_s)
-	header += _table_end()
-	output += header + "\n"
+	var output := "[bgcolor=#1a1a1a]" + "─".repeat(46) + "[/bgcolor]\n"
+	output += header_line + "\n"
+	output += "[color=#333333]" + "─".repeat(46) + "[/color]\n"
 
-	# Key metrics table (composite and star score - color coded)
-	var metrics := _table_begin(2)
-	metrics += "[cell][b]Composite[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(comp_f)
-	metrics += "[cell][b]Star Score[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(star_score_f)
-	metrics += _table_end()
-	output += metrics + "\n"
+	# === PHYSICALS + COMBINE (side-by-side) ===
+	var physicals := _subsection_header("💪 Physical Traits") + "\n"
+	physicals += _fmt_physicals_threewide(p.get("physicals", {}) as Dictionary)
 
-	# === PHYSICALS ===
-	output += _section_header("Physical Attributes", "💪") + "\n"
-	output += _fmt_physicals_table(p.get("physicals", {}) as Dictionary) + "\n"
-
-	# === COMBINE ===
+	var combine_block := ""
 	if p.has("combine"):
-		var combine_section := _format_combine_section(p["combine"], combine_tests_cfg)
-		if not combine_section.is_empty():
-			output += combine_section + "\n"
+		combine_block = _format_combine_section(p["combine"], combine_tests_cfg)
+
+	var top_row := _table_begin(2)
+	top_row += "[cell]%s[/cell]" % physicals
+	top_row += "[cell]%s[/cell]" % combine_block
+	top_row += _table_end()
+	output += top_row + "\n"
 
 	# === STATS ===
-	output += _section_header("Player Stats", "📊") + "\n"
-
 	var roles := _collect_role_sets(positions_data, pos_s)
 	var core_keys: Array = roles.get("core", []) as Array
 	var sec_keys: Array = roles.get("secondary", []) as Array
 	var all_base := _all_base_stats(stats_cfg)
-	var intangible_keys := _collect_intangible_keys(stats_cfg, class_rules)
+	var mental_keys := _collect_mental_keys(class_rules)
+	var hidden_keys := _collect_hidden_keys(stats_cfg)
+
 	var filtered_core: Array = []
 	for k in core_keys:
-		if not intangible_keys.has(k):
+		if not mental_keys.has(k) and not hidden_keys.has(k):
 			filtered_core.append(k)
 	var filtered_sec: Array = []
 	for k in sec_keys:
-		if not intangible_keys.has(k):
+		if not mental_keys.has(k) and not hidden_keys.has(k):
 			filtered_sec.append(k)
 	var union_cs: Array = filtered_core.duplicate()
 	for k in filtered_sec:
-		if not union_cs.has(k): union_cs.append(k)
+		if not union_cs.has(k):
+			union_cs.append(k)
 	var other_keys: Array = []
 	for k in all_base:
-		if not union_cs.has(k) and not intangible_keys.has(k):
+		if not union_cs.has(k) and not mental_keys.has(k) and not hidden_keys.has(k):
 			other_keys.append(k)
 
 	var stats: Dictionary = p.get("stats", {}) as Dictionary
-	var intangibles_list: Array = []
-	for k in intangible_keys:
-		if stats.has(k):
-			intangibles_list.append(k)
 
-	# Core stats (most important for position)
 	if not filtered_core.is_empty():
-		var blk_core := _fmt_stat_block_table(stats, filtered_core, "⭐ Core Stats", 3)
-		output += blk_core + "\n"
-
-	# Secondary stats (situational/positional)
+		output += _fmt_stat_block_threewide(stats, filtered_core, "⭐ Core Stats") + "\n"
 	if not filtered_sec.is_empty():
-		var blk_sec := _fmt_stat_block_table(stats, filtered_sec, "🔹 Secondary Stats", 3)
-		output += blk_sec + "\n"
-
-	# Other stats (less important for this position)
+		output += _fmt_stat_block_threewide(stats, filtered_sec, "🔹 Secondary Stats") + "\n"
 	if not other_keys.is_empty():
-		var blk_other := _fmt_stat_block_table(stats, other_keys, "○ Other Stats", 3)
-		output += blk_other + "\n"
+		output += _fmt_stat_block_threewide(stats, other_keys, "○ Other Stats") + "\n"
 
-	# === MENTALS & TAGS ===
-	output += _section_header("Intangibles", "🧠") + "\n"
-	var mentals_avg_f := float(p.get("mentals_avg", 0.0))
-	var tags_arr: Array = p.get("tags", []) as Array
+	var mentals_present: Array = []
+	for k in mental_keys:
+		if stats.has(k):
+			mentals_present.append(k)
+	if not mentals_present.is_empty():
+		output += _fmt_stat_block_threewide(stats, mentals_present, "🧠 Mental Stats") + "\n"
 
-	var intangibles := _table_begin(2)
-	intangibles += _kv_row_scored("[b]Mental Rating[/b]", mentals_avg_f)
-	if not tags_arr.is_empty():
-		intangibles += _kv_row("[b]Tags[/b]", "[color=#00aaff]%s[/color]" % ", ".join(tags_arr))
-	intangibles += _table_end()
-	output += intangibles + "\n"
-
-	if not intangibles_list.is_empty():
-		var blk_intangibles := _fmt_stat_block_table(stats, intangibles_list, "🔒 Hidden & Mental Traits", 3)
-		output += blk_intangibles + "\n"
+	var hidden_present: Array = []
+	for k in hidden_keys:
+		if stats.has(k) and not mentals_present.has(k):
+			hidden_present.append(k)
+	if not hidden_present.is_empty():
+		output += _fmt_stat_block_threewide(stats, hidden_present, "🔒 Hidden & Mental") + "\n"
 
 	# === SCOUT OPINIONS ===
 	var scouts_section := _format_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules, rng)
