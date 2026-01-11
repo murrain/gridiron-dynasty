@@ -6,6 +6,7 @@ const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
+const StatGenerator = preload("res://scripts/core/game_simulation/StatGenerator.gd")
 const AwardSelector = preload("res://scripts/core/awards/AwardSelector.gd")
 
 ## Runs the NFL season simulation for a given year.
@@ -501,7 +502,7 @@ func _determine_nfl_playoff_teams(
 	var conference_standings := {}
 	for team_id in season_results.keys():
 		var record: Dictionary = season_results[team_id]
-		var conf := team_to_conference.get(team_id, "Unknown")
+		var conf: String = team_to_conference.get(team_id, "Unknown")
 		if not conference_standings.has(conf):
 			conference_standings[conf] = []
 
@@ -574,16 +575,37 @@ func _simulate_nfl_season(
 	# Derive simulation seed (unique salt for game simulation)
 	var sim_seed := Rand.splitmix64(seed ^ 0x5EA50004)
 
-	# Calculate team strengths (cache for all games)
+	# A2 Optimization: Pre-compute all team strengths in batch (once per season)
+	# This eliminates redundant roster traversals and rating calculations
 	# Expected RNG consumption: None (pure calculation)
-	var team_strengths := {}
+	var team_ids := []
 	for team in teams:
 		var t: Dictionary = team
-		var team_id := String(t.get("id", ""))
+		team_ids.append(String(t.get("id", "")))
+
+	var team_strengths := GameSimulator.calculate_all_team_strengths(
+		team_ids,
+		rosters,
+		positions_cfg,
+		main_cfg
+	)
+
+	# A1 Optimization: Pre-compute starters for all teams (once per season)
+	# This reduces starter determination from O(games × teams × n log n) to O(teams × n log n)
+	# Expected RNG consumption: None (pure calculation)
+	# Expected time savings: ~8.5 seconds over 20 years for NFL season
+	if not world_state.has("starter_cache"):
+		world_state["starter_cache"] = {}
+	var starter_cache: Dictionary = world_state["starter_cache"]
+	if not starter_cache.has(year):
+		starter_cache[year] = {}
+	var year_cache: Dictionary = starter_cache[year]
+
+	for team_id in team_ids:
 		if rosters.has(team_id):
 			var roster: Dictionary = rosters[team_id]
-			var strength := GameSimulator.calculate_team_strength(roster, positions_cfg, main_cfg)
-			team_strengths[team_id] = strength
+			var starters := StatGenerator.compute_starters(roster, positions_cfg, main_cfg)
+			year_cache[team_id] = starters
 
 	# Generate schedule
 	# Expected RNG consumption: N swaps for shuffle operations
@@ -606,10 +628,14 @@ func _simulate_nfl_season(
 		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
 		var home_id := String(result.get("home_team_id", ""))
 		var away_id := String(result.get("away_team_id", ""))
-		var home_roster := rosters.get(home_id, {})
-		var away_roster := rosters.get(away_id, {})
+		var home_roster: Dictionary = rosters.get(home_id, {})
+		var away_roster: Dictionary = rosters.get(away_id, {})
 
 		if not home_roster.is_empty() and not away_roster.is_empty():
+			# Use cached starters for performance (A1 optimization)
+			var home_starters: Dictionary = year_cache.get(home_id, {})
+			var away_starters: Dictionary = year_cache.get(away_id, {})
+
 			GameSimulator.accumulate_player_stats(
 				world_state,
 				result,
@@ -617,16 +643,14 @@ func _simulate_nfl_season(
 				away_roster,
 				positions_cfg,
 				main_cfg,
-				rng
+				rng,
+				home_starters,
+				away_starters
 			)
 
 	# Aggregate results (G1.2: Season W-L Records, G1.8: Strength of Schedule)
 	# Expected RNG consumption: None (pure aggregation)
-	var team_ids := []
-	for team in teams:
-		var t: Dictionary = team
-		team_ids.append(String(t.get("id", "")))
-
+	# Note: team_ids already computed above during strength calculation
 	var season_results := GameSimulator.aggregate_season_results(all_results, team_ids)
 
 	# Store season records in world_state (G1.2)

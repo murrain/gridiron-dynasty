@@ -7,6 +7,7 @@ const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfi
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
+const StatGenerator = preload("res://scripts/core/game_simulation/StatGenerator.gd")
 const PlayerMorale = preload("res://scripts/core/player_agency/PlayerMorale.gd")
 
 func run(
@@ -477,16 +478,37 @@ func _simulate_college_season(
 	# Derive simulation seed (unique salt for game simulation)
 	var sim_seed := Rand.splitmix64(seed ^ 0xC011E6E4)
 
-	# Calculate team strengths (cache for all games)
+	# A2 Optimization: Pre-compute all team strengths in batch (once per season)
+	# This eliminates redundant roster traversals and rating calculations
 	# Expected RNG consumption: None (pure calculation)
-	var team_strengths := {}
+	var college_ids := []
 	for college in colleges:
 		var c: Dictionary = college
-		var college_id := String(c.get("id", ""))
+		college_ids.append(String(c.get("id", "")))
+
+	var team_strengths := GameSimulator.calculate_all_team_strengths(
+		college_ids,
+		rosters,
+		positions_cfg,
+		main_cfg
+	)
+
+	# A1 Optimization: Pre-compute starters for all teams (once per season)
+	# This reduces starter determination from O(games × teams × n log n) to O(teams × n log n)
+	# Expected RNG consumption: None (pure calculation)
+	# Expected time savings: ~8.5 seconds over 20 years for college season
+	if not world_state.has("starter_cache"):
+		world_state["starter_cache"] = {}
+	var starter_cache: Dictionary = world_state["starter_cache"]
+	if not starter_cache.has(year):
+		starter_cache[year] = {}
+	var year_cache: Dictionary = starter_cache[year]
+
+	for college_id in college_ids:
 		if rosters.has(college_id):
 			var roster: Dictionary = rosters[college_id]
-			var strength := GameSimulator.calculate_team_strength(roster, positions_cfg, main_cfg)
-			team_strengths[college_id] = strength
+			var starters := StatGenerator.compute_starters(roster, positions_cfg, main_cfg)
+			year_cache[college_id] = starters
 
 	# Generate schedule
 	# Expected RNG consumption: N swaps for shuffle (N = college count)
@@ -510,10 +532,14 @@ func _simulate_college_season(
 		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
 		var home_id := String(result.get("home_team_id", ""))
 		var away_id := String(result.get("away_team_id", ""))
-		var home_roster := rosters.get(home_id, {})
-		var away_roster := rosters.get(away_id, {})
+		var home_roster: Dictionary = rosters.get(home_id, {})
+		var away_roster: Dictionary = rosters.get(away_id, {})
 
 		if not home_roster.is_empty() and not away_roster.is_empty():
+			# Use cached starters for performance (A1 optimization)
+			var home_starters: Dictionary = year_cache.get(home_id, {})
+			var away_starters: Dictionary = year_cache.get(away_id, {})
+
 			GameSimulator.accumulate_player_stats(
 				world_state,
 				result,
@@ -521,16 +547,14 @@ func _simulate_college_season(
 				away_roster,
 				positions_cfg,
 				main_cfg,
-				rng
+				rng,
+				home_starters,
+				away_starters
 			)
 
 	# Aggregate results (G1.2: Season W-L Records, G1.8: Strength of Schedule)
 	# Expected RNG consumption: None (pure aggregation)
-	var college_ids := []
-	for college in colleges:
-		var c: Dictionary = college
-		college_ids.append(String(c.get("id", "")))
-
+	# Note: college_ids already computed above during strength calculation
 	var season_results := GameSimulator.aggregate_season_results(all_results, college_ids)
 
 	# Store season records in world_state (G1.2)
@@ -603,7 +627,8 @@ func _update_all_team_morale(
 	var season_records: Dictionary = world_state.get("season_records", {}).get(str(year), {})
 	var championships: Dictionary = world_state.get("championships", {})
 
-	# Build awards data structure for PlayerMorale
+	# A4 Optimization: Pre-build awards data structure once for all teams
+	# This eliminates redundant lookups across 130 teams × 60 players = 7,800 players
 	var awards := {
 		"awards": world_state.get("awards", {}),
 		"all_pro_teams": world_state.get("all_pro_teams", {}),
@@ -632,13 +657,21 @@ func _update_all_team_morale(
 		team_record["is_champion"] = (college_id == national_champion_id)
 		team_record["playoff_appearance"] = (college_id in playoff_teams)
 
-		# Update morale for entire team
-		var summary := PlayerMorale.update_team_morale(
+		# A4 Optimization: Pre-batch team data for efficient morale updates
+		# This eliminates per-player dictionary lookups by pre-fetching all data once
+		var batched_data := PlayerMorale.prepare_team_batched_data(
 			players,
 			year,
 			player_career_stats,
 			awards,
 			team_record
+		)
+
+		# Update morale for entire team using batched data
+		var summary := PlayerMorale.update_team_morale_batched(
+			players,
+			year,
+			batched_data
 		)
 
 		teams_processed += 1
