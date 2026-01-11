@@ -22,7 +22,7 @@ func _test_draft_adds_players_to_rosters(t) -> void:
 	var bootstrap := BootstrapGameWorld.new()
 	bootstrap.years_to_simulate = 9  # First draft in year 5, need 9 years for 5 drafts
 	var result := bootstrap.run(12345)
-	var world_state: Dictionary = result.get("world_state", {}")
+	var world_state: Dictionary = result.get("world_state", {})
 
 	var rosters: Dictionary = world_state.get("nfl_rosters", {})
 	var total_players := 0
