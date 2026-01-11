@@ -55,8 +55,42 @@ func run() -> Dictionary:
 	_emit_output("Retired: %d" % int(summary.get("retired_players", 0)))
 	_emit_output("")
 	_emit_output("Draft pool years: %d" % int(summary.get("draft_pool_years", 0)))
+	_emit_output("")
+	_emit_output("✓ Bootstrap complete! Launching World Explorer...")
+
+	# Launch World Explorer UI after a short delay
+	await get_tree().create_timer(1.0).timeout
+	_launch_world_explorer(world_state)
 
 	return result
+
+func _launch_world_explorer(world_state: Dictionary) -> void:
+	"""Launch the World Explorer UI with the bootstrapped world state"""
+	# Load the World Explorer launcher utility
+	var WorldExplorerLauncher = load("res://scripts/ui/world_explorer/WorldExplorerLauncher.gd")
+
+	if WorldExplorerLauncher == null:
+		push_error("Could not load WorldExplorerLauncher")
+		_emit_output("[color=#ff0000]Error: Could not load World Explorer[/color]")
+		return
+
+	# Create and configure the explorer
+	var explorer = WorldExplorerLauncher.launch_with_world_state(world_state)
+
+	if explorer == null:
+		push_error("Failed to create World Explorer instance")
+		_emit_output("[color=#ff0000]Error: Failed to create World Explorer[/color]")
+		return
+
+	# Add explorer to the scene tree
+	get_tree().root.add_child(explorer)
+
+	# Hide this bootstrap preview window
+	var parent = get_parent()
+	if parent:
+		parent.visible = false
+
+	print("World Explorer launched successfully!")
 
 func _emit_output(text: String) -> void:
 	if output_label == null:

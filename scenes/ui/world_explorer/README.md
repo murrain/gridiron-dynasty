@@ -101,15 +101,15 @@ The World Explorer expects a world state dictionary with this structure:
 
 ```gdscript
 {
-    "current_year": 2025,
-    "nfl_teams": [{"id": "KC", "name": "Kansas City Chiefs"}, ...],
-    "nfl_rosters": {"KC": {"players": ["p1", "p2", ...]}, ...},
-    "colleges": [{"id": "ALA", "name": "Alabama"}, ...],
-    "college_rosters": {"ALA": {"players": ["c1", "c2", ...]}, ...},
-    "hs_schools": [{"id": "hs1", "name": "Central High"}, ...],
-    "hs_players": ["h1", "h2", ...],
-    "draft_pool": {2025: ["d1", "d2", ...], 2026: [...]},
-    "retired_players": ["r1", "r2", ...]
+	"current_year": 2025,
+	"nfl_teams": [{"id": "KC", "name": "Kansas City Chiefs"}, ...],
+	"nfl_rosters": {"KC": {"players": ["p1", "p2", ...]}, ...},
+	"colleges": [{"id": "ALA", "name": "Alabama"}, ...],
+	"college_rosters": {"ALA": {"players": ["c1", "c2", ...]}, ...},
+	"hs_schools": [{"id": "hs1", "name": "Central High"}, ...],
+	"hs_players": ["h1", "h2", ...],
+	"draft_pool": {2025: ["d1", "d2", ...], 2026: [...]},
+	"retired_players": ["r1", "r2", ...]
 }
 ```
 

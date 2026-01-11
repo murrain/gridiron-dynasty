@@ -9,6 +9,9 @@ func _ready() -> void:
 	# Wait one frame for WorldExplorer to initialize
 	await get_tree().process_frame
 
+	# Integrate all panels into the WorldExplorer
+	_integrate_panels()
+
 	# Load a mock world state for testing
 	var mock_world = _create_mock_world_state()
 	world_explorer.load_world_state(mock_world)
@@ -16,7 +19,41 @@ func _ready() -> void:
 	print("World Explorer Test loaded successfully")
 	print("- World state loaded with %d NFL teams" % mock_world.nfl_teams.size())
 	print("- World state loaded with %d colleges" % mock_world.colleges.size())
+	print("- 5 panels integrated (NFL, College, HS, Draft, Retired)")
 	print("- Welcome screen should be visible in detail panel")
+
+func _integrate_panels() -> void:
+	"""Add all panel scenes to the WorldExplorer TabContainer"""
+	# Get NavigationTabs from WorldExplorer
+	var tabs = world_explorer.get_node_or_null("MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/NavigationTabs")
+
+	if tabs == null:
+		push_error("Could not find NavigationTabs in WorldExplorer")
+		return
+
+	# Clear any existing children
+	for child in tabs.get_children():
+		child.queue_free()
+
+	# Add all panels in order
+	_add_panel(tabs, "res://scenes/ui/world_explorer/panels/nfl_panel.tscn", "NFL")
+	_add_panel(tabs, "res://scenes/ui/world_explorer/panels/college_panel.tscn", "College")
+	_add_panel(tabs, "res://scenes/ui/world_explorer/panels/hs_panel.tscn", "High Schools")
+	_add_panel(tabs, "res://scenes/ui/world_explorer/panels/draft_panel.tscn", "Draft")
+	_add_panel(tabs, "res://scenes/ui/world_explorer/panels/retired_panel.tscn", "Retired")
+
+	print("Integrated %d panels into WorldExplorer" % tabs.get_tab_count())
+
+func _add_panel(tabs: TabContainer, scene_path: String, tab_name: String) -> void:
+	"""Load and add a panel scene to the TabContainer"""
+	var panel_scene = load(scene_path)
+	if panel_scene == null:
+		push_warning("Could not load panel scene: %s" % scene_path)
+		return
+
+	var panel = panel_scene.instantiate()
+	tabs.add_child(panel)
+	tabs.set_tab_title(tabs.get_tab_count() - 1, tab_name)
 
 func _create_mock_world_state() -> Dictionary:
 	"""Create a minimal mock world state for testing"""

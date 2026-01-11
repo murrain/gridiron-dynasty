@@ -11,13 +11,13 @@ extends Node
 const WorldExplorerScene = preload("res://scenes/ui/world_explorer/world_explorer.tscn")
 
 func _ready():
-    # Instance the scene
-    var explorer = WorldExplorerScene.instantiate()
-    add_child(explorer)
+	# Instance the scene
+	var explorer = WorldExplorerScene.instantiate()
+	add_child(explorer)
 
-    # Load your world state
-    var world_state = load_world_from_somewhere()
-    explorer.load_world_state(world_state)
+	# Load your world state
+	var world_state = load_world_from_somewhere()
+	explorer.load_world_state(world_state)
 ```
 
 ### How to Show Details Programmatically
@@ -39,8 +39,8 @@ explorer.clear_detail()
 ```
 MyPanel (Control)
 └── VBoxContainer
-    ├── ItemList
-    └── [other controls]
+	├── ItemList
+	└── [other controls]
 ```
 
 2. **Create panel script:**
@@ -52,17 +52,17 @@ var explorer: WorldExplorer
 
 # Called by WorldExplorer on initialization
 func initialize(ws: Dictionary, exp: WorldExplorer) -> void:
-    world_state = ws
-    explorer = exp
-    _populate_list()
+	world_state = ws
+	explorer = exp
+	_populate_list()
 
 # Called when search text changes
 func filter_by_search(search_text: String) -> void:
-    _update_filtered_list(search_text)
+	_update_filtered_list(search_text)
 
 func _on_item_selected(index: int) -> void:
-    var player_id = _get_player_id_at_index(index)
-    explorer.show_player_detail(player_id)
+	var player_id = _get_player_id_at_index(index)
+	explorer.show_player_detail(player_id)
 ```
 
 3. **Add to world_explorer.tscn:**
@@ -75,38 +75,38 @@ func _on_item_selected(index: int) -> void:
 
 ```gdscript
 {
-    "current_year": 2025,
+	"current_year": 2025,
 
-    # NFL
-    "nfl_teams": [
-        {"id": "KC", "name": "Kansas City Chiefs", ...}
-    ],
-    "nfl_rosters": {
-        "KC": {"players": ["p1", "p2", ...]}
-    },
+	# NFL
+	"nfl_teams": [
+		{"id": "KC", "name": "Kansas City Chiefs", ...}
+	],
+	"nfl_rosters": {
+		"KC": {"players": ["p1", "p2", ...]}
+	},
 
-    # College
-    "colleges": [
-        {"id": "ALA", "name": "Alabama", ...}
-    ],
-    "college_rosters": {
-        "ALA": {"players": ["c1", "c2", ...]}
-    },
+	# College
+	"colleges": [
+		{"id": "ALA", "name": "Alabama", ...}
+	],
+	"college_rosters": {
+		"ALA": {"players": ["c1", "c2", ...]}
+	},
 
-    # High School
-    "hs_schools": [
-        {"id": "hs1", "name": "Central High", ...}
-    ],
-    "hs_players": ["h1", "h2", ...],
+	# High School
+	"hs_schools": [
+		{"id": "hs1", "name": "Central High", ...}
+	],
+	"hs_players": ["h1", "h2", ...],
 
-    # Draft
-    "draft_pool": {
-        2025: ["d1", "d2", ...],
-        2026: [...]
-    },
+	# Draft
+	"draft_pool": {
+		2025: ["d1", "d2", ...],
+		2026: [...]
+	},
 
-    # Retired
-    "retired_players": ["r1", "r2", ...]
+	# Retired
+	"retired_players": ["r1", "r2", ...]
 }
 ```
 
@@ -128,25 +128,25 @@ explorer.config = config
 #### Pattern 1: Update on Selection
 ```gdscript
 func _on_item_selected(item_id: String) -> void:
-    explorer.show_player_detail(item_id)
+	explorer.show_player_detail(item_id)
 ```
 
 #### Pattern 2: Filtered Search
 ```gdscript
 func filter_by_search(search_text: String) -> void:
-    item_list.clear()
-    var filtered = _filter_items(search_text)
-    for item in filtered:
-        item_list.add_item(item.name)
+	item_list.clear()
+	var filtered = _filter_items(search_text)
+	for item in filtered:
+		item_list.add_item(item.name)
 ```
 
 #### Pattern 3: Tab Initialization
 ```gdscript
 func initialize(ws: Dictionary, exp: WorldExplorer) -> void:
-    world_state = ws
-    explorer = exp
-    _load_data()
-    _connect_signals()
+	world_state = ws
+	explorer = exp
+	_load_data()
+	_connect_signals()
 ```
 
 ### Keyboard Shortcuts (in test scene)
