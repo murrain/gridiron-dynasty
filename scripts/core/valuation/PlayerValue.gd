@@ -126,7 +126,7 @@ static func calculate(
 	# Team value (what this player is worth to current team)
 	# Uses team-specific impact calculation rather than raw curved_value
 	# This captures depth chart considerations and position leverage
-	var team_value := team_impact.get("team_value", market_value) * age_mult
+	var team_value: float = float(team_impact.get("team_value", market_value)) * age_mult
 
 	# Contract range (with variance)
 	# Provides min/max bounds for contract negotiations

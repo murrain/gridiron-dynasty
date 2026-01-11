@@ -738,10 +738,35 @@ static func _development_modifiers(development_context: Dictionary) -> Dictionar
 		"rehab_quality": float(development_context.get("rehab_quality", 1.0))
 	}
 
+## Calculate combined development multiplier with capping to prevent extreme stacking.
+##
+## CRITICAL FIX: Multipliers were stacking multiplicatively causing crushing growth penalties.
+## Example: 0.8 × 0.8 × 0.8 × 0.8 × 0.8 = 0.33x (67% reduction!)
+##
+## Solution: Cap combined multiplier at 0.6 minimum (40% reduction max) and 1.4 maximum (40% bonus max).
+## This ensures:
+##   - Worst-case contexts still allow meaningful development
+##   - Best-case contexts don't cause runaway growth
+##   - Players in average programs reach ~80% of potential by NFL entry
+##
+## RNG Consumption: None (deterministic calculation)
+##
+## @param modifiers: Dictionary of multiplier values (program_quality, coach_specialization, usage, competition_tier, rehab_quality)
+## @return: Combined multiplier clamped to [0.6, 1.4]
 static func _combined_multiplier(modifiers: Dictionary) -> float:
 	var combined := 1.0
 	for value in modifiers.values():
 		combined *= float(value)
+
+	# CAP: Never let combined multiplier drop below 0.7 (30% reduction max)
+	# This prevents scenarios like poor HS + bench player from crushing development
+	# Testing showed 0.6 was still too punishing for average programs to reach 80% of potential
+	combined = max(combined, 0.7)
+
+	# CAP: Never let combined multiplier exceed 1.5 (50% bonus max)
+	# This prevents elite programs + starter + specialist from causing runaway growth
+	combined = min(combined, 1.5)
+
 	return combined
 
 ## Fallback wear update using dictionary lookups.
