@@ -272,10 +272,10 @@ static func generate_college_schedule(
 		team_ids.append("BYE")  # Bye week placeholder
 
 	# Shuffle teams for randomness (deterministic based on seed)
-	# Expected RNG consumption: N swaps during shuffle
+	# Expected RNG consumption: (N-1) randi_range() calls in Fisher-Yates shuffle
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
-	team_ids.shuffle()  # GDScript's shuffle uses internal RNG state
+	_shuffle_in_place(team_ids, rng)  # Deterministic shuffle using seeded RNG
 
 	var num_teams := team_ids.size()
 	var games_per_week := num_teams / 2
@@ -434,13 +434,13 @@ static func generate_nfl_schedule(
 
 	# Phase 2: Inter-division games (weeks 7-17)
 	# Simplified: Random matchups across divisions
-	# Expected RNG consumption: N swaps per shuffle
+	# Expected RNG consumption: (N-1) randi_range() calls per shuffle
 	var all_teams := []
 	for team in teams:
 		var t: Dictionary = team
 		all_teams.append(String(t.get("id", "")))
 
-	all_teams.shuffle()  # Deterministic shuffle (RNG from seed)
+	_shuffle_in_place(all_teams, rng)  # Deterministic shuffle using seeded RNG
 
 	while week <= 17:
 		for i in range(0, all_teams.size(), 2):
@@ -462,7 +462,7 @@ static func generate_nfl_schedule(
 			game_counter += 1
 
 		week += 1
-		all_teams.shuffle()  # Re-shuffle for next week
+		_shuffle_in_place(all_teams, rng)  # Re-shuffle for next week (deterministic)
 
 	return schedule
 
@@ -686,3 +686,20 @@ static func _accumulate_stat_line(existing: Dictionary, new_stats: Dictionary) -
 		if typeof(new_value) == TYPE_INT or typeof(new_value) == TYPE_FLOAT:
 			var existing_value = existing.get(key, 0)
 			existing[key] = int(existing_value) + int(new_value)
+
+
+## Deterministic Fisher-Yates shuffle using seeded RNG.
+##
+## Shuffles an array in-place using the provided RandomNumberGenerator.
+## This ensures deterministic behavior across different executions with the same seed.
+##
+## RNG Pattern: Exactly (items.size() - 1) randi_range() calls
+##
+## @param items: Array to shuffle in-place (will be modified)
+## @param rng: RandomNumberGenerator instance (must be seeded by caller)
+static func _shuffle_in_place(items: Array, rng: RandomNumberGenerator) -> void:
+	for i in range(items.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = items[i]
+		items[i] = items[j]
+		items[j] = tmp
