@@ -320,7 +320,7 @@ func _collect_intangible_keys(stats_cfg: Dictionary, class_rules: Dictionary) ->
 	return keys
 
 ## Print combine results as a clean table
-func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> void:
+func _format_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> String:
 	var tests: Dictionary = combine_cfg.get("tests", {}) as Dictionary
 	var items: Array = []
 
@@ -332,10 +332,10 @@ func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> voi
 			items.append([disp_name, val])
 
 	if items.is_empty():
-		return
+		return ""
 
-	_emit_output("\n" + _subsection_header("🧪 Combine Results"))
-	var output := _table_begin(6)  # 6 columns for compact display
+	var output := _subsection_header("🧪 Combine Results") + "\n"
+	output += _table_begin(3)
 
 	for item in items:
 		var test_name := String(item[0])
@@ -343,9 +343,34 @@ func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> voi
 		output += _kv_row(test_name, test_value)
 
 	output += _table_end()
-	_emit_output(output)
+	return output
 
-func print_player_detailed(
+func _format_scouts_section(
+	player: Dictionary,
+	scouts_cfg: Dictionary,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
+) -> String:
+	var scouts: Array = (scouts_cfg.get("national_scouts", []) as Array)
+	if scouts.is_empty():
+		return ""
+
+	var output := _section_header("Scout Opinions", "🕵️") + "\n"
+	output += _table_begin(2)
+
+	for s in scouts:
+		var scout: Dictionary = s as Dictionary
+		var scout_name := String(scout.get("name", "Scout"))
+		var score := ScoutRuntime.score_player(scout, player, positions_data, stats_cfg, class_rules, rng)
+
+		output += "[cell][b]%s[/b][/cell][cell]%s[/cell]" % [scout_name, _colored_value(score)]
+
+	output += _table_end()
+	return output
+
+func _build_player_card_bbcode(
 	p: Dictionary,
 	positions_data: Dictionary,
 	stats_cfg: Dictionary,
@@ -353,7 +378,7 @@ func print_player_detailed(
 	scouts_cfg: Dictionary,
 	class_rules: Dictionary,
 	rng: RandomNumberGenerator
-) -> void:
+) -> String:
 	var name_s := String(p.get("name","Unknown"))
 	var pos_s := String(p.get("position","ATH"))
 	var stars_i := int(p.get("star_rating",0))
@@ -361,35 +386,36 @@ func print_player_detailed(
 	var comp_f := float(p.get("composite_score",0.0))
 	var star_score_f := float(p.get("star_score",0.0))
 
-	# === PLAYER HEADER ===
-	_emit_output("\n[bgcolor=#1a1a1a]" + "=".repeat(80) + "[/bgcolor]")
+	var output := "[bgcolor=#1a1a1a]" + "=".repeat(42) + "[/bgcolor]\n"
 
 	# Player identity table (rank, stars, name, position)
-	var header := _table_begin(4)
+	var header := _table_begin(2)
 	header += _kv_row("[b]Rank[/b]", "[b]#%d[/b]" % rank_i)
 	header += _kv_row("[b]Stars[/b]", "[b][color=#ffd700]" + "★".repeat(stars_i) + "[/color][/b]")
-	header += _kv_row("[b]Name[/b]", "[b][font_size=14]%s[/font_size][/b]" % name_s)
-	header += _kv_row("[b]Position[/b]", "[b][font_size=14]%s[/font_size][/b]" % pos_s)
+	header += _kv_row("[b]Name[/b]", "[b][font_size=13]%s[/font_size][/b]" % name_s)
+	header += _kv_row("[b]Pos[/b]", "[b][font_size=13]%s[/font_size][/b]" % pos_s)
 	header += _table_end()
-	_emit_output(header)
+	output += header + "\n"
 
 	# Key metrics table (composite and star score - color coded)
 	var metrics := _table_begin(2)
-	metrics += "[cell][b]Composite Score[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(comp_f)
+	metrics += "[cell][b]Composite[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(comp_f)
 	metrics += "[cell][b]Star Score[/b][/cell][cell][b]%s[/b][/cell]" % _colored_value(star_score_f)
 	metrics += _table_end()
-	_emit_output(metrics)
+	output += metrics + "\n"
 
 	# === PHYSICALS ===
-	_emit_output("\n" + _section_header("Physical Attributes", "💪"))
-	_emit_output(_fmt_physicals_table(p.get("physicals", {}) as Dictionary))
+	output += _section_header("Physical Attributes", "💪") + "\n"
+	output += _fmt_physicals_table(p.get("physicals", {}) as Dictionary) + "\n"
 
 	# === COMBINE ===
 	if p.has("combine"):
-		_print_combine_section(p["combine"], combine_tests_cfg)
+		var combine_section := _format_combine_section(p["combine"], combine_tests_cfg)
+		if not combine_section.is_empty():
+			output += combine_section + "\n"
 
 	# === STATS ===
-	_emit_output("\n" + _section_header("Player Stats", "📊"))
+	output += _section_header("Player Stats", "📊") + "\n"
 
 	var roles := _collect_role_sets(positions_data, pos_s)
 	var core_keys: Array = roles.get("core", []) as Array
@@ -420,21 +446,21 @@ func print_player_detailed(
 
 	# Core stats (most important for position)
 	if not filtered_core.is_empty():
-		var blk_core := _fmt_stat_block_table(stats, filtered_core, "⭐ Core Stats", 6)
-		_emit_output(blk_core)
+		var blk_core := _fmt_stat_block_table(stats, filtered_core, "⭐ Core Stats", 3)
+		output += blk_core + "\n"
 
 	# Secondary stats (situational/positional)
 	if not filtered_sec.is_empty():
-		var blk_sec := _fmt_stat_block_table(stats, filtered_sec, "🔹 Secondary Stats", 6)
-		_emit_output("\n" + blk_sec)
+		var blk_sec := _fmt_stat_block_table(stats, filtered_sec, "🔹 Secondary Stats", 3)
+		output += blk_sec + "\n"
 
 	# Other stats (less important for this position)
 	if not other_keys.is_empty():
-		var blk_other := _fmt_stat_block_table(stats, other_keys, "○ Other Stats", 6)
-		_emit_output("\n" + blk_other)
+		var blk_other := _fmt_stat_block_table(stats, other_keys, "○ Other Stats", 3)
+		output += blk_other + "\n"
 
 	# === MENTALS & TAGS ===
-	_emit_output("\n" + _section_header("Intangibles", "🧠"))
+	output += _section_header("Intangibles", "🧠") + "\n"
 	var mentals_avg_f := float(p.get("mentals_avg", 0.0))
 	var tags_arr: Array = p.get("tags", []) as Array
 
@@ -443,14 +469,65 @@ func print_player_detailed(
 	if not tags_arr.is_empty():
 		intangibles += _kv_row("[b]Tags[/b]", "[color=#00aaff]%s[/color]" % ", ".join(tags_arr))
 	intangibles += _table_end()
-	_emit_output(intangibles)
+	output += intangibles + "\n"
 
 	if not intangibles_list.is_empty():
-		var blk_intangibles := _fmt_stat_block_table(stats, intangibles_list, "🔒 Hidden & Mental Traits", 6)
-		_emit_output("\n" + blk_intangibles)
+		var blk_intangibles := _fmt_stat_block_table(stats, intangibles_list, "🔒 Hidden & Mental Traits", 3)
+		output += blk_intangibles + "\n"
 
 	# === SCOUT OPINIONS ===
-	_print_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules, rng)
+	var scouts_section := _format_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules, rng)
+	if not scouts_section.is_empty():
+		output += scouts_section
+
+	return output.rstrip("\n")
+
+func print_player_detailed(
+	p: Dictionary,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	combine_tests_cfg: Dictionary,
+	scouts_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
+) -> void:
+	_emit_output(_build_player_card_bbcode(
+		p,
+		positions_data,
+		stats_cfg,
+		combine_tests_cfg,
+		scouts_cfg,
+		class_rules,
+		rng
+	))
+
+func _format_player_grid(
+	players: Array,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	combine_tests_cfg: Dictionary,
+	scouts_cfg: Dictionary,
+	class_rules: Dictionary,
+	rng: RandomNumberGenerator
+) -> String:
+	var output := _table_begin(3)
+	for p in players:
+		var card := _build_player_card_bbcode(
+			p as Dictionary,
+			positions_data,
+			stats_cfg,
+			combine_tests_cfg,
+			scouts_cfg,
+			class_rules,
+			rng
+		)
+		output += "[cell]%s[/cell]" % card
+	var remainder := players.size() % 3
+	if remainder != 0:
+		for _i in 3 - remainder:
+			output += "[cell][/cell]"
+	output += _table_end()
+	return output
 
 func _print_top_detailed(
 	players: Array,
@@ -471,8 +548,10 @@ func _print_top_detailed(
 	# Print section header with prominent styling
 	_emit_output("\n\n[center][font_size=20][b]🏆 TOP %d PROSPECTS 🏆[/b][/font_size][/center]\n" % limit)
 
+	var subset: Array = []
 	for i in limit:
-		print_player_detailed(pool[i] as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng)
+		subset.append(pool[i])
+	_emit_output(_format_player_grid(subset, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng))
 
 func _print_all_five_stars(
 	players: Array,
@@ -490,33 +569,4 @@ func _print_all_five_stars(
 	# Print section header with prominent styling
 	_emit_output("\n\n[center][font_size=20][b][color=#ffd700]🌟 ALL 5-STAR RECRUITS (%d) 🌟[/color][/b][/font_size][/center]\n" % five.size())
 
-	for p in five:
-		print_player_detailed(p as Dictionary, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng)
-
-## Print scout opinions in a clean table with color-coded scores
-func _print_scouts_section(
-	player: Dictionary,
-	scouts_cfg: Dictionary,
-	positions_data: Dictionary,
-	stats_cfg: Dictionary,
-	class_rules: Dictionary,
-	rng: RandomNumberGenerator
-) -> void:
-	var scouts: Array = (scouts_cfg.get("national_scouts", []) as Array)
-	if scouts.is_empty():
-		return
-
-	_emit_output("\n" + _section_header("Scout Opinions", "🕵️"))
-
-	var output := _table_begin(3)  # 3 columns for compact display
-
-	for s in scouts:
-		var scout: Dictionary = s as Dictionary
-		var scout_name := String(scout.get("name", "Scout"))
-		var score := ScoutRuntime.score_player(scout, player, positions_data, stats_cfg, class_rules, rng)
-
-		# Color-code scout opinion based on score
-		output += "[cell][b]%s[/b][/cell][cell]%s[/cell]" % [scout_name, _colored_value(score)]
-
-	output += _table_end()
-	_emit_output(output)
+	_emit_output(_format_player_grid(five, positions_data, stats_cfg, combine_tests_cfg, scouts_cfg, class_rules, rng))
