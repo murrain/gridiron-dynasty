@@ -3,6 +3,8 @@ class_name CollegeSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
+const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 
 func run(
 	world_state: Dictionary,
@@ -11,7 +13,8 @@ func run(
 	config: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
-	stats_cfg: Dictionary
+	stats_cfg: Dictionary,
+	options: Dictionary = {}
 ) -> Dictionary:
 	var rosters: Dictionary = world_state.get("college_rosters", {}) as Dictionary
 	var colleges: Array = world_state.get("colleges", []) as Array
@@ -39,6 +42,10 @@ func run(
 	var draft_pool: Dictionary = world_state.get("draft_pool", {}) as Dictionary
 	var draft_eligible: Array = draft_pool.get(year, []) as Array
 
+	# OPTIMIZATION (F6): Pre-extract config values once for all rosters
+	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
+	var ret_config := RetirementConfig.new(main_cfg)
+
 	var total_graduates := 0
 	var total_early_declares := 0
 	var rosters_updated := 0
@@ -52,12 +59,19 @@ func run(
 		var college: Dictionary = college_index.get(college_id, {}) as Dictionary
 		var prepared_players := _apply_development_context(players, college, config, context_rng, year)
 
-		var progressed: Dictionary = PlayerLifecycle.advance_one_year(
+		# Use parallel processing for college rosters (typically 50-100 players per college)
+		# For large conferences, parallel processing can provide significant speedup
+		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel_optimized(
 			prepared_players,
 			positions_cfg,
 			main_cfg,
 			stats_cfg,
-			lifecycle_rng
+			lifecycle_rng,
+			{},  # development_context already merged into players
+			0,  # Auto-detect thread count
+			options,  # Pass through skip_reports and other options
+			dev_config,  # Pre-extracted development config
+			ret_config  # Pre-extracted retirement config
 		)
 
 		var updated_players: Array = progressed.get("players", []) as Array
@@ -118,6 +132,13 @@ func run(
 		}
 	}
 
+## OPTIMIZATION (F4): In-place modification for development context
+## CollegeSeason processes each roster independently, so we own the players array
+## and can safely modify in-place instead of copying.
+##
+## RNG consumption pattern (unchanged):
+##   - _roll_usage: 1 RNG call per player (starter determination)
+##   Total: 1 RNG call per player (deterministic)
 func _apply_development_context(
 	players: Array,
 	college: Dictionary,
@@ -134,15 +155,13 @@ func _apply_development_context(
 	var tier_multipliers: Dictionary = competition_cfg.get("tier_growth_multipliers", {}) as Dictionary
 	var competition_tier := float(tier_multipliers.get(college_tier, 1.0))
 
-	var updated: Array = []
-	updated.resize(players.size())
-
+	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
 		if p == null:
-			updated[i] = p
 			continue
 
+		# RNG CALL 1: Usage determination
 		var usage := _roll_usage(usage_cfg, rng)
 		var context := {
 			"program_quality": program_quality,
@@ -152,11 +171,10 @@ func _apply_development_context(
 			"year": year
 		}
 
-		var next := p.duplicate(true)
-		next["development_context"] = context
-		updated[i] = next
+		# Replace development_context entirely (college context overrides previous)
+		p["development_context"] = context
 
-	return updated
+	return players
 
 func _roll_usage(usage_cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 	var starter_chance := float(usage_cfg.get("starter_chance", 0.45))

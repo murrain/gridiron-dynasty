@@ -3,6 +3,8 @@ class_name HighSchoolSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
+const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 
 func run(
 	players: Array,
@@ -12,7 +14,8 @@ func run(
 	stats_cfg: Dictionary,
 	config: Dictionary,
 	seed: int,
-	year: int
+	year: int,
+	options: Dictionary = {}
 ) -> Dictionary:
 	var eligibility_cfg: Dictionary = config.get("eligibility", {}) as Dictionary
 	var hs_years := int(eligibility_cfg.get("hs_years", 4))
@@ -29,12 +32,23 @@ func run(
 
 	var school_map := _school_index(schools)
 	var prepared_players := _apply_development_contexts(context_players, school_map, config)
-	var progressed: Dictionary = PlayerLifecycle.advance_one_year(
+
+	# OPTIMIZATION (F6): Pre-extract config values once for all players
+	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
+	var ret_config := RetirementConfig.new(main_cfg)
+
+	# Use parallel processing for large player sets (high school typically has 10,000+ players)
+	var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel_optimized(
 		prepared_players,
 		positions_cfg,
 		main_cfg,
 		stats_cfg,
-		lifecycle_rng
+		lifecycle_rng,
+		{},  # development_context already merged into players
+		0,  # Auto-detect thread count
+		options,  # Pass through skip_reports and other options
+		dev_config,  # Pre-extracted development config
+		ret_config  # Pre-extracted retirement config
 	)
 	var updated_players: Array = progressed.get("players", []) as Array
 
@@ -85,6 +99,13 @@ func run(
 		"transitions": transitions
 	}
 
+## OPTIMIZATION (F4): In-place modification for development context
+## HighSchoolSeason owns the player array returned from _apply_development_context,
+## so we can safely modify players in-place instead of copying each one.
+## This eliminates one full deep copy per player per season (10,000+ players).
+##
+## Safety guarantee: The players array is owned by this method's caller and will be
+## passed to PlayerLifecycle.advance_one_year, which performs its own selective copying.
 func _apply_development_contexts(players: Array, school_map: Dictionary, config: Dictionary) -> Array:
 	var program_cfg: Dictionary = config.get("program_quality", {}) as Dictionary
 	var default_program_mult := float(program_cfg.get("default_dev_multiplier", 1.0))
@@ -92,12 +113,10 @@ func _apply_development_contexts(players: Array, school_map: Dictionary, config:
 	var rehab_cfg: Dictionary = config.get("rehab_quality", {}) as Dictionary
 	var default_rehab_mult := float(rehab_cfg.get("default_multiplier", 1.0))
 
-	var updated: Array = []
-	updated.resize(players.size())
+	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
 		if p == null:
-			updated[i] = p
 			continue
 		var school_id := String(p.get("hs_school_id", ""))
 		var school: Dictionary = school_map.get(school_id, {}) as Dictionary
@@ -108,13 +127,16 @@ func _apply_development_contexts(players: Array, school_map: Dictionary, config:
 			position_specialists,
 			default_rehab_mult
 		)
-		var next := p.duplicate(true)
-		var existing: Dictionary = next.get("development_context", {}) as Dictionary
+
+		# Merge context into existing development_context in-place
+		# Create development_context dict if it doesn't exist
+		if not p.has("development_context"):
+			p["development_context"] = {}
+		var existing: Dictionary = p.get("development_context", {}) as Dictionary
 		for key in context.keys():
 			existing[key] = context[key]
-		next["development_context"] = existing
-		updated[i] = next
-	return updated
+
+	return players
 
 func _development_context_for(
 	player: Dictionary,
@@ -150,6 +172,13 @@ func _development_context_for(
 		"applied_traits": applied_traits
 	}
 
+## OPTIMIZATION (F4): In-place modification for usage and competition context
+## Called early in run() method with players array we own, so safe to modify in-place.
+##
+## RNG consumption pattern (unchanged):
+##   - _build_usage_profile: 3 RNG calls per player (games, snaps, starter bool)
+##   - scheme_score: 1 RNG call per player (randf_range)
+##   Total: 4 RNG calls per player (deterministic)
 func _apply_development_context(
 	players: Array,
 	main_cfg: Dictionary,
@@ -170,14 +199,13 @@ func _apply_development_context(
 	var tier_usage: Dictionary = competition_cfg.get("tier_usage_multipliers", {}) as Dictionary
 	var default_usage_mult := float(usage_cfg.get("default_multiplier", 1.0))
 
-	var updated: Array = []
-	updated.resize(players.size())
+	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
 		if p == null:
-			updated[i] = p
 			continue
 
+		# RNG CALL 1-3: Usage profile (games, snaps, starter)
 		var usage_profile := _build_usage_profile(usage_cfg, rng)
 		var usage_mult := default_usage_mult
 		if bool(usage_profile.get("starter", false)):
@@ -186,6 +214,8 @@ func _apply_development_context(
 		var tier_id := String(region_tiers.get(region_id, default_tier))
 		var growth_mult := float(tier_growths.get(tier_id, 1.0))
 		var tier_mult := float(tier_usage.get(tier_id, 1.0))
+
+		# RNG CALL 4: Scheme score
 		var scheme_score := rng.randf_range(score_min, score_max)
 
 		var context := {
@@ -203,14 +233,15 @@ func _apply_development_context(
 				"score": scheme_score
 			}
 		}
-		var next := p.duplicate(true)
-		var existing: Dictionary = next.get("development_context", {}) as Dictionary
+
+		# Merge context into existing development_context in-place
+		if not p.has("development_context"):
+			p["development_context"] = {}
+		var existing: Dictionary = p.get("development_context", {}) as Dictionary
 		for key in context.keys():
 			existing[key] = context[key]
-		next["development_context"] = existing
-		updated[i] = next
 
-	return updated
+	return players
 
 func _build_usage_profile(usage_cfg: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var games_min := int(usage_cfg.get("games_played_min", 8))

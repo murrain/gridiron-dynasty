@@ -16,6 +16,8 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_high_school_assignment.gd",
 	"res://scripts/tests/test_player_lifecycle.gd",
 	"res://scripts/tests/test_player_lifecycle_reports.gd",
+	"res://scripts/tests/test_parallel_lifecycle.gd",
+	"res://scripts/tests/test_copy_optimization.gd",
 	"res://scripts/tests/test_world_calendar.gd",
 	"res://scripts/tests/test_high_school_generator.gd",
 	"res://scripts/tests/test_high_school_season.gd",

@@ -17,6 +17,9 @@ func run(t) -> void:
 	# Test 4: Assert determinism across runs with same seed
 	_test_determinism(t)
 
+	# Test 5: Assert timing capture does not alter simulation results
+	_test_timing_capture_determinism(t)
+
 ## Test 1: Verify that run() returns expected output structure.
 func _test_output_structure(t) -> void:
 	var bootstrap := BootstrapGameWorld.new()
@@ -110,3 +113,61 @@ func _test_determinism(t) -> void:
 		"retired_players deterministic")
 	t.assert_eq(summary1.get("draft_pool_years", 0), summary2.get("draft_pool_years", 0),
 		"draft_pool_years deterministic")
+
+## Test 5: Verify timing capture does not alter simulation results.
+## This ensures capture_timing parameter is truly side-effect-free.
+func _test_timing_capture_determinism(t) -> void:
+	var seed := 888
+	var years := 2
+
+	# Run without timing capture
+	var bootstrap_no_timing := BootstrapGameWorld.new()
+	bootstrap_no_timing.years_to_simulate = years
+	var result_no_timing := bootstrap_no_timing.run(seed, false)
+	var summary_no_timing: Dictionary = result_no_timing.get("summary", {})
+	var world_state_no_timing: Dictionary = result_no_timing.get("world_state", {})
+
+	# Run with timing capture
+	var bootstrap_with_timing := BootstrapGameWorld.new()
+	bootstrap_with_timing.years_to_simulate = years
+	var result_with_timing := bootstrap_with_timing.run(seed, true)
+	var summary_with_timing: Dictionary = result_with_timing.get("summary", {})
+	var world_state_with_timing: Dictionary = result_with_timing.get("world_state", {})
+
+	# Verify timing data is present when capture_timing=true
+	t.assert_true(result_with_timing.has("world_generation"),
+		"timing capture produces world_generation field")
+	t.assert_false(result_no_timing.has("world_generation"),
+		"no timing capture omits world_generation field")
+
+	# Verify all summary counts are identical
+	t.assert_eq(summary_no_timing.get("hs_schools", 0), summary_with_timing.get("hs_schools", 0),
+		"hs_schools identical with/without timing")
+	t.assert_eq(summary_no_timing.get("hs_players", 0), summary_with_timing.get("hs_players", 0),
+		"hs_players identical with/without timing")
+	t.assert_eq(summary_no_timing.get("colleges", 0), summary_with_timing.get("colleges", 0),
+		"colleges identical with/without timing")
+	t.assert_eq(summary_no_timing.get("college_players", 0), summary_with_timing.get("college_players", 0),
+		"college_players identical with/without timing")
+	t.assert_eq(summary_no_timing.get("nfl_teams", 0), summary_with_timing.get("nfl_teams", 0),
+		"nfl_teams identical with/without timing")
+	t.assert_eq(summary_no_timing.get("nfl_players", 0), summary_with_timing.get("nfl_players", 0),
+		"nfl_players identical with/without timing")
+	t.assert_eq(summary_no_timing.get("retired_players", 0), summary_with_timing.get("retired_players", 0),
+		"retired_players identical with/without timing")
+	t.assert_eq(summary_no_timing.get("draft_pool_years", 0), summary_with_timing.get("draft_pool_years", 0),
+		"draft_pool_years identical with/without timing")
+
+	# Verify high-level world_state structure is identical
+	t.assert_eq((world_state_no_timing.get("hs_schools", []) as Array).size(),
+		(world_state_with_timing.get("hs_schools", []) as Array).size(),
+		"world_state hs_schools size identical")
+	t.assert_eq((world_state_no_timing.get("hs_players", []) as Array).size(),
+		(world_state_with_timing.get("hs_players", []) as Array).size(),
+		"world_state hs_players size identical")
+	t.assert_eq((world_state_no_timing.get("colleges", []) as Array).size(),
+		(world_state_with_timing.get("colleges", []) as Array).size(),
+		"world_state colleges size identical")
+	t.assert_eq((world_state_no_timing.get("nfl_teams", []) as Array).size(),
+		(world_state_with_timing.get("nfl_teams", []) as Array).size(),
+		"world_state nfl_teams size identical")

@@ -16,6 +16,7 @@ const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
 const Scout = preload("res://scripts/core/models/Scout.gd")
 const Rand = preload("res://autoloads/Rand.gd")
 const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+const RecruitingScoreCache = preload("res://scripts/core/scouting/RecruitingScoreCache.gd")
 
 ## Main entry point - preserves exact same API as CollegeRecruiting.gd
 func run(
@@ -64,7 +65,11 @@ func run(
 	# OPTIMIZATION 2: Pre-compute recruit metadata for fast filtering
 	var recruit_metadata := _precompute_recruit_metadata(recruits, baseline_scores)
 
-	# OPTIMIZATION 3: Build boards in parallel with seed derivation
+	# OPTIMIZATION 3: Create recruiting score cache for this year
+	# Cache persists across all colleges to maximize hit rate
+	var score_cache := RecruitingScoreCache.new(year)
+
+	# OPTIMIZATION 4: Build boards in parallel with seed derivation
 	var boards_by_college: Dictionary
 	var offers_by_player := {}
 
@@ -87,7 +92,8 @@ func run(
 			visit_chance,
 			visit_bonus,
 			board_limit,
-			seed
+			seed,
+			score_cache
 		)
 	else:
 		boards_by_college = _build_boards_sequential(
@@ -108,7 +114,8 @@ func run(
 			visit_chance,
 			visit_bonus,
 			board_limit,
-			seed
+			seed,
+			score_cache
 		)
 
 	# Collect offers (same logic as original)
@@ -231,7 +238,8 @@ func _build_boards_sequential(
 	visit_chance: float,
 	visit_bonus: float,
 	board_limit: int,
-	seed: int
+	seed: int,
+	score_cache: RecruitingScoreCache
 ) -> Dictionary:
 	var factory := ScoutFactory.new()
 	factory.setup(stats_cfg, scouts_cfg)
@@ -252,6 +260,7 @@ func _build_boards_sequential(
 		var board: Array = _build_board_optimized(
 			recruits,
 			college_dict,
+			college_id,
 			scout,
 			college_rng,
 			recruit_metadata,
@@ -267,7 +276,9 @@ func _build_boards_sequential(
 			region_match_multiplier,
 			visit_chance,
 			visit_bonus,
-			board_limit
+			board_limit,
+			seed,
+			score_cache
 		)
 		boards[college_id] = board
 
@@ -294,7 +305,8 @@ func _build_boards_parallel(
 	visit_chance: float,
 	visit_bonus: float,
 	board_limit: int,
-	seed: int
+	seed: int,
+	score_cache: RecruitingScoreCache
 ) -> Dictionary:
 	# RNG SEEDING FOR PARALLEL EXECUTION:
 	# Each college gets a unique, deterministic seed:
@@ -326,6 +338,7 @@ func _build_boards_parallel(
 		var board: Array = _build_board_optimized(
 			college_data["recruits"],
 			college,
+			college_id,
 			scout,
 			college_rng,
 			college_data["recruit_metadata"],
@@ -341,7 +354,9 @@ func _build_boards_parallel(
 			float(college_data["region_match_multiplier"]),
 			float(college_data["visit_chance"]),
 			float(college_data["visit_bonus"]),
-			int(college_data["board_limit"])
+			int(college_data["board_limit"]),
+			int(college_data["seed"]),
+			college_data["score_cache"]
 		)
 
 		return {"college_id": college_id, "board": board}
@@ -373,7 +388,8 @@ func _build_boards_parallel(
 			"region_match_multiplier": region_match_multiplier,
 			"visit_chance": visit_chance,
 			"visit_bonus": visit_bonus,
-			"board_limit": board_limit
+			"board_limit": board_limit,
+			"score_cache": score_cache
 		})
 
 	# Execute in parallel (ThreadPool handles thread management)
@@ -390,9 +406,11 @@ func _build_boards_parallel(
 
 ## OPTIMIZATION: Optimized board building with early filtering
 ## Key change: Only evaluate top candidates with expensive scout calls
+## Now uses RecruitingScoreCache for deterministic memoization
 func _build_board_optimized(
 	recruits: Array,
 	college: Dictionary,
+	college_id: String,
 	scout: Scout,
 	rng: RandomNumberGenerator,
 	recruit_metadata: Dictionary,
@@ -408,7 +426,9 @@ func _build_board_optimized(
 	region_match_multiplier: float,
 	visit_chance: float,
 	visit_bonus: float,
-	board_limit: int
+	board_limit: int,
+	base_seed: int,
+	score_cache: RecruitingScoreCache
 ) -> Array:
 	var college_region := String(college.get("region", ""))
 	var college_elite := float(college.get("eliteness", 0.0)) / 100.0
@@ -473,17 +493,30 @@ func _build_board_optimized(
 	final_board.resize(candidates_to_evaluate)
 
 	# Phase 2: Expensive scout evaluation only for top candidates
-	# RNG: Scout consumes multiple RNG calls per evaluation (see Scout.score_player)
+	# RNG: Scout evaluation is cached per (year, scout, player, phase)
+	# Cache handles RNG consumption to maintain determinism
 	for i in range(candidates_to_evaluate):
 		var quick_entry: Dictionary = quick_scores[i]
 		var recruit: Dictionary = recruits[int(quick_entry.get("index", 0))]
 		var player_id := String(quick_entry.get("player_id", ""))
 		var base_score: float = float(quick_entry.get("base_score", 0.0))
 
-		# RNG CALLS (variable per recruit, depends on Scout implementation):
-		# - Scout.score_player makes ~40-80 RNG calls (perception noise for each stat)
-		# - Exact count depends on stat_count in stats_cfg
-		var scout_score: float = float(scout.score_player(recruit, positions_cfg, stats_cfg, class_rules, rng))
+		# CACHED SCOUT EVALUATION:
+		# Cache automatically handles:
+		#   - Deterministic seed derivation per (scout, player, phase)
+		#   - RNG consumption on cache hits to maintain determinism
+		#   - Memoization across all colleges evaluating same player
+		# Phase: "recruiting" to distinguish from "draft" evaluations
+		var scout_score: float = score_cache.get_or_compute(
+			recruit,
+			scout,
+			college_id,
+			"recruiting",
+			positions_cfg,
+			stats_cfg,
+			class_rules,
+			base_seed
+		)
 
 		var combined_rating: float = (
 			scout_score * scout_weight + base_score * baseline_weight

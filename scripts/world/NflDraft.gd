@@ -4,7 +4,7 @@ class_name NflDraft
 const Rand = preload("res://autoloads/Rand.gd")
 const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
 const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
-const ScoreCache = preload("res://scripts/core/scouting/ScoreCache.gd")
+const RecruitingScoreCache = preload("res://scripts/core/scouting/RecruitingScoreCache.gd")
 
 ## Runs the NFL draft for a given year.
 ##
@@ -72,7 +72,8 @@ func run(
 
 	# Scout evaluation cache for the entire draft
 	# Cache is shared across all rounds/teams since player states don't change during draft
-	var score_cache := {}
+	# Uses RecruitingScoreCache for year-scoped, deterministic caching
+	var score_cache := RecruitingScoreCache.new(year)
 
 	# Execute each round
 	for round_num in range(1, rounds + 1):
@@ -91,11 +92,13 @@ func run(
 			var scored_players := _score_draft_pool(
 				remaining_pool,
 				roster,
+				team_id,
 				scout,
 				positions_cfg,
 				stats_cfg,
 				class_rules,
-				pick_rng,
+				round_num,
+				seed,
 				score_cache
 			)
 
@@ -231,30 +234,37 @@ func _sort_by_draft_order(teams: Array) -> Array:
 func _score_draft_pool(
 	pool: Array,
 	roster: Dictionary,
+	team_id: String,
 	scout: Dictionary,
 	positions_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	class_rules: Dictionary,
-	rng: RandomNumberGenerator,
-	score_cache: Dictionary
+	round_num: int,
+	base_seed: int,
+	score_cache: RecruitingScoreCache
 ) -> Array:
 	var needs := _calculate_position_needs(roster, positions_cfg)
 	var scored: Array = []
+
+	# Phase identifier includes round for cache isolation
+	var phase := "draft_round_%d" % round_num
 
 	for player in pool:
 		var p: Dictionary = player
 		var position := String(p.get("position", ""))
 		# Use cached evaluation to avoid redundant scoring
 		# NFL Draft scores 200+ players × 7 rounds × 32 teams = 44,800 evaluations
-		# Cache dramatically reduces redundant computation
-		var base_score := ScoreCache.score_player_cached(
+		# RecruitingScoreCache dramatically reduces redundant computation while
+		# maintaining determinism through seed derivation
+		var base_score := score_cache.get_or_compute(
 			p,
 			scout,
+			team_id,
+			phase,
 			positions_cfg,
 			stats_cfg,
 			class_rules,
-			rng,
-			score_cache
+			base_seed
 		)
 
 		# Apply position need weighting

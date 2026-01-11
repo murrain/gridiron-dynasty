@@ -1,6 +1,6 @@
 # Task P2: Recruiting Score Cache (Deterministic)
 
-**Status**: Not started
+**Status**: Completed
 **Phase**: P (Performance Follow-ups)
 **Priority**: High
 **Dependencies**: F2 (Recruiting Optimization)

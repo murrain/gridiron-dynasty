@@ -18,7 +18,7 @@ func test_starter_slots_defined(t) -> void:
 	var positions := ["QB", "RB", "WR", "TE", "OL", "DL", "EDGE", "LB", "CB", "S", "K", "P"]
 
 	for pos in positions:
-		var slots := PositionalScarcity.STARTER_SLOTS.get(pos, -1)
+		var slots: int = int(PositionalScarcity.STARTER_SLOTS.get(pos, -1))
 		t.assert_true(slots > 0, "%s has defined starter slots" % pos)
 
 	# Verify some specific values

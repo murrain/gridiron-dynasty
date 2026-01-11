@@ -19,6 +19,7 @@ const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const AdvanceWorldYear = preload("res://scripts/pipelines/AdvanceWorldYear.gd")
 const BootstrapWorld = preload("res://scripts/pipelines/BootstrapWorld.gd")
+const BootstrapGameWorld = preload("res://scripts/pipelines/BootstrapGameWorld.gd")
 const HighSchoolSeason = preload("res://scripts/world/HighSchoolSeason.gd")
 const CollegeRecruiting = preload("res://scripts/pipelines/CollegeRecruiting.gd")
 
@@ -398,8 +399,13 @@ func _run_bootstrap_benchmarks() -> Dictionary:
 
 	var results := {}
 
+	# Legacy player-only bootstrap (BootstrapWorld)
 	results["bootstrap_5_year"] = _benchmark_bootstrap_5_year()
 	results["bootstrap_20_year"] = _benchmark_bootstrap_20_year()
+
+	# World generation with phase timing capture (BootstrapGameWorld)
+	results["world_generation_5_year"] = _benchmark_world_generation_5_year()
+	results["world_generation_20_year"] = _benchmark_world_generation_20_year()
 
 	return results
 
@@ -453,6 +459,76 @@ func _benchmark_bootstrap_20_year() -> Dictionary:
 		"active_players": active,
 		"retired_players": retired,
 		"total_players": active + retired
+	}
+
+func _benchmark_world_generation_5_year() -> Dictionary:
+	print("  - 5-Year World Generation (with phase timing)...")
+
+	var start := Time.get_ticks_usec()
+
+	var bootstrap := BootstrapGameWorld.new()
+	bootstrap.years_to_simulate = 5
+	var result := bootstrap.run(BENCHMARK_SEED, true)  # capture_timing=true
+
+	var elapsed := Time.get_ticks_usec() - start
+
+	var summary: Dictionary = result.get("summary", {})
+	var world_gen: Dictionary = result.get("world_generation", {})
+
+	print("    Completed in %.2f seconds" % (elapsed / 1_000_000.0))
+	print("    HS Players: %d, College: %d, NFL: %d" % [
+		int(summary.get("hs_players", 0)),
+		int(summary.get("college_players", 0)),
+		int(summary.get("nfl_players", 0))
+	])
+
+	# Extract phase timing totals
+	var total_phase_timings: Dictionary = world_gen.get("total_phase_timings", {})
+	var total_phase_timings_ms: Dictionary = world_gen.get("total_phase_timings_ms", {})
+
+	return {
+		"time_us": elapsed,
+		"time_ms": elapsed / 1000.0,
+		"time_seconds": elapsed / 1_000_000.0,
+		"summary": summary,
+		"phase_timings": total_phase_timings,
+		"phase_timings_ms": total_phase_timings_ms,
+		"per_year_phase_timings": world_gen.get("per_year_phase_timings", [])
+	}
+
+func _benchmark_world_generation_20_year() -> Dictionary:
+	print("  - 20-Year World Generation (with phase timing)...")
+
+	var start := Time.get_ticks_usec()
+
+	var bootstrap := BootstrapGameWorld.new()
+	bootstrap.years_to_simulate = 20
+	var result := bootstrap.run(BENCHMARK_SEED, true)  # capture_timing=true
+
+	var elapsed := Time.get_ticks_usec() - start
+
+	var summary: Dictionary = result.get("summary", {})
+	var world_gen: Dictionary = result.get("world_generation", {})
+
+	print("    Completed in %.2f seconds" % (elapsed / 1_000_000.0))
+	print("    HS Players: %d, College: %d, NFL: %d" % [
+		int(summary.get("hs_players", 0)),
+		int(summary.get("college_players", 0)),
+		int(summary.get("nfl_players", 0))
+	])
+
+	# Extract phase timing totals
+	var total_phase_timings: Dictionary = world_gen.get("total_phase_timings", {})
+	var total_phase_timings_ms: Dictionary = world_gen.get("total_phase_timings_ms", {})
+
+	return {
+		"time_us": elapsed,
+		"time_ms": elapsed / 1000.0,
+		"time_seconds": elapsed / 1_000_000.0,
+		"summary": summary,
+		"phase_timings": total_phase_timings,
+		"phase_timings_ms": total_phase_timings_ms,
+		"per_year_phase_timings": world_gen.get("per_year_phase_timings", [])
 	}
 
 # ============================================================================
@@ -597,6 +673,8 @@ func _compare_to_baseline(current_path: String) -> void:
 	_compare_category(baseline_results, _results, "operations", "lifecycle_advancement")
 	_compare_category(baseline_results, _results, "bootstrap", "bootstrap_5_year")
 	_compare_category(baseline_results, _results, "bootstrap", "bootstrap_20_year")
+	_compare_category(baseline_results, _results, "bootstrap", "world_generation_5_year")
+	_compare_category(baseline_results, _results, "bootstrap", "world_generation_20_year")
 
 	print("=".repeat(80))
 
@@ -651,6 +729,11 @@ func _print_summary() -> void:
 	_print_bench(_results["bootstrap"], "bootstrap_5_year", "5-Year Bootstrap", true)
 	_print_bench(_results["bootstrap"], "bootstrap_20_year", "20-Year Bootstrap", true)
 
+	print("\nWorld Generation:")
+	_print_bench(_results["bootstrap"], "world_generation_5_year", "5-Year World Gen", true)
+	_print_bench(_results["bootstrap"], "world_generation_20_year", "20-Year World Gen", true)
+	_print_world_gen_phase_summary(_results["bootstrap"], "world_generation_20_year")
+
 	print("\nMemory:")
 	var mem: Dictionary = _results.get("memory", {})
 	var player_mem: Dictionary = mem.get("player_memory", {})
@@ -669,6 +752,30 @@ func _print_bench(category: Dictionary, key: String, label: String, use_seconds:
 		print("  %-25s %.2f seconds" % [label + ":", bench.get("time_seconds", 0.0)])
 	else:
 		print("  %-25s %.2f ms" % [label + ":", bench.get("time_ms", 0.0)])
+
+func _print_world_gen_phase_summary(category: Dictionary, key: String) -> void:
+	var bench: Dictionary = category.get(key, {})
+	if bench.is_empty():
+		return
+
+	var phase_timings_ms: Dictionary = bench.get("phase_timings_ms", {})
+	if phase_timings_ms.is_empty():
+		return
+
+	print("  Phase Breakdown (20-year totals):")
+
+	# Sort phases by time (descending)
+	var phases: Array = []
+	for phase_id in phase_timings_ms.keys():
+		phases.append({"id": phase_id, "ms": phase_timings_ms[phase_id]})
+	phases.sort_custom(func(a, b): return a["ms"] > b["ms"])
+
+	# Print top phases
+	for phase_data in phases:
+		var phase_dict: Dictionary = phase_data
+		var phase_id: String = phase_dict["id"]
+		var ms: float = phase_dict["ms"]
+		print("    %-30s %.2f ms (%.2f s)" % [phase_id + ":", ms, ms / 1000.0])
 
 func _get_config() -> Node:
 	if _config_instance == null:

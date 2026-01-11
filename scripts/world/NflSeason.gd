@@ -3,6 +3,8 @@ class_name NflSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
+const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 
 ## Runs the NFL season simulation for a given year.
 ##
@@ -24,7 +26,8 @@ func run(
 	league_cfg: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
-	stats_cfg: Dictionary
+	stats_cfg: Dictionary,
+	options: Dictionary = {}
 ) -> Dictionary:
 	var teams: Array = world_state.get("nfl_teams", []) as Array
 	var rosters: Dictionary = world_state.get("nfl_rosters", {}) as Dictionary
@@ -46,6 +49,10 @@ func run(
 	context_rng.seed = Rand.splitmix64(seed ^ 0x5EA50002)
 	var retirement_rng := RandomNumberGenerator.new()
 	retirement_rng.seed = Rand.splitmix64(seed ^ 0x5EA50003)
+
+	# OPTIMIZATION (F6): Pre-extract config values once for all teams
+	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
+	var ret_config := RetirementConfig.new(main_cfg)
 
 	var total_retirements := 0
 	var total_free_agents := 0
@@ -73,13 +80,19 @@ func run(
 			year
 		)
 
-		# Advance all players one year
-		var progressed: Dictionary = PlayerLifecycle.advance_one_year(
+		# Use parallel processing for NFL rosters (typically 53 players per team)
+		# Since we process all 32 teams, total player count is ~1700, making parallel beneficial
+		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel_optimized(
 			prepared_players,
 			positions_cfg,
 			main_cfg,
 			stats_cfg,
-			lifecycle_rng
+			lifecycle_rng,
+			{},  # development_context already merged into players
+			0,  # Auto-detect thread count
+			options,  # Pass through skip_reports and other options
+			dev_config,  # Pre-extracted development config
+			ret_config  # Pre-extracted retirement config
 		)
 
 		var updated_players: Array = progressed.get("players", []) as Array
@@ -153,20 +166,25 @@ func run(
 	}
 
 
+## OPTIMIZATION (F4): In-place modification for development context
+## NflSeason processes each team roster independently, so we own the players array
+## and can safely modify in-place instead of copying.
+##
+## RNG consumption pattern (unchanged):
+##   - _roll_nfl_usage: 1 RNG call per player (randf_range for usage variance)
+##   Total: 1 RNG call per player (deterministic)
 func _apply_nfl_development_context(
 	players: Array,
 	rng: RandomNumberGenerator,
 	year: int
 ) -> Array:
-	var updated: Array = []
-	updated.resize(players.size())
-
+	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
 		if p == null:
-			updated[i] = p
 			continue
 
+		# RNG CALL 1: Usage determination with variance
 		var usage := _roll_nfl_usage(p, rng)
 		var context := {
 			"program_quality": 1.0,  # NFL is top tier
@@ -176,11 +194,10 @@ func _apply_nfl_development_context(
 			"year": year
 		}
 
-		var next := p.duplicate(true)
-		next["development_context"] = context
-		updated[i] = next
+		# Replace development_context entirely (NFL context overrides previous)
+		p["development_context"] = context
 
-	return updated
+	return players
 
 
 func _roll_nfl_usage(player: Dictionary, rng: RandomNumberGenerator) -> float:
