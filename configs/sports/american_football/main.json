@@ -1,7 +1,11 @@
 {
     "active_sport": "american_football",
-    "class_size": 2000,
+    "class_size": 4500,
     "gaussian_share": 0.75,
+    "bootstrap": {
+        "optimize_generation": true,
+        "note": "When true, bootstrap generates 2688 players in year 1, then 400/year for years 2-20 (74% reduction). See BACKWARD_CLASS_SIZING.md"
+    },
     "max_freaks_per_class": 5,
     "freak_percentile_min": 0.8,
     "freak_percentile_max": 0.9,

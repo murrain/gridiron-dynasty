@@ -53,5 +53,9 @@
     "rating_threshold": 85.0,
     "base_chance": 0.15,
     "rating_bonus_per_point": 0.01
+  },
+  "draft_declaration": {
+    "rating_threshold": 65.0,
+    "note": "Only seniors with rating >= 65 declare for draft. Others graduate and leave football. See BACKWARD_CLASS_SIZING.md for analysis."
   }
 }

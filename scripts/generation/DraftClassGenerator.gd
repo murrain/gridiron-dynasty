@@ -19,12 +19,13 @@ var scouts_cfg: Dictionary
 var combine_tests_cfg: Dictionary
 var class_rules: Dictionary
 
-func generate_for_year(target_year: int, seed_override: int = 0) -> Array:
+func generate_for_year(target_year: int, seed_override: int = 0, class_size_override: int = -1) -> Array:
 	_load_cfg_if_needed()
 
 	var seed := _resolve_seed(target_year, seed_override)
 
-	var class_size := int(class_rules.get("class_size", 2000))
+	# Use override if provided, otherwise use config default
+	var class_size := class_size_override if class_size_override > 0 else int(class_rules.get("class_size", 2000))
 	var gaussian_share := float(class_rules.get("gaussian_share", 0.75))
 	var players: Array = _generate_class(class_size, gaussian_share, _step_rng(seed, "generate"))
 

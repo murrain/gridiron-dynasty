@@ -27,10 +27,38 @@ func run() -> Dictionary:
 	var retired_players: Array = []
 	var class_results: Array = []
 
+	# OPTIMIZATION: Bootstrap-Specific Generation (from BACKWARD_CLASS_SIZING.md)
+	# Purpose: Reduce bootstrap generation from 40,000 to ~10,288 players (74% reduction)
+	# Strategy:
+	#   Year 1: Generate full NFL-ready class (~2,688 players for 32 teams × 84 roster spots)
+	#   Years 2-20: Generate only replacement needs (~400 players/year)
+	# Expected impact: 74% faster bootstrap, 119MB memory savings
+
+	# Check if bootstrap optimization is enabled
+	var bootstrap_cfg: Dictionary = main_cfg.get("bootstrap", {}) as Dictionary
+	var optimize_bootstrap := bool(bootstrap_cfg.get("optimize_generation", true))
+
+	# Calculate target class sizes based on optimization mode
+	var nfl_roster_size := 84  # 53 active + 16 practice squad + 15 IR per team
+	var nfl_teams := 32
+	var full_nfl_size := nfl_roster_size * nfl_teams  # ~2,688 players
+	var replacement_per_year := 400  # Annual turnover (retirements + cuts)
+
 	var first_year := start_year - years_back + 1
 	for class_year in range(first_year, start_year + 1):
 		var class_seed := _resolve_seed(base_seed, class_year)
-		var class_players := draft_gen.generate_for_year(class_year, class_seed)
+
+		# Determine class size based on bootstrap optimization
+		var target_class_size := -1  # -1 = use default from config
+		if optimize_bootstrap:
+			if class_year == first_year:
+				# Year 1: Generate full NFL roster needs
+				target_class_size = full_nfl_size
+			else:
+				# Years 2-20: Generate only replacement needs
+				target_class_size = replacement_per_year
+
+		var class_players := draft_gen.generate_for_year(class_year, class_seed, target_class_size)
 		var years_to_advance := start_year - class_year
 		if years_to_advance > 0:
 			var rng := RandomNumberGenerator.new()
