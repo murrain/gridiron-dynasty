@@ -328,7 +328,7 @@ func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> voi
 		if combine.has(key):
 			var tcfg: Dictionary = tests[key] as Dictionary
 			var disp_name := String(tcfg.get("display_name", key))
-			var val := combine[key]
+			var val: Variant = combine[key]
 			items.append([disp_name, val])
 
 	if items.is_empty():
