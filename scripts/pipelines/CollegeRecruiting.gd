@@ -257,7 +257,7 @@ func _build_boards_sequential(
 			college_rng
 		)
 
-		var board: Array = _build_board_optimized(
+		var board: Array = _build_board(
 			recruits,
 			college_dict,
 			college_id,
@@ -335,7 +335,7 @@ func _build_boards_parallel(
 		)
 
 		# Build board
-		var board: Array = _build_board_optimized(
+		var board: Array = _build_board(
 			college_data["recruits"],
 			college,
 			college_id,
@@ -422,7 +422,7 @@ func _build_boards_parallel(
 ## OPTIMIZATION: Optimized board building with early filtering
 ## Key change: Only evaluate top candidates with expensive scout calls
 ## Now uses RecruitingScoreCache for deterministic memoization
-func _build_board_optimized(
+func _build_board(
 	recruits: Array,
 	college: Dictionary,
 	college_id: String,

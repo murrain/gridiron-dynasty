@@ -38,7 +38,7 @@ func run(
 	var ret_config := RetirementConfig.new(main_cfg)
 
 	# Use parallel processing for large player sets (high school typically has 10,000+ players)
-	var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel_optimized(
+	var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel(
 		prepared_players,
 		positions_cfg,
 		main_cfg,

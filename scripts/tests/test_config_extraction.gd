@@ -130,15 +130,15 @@ func _test_development_config_progress_ranges(t) -> void:
 
 	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
 
-	var base_range := dev_config.base_progress_range()
+	var base_range: Vector2 = dev_config.base_progress_range()
 	t.assert_approx(base_range.x, 1.5, 0.01, "Base progress min extracted")
 	t.assert_approx(base_range.y, 4.5, 0.01, "Base progress max extracted")
 
-	var prime_range := dev_config.prime_range()
+	var prime_range: Vector2 = dev_config.prime_growth_range()
 	t.assert_approx(prime_range.x, 0.3, 0.01, "Prime min extracted")
 	t.assert_approx(prime_range.y, 0.9, 0.01, "Prime max extracted")
 
-	var decline_range := dev_config.decline_range()
+	var decline_range: Vector2 = dev_config.decline_range()
 	t.assert_approx(decline_range.x, 0.5, 0.01, "Decline min extracted")
 	t.assert_approx(decline_range.y, 1.8, 0.01, "Decline max extracted")
 

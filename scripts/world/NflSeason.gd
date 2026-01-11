@@ -82,7 +82,7 @@ func run(
 
 		# Use parallel processing for NFL rosters (typically 53 players per team)
 		# Since we process all 32 teams, total player count is ~1700, making parallel beneficial
-		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel_optimized(
+		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel(
 			prepared_players,
 			positions_cfg,
 			main_cfg,

@@ -51,74 +51,43 @@ static func advance_years(
 
 	return {"players": active, "retired": retired_all}
 
-static func advance_one_year(
-	players: Array,
-	positions_cfg: Dictionary,
-	main_cfg: Dictionary,
-	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator,
-	development_context: Dictionary = {},
-	options: Dictionary = {}
-) -> Dictionary:
-	var skip_reports := bool(options.get("skip_reports", false))
-	var updated: Array = []
-	var retired: Array = []
-	var development_reports: Array = []
-	updated.resize(players.size())
-	development_reports.resize(players.size())
-
-	for i in range(players.size()):
-		var p: Dictionary = players[i]
-		if p == null:
-			updated[i] = p
-			development_reports[i] = {}
-			continue
-		var evolved := _advance_player_one_year(
-			p,
-			positions_cfg,
-			main_cfg,
-			stats_cfg,
-			rng,
-			development_context,
-			skip_reports
-		)
-		if evolved.get("retired", false):
-			retired.append(evolved.get("player", p))
-			updated[i] = null
-		else:
-			updated[i] = evolved.get("player", p)
-		development_reports[i] = evolved.get("development_report", {})
-
-	return {
-		"players": updated,
-		"retired": retired,
-		"development_reports": development_reports
-	}
-
-## Parallel version of advance_one_year that processes players concurrently.
-## Uses deterministic seed derivation via splitmix64 for reproducible parallel execution.
+## Parallel version with optional config helpers for improved performance.
 ##
 ## Algorithm:
 ##   Phase 1: Derive deterministic seeds for each player using splitmix64(master_seed + i)
 ##   Phase 2: Process players in parallel (each with own RNG from derived seed)
 ##   Phase 3: Reconstruct output arrays (serial, maintains order)
 ##
-## RNG consumption pattern:
-##   - Phase 1: NO RNG calls (uses splitmix64 with master seed + index)
-##   - Phase 2: Each player processes with its own independent RNG instance
-##   - Input RNG state is preserved (not consumed during seed derivation)
+## Performance impact when configs provided:
+##   - Eliminates ~20 dictionary lookups per player per year
+##   - ~5% time reduction in lifecycle processing
+##   - ~10x faster config access
+##
+## Backwards compatibility:
+##   - Config parameters are optional with null defaults
+##   - Falls back to dictionary lookups when configs not provided
+##
+## RNG consumption: Uses splitmix64 seed derivation (determinism preserved)
 ##
 ## Thread safety:
 ##   - No shared mutable state between threads
 ##   - Each thread works on its own player copy via _selective_copy
 ##   - Config dictionaries are read-only (safe to share)
-##   - Result array pre-sized, threads write to different indices
 ##
 ## Determinism guarantee:
 ##   - Same input seed produces identical parallel results across runs
 ##   - Results differ from serial advance_one_year() due to independent RNG per player
 ##   - Use serial version when exact RNG sequence matching is required
-##   - Use parallel version for performance with deterministic parallelism
+##
+## Usage with config helpers:
+##   var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
+##   var ret_config := RetirementConfig.new(main_cfg)
+##   var wear_config := WearConfig.new(main_cfg)
+##   var result := PlayerLifecycle.advance_one_year_parallel(
+##       players, positions_cfg, main_cfg, stats_cfg, rng,
+##       development_context, threads, options,
+##       dev_config, ret_config, wear_config
+##   )
 ##
 ## Parameters:
 ##   threads: Number of worker threads (0 = auto-detect CPU cores)
@@ -133,133 +102,6 @@ static func advance_one_year_parallel(
 	rng: RandomNumberGenerator,
 	development_context: Dictionary = {},
 	threads: int = 0,
-	options: Dictionary = {}
-) -> Dictionary:
-	# Fall back to serial for small arrays or single-threaded request
-	if players.size() < PARALLEL_THRESHOLD or threads <= 1:
-		return advance_one_year(players, positions_cfg, main_cfg, stats_cfg, rng, development_context, options)
-
-	# Determine thread count
-	if threads <= 0:
-		threads = OS.get_processor_count()
-	threads = max(2, min(threads, 16))  # Clamp between 2 and 16
-
-	# CRITICAL FIX: Deep copy config dictionaries to ensure thread safety
-	# Config dictionaries from the Config singleton contain references to cached data
-	# Godot's Dictionary implementation is NOT thread-safe for concurrent access
-	# Deep copying ensures each thread gets independent config data
-	var positions_cfg_copy: Dictionary = positions_cfg.duplicate(true)
-	var main_cfg_copy: Dictionary = main_cfg.duplicate(true)
-	var stats_cfg_copy: Dictionary = stats_cfg.duplicate(true)
-	var development_context_copy: Dictionary = development_context.duplicate(true)
-
-	# Phase 1: Derive deterministic seeds for each player using splitmix64
-	# Use master seed + player index to create independent, deterministic seeds
-	# This does NOT consume the input RNG, preserving serial/parallel equivalence
-	var master_seed := rng.seed
-	var seeds: Array = []
-	seeds.resize(players.size())
-	for i in range(players.size()):
-		seeds[i] = Rand.splitmix64(master_seed + i)
-
-	# Phase 2: Build work items for parallel processing
-	var skip_reports := bool(options.get("skip_reports", false))
-	var items: Array = []
-	items.resize(players.size())
-	for i in range(players.size()):
-		items[i] = {
-			"player": players[i],
-			"seed": seeds[i],
-			"index": i,
-			"positions_cfg": positions_cfg_copy,
-			"main_cfg": main_cfg_copy,
-			"stats_cfg": stats_cfg_copy,
-			"development_context": development_context_copy,
-			"skip_reports": skip_reports
-		}
-
-	# Phase 2: Process players in parallel
-	# Each worker gets a slice of items and processes them with independent RNG
-	var results := ThreadPool.map(items, func(item: Dictionary) -> Dictionary:
-		if item["player"] == null:
-			return {
-				"player": null,
-				"retired": false,
-				"development_report": {},
-				"index": int(item["index"])
-			}
-
-		# Create independent RNG for this player from derived seed
-		var player_rng := RandomNumberGenerator.new()
-		player_rng.seed = int(item["seed"])
-
-		# Process player with independent RNG
-		var evolved := _advance_player_one_year(
-			item["player"],
-			item["positions_cfg"] as Dictionary,
-			item["main_cfg"] as Dictionary,
-			item["stats_cfg"] as Dictionary,
-			player_rng,
-			item["development_context"] as Dictionary,
-			bool(item.get("skip_reports", false))
-		)
-
-		# Attach index for result ordering
-		evolved["index"] = int(item["index"])
-		return evolved,
-		threads
-	)
-
-	# Phase 3: Reconstruct output arrays (serial, maintains order)
-	var updated: Array = []
-	var retired: Array = []
-	var development_reports: Array = []
-	updated.resize(players.size())
-	development_reports.resize(players.size())
-
-	for result in results:
-		var res: Dictionary = result
-		var idx: int = int(res["index"])
-		if res.get("retired", false):
-			retired.append(res.get("player"))
-			updated[idx] = null
-		else:
-			updated[idx] = res.get("player")
-		development_reports[idx] = res.get("development_report", {})
-
-	return {
-		"players": updated,
-		"retired": retired,
-		"development_reports": development_reports
-	}
-
-## OPTIMIZATION (F6): Config-optimized parallel advance
-## Same as advance_one_year_parallel but uses pre-extracted config helpers.
-##
-## Performance impact:
-##   - Eliminates ~20 dictionary lookups per player per year
-##   - ~5% time reduction in lifecycle processing
-##   - ~10x faster config access
-##
-## RNG consumption: Identical to advance_one_year_parallel (determinism preserved)
-##
-## Usage:
-##   var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
-##   var ret_config := RetirementConfig.new(main_cfg)
-##   var wear_config := WearConfig.new(main_cfg)
-##   var result := PlayerLifecycle.advance_one_year_parallel_optimized(
-##       players, positions_cfg, stats_cfg, rng,
-##       development_context, threads, options,
-##       dev_config, ret_config, wear_config
-##   )
-static func advance_one_year_parallel_optimized(
-	players: Array,
-	positions_cfg: Dictionary,
-	main_cfg: Dictionary,
-	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator,
-	development_context: Dictionary = {},
-	threads: int = 0,
 	options: Dictionary = {},
 	dev_config: DevelopmentConfig = null,
 	ret_config: RetirementConfig = null,
@@ -267,7 +109,7 @@ static func advance_one_year_parallel_optimized(
 ) -> Dictionary:
 	# Fall back to serial for small arrays or single-threaded request
 	if players.size() < PARALLEL_THRESHOLD or threads <= 1:
-		return advance_one_year_optimized(
+		return advance_one_year(
 			players, positions_cfg, main_cfg, stats_cfg, rng,
 			development_context, options,
 			dev_config, ret_config, wear_config
@@ -327,8 +169,8 @@ static func advance_one_year_parallel_optimized(
 		var player_rng := RandomNumberGenerator.new()
 		player_rng.seed = int(item["seed"])
 
-		# Process player with independent RNG and optimized config
-		var evolved := _advance_player_one_year_optimized(
+		# Process player with independent RNG and optional config helpers
+		var evolved := _advance_player_one_year(
 			item["player"],
 			item["positions_cfg"] as Dictionary,
 			item["main_cfg"] as Dictionary,
@@ -370,15 +212,20 @@ static func advance_one_year_parallel_optimized(
 		"development_reports": development_reports
 	}
 
-## OPTIMIZATION (F6): Config-optimized serial advance
-## Same as advance_one_year but uses pre-extracted config helpers.
+## Config-optimized serial advance with optional config helpers.
 ##
-## Performance impact:
+## Performance impact when configs provided:
 ##   - Eliminates ~20 dictionary lookups per player per year
 ##   - ~5% time reduction in lifecycle processing
+##   - Replaces O(log n) dict access with O(1) member access
 ##
-## RNG consumption: Identical to advance_one_year (determinism preserved)
-static func advance_one_year_optimized(
+## Backwards compatibility:
+##   - Config parameters (dev_config, ret_config, wear_config) are optional
+##   - When null, falls back to dictionary lookups from main_cfg
+##   - Existing callers without config params continue to work
+##
+## RNG consumption: Identical to previous implementation (determinism preserved)
+static func advance_one_year(
 	players: Array,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
@@ -403,7 +250,7 @@ static func advance_one_year_optimized(
 			updated[i] = p
 			development_reports[i] = {}
 			continue
-		var evolved := _advance_player_one_year_optimized(
+		var evolved := _advance_player_one_year(
 			p,
 			positions_cfg,
 			main_cfg,
@@ -428,11 +275,18 @@ static func advance_one_year_optimized(
 		"development_reports": development_reports
 	}
 
-## OPTIMIZATION (F6): Config-optimized single player advance
-## Same as _advance_player_one_year but uses pre-extracted config helpers.
+## Config-optimized single player advance with optional config helpers.
 ##
-## RNG consumption: Identical to _advance_player_one_year (determinism preserved)
-static func _advance_player_one_year_optimized(
+## Performance impact when configs provided:
+##   - Eliminates ~20 dictionary lookups per player per year
+##   - ~5% time reduction in lifecycle processing
+##
+## Backwards compatibility:
+##   - Config parameters are optional with null defaults
+##   - Falls back to dictionary lookups when configs not provided
+##
+## RNG consumption: Identical to previous implementation (determinism preserved)
+static func _advance_player_one_year(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
@@ -456,7 +310,7 @@ static func _advance_player_one_year_optimized(
 	# Use optimized development if config provided
 	var development_report: Dictionary
 	if dev_config != null:
-		development_report = _apply_development_optimized(
+		development_report = _apply_development(
 			p,
 			dev_config,
 			positions_cfg,
@@ -467,7 +321,7 @@ static func _advance_player_one_year_optimized(
 		)
 	else:
 		# Fallback to non-optimized version
-		development_report = _apply_development(
+		development_report = _apply_development_fallback(
 			p,
 			positions_cfg,
 			main_cfg,
@@ -479,10 +333,10 @@ static func _advance_player_one_year_optimized(
 	# Use optimized wear update if config provided
 	var wear_snapshot: Dictionary
 	if wear_config != null:
-		wear_snapshot = _update_wear_optimized(p, positions_cfg, wear_config)
+		wear_snapshot = _update_wear(p, positions_cfg, wear_config)
 	else:
 		# Fallback to non-optimized version
-		wear_snapshot = _update_wear(p, positions_cfg, main_cfg)
+		wear_snapshot = _update_wear_fallback(p, positions_cfg, main_cfg)
 
 	if not skip_reports:
 		_append_development_report(p, wear_snapshot, development_report)
@@ -493,10 +347,10 @@ static func _advance_player_one_year_optimized(
 	# Use optimized retirement if config provided
 	var should_retire: bool
 	if ret_config != null:
-		should_retire = _should_retire_optimized(p, positions_cfg, ret_config, rng)
+		should_retire = _should_retire(p, positions_cfg, ret_config, rng)
 	else:
 		# Fallback to non-optimized version
-		should_retire = _should_retire(p, positions_cfg, main_cfg, rng)
+		should_retire = _should_retire_fallback(p, positions_cfg, main_cfg, rng)
 
 	if should_retire:
 		return {
@@ -511,58 +365,6 @@ static func _advance_player_one_year_optimized(
 		"development_report": development_report
 	}
 
-static func _advance_player_one_year(
-	player: Dictionary,
-	positions_cfg: Dictionary,
-	main_cfg: Dictionary,
-	stats_cfg: Dictionary,
-	rng: RandomNumberGenerator,
-	development_context: Dictionary,
-	skip_reports: bool = false
-) -> Dictionary:
-	# OPTIMIZATION (F4): Use selective copying instead of full deep copy
-	# Only copy mutable nested structures that will be modified
-	# Immutable fields (name, player_id, position, birth_year) are shared via shallow copy
-	var p := _selective_copy(player)
-	p["age"] = int(p.get("age", 18)) + 1
-
-	var merged_context := _merge_development_context(
-		development_context,
-		p.get("development_context", {}) as Dictionary
-	)
-	p["development_context"] = merged_context
-
-	var development_report := _apply_development(
-		p,
-		positions_cfg,
-		main_cfg,
-		stats_cfg,
-		rng,
-		merged_context
-	)
-	var wear_snapshot := _update_wear(p, positions_cfg, main_cfg)
-
-	# OPTIMIZATION (F7): Skip development report generation during bootstrap
-	# Reports are only used for UI/debugging, not simulation logic
-	# This reduces memory usage by ~7.5KB per player per year
-	if not skip_reports:
-		_append_development_report(p, wear_snapshot, development_report)
-
-	var injury_report := _apply_injury(p, main_cfg, rng)
-	p["injury_report"] = injury_report
-
-	if _should_retire(p, positions_cfg, main_cfg, rng):
-		return {
-			"player": p,
-			"retired": true,
-			"development_report": development_report
-		}
-
-	return {
-		"player": p,
-		"retired": false,
-		"development_report": development_report
-	}
 
 ## OPTIMIZATION (F4): Selective field copying
 ## Creates a shallow copy of the player dictionary and deep copies only mutable nested structures.
@@ -638,17 +440,19 @@ static func _merge_development_context(global_ctx: Dictionary, player_ctx: Dicti
 			merged[key] = global_ctx[key]
 	return merged
 
-## OPTIMIZATION (F6): Config-optimized development application
-## Uses pre-extracted DevelopmentConfig and WearConfig to eliminate repeated dictionary lookups.
-## This method is identical to _apply_development but uses optimized config access.
+## Config-optimized development application with optional config helper.
 ##
-## Performance impact:
+## Performance impact when config provided:
 ##   - Eliminates ~15 dictionary lookups per player per year
 ##   - Replaces O(log n) dict access with O(1) member access
 ##   - ~10x faster config access (5us -> 0.5us per player)
 ##
-## RNG consumption: Identical to _apply_development (determinism preserved)
-static func _apply_development_optimized(
+## Backwards compatibility:
+##   - dev_config and wear_config parameters are optional
+##   - When null, falls back to dictionary lookups
+##
+## RNG consumption: Identical to previous implementation (determinism preserved)
+static func _apply_development(
 	player: Dictionary,
 	dev_config: DevelopmentConfig,
 	positions_cfg: Dictionary,
@@ -696,7 +500,7 @@ static func _apply_development_optimized(
 	var wear_multiplier := 1.0
 	if age >= decline_start:
 		if wear_config != null:
-			wear_multiplier = _wear_decline_multiplier_optimized(player, wear_config)
+			wear_multiplier = _wear_decline_multiplier(player, wear_config)
 		else:
 			# Fallback to default multiplier if wear_config not provided
 			wear_multiplier = 1.0
@@ -787,7 +591,9 @@ static func _apply_development_optimized(
 	player["potential"] = potential
 	return report
 
-static func _apply_development(
+## Fallback development application using dictionary lookups.
+## Used when dev_config is not provided to _apply_development.
+static func _apply_development_fallback(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
@@ -835,7 +641,7 @@ static func _apply_development(
 	var combined_multiplier := _combined_multiplier(modifiers)
 	var wear_multiplier := 1.0
 	if age >= decline_start:
-		wear_multiplier = _wear_decline_multiplier(player, main_cfg)
+		wear_multiplier = _wear_decline_multiplier_fallback(player, main_cfg)
 
 	var phase := "growth"
 	if age < peak_age:
@@ -938,7 +744,9 @@ static func _combined_multiplier(modifiers: Dictionary) -> float:
 		combined *= float(value)
 	return combined
 
-static func _update_wear(
+## Fallback wear update using dictionary lookups.
+## Used when wear_config is not provided to _update_wear.
+static func _update_wear_fallback(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary
@@ -963,10 +771,16 @@ static func _update_wear(
 	return wear
 
 
-## OPTIMIZATION (F6): Config-optimized wear update
+## Config-optimized wear update with optional config helper.
 ##
-## Uses WearConfig for O(1) member access instead of O(log n) dictionary lookups.
-static func _update_wear_optimized(
+## Performance impact when config provided:
+##   - Uses WearConfig for O(1) member access instead of O(log n) dictionary lookups
+##   - ~10x faster config access
+##
+## Backwards compatibility:
+##   - wear_config parameter is required (this is the optimized path)
+##   - For fallback without config, use _update_wear_fallback
+static func _update_wear(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	wear_config: WearConfig
@@ -997,14 +811,21 @@ static func _ensure_wear(player: Dictionary) -> Dictionary:
 		"injury_count": int(wear.get("injury_count", 0))
 	}
 
-## OPTIMIZATION (F6): Config-optimized wear decline multiplier
+## Config-optimized wear decline multiplier with optional config helper.
 ##
-## Uses WearConfig for O(1) member access instead of hardcoded values.
-## This ensures wear config changes are reflected without code modifications.
-static func _wear_decline_multiplier_optimized(player: Dictionary, wear_config: WearConfig) -> float:
+## Performance impact when config provided:
+##   - Uses WearConfig for O(1) member access
+##   - Ensures wear config changes are reflected without code modifications
+##
+## Backwards compatibility:
+##   - wear_config parameter is required (this is the optimized path)
+##   - For fallback without config, use _wear_decline_multiplier_fallback
+static func _wear_decline_multiplier(player: Dictionary, wear_config: WearConfig) -> float:
 	return wear_config.decline_multiplier(player)
 
-static func _wear_decline_multiplier(player: Dictionary, main_cfg: Dictionary) -> float:
+## Fallback wear decline multiplier using dictionary lookups.
+## Used when wear_config is not provided to _wear_decline_multiplier.
+static func _wear_decline_multiplier_fallback(player: Dictionary, main_cfg: Dictionary) -> float:
 	var wear_cfg: Dictionary = main_cfg.get("wear", {}) as Dictionary
 	var wear := _ensure_wear(player)
 
@@ -1067,16 +888,19 @@ static func _apply_injury(
 		"injured": injured
 	}
 
-## OPTIMIZATION (F6): Config-optimized retirement check
-## Uses pre-extracted RetirementConfig to eliminate repeated dictionary lookups.
-## This method is identical to _should_retire but uses optimized config access.
+## Config-optimized retirement check with optional config helper.
 ##
-## Performance impact:
+## Performance impact when config provided:
 ##   - Eliminates ~7 dictionary lookups per player per year
 ##   - Replaces O(log n) dict access with O(1) member access
+##   - ~10x faster config access
 ##
-## RNG consumption: Identical to _should_retire (determinism preserved)
-static func _should_retire_optimized(
+## Backwards compatibility:
+##   - ret_config parameter is required (this is the optimized path)
+##   - For fallback without config, use _should_retire_fallback
+##
+## RNG consumption: Identical to previous implementation (determinism preserved)
+static func _should_retire(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	ret_config: RetirementConfig,
@@ -1084,7 +908,7 @@ static func _should_retire_optimized(
 ) -> bool:
 	var age := int(player.get("age", 18))
 
-	# OPTIMIZATION: Use pre-extracted config values (O(1) access)
+	# Use pre-extracted config values (O(1) access)
 	var min_age := ret_config.min_age()
 	var soft_cap_age := ret_config.soft_cap_age()
 	var max_age := ret_config.max_age()
@@ -1106,7 +930,9 @@ static func _should_retire_optimized(
 	chance = clamp(chance, 0.0, 0.95)
 	return rng.randf() < chance
 
-static func _should_retire(
+## Fallback retirement check using dictionary lookups.
+## Used when ret_config is not provided to _should_retire.
+static func _should_retire_fallback(
 	player: Dictionary,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,

@@ -142,7 +142,7 @@ func decline_multiplier(player: Dictionary) -> float:
 	var wear: Dictionary = player.get("wear", {}) as Dictionary
 	var snaps := int(wear.get("snaps", 0))
 	var collisions := int(wear.get("collisions", 0))
-	var injuries := int(wear.get("injuries", 0))
+	var injuries := int(wear.get("injury_count", 0))
 
 	var snaps_factor := float(snaps) / _decline_snaps_scale
 	var collisions_factor := float(collisions) / _decline_collisions_scale
