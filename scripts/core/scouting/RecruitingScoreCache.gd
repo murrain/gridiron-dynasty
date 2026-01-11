@@ -228,9 +228,10 @@ static func _derive_evaluation_seed_from_state(
 ## that subsequent RNG-dependent operations produce identical results regardless
 ## of cache state.
 ##
-## RNG consumption pattern depends on scout type:
-##   - Dictionary scout (ScoutRuntime): 2 perceptions × num_stats × 2 randf per gaussian
-##   - Resource scout (Scout): 2 perceptions × num_stats × 2 randf + 1 board_noise × 2 randf
+## This function delegates to Scout.get_rng_calls_per_evaluation() or
+## ScoutRuntime.get_rng_calls_per_evaluation() to avoid hardcoding RNG call
+## counts. Co-locating RNG consumption logic with score_player() implementations
+## prevents silent determinism breaks when those implementations change.
 ##
 ## Parameters:
 ##   player: Player being evaluated (unused, for future optimization)
@@ -246,24 +247,15 @@ static func _consume_rng_for_evaluation(
 	var stats_list: Array = stats_cfg.get("stats", []) as Array
 	var num_stats := stats_list.size()
 
+	# Delegate to co-located RNG consumption count methods
+	var total_randf: int
 	if scout is Scout:
-		# Scout.score_player:
-		#   - _perceived_player (current): num_stats randfn calls
-		#   - _perceived_player (potential): num_stats randfn calls
-		#   - board_noise: 1 randfn call
-		# Each randfn consumes 2 randf calls (Box-Muller transform)
-		var total_randfn := (2 * num_stats) + 1
-		var total_randf := total_randfn * 2
-		for i in range(total_randf):
-			rng.randf()
+		total_randf = Scout.get_rng_calls_per_evaluation(num_stats)
 	else:
-		# ScoutRuntime.score_player:
-		#   - _perceive (current): num_stats gaussian calls
-		#   - _perceive_potential (potential): num_stats gaussian calls
-		# Each gaussian (StatHelpers) consumes 2 randf calls
-		var total_randf := 2 * num_stats * 2
-		for i in range(total_randf):
-			rng.randf()
+		total_randf = ScoutRuntime.get_rng_calls_per_evaluation(num_stats)
+
+	for i in range(total_randf):
+		rng.randf()
 
 
 ## Hash player state for cache key.

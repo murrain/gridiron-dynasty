@@ -61,7 +61,7 @@ func run(
 
 		# Use parallel processing for college rosters (typically 50-100 players per college)
 		# For large conferences, parallel processing can provide significant speedup
-		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel_optimized(
+		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel(
 			prepared_players,
 			positions_cfg,
 			main_cfg,
