@@ -501,7 +501,7 @@ func _determine_nfl_playoff_teams(
 	var conference_standings := {}
 	for team_id in season_results.keys():
 		var record: Dictionary = season_results[team_id]
-		var conf := team_to_conference.get(team_id, "Unknown")
+		var conf: String = team_to_conference.get(team_id, "Unknown")
 		if not conference_standings.has(conf):
 			conference_standings[conf] = []
 
@@ -606,8 +606,8 @@ func _simulate_nfl_season(
 		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
 		var home_id := String(result.get("home_team_id", ""))
 		var away_id := String(result.get("away_team_id", ""))
-		var home_roster := rosters.get(home_id, {})
-		var away_roster := rosters.get(away_id, {})
+		var home_roster: Dictionary = rosters.get(home_id, {})
+		var away_roster: Dictionary = rosters.get(away_id, {})
 
 		if not home_roster.is_empty() and not away_roster.is_empty():
 			GameSimulator.accumulate_player_stats(
