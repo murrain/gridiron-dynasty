@@ -178,6 +178,17 @@ func _colored_value(value: float, format_str: String = "%.2f") -> String:
 	var formatted := format_str % value
 	return _colored(formatted, _bbcode_color_for_value(value))
 
+func _display_stat_name(stat: String) -> String:
+	var words := stat.replace("_", " ").split(" ", false)
+	var formatted: Array = []
+	for word in words:
+		var lower := word.to_lower()
+		if lower == "iq":
+			formatted.append("IQ")
+		else:
+			formatted.append(lower.capitalize())
+	return " ".join(formatted)
+
 ## Create a simple 2-column key-value table row
 func _kv_row(key: String, value: String, color_value: bool = false) -> String:
 	return "[cell]%s[/cell][cell]%s[/cell]" % [key, value]
@@ -272,10 +283,41 @@ func _fmt_stat_block_table(stats: Dictionary, keys: Array, title: String, column
 	for k in sorted_keys:
 		var stat_name := String(k)
 		var stat_value := float(stats.get(k, 0.0))
-		output += _kv_row_scored(stat_name, stat_value)
+		output += _kv_row_scored(_display_stat_name(stat_name), stat_value)
 
 	output += _table_end()
 	return output
+
+func _collect_intangible_keys(stats_cfg: Dictionary, class_rules: Dictionary) -> Array:
+	var keys: Array = []
+	var mental_keys: Array = class_rules.get("mental_keys", []) as Array
+	var extras: Array = [
+		"confidence",
+		"aggression",
+		"leadership",
+		"loyalty",
+		"charisma",
+		"football_IQ",
+		"reaction_time",
+		"clutch_factor"
+	]
+
+	for s in stats_cfg.get("stats", []):
+		var sd: Dictionary = s
+		var name := String(sd.get("name", ""))
+		if sd.get("hidden", false) or mental_keys.has(name) or extras.has(name):
+			if not keys.has(name):
+				keys.append(name)
+
+	for mk in mental_keys:
+		if not keys.has(mk):
+			keys.append(mk)
+
+	for extra in extras:
+		if not keys.has(extra):
+			keys.append(extra)
+
+	return keys
 
 ## Print combine results as a clean table
 func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> void:
@@ -293,7 +335,7 @@ func _print_combine_section(combine: Dictionary, combine_cfg: Dictionary) -> voi
 		return
 
 	_emit_output("\n" + _subsection_header("🧪 Combine Results"))
-	var output := _table_begin(4)  # 4 columns for compact display
+	var output := _table_begin(6)  # 6 columns for compact display
 
 	for item in items:
 		var test_name := String(item[0])
@@ -353,28 +395,42 @@ func print_player_detailed(
 	var core_keys: Array = roles.get("core", []) as Array
 	var sec_keys: Array = roles.get("secondary", []) as Array
 	var all_base := _all_base_stats(stats_cfg)
-	var union_cs: Array = core_keys.duplicate()
+	var intangible_keys := _collect_intangible_keys(stats_cfg, class_rules)
+	var filtered_core: Array = []
+	for k in core_keys:
+		if not intangible_keys.has(k):
+			filtered_core.append(k)
+	var filtered_sec: Array = []
 	for k in sec_keys:
+		if not intangible_keys.has(k):
+			filtered_sec.append(k)
+	var union_cs: Array = filtered_core.duplicate()
+	for k in filtered_sec:
 		if not union_cs.has(k): union_cs.append(k)
 	var other_keys: Array = []
 	for k in all_base:
-		if not union_cs.has(k): other_keys.append(k)
+		if not union_cs.has(k) and not intangible_keys.has(k):
+			other_keys.append(k)
 
 	var stats: Dictionary = p.get("stats", {}) as Dictionary
+	var intangibles_list: Array = []
+	for k in intangible_keys:
+		if stats.has(k):
+			intangibles_list.append(k)
 
 	# Core stats (most important for position)
-	if not core_keys.is_empty():
-		var blk_core := _fmt_stat_block_table(stats, core_keys, "⭐ Core Stats", 4)
+	if not filtered_core.is_empty():
+		var blk_core := _fmt_stat_block_table(stats, filtered_core, "⭐ Core Stats", 6)
 		_emit_output(blk_core)
 
 	# Secondary stats (situational/positional)
-	if not sec_keys.is_empty():
-		var blk_sec := _fmt_stat_block_table(stats, sec_keys, "🔹 Secondary Stats", 4)
+	if not filtered_sec.is_empty():
+		var blk_sec := _fmt_stat_block_table(stats, filtered_sec, "🔹 Secondary Stats", 6)
 		_emit_output("\n" + blk_sec)
 
 	# Other stats (less important for this position)
 	if not other_keys.is_empty():
-		var blk_other := _fmt_stat_block_table(stats, other_keys, "○ Other Stats", 4)
+		var blk_other := _fmt_stat_block_table(stats, other_keys, "○ Other Stats", 6)
 		_emit_output("\n" + blk_other)
 
 	# === MENTALS & TAGS ===
@@ -388,6 +444,10 @@ func print_player_detailed(
 		intangibles += _kv_row("[b]Tags[/b]", "[color=#00aaff]%s[/color]" % ", ".join(tags_arr))
 	intangibles += _table_end()
 	_emit_output(intangibles)
+
+	if not intangibles_list.is_empty():
+		var blk_intangibles := _fmt_stat_block_table(stats, intangibles_list, "🔒 Hidden & Mental Traits", 6)
+		_emit_output("\n" + blk_intangibles)
 
 	# === SCOUT OPINIONS ===
 	_print_scouts_section(p, scouts_cfg, positions_data, stats_cfg, class_rules, rng)
