@@ -508,10 +508,10 @@ func _simulate_college_season(
 
 		# Accumulate player stats for this game (S2.1)
 		# Expected RNG consumption: Variable per player (see StatGenerator documentation)
-		var home_id: String = String(result.get("home_team_id", ""))
-		var away_id: String = String(result.get("away_team_id", ""))
-		var home_roster: Dictionary = rosters.get(home_id, {})
-		var away_roster: Dictionary = rosters.get(away_id, {})
+		var home_id := String(result.get("home_team_id", ""))
+		var away_id := String(result.get("away_team_id", ""))
+		var home_roster := rosters.get(home_id, {})
+		var away_roster := rosters.get(away_id, {})
 
 		if not home_roster.is_empty() and not away_roster.is_empty():
 			GameSimulator.accumulate_player_stats(
