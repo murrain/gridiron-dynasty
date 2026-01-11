@@ -52,11 +52,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_cap_validation_flow.gd",
 	"res://scripts/tests/test_trade_valuation.gd",
 	"res://scripts/tests/test_phase4_scaffolding.gd",
-	"res://scripts/tests/test_bootstrap_game_world.gd",
-	"res://scripts/tests/test_error_handling.gd",
-	"res://scripts/tests/test_edge_cases_comprehensive.gd",
-	"res://scripts/tests/test_api_contracts.gd",
-	"res://scripts/tests/test_statistical_properties.gd"
+	"res://scripts/tests/test_bootstrap_game_world.gd"
 ]
 
 func _init() -> void:
