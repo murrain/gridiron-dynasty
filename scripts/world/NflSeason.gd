@@ -6,6 +6,7 @@ const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
+const AwardSelector = preload("res://scripts/core/awards/AwardSelector.gd")
 
 ## Runs the NFL season simulation for a given year.
 ##
@@ -658,6 +659,10 @@ func _simulate_nfl_season(
 	# Expected RNG consumption: None (pure aggregation)
 	_update_team_history(world_state, year, season_results, String(best_record["team_id"]), teams, regions)
 
+	# Select NFL Awards (A3.2, A3.3, A3.4, A3.8)
+	# Expected RNG consumption: None (deterministic based on stats)
+	var award_summary := AwardSelector.select_all_awards(world_state, year)
+
 	# Return summary
 	return {
 		"enabled": true,
@@ -666,5 +671,6 @@ func _simulate_nfl_season(
 		"super_bowl_winner": String(best_record["team_id"]),
 		"champion_record": "%d-%d" % [int(best_record["wins"]),
 									  int(season_results[best_record["team_id"]].get("losses", 0))],
-		"sim_seed": sim_seed
+		"sim_seed": sim_seed,
+		"awards": award_summary
 	}

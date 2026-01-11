@@ -27,6 +27,30 @@ func assert_between(actual: float, lo: float, hi: float, message: String) -> voi
 	if actual < lo or actual > hi:
 		failures.append("%s (expected between %.4f and %.4f, got %.4f)" % [message, lo, hi, actual])
 
+func assert_gt(actual: Variant, threshold: Variant, message: String) -> void:
+	var actual_num := float(actual) if actual is float or actual is int else 0.0
+	var threshold_num := float(threshold) if threshold is float or threshold is int else 0.0
+	if not (actual_num > threshold_num):
+		failures.append("%s (expected > %s, got %s)" % [message, str(threshold), str(actual)])
+
+func assert_gte(actual: Variant, threshold: Variant, message: String) -> void:
+	var actual_num := float(actual) if actual is float or actual is int else 0.0
+	var threshold_num := float(threshold) if threshold is float or threshold is int else 0.0
+	if not (actual_num >= threshold_num):
+		failures.append("%s (expected >= %s, got %s)" % [message, str(threshold), str(actual)])
+
+func assert_lt(actual: Variant, threshold: Variant, message: String) -> void:
+	var actual_num := float(actual) if actual is float or actual is int else 0.0
+	var threshold_num := float(threshold) if threshold is float or threshold is int else 0.0
+	if not (actual_num < threshold_num):
+		failures.append("%s (expected < %s, got %s)" % [message, str(threshold), str(actual)])
+
+func assert_lte(actual: Variant, threshold: Variant, message: String) -> void:
+	var actual_num := float(actual) if actual is float or actual is int else 0.0
+	var threshold_num := float(threshold) if threshold is float or threshold is int else 0.0
+	if not (actual_num <= threshold_num):
+		failures.append("%s (expected <= %s, got %s)" % [message, str(threshold), str(actual)])
+
 # ============================================================================
 # DETERMINISM TESTING
 # ============================================================================

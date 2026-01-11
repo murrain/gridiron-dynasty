@@ -154,6 +154,51 @@ func run(
 	world_state["undrafted_pool"] = undrafted_pool
 	world_state["nfl_rosters"] = rosters
 
+	# Store draft history (D5.1, D5.5)
+	# Records all picks with complete information for historical tracking
+	# Includes trade tracking fields (traded, original_team_id) for future trade system
+	#
+	# RNG Note: Draft history recording is deterministic and does not consume RNG.
+	# It only reads and records the results of the draft execution above.
+	var draft_history: Dictionary = world_state.get("draft_history", {}) as Dictionary
+	draft_history[year] = []
+
+	# Build player lookup index for efficient college extraction
+	# Maps player_id -> player dictionary from rosters
+	var player_lookup := {}
+	for team_id in rosters.keys():
+		var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
+		var roster_players: Array = roster.get("players", []) as Array
+		for roster_player in roster_players:
+			var rp: Dictionary = roster_player as Dictionary
+			var pid := String(rp.get("player_id", ""))
+			if pid != "":
+				player_lookup[pid] = rp
+
+	# Record each pick with full information
+	for pick in picks:
+		var p: Dictionary = pick as Dictionary
+		var player_id := String(p.get("player_id", ""))
+		var team_id := String(p.get("team_id", ""))
+
+		# Extract college from player record (O(1) lookup instead of O(n) search)
+		var player_college := ""
+		if player_lookup.has(player_id):
+			var player_record: Dictionary = player_lookup[player_id] as Dictionary
+			player_college = String(player_record.get("college_team_id", ""))
+
+		draft_history[year].append({
+			"pick_number": int(p.get("pick", 0)),
+			"round": int(p.get("round", 0)),
+			"team_id": team_id,
+			"player_id": player_id,
+			"position": String(p.get("position", "")),
+			"college": player_college,
+			"traded": false,  # Phase 1: always false (no trade system yet)
+			"original_team_id": null  # Phase 1: always null (no trade system yet)
+		})
+	world_state["draft_history"] = draft_history
+
 	return {
 		"year": year,
 		"picks": picks,
