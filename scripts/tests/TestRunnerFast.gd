@@ -18,6 +18,7 @@ const FAST_TESTS := [
 	"res://scripts/tests/test_config.gd",
 	"res://scripts/tests/test_config_loader.gd",
 	"res://scripts/tests/test_helpers.gd",
+	"res://scripts/tests/test_testhelpers_enhancement.gd",  # NEW: Validates enhanced TestHelpers
 	"res://scripts/tests/test_deager.gd",
 	"res://scripts/tests/test_stathelpers.gd",
 	"res://scripts/tests/test_combine_calculator.gd",
