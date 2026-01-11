@@ -1,0 +1,86 @@
+[gd_scene load_steps=2 format=3 uid="uid://dw5xq3b8yj6zr"]
+
+[ext_resource type="Script" path="res://scripts/ui/world_explorer/panels/CollegePanel.gd" id="1_college_panel"]
+
+[node name="CollegePanel" type="VBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_college_panel")
+
+[node name="FilterBarPanel" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="FilterBarPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="FilterBar" type="HBoxContainer" parent="FilterBarPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="ViewModeLabel" type="Label" parent="FilterBarPanel/MarginContainer/FilterBar"]
+layout_mode = 2
+text = "View:"
+
+[node name="ViewModeButton" type="OptionButton" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+
+[node name="Spacer1" type="Control" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+
+[node name="TierLabel" type="Label" parent="FilterBarPanel/MarginContainer/FilterBar"]
+layout_mode = 2
+text = "Tier:"
+
+[node name="TierFilter" type="OptionButton" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Spacer2" type="Control" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+
+[node name="PositionLabel" type="Label" parent="FilterBarPanel/MarginContainer/FilterBar"]
+layout_mode = 2
+text = "Position:"
+visible = false
+
+[node name="PositionFilter" type="OptionButton" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+visible = false
+
+[node name="Spacer3" type="Control" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+visible = false
+
+[node name="ClassLabel" type="Label" parent="FilterBarPanel/MarginContainer/FilterBar"]
+layout_mode = 2
+text = "Class:"
+visible = false
+
+[node name="ClassFilter" type="OptionButton" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+visible = false
+
+[node name="ContentPanel" type="PanelContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentList" type="Tree" parent="ContentPanel"]
+columns = 5
+layout_mode = 2
+column_titles_visible = true
+hide_root = true
+
+[connection signal="item_selected" from="ContentPanel/ContentList" to="." method="_on_content_list_item_selected"]

@@ -1,0 +1,109 @@
+[gd_scene load_steps=2 format=3 uid="uid://d7y5l8n3m6rst"]
+
+[ext_resource type="Script" path="res://scripts/ui/world_explorer/panels/RetiredPanel.gd" id="1_retired_panel"]
+
+[node name="RetiredPanel" type="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("1_retired_panel")
+
+[node name="FilterBarPanel" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="FilterBarPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="FilterBar" type="HBoxContainer" parent="FilterBarPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="PositionLabel" type="Label" parent="FilterBarPanel/MarginContainer/FilterBar"]
+layout_mode = 2
+text = "Position:"
+vertical_alignment = 1
+
+[node name="PositionFilter" type="OptionButton" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+item_count = 12
+selected = 0
+popup/item_0/text = "All"
+popup/item_0/id = 0
+popup/item_1/text = "QB"
+popup/item_1/id = 1
+popup/item_2/text = "RB"
+popup/item_2/id = 2
+popup/item_3/text = "WR"
+popup/item_3/id = 3
+popup/item_4/text = "TE"
+popup/item_4/id = 4
+popup/item_5/text = "OL"
+popup/item_5/id = 5
+popup/item_6/text = "DL"
+popup/item_6/id = 6
+popup/item_7/text = "LB"
+popup/item_7/id = 7
+popup/item_8/text = "CB"
+popup/item_8/id = 8
+popup/item_9/text = "S"
+popup/item_9/id = 9
+popup/item_10/text = "K"
+popup/item_10/id = 10
+popup/item_11/text = "P"
+popup/item_11/id = 11
+
+[node name="Spacer1" type="Control" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+
+[node name="SortLabel" type="Label" parent="FilterBarPanel/MarginContainer/FilterBar"]
+layout_mode = 2
+text = "Sort by:"
+vertical_alignment = 1
+
+[node name="SortFilter" type="OptionButton" parent="FilterBarPanel/MarginContainer/FilterBar"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+item_count = 3
+selected = 0
+popup/item_0/text = "Career Length"
+popup/item_0/id = 0
+popup/item_1/text = "Peak Rating"
+popup/item_1/id = 1
+popup/item_2/text = "Name"
+popup/item_2/id = 2
+
+[node name="ContentPanel" type="PanelContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentList" type="Tree" parent="ContentPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+columns = 5
+column_titles_visible = true
+hide_root = true
+select_mode = 0
+
+[node name="PaginationBar" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="PrevPageButton" type="Button" parent="PaginationBar"]
+layout_mode = 2
+text = "<< Previous"
+
+[node name="PageLabel" type="Label" parent="PaginationBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Page 1 of 1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NextPageButton" type="Button" parent="PaginationBar"]
+layout_mode = 2
+text = "Next >>"
