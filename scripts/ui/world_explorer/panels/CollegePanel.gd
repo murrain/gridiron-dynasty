@@ -87,6 +87,10 @@ var current_class_filter: ClassFilterIndex = ClassFilterIndex.ALL
 var all_colleges: Array = []
 var all_college_players: Array = []
 
+# Config values (loaded from colleges.json)
+var early_declaration_threshold: float = 85.0  # Default, loaded from config
+var senior_declaration_threshold: float = 65.0  # Default, loaded from config
+
 func _ready() -> void:
 	_setup_filters()
 	_connect_signals()
@@ -142,6 +146,7 @@ func _connect_signals() -> void:
 ## Required by WorldExplorer: Initialize with world state
 func initialize(ws: Dictionary) -> void:
 	world_state = ws
+	_load_config_values()
 	_cache_data()
 	_update_view()
 
@@ -157,6 +162,21 @@ func cleanup() -> void:
 	content_list.clear()
 
 # Private methods
+
+func _load_config_values() -> void:
+	# Load college config to get draft declaration thresholds
+	var config_path = "res://configs/sports/american_football/world/colleges.json"
+	var file = FileAccess.open(config_path, FileAccess.READ)
+	if file:
+		var json = JSON.new()
+		var parse_result = json.parse(file.get_as_text())
+		if parse_result == OK:
+			var config = json.data
+			# Load early declaration threshold (juniors declaring early)
+			early_declaration_threshold = config.get("early_declaration", {}).get("rating_threshold", 85.0)
+			# Load senior declaration threshold
+			senior_declaration_threshold = config.get("draft_declaration", {}).get("rating_threshold", 65.0)
+		file.close()
 
 func _cache_data() -> void:
 	# Cache colleges
@@ -487,12 +507,12 @@ func _is_draft_eligible(player: Dictionary) -> bool:
 	var rating = StatQueries.calculate_composite_rating(player)
 	var college_year = player.get("college_year", 0)
 
-	# Seniors (year 4) with rating 65+
-	if college_year == 4 and rating >= 65.0:
+	# Seniors (year 4) with rating threshold from config
+	if college_year == 4 and rating >= senior_declaration_threshold:
 		return true
 
-	# Juniors (year 3) with rating 80+ can declare early
-	if college_year == 3 and rating >= 80.0:
+	# Juniors (year 3) with rating threshold from config can declare early
+	if college_year == 3 and rating >= early_declaration_threshold:
 		return true
 
 	return false

@@ -67,7 +67,6 @@ enum PositionFilterIndex {
 
 # Constants
 const SCHOOLS_PER_PAGE: int = 50
-const MIN_COLLEGE_ELIGIBLE_RATING: float = 50.0
 
 # Node references
 @onready var view_mode_button: OptionButton = $FilterBarPanel/MarginContainer/FilterBar/ViewModeButton
@@ -97,6 +96,12 @@ var total_pages: int = 0
 # Cache for performance
 var all_hs_schools: Array = []
 var all_hs_players: Array = []
+
+# Config values (loaded from high_schools.json)
+var college_eligibility_threshold: float = 40.0  # Default, loaded from config
+var elite_tier_threshold: float = 75.0  # Default, loaded from config
+var power5_tier_threshold: float = 65.0  # Default, loaded from config
+var mid_major_tier_threshold: float = 55.0  # Default, loaded from config
 
 func _ready() -> void:
 	_setup_filters()
@@ -153,6 +158,7 @@ func _connect_signals() -> void:
 ## Required by WorldExplorer: Initialize with world state
 func initialize(ws: Dictionary) -> void:
 	world_state = ws
+	_load_config_values()
 	_cache_data()
 	_reset_pagination()
 	_update_view()
@@ -170,6 +176,27 @@ func cleanup() -> void:
 	content_list.clear()
 
 # Private methods
+
+func _load_config_values() -> void:
+	# Load HS config to get college eligibility threshold and tier thresholds
+	var config_path = "res://configs/sports/american_football/world/high_schools.json"
+	var file = FileAccess.open(config_path, FileAccess.READ)
+	if file:
+		var json = JSON.new()
+		var parse_result = json.parse(file.get_as_text())
+		if parse_result == OK:
+			var config = json.data
+			var recruiting = config.get("recruiting", {})
+
+			# Load college eligibility threshold
+			college_eligibility_threshold = recruiting.get("college_eligibility_threshold", 40.0)
+
+			# Load projected tier thresholds for college projection
+			var tier_thresholds = recruiting.get("projected_tier_thresholds", {})
+			elite_tier_threshold = tier_thresholds.get("elite", 75.0)
+			power5_tier_threshold = tier_thresholds.get("power5", 65.0)
+			mid_major_tier_threshold = tier_thresholds.get("mid_major", 55.0)
+		file.close()
 
 func _cache_data() -> void:
 	# Cache high schools
@@ -658,8 +685,8 @@ func _is_college_eligible(player: Dictionary) -> bool:
 	if hs_year != 4:
 		return false
 
-	# Minimum rating threshold for college
-	return rating >= MIN_COLLEGE_ELIGIBLE_RATING
+	# Minimum rating threshold for college (loaded from config)
+	return rating >= college_eligibility_threshold
 
 func _count_seniors(roster: Array) -> int:
 	var count = 0
@@ -686,12 +713,12 @@ func _calculate_average_rating(players: Array) -> float:
 	return sum / float(players.size())
 
 func _get_projected_college_level(rating: float) -> String:
-	# Project college tier based on HS rating
-	if rating >= 75.0:
+	# Project college tier based on HS rating (thresholds from config)
+	if rating >= elite_tier_threshold:
 		return "Elite"
-	elif rating >= 65.0:
+	elif rating >= power5_tier_threshold:
 		return "Power 5"
-	elif rating >= 55.0:
+	elif rating >= mid_major_tier_threshold:
 		return "Mid-Major"
 	else:
 		return "Developmental"

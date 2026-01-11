@@ -85,8 +85,8 @@ func _run_bootstrap() -> void:
 
 func _integrate_panels() -> void:
 	# Get NavigationTabs from WorldExplorer
-	# Path: MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/SidebarBox/NavigationTabs
-	var tabs = explorer.get_node_or_null("MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/SidebarBox/NavigationTabs")
+	# Path: MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/NavigationTabs
+	var tabs = explorer.get_node_or_null("MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/NavigationTabs")
 
 	if tabs == null:
 		push_error("[WorldExplorerMain] Could not find NavigationTabs in WorldExplorer")

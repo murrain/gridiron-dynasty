@@ -5,7 +5,12 @@
   "name_format": "HS %04d",
   "recruiting": {
     "college_eligibility_threshold": 40.0,
-    "comment": "Only HS graduates with rating >= 40 are eligible for college recruiting (top 70%)"
+    "comment": "Only HS graduates with rating >= 40 are eligible for college recruiting (top 70%)",
+    "projected_tier_thresholds": {
+      "elite": 75.0,
+      "power5": 65.0,
+      "mid_major": 55.0
+    }
   },
   "regions": [
     {"id": "south", "label": "South", "weight": 0.34},
