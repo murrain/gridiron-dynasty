@@ -13,7 +13,7 @@ Implementation of comprehensive performance benchmark suite for Gridiron Dynasty
 1. **`scripts/tests/BenchmarkRunner.gd`** (780 lines)
    - Main benchmark suite extending SceneTree
    - 4 benchmark categories with 10+ individual benchmarks
-   - Fixed seed for reproducibility (`0xBENCH_2026`)
+   - Fixed seed for reproducibility (`0xBEEF_2026`)
    - Microsecond-precision timing using `Time.get_ticks_usec()`
    - JSON output to `user://benchmarks/` directory
    - Automatic baseline comparison with regression detection (>10% threshold)
@@ -84,7 +84,7 @@ Estimates memory usage:
 ## Key Features Implemented
 
 ### ✅ Fixed Seeds for Reproducibility
-All benchmarks use `BENCHMARK_SEED = 0xBENCH_2026`:
+All benchmarks use `BENCHMARK_SEED = 0xBEEF_2026`:
 - Ensures identical player counts every run
 - Same simulation complexity
 - Enables reliable comparison

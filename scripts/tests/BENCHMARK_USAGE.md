@@ -139,7 +139,7 @@ Note: Memory benchmarks are estimates (JSON serialization proxy), not exact meas
 
 ## Reproducibility
 
-All benchmarks use **fixed seed** (`0xBENCH_2026`) ensuring:
+All benchmarks use **fixed seed** (`0xBEEF_2026`) ensuring:
 - Identical player counts every run
 - Same simulation complexity
 - Comparable timing data

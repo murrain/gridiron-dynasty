@@ -1,5 +1,5 @@
 extends RefCounted
-class_name CollegeRecruitingOptimized
+class_name CollegeRecruiting
 ## Optimized college recruiting pipeline with O(N + N*M_filtered) complexity.
 ##
 ## Performance optimization for Task F2:
@@ -464,8 +464,10 @@ func _build_board_optimized(
 
 	# OPTIMIZATION: Only evaluate top N candidates with expensive scout calls
 	# Heuristic: 2x board_limit ensures we don't miss good candidates due to scout variance
-	var eval_limit := max(board_limit * 2, 200) if board_limit > 0 else recruits.size()
-	var candidates_to_evaluate := mini(eval_limit, quick_scores.size())
+	var eval_limit: int = recruits.size()
+	if board_limit > 0:
+		eval_limit = max(int(board_limit) * 2, 200)
+	var candidates_to_evaluate: int = min(eval_limit, quick_scores.size())
 
 	var final_board: Array = []
 	final_board.resize(candidates_to_evaluate)

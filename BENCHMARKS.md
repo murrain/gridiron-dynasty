@@ -38,7 +38,7 @@ Future runs will compare against baseline and detect regressions (>10% slower).
 
 ## Reproducibility
 
-All benchmarks use **fixed seed** (`0xBENCH_2026`) ensuring:
+All benchmarks use **fixed seed** (`0xBEEF_2026`) ensuring:
 - Identical player counts every run
 - Same simulation complexity
 - Comparable timing data
@@ -128,7 +128,7 @@ Expected ranges (varies by hardware):
 ## Implementation Details
 
 - **Timing precision**: Microsecond (`Time.get_ticks_usec()`)
-- **Fixed seed**: `0xBENCH_2026`
+- **Fixed seed**: `0xBEEF_2026`
 - **Output format**: JSON with full metadata
 - **Regression threshold**: 10%
 

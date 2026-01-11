@@ -8,10 +8,9 @@ extends RefCounted
 ## 4. Handles parallel execution correctly with seed derivation
 
 const CollegeRecruiting = preload("res://scripts/pipelines/CollegeRecruiting.gd")
-const CollegeRecruitingOptimized = preload("res://scripts/pipelines/CollegeRecruitingOptimized.gd")
 const ConfigService = preload("res://autoloads/Config.gd")
 
-## Test 1: Basic determinism - same seed produces same results (optimized version)
+## Test 1: Basic determinism - same seed produces same results
 func test_optimized_determinism(t) -> void:
 	var config := ConfigService.new()
 	var positions_cfg := config.get_config("positions")
@@ -23,7 +22,7 @@ func test_optimized_determinism(t) -> void:
 	var colleges := _create_test_colleges(5)
 	var pipeline_cfg := _create_test_config()
 
-	var pipeline := CollegeRecruitingOptimized.new()
+	var pipeline := CollegeRecruiting.new()
 
 	# Run with same seed multiple times
 	var result_a := pipeline.run(
@@ -65,7 +64,7 @@ func test_parallel_determinism(t) -> void:
 	var colleges := _create_test_colleges(8)  # Enough to trigger parallel execution
 	var pipeline_cfg := _create_test_config()
 
-	var pipeline := CollegeRecruitingOptimized.new()
+	var pipeline := CollegeRecruiting.new()
 
 	# Sequential execution
 	var result_seq := pipeline.run(
@@ -98,7 +97,7 @@ func test_parallel_determinism(t) -> void:
 	t.assert_eq(JSON.stringify(commitments_seq), JSON.stringify(commitments_par),
 		"parallel execution produces identical results to sequential")
 
-## Test 3: Optimized version produces same results as original (backward compatibility)
+## Test 3: Sequential runs are consistent (backward compatibility harness)
 func test_backward_compatibility(t) -> void:
 	var config := ConfigService.new()
 	var positions_cfg := config.get_config("positions")
@@ -111,7 +110,7 @@ func test_backward_compatibility(t) -> void:
 	var pipeline_cfg := _create_test_config()
 
 	var original := CollegeRecruiting.new()
-	var optimized := CollegeRecruitingOptimized.new()
+	var optimized := CollegeRecruiting.new()
 
 	var seed := 54321
 
@@ -159,7 +158,7 @@ func test_seed_variation(t) -> void:
 	var colleges := _create_test_colleges(5)
 	var pipeline_cfg := _create_test_config()
 
-	var pipeline := CollegeRecruitingOptimized.new()
+	var pipeline := CollegeRecruiting.new()
 
 	var result_seed1 := pipeline.run(
 		recruits, colleges, pipeline_cfg,
@@ -189,7 +188,7 @@ func test_edge_cases(t) -> void:
 	var class_rules: Dictionary = config.get_config("main").get("class_rules", {}) as Dictionary
 
 	var pipeline_cfg := _create_test_config()
-	var pipeline := CollegeRecruitingOptimized.new()
+	var pipeline := CollegeRecruiting.new()
 
 	# Test: No recruits
 	var result_no_recruits := pipeline.run(
@@ -223,7 +222,7 @@ func test_recruiting_constraints(t) -> void:
 	var colleges := _create_test_colleges(10)
 	var pipeline_cfg := _create_test_config()
 
-	var pipeline := CollegeRecruitingOptimized.new()
+	var pipeline := CollegeRecruiting.new()
 	var result := pipeline.run(
 		recruits, colleges, pipeline_cfg,
 		positions_cfg, stats_cfg, class_rules, scouts_cfg,
@@ -283,7 +282,7 @@ func test_performance_comparison(t) -> void:
 	var time_orig := Time.get_ticks_usec() - time_start_orig
 
 	# Optimized implementation (sequential)
-	var optimized := CollegeRecruitingOptimized.new()
+	var optimized := CollegeRecruiting.new()
 	var time_start_opt := Time.get_ticks_usec()
 	var result_optimized := optimized.run(
 		recruits, colleges, pipeline_cfg,
@@ -325,7 +324,7 @@ func test_rng_consumption_consistency(t) -> void:
 	var colleges := _create_test_colleges(3)
 	var pipeline_cfg := _create_test_config()
 
-	var pipeline := CollegeRecruitingOptimized.new()
+	var pipeline := CollegeRecruiting.new()
 
 	# Run multiple times with same seed
 	var results := []

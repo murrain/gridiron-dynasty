@@ -23,7 +23,7 @@ const HighSchoolSeason = preload("res://scripts/world/HighSchoolSeason.gd")
 const CollegeRecruiting = preload("res://scripts/pipelines/CollegeRecruiting.gd")
 
 # Fixed seed for reproducibility
-const BENCHMARK_SEED := 0xBENCH_2026
+const BENCHMARK_SEED := 0xBEEF_2026
 
 # Benchmark configuration
 const PLAYER_GEN_CLASS_SIZE := 2000
@@ -35,9 +35,9 @@ var _results: Dictionary = {}
 var _config_instance: Node = null
 
 func _init() -> void:
-	print("=" * 80)
+	print("=".repeat(80))
 	print("GRIDIRON DYNASTY - PERFORMANCE BENCHMARK SUITE")
-	print("=" * 80)
+	print("=".repeat(80))
 	print("")
 
 	var start_time := Time.get_ticks_usec()
@@ -58,10 +58,10 @@ func _init() -> void:
 	_compare_to_baseline(output_path)
 
 	print("")
-	print("=" * 80)
+	print("=".repeat(80))
 	print("BENCHMARK COMPLETE")
 	print("Results saved to: %s" % output_path)
-	print("=" * 80)
+	print("=".repeat(80))
 
 	quit(0)
 
@@ -81,7 +81,7 @@ func _collect_metadata() -> Dictionary:
 
 func _run_phase_timing_benchmarks() -> Dictionary:
 	print("\n[1/4] PHASE TIMING BENCHMARKS")
-	print("-" * 80)
+	print("-".repeat(80))
 
 	var results := {}
 
@@ -93,7 +93,7 @@ func _run_phase_timing_benchmarks() -> Dictionary:
 	return results
 
 func _benchmark_hs_generation() -> Dictionary:
-	print("  - High School Generation...", " " * 40)
+	print("  - High School Generation...", " ".repeat(40))
 
 	var world_state := {}
 	var year := 2025
@@ -117,7 +117,7 @@ func _benchmark_hs_generation() -> Dictionary:
 	}
 
 func _benchmark_hs_season() -> Dictionary:
-	print("  - High School Season...", " " * 40)
+	print("  - High School Season...", " ".repeat(40))
 
 	# Setup: Generate players and schools
 	var generator := DraftClassGenerator.new()
@@ -141,10 +141,10 @@ func _benchmark_hs_season() -> Dictionary:
 		players[i] = p
 
 	var config := _get_config()
-	var positions_cfg := config.get_config("positions")
-	var main_cfg := config.get_config("main")
-	var stats_cfg := config.get_config("stats")
-	var hs_cfg := config.get_config("world/high_schools")
+	var positions_cfg: Dictionary = config.get_config("positions")
+	var main_cfg: Dictionary = config.get_config("main")
+	var stats_cfg: Dictionary = config.get_config("stats")
+	var hs_cfg: Dictionary = config.get_config("world/high_schools")
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = BENCHMARK_SEED
@@ -168,7 +168,7 @@ func _benchmark_hs_season() -> Dictionary:
 	}
 
 func _benchmark_college_recruiting() -> Dictionary:
-	print("  - College Recruiting...", " " * 40)
+	print("  - College Recruiting...", " ".repeat(40))
 
 	# Setup: Generate recruits
 	var generator := DraftClassGenerator.new()
@@ -207,16 +207,16 @@ func _benchmark_college_recruiting() -> Dictionary:
 		})
 
 	var config := _get_config()
-	var positions_cfg := config.get_config("positions")
-	var main_cfg := config.get_config("main")
-	var stats_cfg := config.get_config("stats")
-	var scouts_cfg := config.get_config("scouts")
-	var colleges_cfg := config.get_config("world/colleges")
+	var positions_cfg: Dictionary = config.get_config("positions")
+	var main_cfg: Dictionary = config.get_config("main")
+	var stats_cfg: Dictionary = config.get_config("stats")
+	var scouts_cfg: Dictionary = config.get_config("scouts")
+	var colleges_cfg: Dictionary = config.get_config("world/colleges")
 
 	var start := Time.get_ticks_usec()
 
-	var pipeline := CollegeRecruiting.new()
-	var output := pipeline.run(
+	var pipeline: RefCounted = CollegeRecruiting.new()
+	var output: Dictionary = pipeline.run(
 		recruits,
 		colleges,
 		colleges_cfg,
@@ -248,7 +248,7 @@ func _benchmark_college_recruiting() -> Dictionary:
 
 func _run_operation_benchmarks() -> Dictionary:
 	print("\n[2/4] OPERATION BENCHMARKS")
-	print("-" * 80)
+	print("-".repeat(80))
 
 	var results := {}
 
@@ -290,11 +290,11 @@ func _benchmark_scout_evaluation() -> Dictionary:
 	var sample_players := all_players.slice(0, SCOUT_EVAL_SAMPLE_SIZE)
 
 	var config := _get_config()
-	var positions_cfg := config.get_config("positions")
-	var stats_cfg := config.get_config("stats")
-	var scouts_cfg := config.get_config("scouts")
-	var main_cfg := config.get_config("main")
-	var class_rules := main_cfg.get("class_rules", {})
+	var positions_cfg: Dictionary = config.get_config("positions")
+	var stats_cfg: Dictionary = config.get_config("stats")
+	var scouts_cfg: Dictionary = config.get_config("scouts")
+	var main_cfg: Dictionary = config.get_config("main")
+	var class_rules: Dictionary = main_cfg.get("class_rules", {})
 
 	# Get a sample scout
 	var national_scouts: Array = scouts_cfg.get("national_scouts", [])
@@ -351,9 +351,9 @@ func _benchmark_lifecycle_advancement() -> Dictionary:
 		sample_players[i] = p
 
 	var config := _get_config()
-	var positions_cfg := config.get_config("positions")
-	var main_cfg := config.get_config("main")
-	var stats_cfg := config.get_config("stats")
+	var positions_cfg: Dictionary = config.get_config("positions")
+	var main_cfg: Dictionary = config.get_config("main")
+	var stats_cfg: Dictionary = config.get_config("stats")
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = BENCHMARK_SEED
@@ -392,7 +392,7 @@ func _benchmark_lifecycle_advancement() -> Dictionary:
 
 func _run_bootstrap_benchmarks() -> Dictionary:
 	print("\n[3/4] BOOTSTRAP BENCHMARKS")
-	print("-" * 80)
+	print("-".repeat(80))
 	print("  NOTE: These are end-to-end tests and may take several minutes")
 	print("")
 
@@ -461,7 +461,7 @@ func _benchmark_bootstrap_20_year() -> Dictionary:
 
 func _run_memory_benchmarks() -> Dictionary:
 	print("\n[4/4] MEMORY BENCHMARKS")
-	print("-" * 80)
+	print("-".repeat(80))
 
 	var results := {}
 
@@ -511,8 +511,8 @@ func _benchmark_world_state_memory() -> Dictionary:
 	var result := bootstrap.run()
 
 	# Estimate world state memory
-	var active := result.get("active_players", [])
-	var retired := result.get("retired_players", [])
+	var active: Array = result.get("active_players", [])
+	var retired: Array = result.get("retired_players", [])
 
 	var json_active := JSON.stringify(active)
 	var json_retired := JSON.stringify(retired)
@@ -588,9 +588,9 @@ func _compare_to_baseline(current_path: String) -> void:
 		push_error("Failed to parse baseline JSON")
 		return
 
-	print("\n" + "=" * 80)
+	print("\n" + "=".repeat(80))
 	print("BASELINE COMPARISON")
-	print("=" * 80)
+	print("=".repeat(80))
 
 	_compare_category(baseline_results, _results, "operations", "player_generation")
 	_compare_category(baseline_results, _results, "operations", "scout_evaluation")
@@ -598,7 +598,7 @@ func _compare_to_baseline(current_path: String) -> void:
 	_compare_category(baseline_results, _results, "bootstrap", "bootstrap_5_year")
 	_compare_category(baseline_results, _results, "bootstrap", "bootstrap_20_year")
 
-	print("=" * 80)
+	print("=".repeat(80))
 
 func _compare_category(baseline: Dictionary, current: Dictionary, category: String, key: String) -> void:
 	var baseline_cat: Dictionary = baseline.get(category, {})
@@ -633,9 +633,9 @@ func _compare_category(baseline: Dictionary, current: Dictionary, category: Stri
 	])
 
 func _print_summary() -> void:
-	print("\n" + "=" * 80)
+	print("\n" + "=".repeat(80))
 	print("BENCHMARK SUMMARY")
-	print("=" * 80)
+	print("=".repeat(80))
 
 	print("\nPhase Timing:")
 	_print_bench(_results["phase_timing"], "hs_generation", "HS Generation")
@@ -652,7 +652,7 @@ func _print_summary() -> void:
 	_print_bench(_results["bootstrap"], "bootstrap_20_year", "20-Year Bootstrap", true)
 
 	print("\nMemory:")
-	var mem := _results["memory"]
+	var mem: Dictionary = _results.get("memory", {})
 	var player_mem: Dictionary = mem.get("player_memory", {})
 	var world_mem: Dictionary = mem.get("world_state_memory", {})
 	print("  Player Memory:     ~%.2f KB/player" % player_mem.get("estimated_kb_per_player", 0.0))
