@@ -109,6 +109,8 @@ Protect code quality and project coherence.
   - Clarity and maintainability
   - Correct abstractions and separation of concerns
   - Deterministic behavior and explicit RNG usage
+  - Algorithmic runtime and memory use (reject changes that introduce
+    avoidable performance regressions)
   - Test coverage for simulation logic
   - Adherence to lifecycle and phase contracts
 - Flag hidden state, leaky randomness, or tight coupling
@@ -118,6 +120,8 @@ Protect code quality and project coherence.
 - Confirm config usage follows existing patterns
 - Check that changes fit within the current phase scope
 - Validate that new entity fields have serialization parity
+- Enforce performance guardrails; prefer clear, bounded algorithms
+  over unbounded or quadratic approaches unless explicitly justified
 
 **Must NOT:**
 - Approve PRs solely because "it works"
@@ -138,6 +142,7 @@ Contribute across areas while respecting current phase focus and existing archit
 - Preserve determinism conventions when touching simulation logic
 - Keep changes small, reviewable, and well-documented
 - Consult plan.md to understand current phase scope and constraints
+- Check docs/tasks for active task guidance and context before starting work
 - Read existing code patterns before implementing new features
 - Use config files for tunable parameters (no hardcoded distributions)
 - Add deterministic tests for new simulation behavior
@@ -167,72 +172,9 @@ Contribute across areas while respecting current phase focus and existing archit
 
 ## Phased Development Awareness
 
-All agents must respect the current development phase:
-
-**Current Focus (Phases 3-3.6):**
-- College generation and recruiting pipeline (Phase 3)
-  - College tier generation with eliteness and regional tags
-  - Deterministic recruiting flow (offers, visits, commits)
-  - Scout evaluation and recruit rating integration
-  - Proximity bias in recruiting decisions
-- Test coverage expansion (Phase 3.5)
-  - Deterministic tests for scouting/recruiting ratings
-  - Pipeline orchestration coverage (AdvanceWorldYear, BootstrapWorld)
-  - Class generation and draft class tagging validation
-- Contract and player development completeness (Phase 3.6)
-  - Contract lifecycle transitions (unsigned → signed → expired)
-  - Contract valuation with deterministic jitter
-  - Development context modifiers (HS/college program quality, coaching)
-  - Cap accounting and roster serialization parity
-
-**Completed foundation:**
-- World calendar and phase scheduler (Phase 1)
-- High school generation, assignment, and progression (Phase 2)
-- Deterministic RNG threading in generation and lifecycle (Phases 0.5, 2.5)
-- Multi-year draft class generation with de-aging
-- Player lifecycle (aging, development, regression, retirement)
-
-**Near-term future (Phase 4+):**
-- Team and roster scaffolding (Phase 4)
-  - Minimal Team/Roster/Coach models
-  - LeagueContainer for level grouping (HS/College/NFL)
-  - Roster assignment helpers
-  - Coach generation and team attachment
-- College progression and NFL draft entry (Phase 5)
-  - College season advancement with eligibility tracking
-  - Draft eligibility logic (senior auto-eligible, early declarations)
-  - Player-to-coach transition for retired players
-- NFL teams and draft pipeline (Phase 6)
-  - NFL team generation
-  - Draft pool construction and deterministic selection
-  - Scout-driven draft boards and team needs
-
-**How the problem space will shift next:**
-
-*Phase 4 transition:*
-As we move from college recruiting into team/roster scaffolding, the focus shifts from **player-centric flows** to **organizational containers**. The key challenge will be:
-- Defining minimal Team/Roster models that support current needs without over-engineering for future game simulation
-- Establishing clean boundaries between roster management and game simulation (which comes later)
-- Balancing the need for coaching staff representation with the current lack of in-game strategic systems
-- Ensuring contract and cap accounting integrate cleanly with roster structures
-
-*Phase 5-6 outlook:*
-Once scaffolding is in place, the shift moves to **cross-level player movement** (HS → College → NFL). This introduces:
-- Multi-level eligibility and progression tracking
-- Draft pipeline mechanics (evaluation, selection, signing)
-- Increased complexity in RNG boundaries as decisions span multiple organizational levels
-- Need for historical tracking (draft results, career transitions)
-
-The problem space remains **simulation-first**, but the entity graph expands from individual players to teams, leagues, and inter-organizational transactions. The core challenge remains: **keep it simple, deterministic, and auditable** as complexity grows.
-
-**Non-goals in current phases:**
-- UI polish unless driven by simulation validation needs
-- Full game simulation (play-by-play, strategy, in-game events)
-- Live-service or online systems
-- Monetization systems
-- Advanced analytics or player comparisons beyond scouting
-
-Agents should avoid jumping ahead unless explicitly authorized.
+All agents must respect the current development phase.
+The authoritative, up-to-date status lives in `docs/tasks` and should be
+consulted before starting work.
 
 ## PR Structure Template
 
@@ -271,6 +213,7 @@ Before approving or merging, verify:
 - Do comments explain *why* this exists (intent, trade-offs, design decisions)?
 - Are config files used for tunable parameters (no magic numbers)?
 - Are abstractions justified by concrete use cases (no premature generalization)?
+- Are runtime and memory costs acceptable for multi-season simulations?
 - Would this still make sense after 50 simulated seasons?
 
 **Testing:**
