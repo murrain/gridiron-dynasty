@@ -44,6 +44,7 @@ func run(
 	rng.seed = int(seed)
 
 	var recruiting_cfg: Dictionary = config.get("recruiting", {}) as Dictionary
+	var tier_recruiting_cfg: Dictionary = config.get("tier_recruiting", {}) as Dictionary
 	var offer_limit := int(recruiting_cfg.get("offer_limit", 30))
 	var board_limit := int(recruiting_cfg.get("board_limit", 120))
 	var class_min := int(recruiting_cfg.get("class_size_min", 15))
@@ -93,7 +94,9 @@ func run(
 			visit_bonus,
 			board_limit,
 			seed,
-			score_cache
+			score_cache,
+			recruiting_cfg,
+			tier_recruiting_cfg
 		)
 	else:
 		boards_by_college = _build_boards_sequential(
@@ -115,7 +118,9 @@ func run(
 			visit_bonus,
 			board_limit,
 			seed,
-			score_cache
+			score_cache,
+			recruiting_cfg,
+			tier_recruiting_cfg
 		)
 
 	# Collect offers (same logic as original)
@@ -186,6 +191,76 @@ func run(
 		"offers": offers_by_player.size()
 	}
 
+## Determines college tier and merges tier-specific config with global defaults
+## Returns merged config dictionary with tier overrides applied
+func _get_tier_config(
+	college: Dictionary,
+	global_recruiting_cfg: Dictionary,
+	tier_recruiting_cfg: Dictionary
+) -> Dictionary:
+	# Determine tier from eliteness (matches CollegeGenerator thresholds)
+	var eliteness := float(college.get("eliteness", 50.0))
+	var tier := String(college.get("tier", ""))
+
+	# Fallback tier determination if missing
+	if tier == "":
+		if eliteness >= 88.0:
+			tier = "elite"
+		elif eliteness >= 76.0:
+			tier = "power"
+		elif eliteness >= 62.0:
+			tier = "mid"
+		else:
+			tier = "low"
+
+	# Start with global defaults
+	var merged := global_recruiting_cfg.duplicate(false)
+
+	# Apply tier overrides if available
+	if tier_recruiting_cfg.has(tier):
+		var tier_cfg: Dictionary = tier_recruiting_cfg[tier]
+		for key in tier_cfg.keys():
+			merged[key] = tier_cfg[key]
+
+	return merged
+
+## Pre-filters recruit pool based on tier-specific criteria
+## Returns filtered array of recruits that meet tier requirements
+func _apply_tier_filters(
+	recruits: Array,
+	college: Dictionary,
+	tier_config: Dictionary,
+	recruit_metadata: Dictionary
+) -> Array:
+	var min_composite := float(tier_config.get("min_composite_score", 0.0))
+	var require_home_region := bool(tier_config.get("require_home_region", false))
+	var college_region := String(college.get("region", ""))
+
+	var filtered: Array = []
+
+	for recruit in recruits:
+		var r: Dictionary = recruit
+		var player_id := String(r.get("player_id", ""))
+		if player_id == "":
+			continue
+
+		var meta: Dictionary = recruit_metadata.get(player_id, {}) as Dictionary
+		var baseline := float(meta.get("baseline_score", 0.0))
+
+		# Filter by minimum composite score
+		if baseline < min_composite:
+			continue
+
+		# Filter by region if required
+		if require_home_region:
+			var recruit_region := String(meta.get("home_region", ""))
+			if recruit_region != college_region:
+				continue
+
+		filtered.append(r)
+
+	return filtered
+
 ## Pre-compute baseline scores (same as original, but happens once)
 func _baseline_scores(recruits: Array, positions_cfg: Dictionary, class_rules: Dictionary) -> Dictionary:
 	var scores := {}
@@ -239,7 +314,9 @@ func _build_boards_sequential(
 	visit_bonus: float,
 	board_limit: int,
 	seed: int,
-	score_cache: RecruitingScoreCache
+	score_cache: RecruitingScoreCache,
+	recruiting_cfg: Dictionary,
+	tier_recruiting_cfg: Dictionary
 ) -> Dictionary:
 	var factory := ScoutFactory.new()
 	factory.setup(stats_cfg, scouts_cfg)
@@ -250,6 +327,13 @@ func _build_boards_sequential(
 		var college_id := String(college_dict.get("id", ""))
 		if college_id == "":
 			continue
+
+		# Get tier-specific config for this college
+		var tier_cfg := _get_tier_config(
+			college_dict,
+			recruiting_cfg,
+			tier_recruiting_cfg
+		)
 
 		var college_rng := _rng_for(seed, college_id)
 		var scout: Resource = factory.create_random_scout(
@@ -268,14 +352,7 @@ func _build_boards_sequential(
 			positions_cfg,
 			stats_cfg,
 			class_rules,
-			scout_weight,
-			baseline_weight,
-			rating_weight,
-			eliteness_weight,
-			proximity_weight,
-			region_match_multiplier,
-			visit_chance,
-			visit_bonus,
+			tier_cfg,
 			board_limit,
 			seed,
 			score_cache
@@ -306,7 +383,9 @@ func _build_boards_parallel(
 	visit_bonus: float,
 	board_limit: int,
 	seed: int,
-	score_cache: RecruitingScoreCache
+	score_cache: RecruitingScoreCache,
+	recruiting_cfg: Dictionary,
+	tier_recruiting_cfg: Dictionary
 ) -> Dictionary:
 	# RNG SEEDING FOR PARALLEL EXECUTION:
 	# Each college gets a unique, deterministic seed:
@@ -320,6 +399,7 @@ func _build_boards_parallel(
 		var college: Dictionary = college_data["college"]
 		var college_id: String = college_data["college_id"]
 		var base_seed: int = int(college_data["seed"])
+		var tier_cfg: Dictionary = college_data.get("tier_config", {}) as Dictionary
 
 		# Derive deterministic seed for this college
 		var college_seed := Rand.splitmix64(base_seed ^ _fnv1a_64(college_id))
@@ -346,14 +426,7 @@ func _build_boards_parallel(
 			college_data["positions_cfg"],
 			college_data["stats_cfg"],
 			college_data["class_rules"],
-			float(college_data["scout_weight"]),
-			float(college_data["baseline_weight"]),
-			float(college_data["rating_weight"]),
-			float(college_data["eliteness_weight"]),
-			float(college_data["proximity_weight"]),
-			float(college_data["region_match_multiplier"]),
-			float(college_data["visit_chance"]),
-			float(college_data["visit_bonus"]),
+			tier_cfg,
 			int(college_data["board_limit"]),
 			int(college_data["seed"]),
 			college_data["score_cache"]
@@ -378,6 +451,13 @@ func _build_boards_parallel(
 		if college_id == "":
 			continue
 
+		# Get tier-specific config (computed in main thread for thread safety)
+		var tier_cfg := _get_tier_config(
+			college_dict,
+			recruiting_cfg,
+			tier_recruiting_cfg
+		)
+
 		# CRITICAL FIX: Create per-college cache to avoid shared state across threads
 		# RecruitingScoreCache._cache is a Dictionary that's modified during get_or_compute
 		# Sharing this across threads causes race conditions and crashes
@@ -395,14 +475,7 @@ func _build_boards_parallel(
 			"stats_cfg": stats_cfg_copy,
 			"class_rules": class_rules_copy,
 			"scouts_cfg": scouts_cfg_copy,
-			"scout_weight": scout_weight,
-			"baseline_weight": baseline_weight,
-			"rating_weight": rating_weight,
-			"eliteness_weight": eliteness_weight,
-			"proximity_weight": proximity_weight,
-			"region_match_multiplier": region_match_multiplier,
-			"visit_chance": visit_chance,
-			"visit_bonus": visit_bonus,
+			"tier_config": tier_cfg,
 			"board_limit": board_limit,
 			"score_cache": college_cache
 		})
@@ -422,6 +495,7 @@ func _build_boards_parallel(
 ## OPTIMIZATION: Optimized board building with early filtering
 ## Key change: Only evaluate top candidates with expensive scout calls
 ## Now uses RecruitingScoreCache for deterministic memoization
+## Now supports tier-based recruiting with pre-filtering and tier-specific eval budgets
 func _build_board(
 	recruits: Array,
 	college: Dictionary,
@@ -433,32 +507,50 @@ func _build_board(
 	positions_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	class_rules: Dictionary,
-	scout_weight: float,
-	baseline_weight: float,
-	rating_weight: float,
-	eliteness_weight: float,
-	proximity_weight: float,
-	region_match_multiplier: float,
-	visit_chance: float,
-	visit_bonus: float,
+	tier_cfg: Dictionary,
 	board_limit: int,
 	base_seed: int,
 	score_cache: RecruitingScoreCache
 ) -> Array:
+	# Extract tier-specific parameters from config
+	var eval_budget := int(tier_cfg.get("eval_budget", board_limit * 2))
+	var rating_weight := float(tier_cfg.get("rating_weight", 0.55))
+	var eliteness_weight := float(tier_cfg.get("eliteness_weight", 0.25))
+	var proximity_weight := float(tier_cfg.get("proximity_weight", 0.20))
+	var region_match_multiplier := float(tier_cfg.get("region_match_multiplier", 1.35))
+	var scout_weight := float(tier_cfg.get("scout_weight", 0.70))
+	var baseline_weight := float(tier_cfg.get("baseline_weight", 0.30))
+	var visit_chance := float(tier_cfg.get("visit_chance", 0.25))
+	var visit_bonus := float(tier_cfg.get("visit_bonus", 0.06))
+
 	var college_region := String(college.get("region", ""))
 	var college_elite := float(college.get("eliteness", 0.0)) / 100.0
+
+	# TIER-BASED FILTERING: Apply tier-specific filters before Phase 1 evaluation
+	# This reduces the recruit pool based on composite score and regional requirements
+	var filtered_recruits := _apply_tier_filters(
+		recruits,
+		college,
+		tier_cfg,
+		recruit_metadata
+	)
+
+	# Fallback: If filtering is too aggressive (fewer recruits than eval_budget),
+	# use the full pool to ensure colleges can still fill their boards
+	if filtered_recruits.size() < eval_budget:
+		filtered_recruits = recruits
 
 	# OPTIMIZATION: Two-phase evaluation
 	# Phase 1: Quick score using baseline only (O(N), lightweight)
 	# Phase 2: Expensive scout evaluation only for top candidates (O(M_filtered), where M_filtered << N)
 
 	var quick_scores: Array = []
-	quick_scores.resize(recruits.size())
+	quick_scores.resize(filtered_recruits.size())
 
 	# Phase 1: Quick filtering using baseline scores + college factors
 	# RNG: Each recruit consumes 1 RNG call for visit determination
-	for i in range(recruits.size()):
-		var recruit: Dictionary = recruits[i]
+	for i in range(filtered_recruits.size()):
+		var recruit: Dictionary = filtered_recruits[i]
 		var player_id := String(recruit.get("player_id", ""))
 		var meta: Dictionary = recruit_metadata.get(player_id, {}) as Dictionary
 		var base_score: float = float(meta.get("baseline_score", 0.0))
@@ -498,11 +590,8 @@ func _build_board(
 	)
 
 	# OPTIMIZATION: Only evaluate top N candidates with expensive scout calls
-	# Heuristic: 2x board_limit ensures we don't miss good candidates due to scout variance
-	var eval_limit: int = recruits.size()
-	if board_limit > 0:
-		eval_limit = max(int(board_limit) * 2, 200)
-	var candidates_to_evaluate: int = min(eval_limit, quick_scores.size())
+	# Use tier-specific eval_budget instead of heuristic calculation
+	var candidates_to_evaluate: int = min(eval_budget, quick_scores.size())
 
 	var final_board: Array = []
 	final_board.resize(candidates_to_evaluate)
@@ -512,7 +601,7 @@ func _build_board(
 	# Cache handles RNG consumption to maintain determinism
 	for i in range(candidates_to_evaluate):
 		var quick_entry: Dictionary = quick_scores[i]
-		var recruit: Dictionary = recruits[int(quick_entry.get("index", 0))]
+		var recruit: Dictionary = filtered_recruits[int(quick_entry.get("index", 0))]
 		var player_id := String(quick_entry.get("player_id", ""))
 		var base_score: float = float(quick_entry.get("base_score", 0.0))
 
