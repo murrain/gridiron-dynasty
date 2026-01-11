@@ -1,0 +1,128 @@
+[gd_scene load_steps=2 format=3 uid="uid://c5w8q2b3xj4yp"]
+
+[ext_resource type="Script" path="res://scripts/ui/world_explorer/WorldExplorer.gd" id="1_world_explorer"]
+
+[node name="WorldExplorer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_world_explorer")
+year_label_path = NodePath("MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer/YearLabel")
+refresh_button_path = NodePath("MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer/RefreshButton")
+search_field_path = NodePath("MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/SearchBox/SearchField")
+clear_button_path = NodePath("MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/SearchBox/ClearButton")
+detail_text_path = NodePath("MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/DetailScroll/DetailText")
+tabs_path = NodePath("MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/NavigationTabs")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="HeaderPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HeaderPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Gridiron Dynasty - World Explorer"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="YearLabel" type="Label" parent="MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Year: 2025"
+
+[node name="RefreshButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderPanel/MarginContainer/HBoxContainer"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+text = "↻"
+
+[node name="MainContent" type="HSplitContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 400
+
+[node name="SidebarPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/SidebarPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="SearchBox" type="HBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="SearchField" type="LineEdit" parent="MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/SearchBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Search players..."
+clear_button_enabled = true
+
+[node name="ClearButton" type="Button" parent="MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer/SearchBox"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+text = "×"
+
+[node name="NavigationTabs" type="TabContainer" parent="MarginContainer/VBoxContainer/MainContent/SidebarPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+tab_alignment = 0
+
+[node name="DetailPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="DetailScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="DetailText" type="RichTextLabel" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/DetailScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+bbcode_enabled = true
+fit_content = true
+scroll_following = false

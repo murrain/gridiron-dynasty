@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://cj5h9k2p7xqnr"]
+
+[ext_resource type="PackedScene" uid="uid://c5w8q2b3xj4yp" path="res://scenes/ui/world_explorer/world_explorer.tscn" id="1_world_explorer"]
+[ext_resource type="Script" path="res://scripts/ui/world_explorer/test_nfl_panel.gd" id="2_test_script"]
+
+[node name="TestNflPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_test_script")
+
+[node name="WorldExplorer" parent="." instance=ExtResource("1_world_explorer")]
+layout_mode = 1
