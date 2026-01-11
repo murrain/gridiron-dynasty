@@ -143,6 +143,15 @@ static func advance_one_year_parallel(
 		threads = OS.get_processor_count()
 	threads = max(2, min(threads, 16))  # Clamp between 2 and 16
 
+	# CRITICAL FIX: Deep copy config dictionaries to ensure thread safety
+	# Config dictionaries from the Config singleton contain references to cached data
+	# Godot's Dictionary implementation is NOT thread-safe for concurrent access
+	# Deep copying ensures each thread gets independent config data
+	var positions_cfg_copy: Dictionary = positions_cfg.duplicate(true)
+	var main_cfg_copy: Dictionary = main_cfg.duplicate(true)
+	var stats_cfg_copy: Dictionary = stats_cfg.duplicate(true)
+	var development_context_copy: Dictionary = development_context.duplicate(true)
+
 	# Phase 1: Derive deterministic seeds for each player using splitmix64
 	# Use master seed + player index to create independent, deterministic seeds
 	# This does NOT consume the input RNG, preserving serial/parallel equivalence
@@ -161,10 +170,10 @@ static func advance_one_year_parallel(
 			"player": players[i],
 			"seed": seeds[i],
 			"index": i,
-			"positions_cfg": positions_cfg,
-			"main_cfg": main_cfg,
-			"stats_cfg": stats_cfg,
-			"development_context": development_context,
+			"positions_cfg": positions_cfg_copy,
+			"main_cfg": main_cfg_copy,
+			"stats_cfg": stats_cfg_copy,
+			"development_context": development_context_copy,
 			"skip_reports": skip_reports
 		}
 
@@ -266,6 +275,15 @@ static func advance_one_year_parallel_optimized(
 		threads = OS.get_processor_count()
 	threads = max(2, min(threads, 16))
 
+	# CRITICAL FIX: Deep copy config dictionaries to ensure thread safety
+	# Config dictionaries from the Config singleton contain references to cached data
+	# Godot's Dictionary implementation is NOT thread-safe for concurrent access
+	# Deep copying ensures each thread gets independent config data
+	var positions_cfg_copy: Dictionary = positions_cfg.duplicate(true)
+	var main_cfg_copy: Dictionary = main_cfg.duplicate(true)
+	var stats_cfg_copy: Dictionary = stats_cfg.duplicate(true)
+	var development_context_copy: Dictionary = development_context.duplicate(true)
+
 	# Phase 1: Derive deterministic seeds for each player using splitmix64
 	var master_seed := rng.seed
 	var seeds: Array = []
@@ -282,10 +300,10 @@ static func advance_one_year_parallel_optimized(
 			"player": players[i],
 			"seed": seeds[i],
 			"index": i,
-			"positions_cfg": positions_cfg,
-			"main_cfg": main_cfg,
-			"stats_cfg": stats_cfg,
-			"development_context": development_context,
+			"positions_cfg": positions_cfg_copy,
+			"main_cfg": main_cfg_copy,
+			"stats_cfg": stats_cfg_copy,
+			"development_context": development_context_copy,
 			"skip_reports": skip_reports,
 			"dev_config": dev_config,
 			"ret_config": ret_config

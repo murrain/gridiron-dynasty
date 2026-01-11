@@ -361,6 +361,15 @@ func _build_boards_parallel(
 
 		return {"college_id": college_id, "board": board}
 
+	# CRITICAL FIX: Deep copy shared data to ensure thread safety
+	# Config dictionaries and arrays from the Config singleton contain references to cached data
+	# Godot's Dictionary/Array implementations are NOT thread-safe for concurrent access
+	# Deep copying ensures each thread gets independent data
+	var positions_cfg_copy: Dictionary = positions_cfg.duplicate(true)
+	var stats_cfg_copy: Dictionary = stats_cfg.duplicate(true)
+	var class_rules_copy: Dictionary = class_rules.duplicate(true)
+	var scouts_cfg_copy: Dictionary = scouts_cfg.duplicate(true)
+
 	# Prepare work items (each college is independent)
 	var work_items: Array = []
 	for college in colleges:
@@ -369,6 +378,12 @@ func _build_boards_parallel(
 		if college_id == "":
 			continue
 
+		# CRITICAL FIX: Create per-college cache to avoid shared state across threads
+		# RecruitingScoreCache._cache is a Dictionary that's modified during get_or_compute
+		# Sharing this across threads causes race conditions and crashes
+		# Each thread gets its own independent cache instance
+		var college_cache := RecruitingScoreCache.new(score_cache.year)
+
 		work_items.append({
 			"college": college_dict,
 			"college_id": college_id,
@@ -376,10 +391,10 @@ func _build_boards_parallel(
 			"recruits": recruits,
 			"recruit_metadata": recruit_metadata,
 			"baseline_scores": baseline_scores,
-			"positions_cfg": positions_cfg,
-			"stats_cfg": stats_cfg,
-			"class_rules": class_rules,
-			"scouts_cfg": scouts_cfg,
+			"positions_cfg": positions_cfg_copy,
+			"stats_cfg": stats_cfg_copy,
+			"class_rules": class_rules_copy,
+			"scouts_cfg": scouts_cfg_copy,
 			"scout_weight": scout_weight,
 			"baseline_weight": baseline_weight,
 			"rating_weight": rating_weight,
@@ -389,7 +404,7 @@ func _build_boards_parallel(
 			"visit_chance": visit_chance,
 			"visit_bonus": visit_bonus,
 			"board_limit": board_limit,
-			"score_cache": score_cache
+			"score_cache": college_cache
 		})
 
 	# Execute in parallel (ThreadPool handles thread management)
