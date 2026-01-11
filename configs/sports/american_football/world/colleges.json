@@ -33,6 +33,45 @@
     "visit_chance": 0.25,
     "visit_bonus": 0.06
   },
+
+  "tier_recruiting": {
+    "elite": {
+      "eval_budget": 400,
+      "min_composite_score": 75,
+      "require_home_region": false,
+      "region_match_multiplier": 1.15,
+      "rating_weight": 0.60,
+      "eliteness_weight": 0.28,
+      "proximity_weight": 0.12
+    },
+    "power": {
+      "eval_budget": 180,
+      "min_composite_score": 65,
+      "require_home_region": false,
+      "region_match_multiplier": 1.35,
+      "rating_weight": 0.57,
+      "eliteness_weight": 0.26,
+      "proximity_weight": 0.17
+    },
+    "mid": {
+      "eval_budget": 100,
+      "min_composite_score": 50,
+      "require_home_region": false,
+      "region_match_multiplier": 1.60,
+      "rating_weight": 0.54,
+      "eliteness_weight": 0.23,
+      "proximity_weight": 0.23
+    },
+    "low": {
+      "eval_budget": 60,
+      "min_composite_score": 40,
+      "require_home_region": true,
+      "region_match_multiplier": 2.00,
+      "rating_weight": 0.50,
+      "eliteness_weight": 0.18,
+      "proximity_weight": 0.32
+    }
+  },
   "usage_profile": {
     "games_played_min": 9,
     "games_played_max": 13,
