@@ -18,6 +18,7 @@ docs/
 ├── COMPLETED.md                   Archive of finished work
 ├── PHASE_F_ROADMAP.md             Performance optimization plan
 ├── tasks/                         Individual task files (ready to work)
+│   ├── README.md                  Task status index (completed vs pending)
 │   ├── TASK_E5_player_value_calculator.md
 │   ├── TASK_E6_update_contract_valuation.md
 │   ├── TASK_E7_market_supply.md
@@ -32,6 +33,9 @@ docs/
 │   ├── TASK_F6_config_optimization.md
 │   ├── TASK_F7_development_report_deferral.md
 │   ├── TASK_F8_benchmark_suite.md
+│   ├── TASK_P1_phase_timing_capture.md
+│   ├── TASK_P2_recruiting_score_cache.md
+│   └── TASK_P3_lifecycle_copy_reduction.md
 │   ├── TASK_TEST_FIXTURES.md
 │   └── TASK_TEST_PARALLEL.md
 └── architectural_notes/           Historical decisions & resolutions
@@ -74,13 +78,18 @@ Each task file contains:
 
 #### Performance Optimization (Track F) - Critical Priority
 - **F1**: Profiling report and analysis (Complete)
-- **F2**: College recruiting optimization (2-3 days) - P0
-- **F3**: Scout evaluation caching (1-2 days) - P1
+- **F2**: College recruiting optimization (Complete)
+- **F3**: Scout evaluation caching (Complete)
 - **F4**: Deep copy reduction (1-2 days) - P2
 - **F5**: Parallel player lifecycle (1-2 days) - P3
 - **F6**: Config access optimization (0.5-1 day) - P5
 - **F7**: Development report deferral (0.5 day) - P4
-- **F8**: Benchmark suite (1 day) - Required
+- **F8**: Benchmark suite (Complete)
+
+#### Performance Follow-ups (Track P) - New
+- **P1**: Phase timing capture in world generation (1 day)
+- **P2**: Recruiting score cache (1-2 days)
+- **P3**: Lifecycle copy reduction (1-2 days)
 
 See `PHASE_F_ROADMAP.md` for complete optimization plan.
 

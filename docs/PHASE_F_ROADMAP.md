@@ -1,15 +1,15 @@
 # Phase F: Performance Optimization Roadmap
 
 **Track**: Performance Optimization
-**Status**: Ready to start
+**Status**: In progress (baseline refreshed)
 **Created**: January 2026
-**Target**: Reduce 20-year bootstrap from 12+ minutes to under 3 minutes
+**Target**: Reduce 20-year bootstrap below 150 seconds without reducing simulation realism
 
 ---
 
 ## Executive Summary
 
-Profiling reveals the world bootstrapping takes ~36 seconds per simulated year, with the 20-year bootstrap exceeding 12 minutes. The primary bottleneck is O(N*M) complexity in college recruiting (~40% of time), followed by redundant scout evaluations and extensive deep copying.
+BenchmarkRunner results (2026-01-11) show a 20-year bootstrap of **184.72 seconds** (~9.24 seconds/year) with recruiting and lifecycle advancement still dominant. The primary bottlenecks remain O(N*M) recruiting evaluations, redundant scout scoring, and dictionary deep-copy churn.
 
 ---
 
@@ -17,9 +17,9 @@ Profiling reveals the world bootstrapping takes ~36 seconds per simulated year, 
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| Per-year simulation | ~36s | <9s |
-| 20-year bootstrap | ~12min | <3min |
-| College recruiting | ~15s/year | <5s/year |
+| Per-year simulation | ~9.24s | <7.5s |
+| 20-year bootstrap | 184.72s | <150s |
+| College recruiting (benchmark micro) | ~5.00s | <3s |
 | NFL Draft | ~5s/year | <1s/year |
 | Memory (10yr) | ~500MB | <200MB |
 
@@ -30,13 +30,13 @@ Profiling reveals the world bootstrapping takes ~36 seconds per simulated year, 
 | Task | Description | Priority | Effort | Impact |
 |------|-------------|----------|--------|--------|
 | F1 | Profiling Report | Done | - | Foundation |
-| F2 | College Recruiting Optimization | P0 | 2-3 days | 50-70% reduction |
-| F3 | Scout Evaluation Caching | P1 | 1-2 days | 20-30% reduction |
+| F2 | College Recruiting Optimization | Done | 2-3 days | 50-70% reduction |
+| F3 | Scout Evaluation Caching | Done | 1-2 days | 20-30% reduction |
 | F4 | Deep Copy Reduction | P2 | 1-2 days | 10-20% reduction |
 | F5 | Parallel Player Lifecycle | P3 | 1-2 days | 10-15% reduction |
 | F6 | Config Access Optimization | P5 | 0.5-1 day | 5-10% reduction |
 | F7 | Development Report Deferral | P4 | 0.5 day | Memory focus |
-| F8 | Benchmark Suite | Required | 1 day | Validation |
+| F8 | Benchmark Suite | Done | 1 day | Validation |
 
 **Total Estimated Effort**: 8-12 days
 
@@ -48,13 +48,13 @@ Profiling reveals the world bootstrapping takes ~36 seconds per simulated year, 
 F1 (Profiling) - COMPLETE
     |
     v
-F8 (Benchmarks) -----> Run baseline
+F8 (Benchmarks) - COMPLETE
     |
     v
-F2 (Recruiting)
+F2 (Recruiting) - COMPLETE
     |
     v
-F3 (Scout Caching)
+F3 (Scout Caching) - COMPLETE
     |
     v
 F4 (Deep Copy)
@@ -74,26 +74,25 @@ F8 (Benchmarks) -----> Verify targets
 
 ## Implementation Order
 
-### Phase F.1: Foundation (Days 1-2)
+### Phase F.1: Foundation (Completed)
 
-1. **F8: Benchmark Suite** - Create measurement infrastructure first
-   - Run baseline benchmarks
-   - Save results for comparison
-   - Establish regression detection
+1. **F8: Benchmark Suite** - Measurement infrastructure in place
+   - Baseline captured (BenchmarkRunner)
+   - Regression detection enabled
 
-### Phase F.2: Critical Path (Days 3-6)
+### Phase F.2: Critical Path (Completed)
 
-2. **F2: College Recruiting Optimization** - Highest impact
-   - Pre-compute baseline scores
+2. **F2: College Recruiting Optimization** - Completed
+   - Pre-computed baseline scores
    - Lightweight scout adjustments
    - Parallel college processing
 
-3. **F3: Scout Evaluation Caching** - Second highest impact
+3. **F3: Scout Evaluation Caching** - Completed
    - ScoreCache class
    - Integration with recruiting
    - Integration with NFL Draft
 
-### Phase F.3: Memory & Efficiency (Days 7-9)
+### Phase F.3: Memory & Efficiency (Next)
 
 4. **F4: Deep Copy Reduction** - Reduce allocations
    - Selective copying
@@ -103,7 +102,7 @@ F8 (Benchmarks) -----> Verify targets
    - Seed derivation for parallel RNG
    - Per-team/roster parallelization
 
-### Phase F.4: Polish (Days 10-11)
+### Phase F.4: Polish (After F5)
 
 6. **F6: Config Access Optimization** - Minor speedup
    - Early binding of config values
@@ -113,7 +112,7 @@ F8 (Benchmarks) -----> Verify targets
    - Skip reports during bootstrap
    - On-demand generation
 
-### Phase F.5: Validation (Day 12)
+### Phase F.5: Validation (After F6/F7)
 
 8. **F8: Final Benchmarks** - Verify all targets met
    - Compare to baseline
@@ -126,8 +125,8 @@ F8 (Benchmarks) -----> Verify targets
 
 ### Performance
 
-- [ ] 20-year bootstrap completes in under 3 minutes
-- [ ] Per-year simulation under 9 seconds
+- [ ] 20-year bootstrap completes in under 150 seconds
+- [ ] Per-year simulation under 7.5 seconds
 - [ ] No performance regressions in any phase
 
 ### Quality

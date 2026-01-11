@@ -61,7 +61,7 @@ Estimates memory usage:
 ### Key Features
 
 #### Fixed Seeds for Reproducibility
-All benchmarks use `BENCHMARK_SEED = 0xBENCH_2026` ensuring identical results across runs.
+All benchmarks use `BENCHMARK_SEED = 0xBEEF_2026` ensuring identical results across runs.
 
 #### Microsecond Precision Timing
 Uses `Time.get_ticks_usec()` for accurate performance measurement:
