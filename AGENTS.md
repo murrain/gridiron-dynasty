@@ -539,6 +539,15 @@ Test Cases Required:
 - Changes to determinism guarantees or RNG threading contracts
 - Modifications to phase handoff formats (recruit pools, draft classes, etc.)
 
+**Quality Gate Requirement:**
+
+Before claiming work is complete, the Architect MUST ensure:
+1. **All code passes code-quality-reviewer** with score ≥9.5/10
+2. **All review feedback is addressed** and re-reviewed if necessary
+3. **Work is NOT complete** until the 9.5+ threshold is verified
+
+This is a blocking requirement. The Architect is responsible for spawning the code-quality-reviewer agent and verifying the score meets the threshold before reporting completion to the Director.
+
 **Must NOT:**
 - Implement UI or presentation logic
 - Add features without lifecycle consideration
@@ -546,6 +555,7 @@ Test Cases Required:
 - Create abstractions before concrete use cases exist
 - Bypass the Director for cross-team coordination
 - Assign overlapping file ownership to multiple engineers
+- Claim work is complete without verified 9.5+ review score
 
 ---
 
