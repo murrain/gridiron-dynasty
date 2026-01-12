@@ -24,13 +24,13 @@ func _init() -> void:
 	if args.size() > 1:
 		seed_val = int(args[1])
 
-	print("=" * 60)
+	print("=".repeat(60))
 	print("World Explorer Launcher")
-	print("=" * 60)
+	print("=".repeat(60))
 	print("Bootstrap parameters:")
 	print("  Years: %d" % years)
 	print("  Seed: %d" % seed_val)
-	print("=" * 60)
+	print("=".repeat(60))
 
 	# Run bootstrap
 	var result = WorldExplorerLauncher.launch_from_bootstrap(years, seed_val)
@@ -40,18 +40,18 @@ func _init() -> void:
 		quit(1)
 		return
 
-	print("\n" + "=" * 60)
+	print("\n" + "=".repeat(60))
 	print("World Generation Complete!")
-	print("=" * 60)
+	print("=".repeat(60))
 
 	var summary = result.get("summary", {})
 	for key in summary.keys():
 		print("  %s: %s" % [key, summary[key]])
 
-	print("=" * 60)
+	print("=".repeat(60))
 	print("\nWorld Explorer ready to use!")
 	print("To launch in GUI mode, run:")
 	print("  godot scenes/main/world_explorer_main.tscn")
-	print("=" * 60)
+	print("=".repeat(60))
 
 	quit(0)

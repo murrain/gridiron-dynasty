@@ -10,9 +10,9 @@ const TeamQueries = preload("res://scripts/ui/world_explorer/queries/TeamQueries
 const StatQueries = preload("res://scripts/ui/world_explorer/queries/StatQueries.gd")
 
 func _ready() -> void:
-	print("=" * 80)
+	print("=".repeat(80))
 	print("HsPanel Test Suite")
-	print("=" * 80)
+	print("=".repeat(80))
 
 	var world_state = _create_mock_world_state()
 	_test_panel_initialization(world_state)
@@ -26,9 +26,9 @@ func _ready() -> void:
 	_test_college_eligibility(world_state)
 	_test_signals()
 
-	print("\n" + "=" * 80)
+	print("\n" + "=".repeat(80))
 	print("All tests completed!")
-	print("=" * 80)
+	print("=".repeat(80))
 
 func _create_mock_world_state() -> Dictionary:
 	var ws = {

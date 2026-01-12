@@ -243,8 +243,8 @@ func _test_multiple_seasons_separate_years(t) -> void:
 	t.assert_eq(rb_career[2027]["games_played"], 1, "2027 should have 1 game")
 
 	# Years shouldn't cross-contaminate
-	var yards_2025 := rb_career[2025]["rush_yards"]
-	var yards_2026 := rb_career[2026]["rush_yards"]
+	var yards_2025: Variant = rb_career[2025]["rush_yards"]
+	var yards_2026: Variant = rb_career[2026]["rush_yards"]
 	t.assert_true(yards_2025 != yards_2026 or rng.randf() < 0.01, "Different years should have different stats (with rare exception)")
 
 

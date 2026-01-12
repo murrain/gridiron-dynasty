@@ -5,9 +5,9 @@ extends SceneTree
 ## Use this to verify the benchmark implementation is loadable
 
 func _init() -> void:
-	print("=" * 80)
+	print("=".repeat(80))
 	print("BENCHMARK RUNNER VALIDATION")
-	print("=" * 80)
+	print("=".repeat(80))
 	print("")
 
 	var errors: Array = []
@@ -126,9 +126,9 @@ func _init() -> void:
 		print("  FAIL: Cannot access user:// directory")
 
 	# Summary
-	print("\n" + "=" * 80)
+	print("\n" + "=".repeat(80))
 	print("VALIDATION SUMMARY")
-	print("=" * 80)
+	print("=".repeat(80))
 
 	if errors.is_empty():
 		print("\nALL TESTS PASSED")

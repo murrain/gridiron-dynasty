@@ -18,6 +18,8 @@ const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
 const Scout = preload("res://scripts/core/models/Scout.gd")
 const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
 const ThreadPool = preload("res://autoloads/ThreadPool.gd")
+const Config = preload("res://autoloads/Config.gd")
+const Rand = preload("res://autoloads/Rand.gd")
 
 # ---------- Tunables ----------
 @export var class_size: int = 10000
@@ -33,13 +35,15 @@ var _stats_cfg: Dictionary
 var _main_cfg: Dictionary
 var _scouts_cfg: Dictionary
 var _scouts_built: Array = []   # Array[Scout]
+var _config: Config  # Config instance for accessing config methods
 
 func _ready() -> void:
 	run()
 
 func run() -> void:
 	# Load configs once
-	var all_cfg: Dictionary = Config.get_all()
+	_config = Config.new()
+	var all_cfg: Dictionary = _config.get_all()
 	_positions  = all_cfg.get("positions", {})
 	_stats_cfg  = all_cfg.get("stats", {})
 	_main_cfg   = all_cfg.get("main", {})
@@ -96,7 +100,7 @@ func run() -> void:
 func _do_one_trial(size: int, threads: int) -> float:
 	# Save current threads and set runtime override
 	var prev_threads: int = _read_current_threads()
-	Config.set_threads_runtime(threads)
+	_config.set_threads_runtime(threads)
 
 	# Fresh generator
 	var gen := PlayerGenerator.new()
@@ -151,14 +155,14 @@ func _do_one_trial(size: int, threads: int) -> float:
 	var t1 := Time.get_ticks_msec()
 
 	# Restore previous thread setting
-	Config.set_threads_runtime(prev_threads)
+	_config.set_threads_runtime(prev_threads)
 
 	return (t1 - t0) / 1000.0
 
 
 # ---------- Helpers ----------
 func _read_current_threads() -> int:
-	var eg := Config.engine_cfg()
+	var eg := _config.engine_cfg()
 	if eg.has("threads"):
 		return int(eg["threads"])
 	var cores: int = max(1, OS.get_processor_count())

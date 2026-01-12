@@ -211,7 +211,7 @@ func _test_team_premium_no_backup(t) -> void:
 	var result := ContractValuation.estimate_value(player, config, rng, context)
 
 	# No backup multiplier is 1.4, so premium should be substantial
-	var premium_ratio := result.team_value / maxf(result.market_value, 0.001)
+	var premium_ratio: float = result.team_value / maxf(result.market_value, 0.001)
 	t.assert_true(premium_ratio > 1.2,
 		"No backup scenario should have >1.2x team value ratio, got %.2fx" % premium_ratio)
 
@@ -241,7 +241,7 @@ func _test_team_premium_with_depth(t) -> void:
 	var result := ContractValuation.estimate_value(player, config, rng, context)
 
 	# With good depth, premium should be lower
-	var premium_ratio := result.team_value / maxf(result.market_value, 0.001)
+	var premium_ratio: float = result.team_value / maxf(result.market_value, 0.001)
 	t.assert_true(premium_ratio < 1.3,
 		"Good depth scenario should have <1.3x team value ratio, got %.2fx" % premium_ratio)
 
@@ -354,8 +354,8 @@ func _test_range_min_max_present(t) -> void:
 		"Range max should be above market value")
 
 	# Spread should match config (15%)
-	var expected_min := result.market_value * 0.85  # 1.0 - 0.15
-	var expected_max := result.market_value * 1.15  # 1.0 + 0.15
+	var expected_min: float = result.market_value * 0.85  # 1.0 - 0.15
+	var expected_max: float = result.market_value * 1.15  # 1.0 + 0.15
 	t.assert_approx(result.range_min, expected_min, 0.001, "Range min correct")
 	t.assert_approx(result.range_max, expected_max, 0.001, "Range max correct")
 
@@ -479,7 +479,7 @@ func _test_elite_player_valuation(t) -> void:
 	var elite_result := ContractValuation.estimate_value(elite_player, config, rng, {})
 
 	# Elite should be worth significantly more
-	var ratio := elite_result.market_value / maxf(avg_result.market_value, 0.001)
+	var ratio: float = elite_result.market_value / maxf(avg_result.market_value, 0.001)
 	t.assert_true(ratio >= 5.0,
 		"Elite player (98) should be worth at least 5x average (75), got %.2fx" % ratio)
 

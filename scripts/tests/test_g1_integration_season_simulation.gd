@@ -7,7 +7,7 @@ extends RefCounted
 
 const CollegeSeason = preload("res://scripts/world/CollegeSeason.gd")
 const NflSeason = preload("res://scripts/world/NflSeason.gd")
-const ConfigLoader = preload("res://scripts/support/config/ConfigLoader.gd")
+const ConfigLoader = preload("res://scripts/generation/ConfigLoader.gd")
 
 func run(t) -> void:
 	_test_college_season_integration(t)
@@ -21,7 +21,8 @@ func _test_college_season_integration(t) -> void:
 	var world_state := _create_test_college_world_state()
 
 	# Load configs
-	var config_loader := ConfigLoader.new("sports/american_football")
+	var config_loader := ConfigLoader.new()
+	config_loader.configure("res://configs/sports/american_football")
 	var colleges_cfg: Dictionary = config_loader.get_config("world/colleges")
 	var positions_cfg: Dictionary = config_loader.get_config("positions")
 	var main_cfg: Dictionary = config_loader.get_config("main")
@@ -93,7 +94,8 @@ func _test_nfl_season_integration(t) -> void:
 	var world_state := _create_test_nfl_world_state()
 
 	# Load configs
-	var config_loader := ConfigLoader.new("sports/american_football")
+	var config_loader := ConfigLoader.new()
+	config_loader.configure("res://configs/sports/american_football")
 	var league_cfg: Dictionary = config_loader.get_config("world/league")
 	var positions_cfg: Dictionary = config_loader.get_config("positions")
 	var main_cfg: Dictionary = config_loader.get_config("main")

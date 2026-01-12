@@ -18,9 +18,9 @@ const ITERATIONS := 10000
 const POSITIONS := ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"]
 
 func _ready() -> void:
-	print("=" * 80)
+	print("=".repeat(80))
 	print("Config Access Optimization Benchmark (Task F6)")
-	print("=" * 80)
+	print("=".repeat(80))
 	print()
 
 	var config := Config.new()
@@ -70,9 +70,9 @@ func _ready() -> void:
 	print("  Savings:   %.1f ms (%.1f%% faster)" % [savings_ms, improvement])
 	print()
 
-	print("=" * 80)
+	print("=".repeat(80))
 	print("Benchmark complete. Press Ctrl+C to exit.")
-	print("=" * 80)
+	print("=".repeat(80))
 
 	# Don't quit immediately so results can be seen
 	await get_tree().create_timer(1.0).timeout

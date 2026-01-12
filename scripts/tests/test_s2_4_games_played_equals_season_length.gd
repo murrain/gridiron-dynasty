@@ -227,12 +227,12 @@ func _test_multiple_seasons_games_played(t) -> void:
 	t.assert_eq(total_games, 36, "Career total should be 36 games across 3 seasons")
 
 	# Each year's stats should be independent
-	var attempts_2025 := player_career[2025]["pass_attempts"]
-	var attempts_2026 := player_career[2026]["pass_attempts"]
-	var attempts_2027 := player_career[2027]["pass_attempts"]
+	var attempts_2025: Variant = player_career[2025]["pass_attempts"]
+	var attempts_2026: Variant = player_career[2026]["pass_attempts"]
+	var attempts_2027: Variant = player_career[2027]["pass_attempts"]
 
 	# While values may be close, they should not all be identical (due to RNG)
-	var all_identical := (attempts_2025 == attempts_2026 and attempts_2026 == attempts_2027)
+	var all_identical: bool = (attempts_2025 == attempts_2026 and attempts_2026 == attempts_2027)
 	t.assert_false(all_identical, "Each season should have independent stat generation")
 
 

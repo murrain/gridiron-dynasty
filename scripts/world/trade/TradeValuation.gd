@@ -76,25 +76,25 @@ static func _pick_value(pick: Variant, pick_curve: Dictionary) -> float:
 	var round_key := str(round)
 	var slot_key := str(slot)
 	if pick_curve.has(round_key):
-		var round_map := pick_curve[round_key]
+		var round_map: Variant = pick_curve[round_key]
 		if typeof(round_map) == TYPE_DICTIONARY:
 			var round_dict := round_map as Dictionary
 			if round_dict.has(slot_key):
 				return float(round_dict[slot_key])
 
 	if pick_curve.has("slot_values"):
-		var slot_values := pick_curve["slot_values"]
+		var slot_values: Variant = pick_curve["slot_values"]
 		if typeof(slot_values) == TYPE_DICTIONARY:
 			var slot_dict := slot_values as Dictionary
 			if slot_dict.has(round_key):
-				var round_slots := slot_dict[round_key]
+				var round_slots: Variant = slot_dict[round_key]
 				if typeof(round_slots) == TYPE_DICTIONARY:
 					var round_slots_dict := round_slots as Dictionary
 					if round_slots_dict.has(slot_key):
 						return float(round_slots_dict[slot_key])
 
 	if pick_curve.has("round_defaults"):
-		var defaults := pick_curve["round_defaults"]
+		var defaults: Variant = pick_curve["round_defaults"]
 		if typeof(defaults) == TYPE_DICTIONARY:
 			var defaults_dict := defaults as Dictionary
 			if defaults_dict.has(round_key):
