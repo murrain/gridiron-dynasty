@@ -56,7 +56,7 @@ func run(
 	var retirement_rng := RandomNumberGenerator.new()
 	retirement_rng.seed = Rand.splitmix64(seed ^ 0x5EA50003)
 	var trade_rng := RandomNumberGenerator.new()
-	trade_rng.seed = Rand.splitmix64(seed ^ 0x7RADE001)
+	trade_rng.seed = Rand.splitmix64(seed ^ 0x7ADE0001)  # Trade RNG seed
 
 	# OPTIMIZATION (F6): Pre-extract config values once for all teams
 	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
