@@ -10,6 +10,7 @@ class_name SportPlayer
 @export var position: String = "ATH"
 @export var age: int = 18
 @export var class_tag: String = "" # e.g., "CLASS_OF_2033" or recruiting class label
+@export var jersey_number: int = 0  # Player's jersey number (0 = unassigned)
 
 # --- Physical Attributes ---
 # Keep raw measurements in native units; you can format/UI-convert elsewhere.
@@ -51,6 +52,18 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
+# --- Career Achievements ---
+# Track cumulative awards and honors earned throughout a player's career
+@export var career_awards: Dictionary = {
+	"opoy": 0,              # Offensive Player of the Year
+	"dpoy": 0,              # Defensive Player of the Year
+	"all_pro_first": 0,     # First-team All-Pro selections
+	"all_pro_second": 0,    # Second-team All-Pro selections
+	"pro_bowl": 0,          # Pro Bowl selections
+	"rookie_of_year": 0,    # Rookie of the Year (should be 0 or 1)
+	"championships": 0      # Championship wins
+}
+
 # --- Wear / Development ---
 @export var wear: Dictionary = {"snaps": 0, "collisions": 0, "injury_count": 0}
 @export var development_report: Array = []
@@ -87,6 +100,7 @@ func from_dict(d: Dictionary) -> void:
 	position = String(d.get("position", position))
 	age = int(d.get("age", age))
 	class_tag = String(d.get("class_tag", class_tag))
+	jersey_number = int(d.get("jersey_number", jersey_number))
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
@@ -130,6 +144,12 @@ func from_dict(d: Dictionary) -> void:
 	for key in contract_data.keys():
 		contract[key] = contract_data[key]
 
+	# Career awards
+	var awards_data: Dictionary = d.get("career_awards", {}) as Dictionary
+	if not awards_data.is_empty():
+		for award_key in awards_data.keys():
+			career_awards[award_key] = int(awards_data[award_key])
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -138,12 +158,14 @@ func to_dict() -> Dictionary:
 		"position": position,
 		"age": age,
 		"class_tag": class_tag,
+		"jersey_number": jersey_number,
 		"gen_mode": gen_mode,
 		"school_tag": school_tag,
 		"notes": notes,
 		"wear": wear.duplicate(true),
 		"development_report": development_report.duplicate(true),
 		"contract": contract.duplicate(true),
+		"career_awards": career_awards.duplicate(true),
 		"physicals": {
 			"height_in": height_in,
 			"weight_lb": weight_lb,
