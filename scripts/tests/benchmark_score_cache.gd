@@ -13,6 +13,7 @@ const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
 const Scout = preload("res://scripts/core/models/Scout.gd")
 const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
 const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")
+const Config = preload("res://autoloads/Config.gd")
 
 var positions_cfg: Dictionary = {}
 var stats_cfg: Dictionary = {}
@@ -26,11 +27,12 @@ func _ready() -> void:
 
 
 func _setup_config() -> void:
-	var cfg := TestHelpers.load_test_config()
+	var config := Config.new()
+	var cfg: Dictionary = config.get_all()
 
 	positions_cfg = cfg.get("positions", {})
 	stats_cfg = cfg.get("stats", {})
-	class_rules = cfg.get("class_rules", {})
+	class_rules = cfg.get("main", {}).get("class_rules", {})
 	scouts_cfg = cfg.get("scouts", {})
 
 	if stats_cfg.is_empty():
@@ -119,7 +121,7 @@ func _benchmark_college_recruiting() -> void:
 	# Calculate stats
 	var cache_hits := (num_recruits * num_colleges) - cache.size()
 	var hit_rate := float(cache_hits) / float(num_recruits * num_colleges) * 100.0
-	var speedup := float(time_no_cache) / max(1.0, float(time_with_cache))
+	var speedup: float = float(time_no_cache) / max(1.0, float(time_with_cache))
 
 	print("\nResults:")
 	print("  Time without cache: %.2f ms" % (time_no_cache / 1000.0))
@@ -183,7 +185,7 @@ func _benchmark_nfl_draft() -> void:
 	var unique_combinations := cache.size()
 	var cache_hits := total_evals - unique_combinations
 	var hit_rate := float(cache_hits) / float(total_evals) * 100.0
-	var speedup := float(time_no_cache) / max(1.0, float(time_with_cache))
+	var speedup: float = float(time_no_cache) / max(1.0, float(time_with_cache))
 
 	print("\nResults:")
 	print("  Time without cache: %.2f ms" % (time_no_cache / 1000.0))

@@ -60,8 +60,9 @@ func test_empty_pools(t) -> void:
 	var empty_supply := MarketSupply.compute_position_supply([])
 	t.assert_eq(empty_supply.size(), 0, "Empty array returns empty supply")
 
-	# Null array
-	var null_supply := MarketSupply.compute_position_supply(null)
+	# Null array (cast to empty array for type safety)
+	var null_array: Array = []
+	var null_supply := MarketSupply.compute_position_supply(null_array)
 	t.assert_eq(null_supply.size(), 0, "Null array returns empty supply")
 
 	# Array with all players below replacement
@@ -127,7 +128,8 @@ func test_pool_supply_empty(t) -> void:
 	var empty_supply := MarketSupply.compute_pool_supply([])
 	t.assert_eq(empty_supply.size(), 0, "Empty pool returns empty supply")
 
-	var null_supply := MarketSupply.compute_pool_supply(null)
+	var null_pool: Array = []
+	var null_supply := MarketSupply.compute_pool_supply(null_pool)
 	t.assert_eq(null_supply.size(), 0, "Null pool returns empty supply")
 
 ## Test 7: Verify handling of invalid player entries

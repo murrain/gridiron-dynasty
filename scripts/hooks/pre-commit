@@ -1,0 +1,25 @@
+#!/bin/bash
+# Pre-commit hook: Automated compilation verification
+# Prevents commits with syntax errors from entering the repository
+# Part of testing process improvements (2026-01-12)
+
+set -e
+
+echo "🔍 Running pre-commit compilation check..."
+
+# Run compilation verification
+./scripts/tests/verify_compilation.sh
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Pre-commit check FAILED: Compilation errors detected"
+    echo ""
+    echo "Fix all syntax errors before committing."
+    echo "Run './scripts/tests/verify_compilation.sh' to see details."
+    echo ""
+    exit 1
+fi
+
+echo "✅ Pre-commit check PASSED: All files compile successfully"
+echo ""
+exit 0

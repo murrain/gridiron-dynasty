@@ -134,8 +134,8 @@ static func _format_traits(player: Dictionary) -> String:
 
 	var bb := ""
 	bb += "[b]Traits[/b]\n"
-	for trait in traits:
-		bb += "★ %s\n" % trait
+	for trait_name in traits:
+		bb += "★ %s\n" % trait_name
 	bb += "\n"
 
 	return bb

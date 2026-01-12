@@ -144,6 +144,26 @@ typing) only manifest during execution.
 
 **Failure at ANY step means code is NOT ready for review.**
 
+**Coding Guidelines:**
+
+To prevent common GDScript type annotation errors:
+
+1. **Arrays That Can Contain Nulls**:
+   - `PlayerLifecycle.advance_one_year_parallel()` returns nulls in arrays when players retire
+   - DO NOT use strict Dictionary typing when iterating such arrays
+   - Pattern to AVOID: `var p: Dictionary = array[i]`
+   - Correct pattern: `var p = array[i]  # No type annotation - array can contain nulls`
+   - Always include null check: `if p == null: continue`
+   - **Why**: GDScript 4.x does not support nullable types (`Dictionary?` or `Dictionary | null`)
+   - **Detection**: This error only manifests at runtime, not during compilation
+   - **Impact**: "Trying to assign value of type 'Nil' to a variable of type 'Dictionary'" crash
+
+2. **Hexadecimal Constants**:
+   - Only use valid hex digits: 0-9 and A-F
+   - Pattern to AVOID: `0x7RADE001` (R and D are not valid hex)
+   - Correct pattern: `0x7ADE0001`
+   - Add comment explaining purpose: `# Trade RNG seed`
+
 **Must NOT:**
 - Bypass established models or time systems
 - Hardcode league rules, magic numbers, or tier distributions
@@ -246,7 +266,36 @@ Contribute across areas while respecting current phase focus and existing archit
 - Agents may request changes, not silently work around issues
 - Architectural concerns override feature requests
 - If uncertain, document the uncertainty
-- Do not “future-proof” beyond the current phase unless explicitly instructed
+- Do not "future-proof" beyond the current phase unless explicitly instructed
+
+## Commit and PR Workflow
+
+**ALL code changes MUST go through PR workflow**:
+
+1. Create feature branch from main
+2. Make changes on branch
+3. Run all 4 layers of mandatory testing (syntax, unit, runtime, full suite)
+4. Get code-quality-reviewer approval (≥9.5/10)
+5. Address any feedback and re-submit for review if needed
+6. Create PR with proper description (use PR Structure Template below)
+7. Wait for CI checks to pass
+8. Merge via PR (no direct-to-main commits)
+
+**NO EXCEPTIONS**: Even critical hotfixes must follow this workflow.
+
+**Rationale**:
+- Direct-to-main commits bypass code review and quality gates
+- They create unclear git history and make rollbacks harder
+- Pre-commit hooks provide immediate feedback on syntax errors
+- PR workflow ensures all changes meet the 9.5/10 quality threshold
+- This maintains long-term project health and code quality
+
+**Pre-commit Hook**:
+- Automatically runs compilation verification before allowing commits
+- Prevents syntax errors from entering the repository
+- **Installation required**: Run `./scripts/hooks/install.sh` after cloning
+- Hook source: `scripts/hooks/pre-commit` (tracked in version control)
+- To test manually: `./scripts/tests/verify_compilation.sh`
 
 ## Phased Development Awareness
 
