@@ -65,13 +65,15 @@ This file defines:
 
 To enable parallel work across multiple agents, each agent requires its own git checkout on a separate branch. Workspaces are **ephemeral** - created when needed, deleted after merge.
 
+**CRITICAL**: Workspaces must be **outside** the main repository to avoid git conflicts and permission issues.
+
 ### Directory Structure
 
 ```
-/home/user/gridiron-dynasty/
-├── main/                         # Reference checkout (main branch, read-only)
+/home/user/
+├── gridiron-dynasty/             # Main repository (where Director operates)
 │
-└── workspaces/                   # Ephemeral team workspaces
+└── workspaces/                   # Ephemeral team workspaces (OUTSIDE main repo)
     ├── team-alpha/               # Created by Director for Team Alpha
     │   ├── architect/            # Architect's checkout (created by Director)
     │   ├── eng-1/                # Created by Architect as needed
@@ -82,6 +84,12 @@ To enable parallel work across multiple agents, each agent requires its own git 
         ├── architect/
         └── eng-1/
 ```
+
+**Why workspaces are outside the main repo:**
+- Prevents `git pull`/`git status` in main repo from affecting workspaces
+- Avoids nested `.git` directory conflicts
+- Protects workspaces from `git clean` operations
+- Each workspace is an independent clone with its own git state
 
 ### Workspace Lifecycle
 
@@ -105,8 +113,8 @@ team-{name}/feature-{description} # Engineer feature branches
 
 ```bash
 # Director creates team workspace and Architect's checkout
-mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/architect
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/architect
+mkdir -p /home/user/workspaces/team-{name}/architect
+cd /home/user/workspaces/team-{name}/architect
 git clone <repo-url> .
 git checkout -b team-{name}/architect
 
@@ -117,8 +125,8 @@ git checkout -b team-{name}/architect
 
 ```bash
 # Architect creates engineer workspace under their team folder
-mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
+mkdir -p /home/user/workspaces/team-{name}/eng-{n}
+cd /home/user/workspaces/team-{name}/eng-{n}
 git clone <repo-url> .
 git checkout -b team-{name}/feature-{description}
 
@@ -130,10 +138,15 @@ git checkout -b team-{name}/feature-{description}
 Reviewers typically reuse an Engineer's workspace after their code is committed and pushed:
 ```bash
 # Reviewer uses eng-1's workspace after eng-1 pushes
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-1
+cd /home/user/workspaces/team-{name}/eng-1
 git fetch origin
 git checkout team-{name}/feature-x  # Review this branch
 ```
+
+**IMPORTANT - Git Operations:**
+- **Never run `git pull`** in a workspace - use `git fetch` + `git checkout` or `git merge` instead
+- Each workspace is an independent clone; pulling can cause unexpected merge commits
+- If you need the latest from a branch, fetch and reset: `git fetch origin && git reset --hard origin/branch-name`
 
 ### Workspace Isolation Rules
 
@@ -177,7 +190,7 @@ team-beta/feature-b ──┼──► team-beta/architect ─┘    architectur
 
 ```bash
 # After PR merged to main, Architect deletes team workspace
-rm -rf /home/user/gridiron-dynasty/workspaces/team-{name}/
+rm -rf /home/user/workspaces/team-{name}/
 
 # Delete remote branches
 git push origin --delete team-{name}/architect
