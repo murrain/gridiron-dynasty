@@ -97,6 +97,19 @@ To enable parallel work across multiple agents, each agent requires its own git 
 - Protects workspaces from `git clean` operations
 - Each workspace is an independent clone with its own git state
 
+**DIRECTOR NOTE - Initial Working Directory:**
+When spawned, you may start inside the main repository (e.g., `/home/user/gridiron-dynasty/` or `/mnt/disk1/code/project/main/`). Before creating workspaces:
+1. Check if you're inside a git repo: `git rev-parse --show-toplevel`
+2. If yes, go UP one directory: `cd ..`
+3. Create `workspaces/` as a sibling to the main repo, not inside it
+
+Example:
+```bash
+# If starting in /home/user/gridiron-dynasty (the main repo)
+cd ..                              # Go to /home/user/
+mkdir -p workspaces/team-alpha     # Creates /home/user/workspaces/team-alpha
+```
+
 ### Workspace Lifecycle
 
 **Workspaces are ephemeral** - they exist only for the duration of the work:
