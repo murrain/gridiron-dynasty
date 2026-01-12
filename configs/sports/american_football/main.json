@@ -20,9 +20,9 @@
         "decline_min": 0.4,
         "decline_max": 1.6,
         "curve_multipliers": {
-            "early": { "growth": 1.1, "prime": 0.70, "decline": 1.15 },
-            "mid": { "growth": 1.0, "prime": 0.65, "decline": 1.0 },
-            "late": { "growth": 0.9, "prime": 0.60, "decline": 0.85 }
+            "early": { "growth": 1.1, "prime": 0.85, "decline": 1.15 },
+            "mid": { "growth": 1.0, "prime": 0.80, "decline": 1.0 },
+            "late": { "growth": 0.9, "prime": 0.75, "decline": 0.85 }
         }
     },
     "development_context": {
@@ -151,6 +151,40 @@
         }
     },
     "class_rules": {
+        "draft_position_strategy": {
+            "note": "Position tier-based draft strategy. OL treated as premium (approximates real NFL where OT is premium, OG/C are standard). Generational threshold of 78 reflects realistic ratings at draft entry (players reach 77-82% of potential by age 22).",
+            "position_tiers": {
+                "premium": {
+                    "positions": ["QB", "EDGE", "OL", "CB"],
+                    "round_1_bonus": 1.4,
+                    "round_2_bonus": 1.3,
+                    "round_3_bonus": 1.15,
+                    "round_4_plus_bonus": 1.0
+                },
+                "standard": {
+                    "positions": ["WR", "DL", "LB"],
+                    "round_1_bonus": 1.0,
+                    "round_2_bonus": 1.0,
+                    "round_3_bonus": 1.0,
+                    "round_4_plus_bonus": 1.0
+                },
+                "devalued": {
+                    "positions": ["RB", "TE", "S"],
+                    "round_1_penalty": 0.7,
+                    "round_2_penalty": 0.85,
+                    "round_3_penalty": 0.95,
+                    "round_4_plus_bonus": 1.0
+                },
+                "special_teams": {
+                    "positions": ["K", "P"],
+                    "round_1_penalty": 0.05,
+                    "round_2_penalty": 0.1,
+                    "round_3_penalty": 0.2,
+                    "round_4_plus_penalty": 0.8
+                }
+            },
+            "generational_threshold": 78.0
+        },
         "position_quotas": {
             "QB": 110,
             "RB": 220,
@@ -204,7 +238,7 @@
                 "QB": { "athletic": 0.30, "core": 0.45, "secondary": 0.15, "mentals": 0.10 }
                 },
                 "position_value": {
-                "QB": 1.25, "WR": 1.05, "RB": 0.98, "TE": 0.98,
+                "QB": 1.55, "WR": 1.05, "RB": 0.98, "TE": 0.98,
                 "OL": 1.08, "DL": 1.06, "EDGE": 1.20, "LB": 1.00, "CB": 1.05, "S": 0.98,
                 "K": 0.60, "P": 0.60
                 },
