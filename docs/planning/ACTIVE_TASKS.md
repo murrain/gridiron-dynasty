@@ -240,7 +240,7 @@ When planning new features, follow this structure:
    - Code examples and API designs
    - Test requirements
    - Acceptance criteria
-3. **Add to plan.md** with priority and effort estimate
+3. **Add to this file** with priority and effort estimate
 4. **Assign to engineer** or mark available
 
 This ensures engineers have complete context to work autonomously.

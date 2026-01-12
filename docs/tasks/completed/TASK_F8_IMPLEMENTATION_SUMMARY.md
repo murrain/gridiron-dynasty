@@ -47,7 +47,7 @@ Implementation of comprehensive performance benchmark suite for Gridiron Dynasty
    - Verifies output directory setup
    - Static validation (no execution)
 
-6. **`BENCHMARKS.md`** (150 lines)
+6. **`docs/metrics/BENCHMARKS.md`** (150 lines)
    - Quick reference guide (root level)
    - Quick start instructions
    - Output examples

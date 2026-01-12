@@ -15,7 +15,7 @@ BenchmarkRunner shows a 20-year bootstrap of **184.72 seconds**, but we lack pha
 - Instrument `AdvanceWorldYear.run()` to record per-phase timings (microseconds) behind a flag.
 - Aggregate per-year totals in `BootstrapGameWorld.run()` without mutating `world_state`.
 - Extend `BenchmarkRunner.gd` to capture the new timing payload when running bootstrap benchmarks.
-- Update `BENCHMARKS.md` to document the new JSON fields.
+- Update `docs/metrics/BENCHMARKS.md` to document the new JSON fields.
 
 ## Implementation Notes
 1. Add an optional `capture_timing: bool = false` parameter to `AdvanceWorldYear.run()`.
@@ -39,4 +39,4 @@ BenchmarkRunner shows a 20-year bootstrap of **184.72 seconds**, but we lack pha
 - `scripts/pipelines/AdvanceWorldYear.gd`
 - `scripts/pipelines/BootstrapGameWorld.gd`
 - `scripts/tests/BenchmarkRunner.gd`
-- `BENCHMARKS.md`
+- `docs/metrics/BENCHMARKS.md`

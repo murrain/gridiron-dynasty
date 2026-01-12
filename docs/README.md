@@ -15,25 +15,40 @@ Technical architecture and design documents for major game systems.
 
 Additional architecture docs for coaching, free agency, and other systems are also here.
 
+### 🤝 `/contributing/` - Contribution Standards
+Guidelines for contributing to the project.
+
+- `COMMIT_STYLE.md` - Commit message conventions and requirements
+- `PR_STYLE.md` - Pull request standards and templates
+- `TESTING.md` - Test documentation and requirements
+
 ### 📚 `/guides/` - How-To & Reference Documentation
 User-friendly guides explaining how game systems work.
 
 - `QUICK_REFERENCE.md` - Quick lookup for common operations
 - `WORLD_EXPLORER_QUICK_START.md` - Getting started with the World Explorer UI
 
-### 🗺️ `/planning/` - Implementation Plans
-Master plans and roadmaps for feature development.
-
-- `MASTER_IMPLEMENTATION_PLAN.md` - Current Phase 1 implementation plan (6 tracks)
-- `ARCHITECTURAL_GUARDIAN_ASSESSMENT.md` - Architecture review and assessment
-- `QUICK_WINS_LIST.md` - High-impact features prioritized for implementation
-
 ### ✅ `/implementation/` - Completion Summaries
 Track-by-track summaries of completed implementation work.
 
 - `TRACK_1_COMPLETION_SUMMARY.md` - Game Simulation Foundation (G1.1, G1.2, G1.5, G1.8)
 - `TRACK_2_COMPLETION_SUMMARY.md` - Team History Tracking (H4.1-H4.6)
+- `TRACK_5_COMPLETION_SUMMARY.md` - NFL Awards System (A3.2-A3.5)
+- `TRACK_6_PLAYER_AGENCY_COMPLETION.md` - Player Agency & Morale
 - Performance analysis and optimization reports
+
+### 📊 `/metrics/` - Performance Benchmarks
+Performance measurement data and analysis.
+
+- `BENCHMARKS.md` - Bootstrap performance metrics and benchmark results
+
+### 🗺️ `/planning/` - Implementation Plans
+Master plans and roadmaps for feature development.
+
+- `ACTIVE_TASKS.md` - Current development priorities and task queue
+- `MASTER_IMPLEMENTATION_PLAN.md` - Current Phase 1 implementation plan (6 tracks)
+- `ARCHITECTURAL_GUARDIAN_ASSESSMENT.md` - Architecture review and assessment
+- `QUICK_WINS_LIST.md` - High-impact features prioritized for implementation
 
 ### 🔧 `/tasks/` - Detailed Engineering Tasks
 Individual task specifications for engineers to implement.
@@ -43,6 +58,7 @@ Individual task specifications for engineers to implement.
 - **`testing/`** - Test improvement and coverage tasks
 - **`valuation/`** - Player/contract valuation system tasks
 - **`archive/`** - Historical tasks for reference
+- `TASK_INDEX.md` - Index of all tasks with completion status
 
 ## Getting Started
 
@@ -130,6 +146,8 @@ godot --headless --path . --script scripts/tests/test_g1_1_game_simulation_deter
 ### When Updating Documentation
 - **System designs** → `/architecture/` subfolders
 - **How-to guides** → `/guides/`
+- **Contribution standards** → `/contributing/`
+- **Performance data** → `/metrics/`
 - **Completed work** → `/implementation/`
 - **Active plans** → `/planning/`
 - **Finished tasks** → `/tasks/completed/`
@@ -138,4 +156,4 @@ This ensures documentation stays organized and valuable.
 
 ---
 
-Last updated: January 11, 2026
+Last updated: January 12, 2026

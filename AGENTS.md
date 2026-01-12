@@ -239,7 +239,7 @@ Contribute across areas while respecting current phase focus and existing archit
 - Defer architectural decisions to the Architect Agent
 - Preserve determinism conventions when touching simulation logic
 - Keep changes small, reviewable, and well-documented
-- Consult plan.md to understand current phase scope and constraints
+- Consult `docs/planning/ACTIVE_TASKS.md` to understand current phase scope and constraints
 - Check docs/tasks for active task guidance and context before starting work
 - Read existing code patterns before implementing new features
 - Use config files for tunable parameters (no hardcoded distributions)
@@ -415,5 +415,5 @@ Many features, poorly understood
 
 ## Additional References
 
-Commit message requirements live in `COMMIT_STYLE.md` at the repository root.
+Commit message requirements live in `docs/contributing/COMMIT_STYLE.md`.
 All agents and contributors are expected to follow it.
