@@ -182,7 +182,7 @@ Established patterns:
 ### Documentation
 - `/docs/implementation/TASK_F5_IMPLEMENTATION.md`
 - `/docs/implementation/TASK_F7_IMPLEMENTATION.md` (partial, F7 not completed)
-- `/BENCHMARKS.md` - Performance measurement results
+- `/docs/metrics/BENCHMARKS.md` - Performance measurement results
 - `/docs/AGENT_GUIDELINES.md` - Coding patterns established
 
 ## Archive Notes

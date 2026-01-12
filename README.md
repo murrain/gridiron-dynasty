@@ -202,14 +202,14 @@ Parallel features are designed for safety:
 ### Getting Started
 1. Check `docs/tasks/README.md` for available tasks
 2. Read `docs/AGENT_GUIDELINES.md` for coding standards
-3. Review `COMMIT_STYLE.md` for commit conventions
+3. Review `docs/contributing/COMMIT_STYLE.md` for commit conventions
 
 ### Development Workflow
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes following task specifications
 4. Run tests to verify implementation (`godot --headless -s scripts/tests/TestRunner.gd`)
-5. Commit with descriptive message following `COMMIT_STYLE.md`
+5. Commit with descriptive message following `docs/contributing/COMMIT_STYLE.md`
 6. Push to your fork and submit a Pull Request
 
 ### Bug Reports & Feature Requests
@@ -231,7 +231,7 @@ Recent optimizations (PR #82) achieved:
 - **Config Access**: 5us → 0.5us per lookup (10x faster)
 - **Scout Evaluation**: 2000x+ cache hit rate in recruiting
 
-See `BENCHMARKS.md` for detailed performance data.
+See `docs/metrics/BENCHMARKS.md` for detailed performance data.
 
 ## License
 

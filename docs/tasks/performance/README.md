@@ -90,7 +90,7 @@ func run(world_state: Dictionary, capture_timing: bool = false) -> Dictionary:
 - `scripts/pipelines/AdvanceWorldYear.gd` - Add timing capture
 - `scripts/pipelines/BootstrapGameWorld.gd` - Aggregate per-year timings
 - `scripts/tests/BenchmarkRunner.gd` - Output timing breakdown
-- `docs/BENCHMARKS.md` - Document timing data format
+- `docs/metrics/BENCHMARKS.md` - Document timing data format
 
 **Output Format**:
 ```json
@@ -212,5 +212,5 @@ Measure before optimizing, validate improvements
 
 - Archive: [../archive/2026-01/README.md](../archive/2026-01/README.md)
 - Implementation details: `docs/implementation/TASK_F*_IMPLEMENTATION.md`
-- Benchmark results: `docs/BENCHMARKS.md`
+- Benchmark results: `docs/metrics/BENCHMARKS.md`
 - Coding guidelines: `docs/AGENT_GUIDELINES.md`
