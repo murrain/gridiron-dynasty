@@ -54,7 +54,7 @@ static func compute_scarcity_multiplier(
 	# Scarcity = demand / supply (clamped)
 	# If supply < demand, scarcity > 1.0 (premium)
 	# If supply > demand, scarcity < 1.0 (discount)
-	var ratio := demand / max(supply, 1.0)
+	var ratio: float = demand / max(supply, 1.0)
 	var min_mult := float(config.get("scarcity_min", 0.7))
 	var max_mult := float(config.get("scarcity_max", 1.5))
 	return clamp(ratio, min_mult, max_mult)

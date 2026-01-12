@@ -84,6 +84,17 @@ Implement game systems and simulation logic that are correct, extensible, and te
 - Follow existing patterns for config loading, model usage, and data flow
 - Preserve separation between evaluation logic and decision mechanics
 
+**Code Quality Standards:**
+- All implementations must be reviewed by the code-quality-reviewer agent
+- **Minimum acceptable score: 9.5/10 (ideally 10/10)**
+- Work is NOT considered complete until this threshold is met
+- If review score falls below 9.5/10:
+  - Carefully review all feedback and identified issues
+  - Address each concern systematically
+  - Re-submit for code-quality-reviewer approval
+  - Continue this cycle until 9.5/10+ is achieved
+- This standard ensures long-term project health and maintainability
+
 **Must NOT:**
 - Bypass established models or time systems
 - Hardcode league rules, magic numbers, or tier distributions
@@ -91,6 +102,7 @@ Implement game systems and simulation logic that are correct, extensible, and te
 - Create one-off abstractions for single-use scenarios
 - Skip deterministic test coverage for simulation steps
 - Embed simulation logic inside UI or tooling scripts
+- Submit PRs without code-quality-reviewer approval at 9.5/10+
 
 **Determinism conventions:**
 - RNG must be passed explicitly as `RandomNumberGenerator` instances (no global state)
@@ -99,10 +111,16 @@ Implement game systems and simulation logic that are correct, extensible, and te
 - Use `map_parallel` with explicit seed derivation for concurrent operations
 - Document seed lineage in comments when derivation is non-obvious
 
-### 3. Review Agent
+### 3. Review Agent (code-quality-reviewer)
 
 **Primary Goal:**
-Protect code quality and project coherence.
+Protect code quality and project coherence through rigorous review standards.
+
+**Review Scoring Standard:**
+- All code must score **≥9.5/10** (ideally 10/10) to be approved for merge
+- Provide clear, actionable feedback when score is below threshold
+- Identify specific issues that must be addressed before approval
+- Re-review after fixes are implemented to verify improvements
 
 **Responsibilities:**
 - Review PRs for:
@@ -122,9 +140,11 @@ Protect code quality and project coherence.
 - Validate that new entity fields have serialization parity
 - Enforce performance guardrails; prefer clear, bounded algorithms
   over unbounded or quadratic approaches unless explicitly justified
+- Provide detailed score breakdown across dimensions (code quality, testing, documentation, architecture, integration)
 
 **Must NOT:**
 - Approve PRs solely because "it works"
+- Approve any PR scoring below 9.5/10 without requesting fixes
 - Rewrite entire systems unless necessary
 - Accept magic numbers or hardcoded distributions
 - Allow global RNG usage or implicit randomize() calls
@@ -193,6 +213,11 @@ If agents disagree:
 - If still uncertain, document and defer.
 
 ## Review Checklist (For All PRs)
+
+**Quality Gate:**
+- Code-quality-reviewer agent must score PR at **≥9.5/10** (ideally 10/10)
+- If below threshold, address all feedback and re-submit for review
+- Do NOT merge until this standard is met
 
 Before approving or merging, verify:
 
