@@ -22,7 +22,7 @@ func assign(players: Array, schools: Array, config: Dictionary, seed: int) -> Di
 	var updated_players: Array = players.duplicate(true)
 
 	for i in range(updated_players.size()):
-		var p: Dictionary = updated_players[i]
+		var p = updated_players[i]  # No type annotation - array can contain nulls
 		if p == null:
 			continue
 		if String(p.get("eligibility_status", "")) == "hs_grad":

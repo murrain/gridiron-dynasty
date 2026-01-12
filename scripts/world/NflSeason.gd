@@ -239,7 +239,7 @@ func _apply_nfl_development_context(
 ) -> Array:
 	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
-		var p: Dictionary = players[i]
+		var p = players[i]  # No type annotation - array can contain nulls
 		if p == null:
 			continue
 

@@ -57,7 +57,7 @@ func run(
 	var active: Array = []
 
 	for i in range(updated_players.size()):
-		var p: Dictionary = updated_players[i]
+		var p = updated_players[i]  # No type annotation - array can contain nulls when players retire
 		if p == null:
 			continue
 
@@ -115,7 +115,7 @@ func _apply_development_contexts(players: Array, school_map: Dictionary, config:
 
 	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
-		var p: Dictionary = players[i]
+		var p = players[i]  # No type annotation - array can contain nulls
 		if p == null:
 			continue
 		var school_id := String(p.get("hs_school_id", ""))
@@ -201,7 +201,7 @@ func _apply_development_context(
 
 	# OPTIMIZATION: Modify in-place instead of copying each player
 	for i in range(players.size()):
-		var p: Dictionary = players[i]
+		var p = players[i]  # No type annotation - array can contain nulls
 		if p == null:
 			continue
 

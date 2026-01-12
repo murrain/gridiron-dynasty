@@ -245,7 +245,7 @@ static func advance_one_year(
 	development_reports.resize(players.size())
 
 	for i in range(players.size()):
-		var p: Dictionary = players[i]
+		var p = players[i]  # No type annotation - array can contain nulls
 		if p == null:
 			updated[i] = p
 			development_reports[i] = {}
