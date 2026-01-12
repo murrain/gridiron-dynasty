@@ -61,6 +61,134 @@ This file defines:
 
 ---
 
+## Workspace Organization (Multi-Agent Disk Layout)
+
+To enable parallel work across multiple agents, each agent requires its own git checkout on a separate branch. Workspaces are **ephemeral** - created when needed, deleted after merge.
+
+### Directory Structure
+
+```
+/home/user/gridiron-dynasty/
+├── main/                         # Reference checkout (main branch, read-only)
+│
+└── workspaces/                   # Ephemeral team workspaces
+    ├── team-alpha/               # Created by Director for Team Alpha
+    │   ├── architect/            # Architect's checkout (created by Director)
+    │   ├── eng-1/                # Created by Architect as needed
+    │   ├── eng-2/                # Created by Architect as needed
+    │   └── eng-3/                # Created by Architect as needed
+    │
+    └── team-beta/                # Created by Director for Team Beta
+        ├── architect/
+        └── eng-1/
+```
+
+### Workspace Lifecycle
+
+**Workspaces are ephemeral** - they exist only for the duration of the work:
+
+1. **Director creates** team workspace when spawning Architect
+2. **Architect creates** engineer workspaces as needed
+3. **All workspaces deleted** after PR is merged to main
+
+### Branch Naming Convention
+
+```
+main                              # Protected, merge target
+team-{name}/architect             # Architect's integration branch
+team-{name}/feature-{description} # Engineer feature branches
+```
+
+### Workspace Setup Protocol
+
+**Director spawns Architect:**
+
+```bash
+# Director creates team workspace and Architect's checkout
+mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/architect
+cd /home/user/gridiron-dynasty/workspaces/team-{name}/architect
+git clone <repo-url> .
+git checkout -b team-{name}/architect
+
+# Director provides this path to Architect agent
+```
+
+**Architect spawns Engineer:**
+
+```bash
+# Architect creates engineer workspace under their team folder
+mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
+cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
+git clone <repo-url> .
+git checkout -b team-{name}/feature-{description}
+
+# Architect provides this path to Engineer agent
+```
+
+**Reviewer reuses workspace:**
+
+Reviewers typically reuse an Engineer's workspace after their code is committed and pushed:
+```bash
+# Reviewer uses eng-1's workspace after eng-1 pushes
+cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-1
+git fetch origin
+git checkout team-{name}/feature-x  # Review this branch
+```
+
+### Workspace Isolation Rules
+
+| Rule | Description |
+|------|-------------|
+| **One agent per directory** | Never have two agents working in the same directory simultaneously |
+| **One branch per engineer** | Each Engineer works on their own feature branch |
+| **Architect owns team folder** | Architect manages all workspaces under their team |
+| **No cross-team access** | Teams do not access each other's workspaces |
+| **Ephemeral by default** | Delete workspaces after merge |
+
+### Merge Flow
+
+```
+Engineer branches ──► Architect integration branch ──► main
+
+team-alpha/feature-x ─┐
+team-alpha/feature-y ─┼──► team-alpha/architect ─┐
+team-alpha/feature-z ─┘                         │
+                                                ├──► main
+team-beta/feature-a ──┐                         │    (ordered by
+team-beta/feature-b ──┼──► team-beta/architect ─┘    architecture-guardian)
+```
+
+**Within-Team (Architect handles):**
+1. **Engineers** push to their feature branches
+2. **Architect** determines merge order for engineer branches
+3. **Architect** merges engineer branches into integration branch
+4. **Architect** creates PR from integration branch to main
+
+**Cross-Team (Director + Architecture-Guardian handles):**
+5. **Director spawns architecture-guardian** to determine merge order across teams
+6. **Architecture-guardian** evaluates dependencies and architectural impact
+7. **Architecture-guardian** specifies merge sequence (e.g., "Team Alpha first, then Team Beta")
+8. **Director** executes merges in specified order
+9. **Architects** clean up their team workspaces after merge
+
+### Cleanup Protocol
+
+**Architect cleans up after merge:**
+
+```bash
+# After PR merged to main, Architect deletes team workspace
+rm -rf /home/user/gridiron-dynasty/workspaces/team-{name}/
+
+# Delete remote branches
+git push origin --delete team-{name}/architect
+git push origin --delete team-{name}/feature-x
+git push origin --delete team-{name}/feature-y
+```
+
+**Director verifies cleanup** before spawning new teams in same slot
+
+---
+
 ## Role Assignment
 
 Unless explicitly instructed otherwise, a worker may assume the General Purpose Agent role (see below).
@@ -133,13 +261,16 @@ The Director sits above all other agents and is responsible for the full lifecyc
    - Escalate architectural conflicts to senior Architect review
    - Maintain visibility into all active work streams
 
-5. **PR Lifecycle Management**
-   - Ensure each team creates proper feature branches
-   - Coordinate PR creation timing to minimize conflicts
-   - Resolve merge conflicts between team branches
-   - Orchestrate review cycles and fix iterations
-   - Verify CI passes before final merge
-   - Execute merges in correct dependency order
+5. **PR Lifecycle Management (Cross-Team Coordination)**
+
+   *Note: Architect handles WITHIN-TEAM PR lifecycle. Director handles CROSS-TEAM coordination.*
+
+   - **Spawn architecture-guardian** when multiple teams have PRs ready
+   - Architecture-guardian determines merge ORDER based on dependencies
+   - Execute merges in the order specified by architecture-guardian
+   - Resolve conflicts BETWEEN team branches (rare, indicates poor planning)
+   - Verify all teams pass CI before coordinating final merges
+   - Orchestrate integration testing across team boundaries
 
 6. **Quality Assurance Oversight**
    - Verify all teams meet the 9.5/10 review threshold
@@ -446,7 +577,22 @@ Reports to Architect. Works alongside other Engineers. Submits work to Reviewer.
    - Communicate blockers immediately to Architect
    - Complete integration tests for cross-task dependencies
 
-4. **Quality Standards**
+4. **Escalation Thresholds**
+
+   **Escalate to Architect IMMEDIATELY when:**
+   - Blocked on dependency for > 30 minutes
+   - Task specification is ambiguous or contradictory
+   - Discovered file ownership conflict with another Engineer
+   - Review feedback requires changes outside assigned file boundaries
+   - Implementation would require architectural changes not in spec
+   - Estimated effort exceeds original estimate by > 50%
+
+   **Do NOT escalate (handle yourself):**
+   - Normal debugging and troubleshooting
+   - Minor clarifications you can resolve from existing docs
+   - Review feedback within your assigned files
+
+5. **Quality Standards**
    - All implementations must score ≥9.5/10 from Reviewer
    - Work is NOT complete until review threshold is met
    - Address all review feedback systematically
@@ -690,7 +836,10 @@ Suggestions (optional improvements):
 Contribute across areas while respecting current phase focus and existing architecture.
 
 **Position in Hierarchy:**
-Entry-level role. Can escalate to any specialized role as needed.
+- Entry-level role for **ad-hoc, human-directed work**
+- **NOT spawned by Director** (Director spawns Architects or Engineers directly)
+- Used when a human needs quick assistance without formal team structure
+- Can escalate to any specialized role as the task scope becomes clear
 
 **Responsibilities:**
 - Follow the Core Principles
