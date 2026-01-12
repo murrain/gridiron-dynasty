@@ -65,13 +65,17 @@ This file defines:
 
 To enable parallel work across multiple agents, each agent requires its own git checkout on a separate branch. Workspaces are **ephemeral** - created when needed, deleted after merge.
 
+**CRITICAL**: Workspaces must be **outside** the main repository to avoid git conflicts and permission issues.
+
 ### Directory Structure
 
 ```
-/home/user/gridiron-dynasty/
-├── main/                         # Reference checkout (main branch, read-only)
+<project-root>/
+├── main/                         # Reference copy (main branch, read-only)
 │
-└── workspaces/                   # Ephemeral team workspaces
+└── workspaces/                   # Ephemeral workspaces (sibling to main, NOT inside it)
+    ├── director/                 # Director's workspace (for temporary work)
+    │
     ├── team-alpha/               # Created by Director for Team Alpha
     │   ├── architect/            # Architect's checkout (created by Director)
     │   ├── eng-1/                # Created by Architect as needed
@@ -82,6 +86,35 @@ To enable parallel work across multiple agents, each agent requires its own git 
         ├── architect/
         └── eng-1/
 ```
+
+**Example paths (vary by machine):**
+- `/home/user/gridiron-dynasty/main/` and `/home/user/gridiron-dynasty/workspaces/`
+- `/mnt/disk1/code/gridiron-dynasty/main/` and `/mnt/disk1/code/gridiron-dynasty/workspaces/`
+
+**Why workspaces are outside the main repo:**
+- Prevents `git pull`/`git status` in main repo from affecting workspaces
+- Avoids nested `.git` directory conflicts
+- Protects workspaces from `git clean` operations
+- Each workspace is an independent clone with its own git state
+
+**DIRECTOR NOTE - Initial Working Directory:**
+When spawned, you may start inside the main repository (e.g., `/home/user/gridiron-dynasty/` or `/mnt/disk1/code/project/main/`). Before creating workspaces:
+1. Check if you're inside a git repo: `git rev-parse --show-toplevel`
+2. If yes, go UP one directory: `cd ..`
+3. Create `workspaces/` as a sibling to the main repo, not inside it
+
+Example:
+```bash
+# If starting in /home/user/gridiron-dynasty (the main repo)
+cd ..                              # Go to /home/user/
+mkdir -p workspaces/team-alpha     # Creates /home/user/workspaces/team-alpha
+```
+
+**Keep the main repo clean:**
+- NEVER create temporary files, notes, or untracked items in the main repository
+- The main repo should always have a clean `git status`
+- For any temporary work (notes, scratch files, planning docs), use `<workspaces>/director/`
+- This prevents accidental commits of temporary files and keeps the reference copy pristine
 
 ### Workspace Lifecycle
 
@@ -105,8 +138,8 @@ team-{name}/feature-{description} # Engineer feature branches
 
 ```bash
 # Director creates team workspace and Architect's checkout
-mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/architect
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/architect
+mkdir -p <workspaces>/team-{name}/architect
+cd <workspaces>/team-{name}/architect
 git clone <repo-url> .
 git checkout -b team-{name}/architect
 
@@ -117,8 +150,8 @@ git checkout -b team-{name}/architect
 
 ```bash
 # Architect creates engineer workspace under their team folder
-mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
+mkdir -p <workspaces>/team-{name}/eng-{n}
+cd <workspaces>/team-{name}/eng-{n}
 git clone <repo-url> .
 git checkout -b team-{name}/feature-{description}
 
@@ -130,10 +163,15 @@ git checkout -b team-{name}/feature-{description}
 Reviewers typically reuse an Engineer's workspace after their code is committed and pushed:
 ```bash
 # Reviewer uses eng-1's workspace after eng-1 pushes
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-1
+cd <workspaces>/team-{name}/eng-1
 git fetch origin
 git checkout team-{name}/feature-x  # Review this branch
 ```
+
+**IMPORTANT - Git Operations:**
+- **Never run `git pull`** in a workspace - use `git fetch` + `git checkout` or `git merge` instead
+- Each workspace is an independent clone; pulling can cause unexpected merge commits
+- If you need the latest from a branch, fetch and reset: `git fetch origin && git reset --hard origin/branch-name`
 
 ### Workspace Isolation Rules
 
@@ -177,7 +215,7 @@ team-beta/feature-b ──┼──► team-beta/architect ─┘    architectur
 
 ```bash
 # After PR merged to main, Architect deletes team workspace
-rm -rf /home/user/gridiron-dynasty/workspaces/team-{name}/
+rm -rf <workspaces>/team-{name}/
 
 # Delete remote branches
 git push origin --delete team-{name}/architect
