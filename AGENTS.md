@@ -70,10 +70,10 @@ To enable parallel work across multiple agents, each agent requires its own git 
 ### Directory Structure
 
 ```
-/home/user/
-├── gridiron-dynasty/             # Reference copy (main branch, read-only)
+<project-root>/
+├── main/                         # Reference copy (main branch, read-only)
 │
-└── workspaces/                   # Ephemeral workspaces (OUTSIDE main repo)
+└── workspaces/                   # Ephemeral workspaces (sibling to main, NOT inside it)
     ├── director/                 # Director's workspace (for temporary work)
     │
     ├── team-alpha/               # Created by Director for Team Alpha
@@ -86,6 +86,10 @@ To enable parallel work across multiple agents, each agent requires its own git 
         ├── architect/
         └── eng-1/
 ```
+
+**Example paths (vary by machine):**
+- `/home/user/gridiron-dynasty/main/` and `/home/user/gridiron-dynasty/workspaces/`
+- `/mnt/disk1/code/gridiron-dynasty/main/` and `/mnt/disk1/code/gridiron-dynasty/workspaces/`
 
 **Why workspaces are outside the main repo:**
 - Prevents `git pull`/`git status` in main repo from affecting workspaces
@@ -115,8 +119,8 @@ team-{name}/feature-{description} # Engineer feature branches
 
 ```bash
 # Director creates team workspace and Architect's checkout
-mkdir -p /home/user/workspaces/team-{name}/architect
-cd /home/user/workspaces/team-{name}/architect
+mkdir -p <workspaces>/team-{name}/architect
+cd <workspaces>/team-{name}/architect
 git clone <repo-url> .
 git checkout -b team-{name}/architect
 
@@ -127,8 +131,8 @@ git checkout -b team-{name}/architect
 
 ```bash
 # Architect creates engineer workspace under their team folder
-mkdir -p /home/user/workspaces/team-{name}/eng-{n}
-cd /home/user/workspaces/team-{name}/eng-{n}
+mkdir -p <workspaces>/team-{name}/eng-{n}
+cd <workspaces>/team-{name}/eng-{n}
 git clone <repo-url> .
 git checkout -b team-{name}/feature-{description}
 
@@ -140,7 +144,7 @@ git checkout -b team-{name}/feature-{description}
 Reviewers typically reuse an Engineer's workspace after their code is committed and pushed:
 ```bash
 # Reviewer uses eng-1's workspace after eng-1 pushes
-cd /home/user/workspaces/team-{name}/eng-1
+cd <workspaces>/team-{name}/eng-1
 git fetch origin
 git checkout team-{name}/feature-x  # Review this branch
 ```
@@ -192,7 +196,7 @@ team-beta/feature-b ──┼──► team-beta/architect ─┘    architectur
 
 ```bash
 # After PR merged to main, Architect deletes team workspace
-rm -rf /home/user/workspaces/team-{name}/
+rm -rf <workspaces>/team-{name}/
 
 # Delete remote branches
 git push origin --delete team-{name}/architect
