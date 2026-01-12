@@ -67,21 +67,26 @@ To enable parallel work across multiple agents, each agent requires its own git 
 
 ### Directory Structure
 
+**CRITICAL: Workspaces MUST be created OUTSIDE the main repository to avoid git tracking issues.**
+
 ```
-/home/user/gridiron-dynasty/
-├── main/                         # Reference checkout (main branch, read-only)
+/home/user/
+├── gridiron-dynasty/             # Main repository (DO NOT create workspaces here)
+│   └── (all project files)
 │
-└── workspaces/                   # Ephemeral team workspaces
+└── workspaces/                   # Ephemeral team workspaces (OUTSIDE main repo)
     ├── team-alpha/               # Created by Director for Team Alpha
-    │   ├── architect/            # Architect's checkout (created by Director)
-    │   ├── eng-1/                # Created by Architect as needed
-    │   ├── eng-2/                # Created by Architect as needed
-    │   └── eng-3/                # Created by Architect as needed
+    │   └── (full git clone)      # Each team gets their own complete clone
     │
     └── team-beta/                # Created by Director for Team Beta
-        ├── architect/
-        └── eng-1/
+        └── (full git clone)
 ```
+
+**Why this matters:**
+- If workspaces are created inside `/home/user/gridiron-dynasty/`, git will see them as untracked files
+- This triggers stop-hook errors and tempts Directors to modify `.gitignore` in the main repo
+- Directors should NEVER commit to the main repository directly
+- Keep workspaces at `/home/user/workspaces/` to maintain clean separation
 
 ### Workspace Lifecycle
 
@@ -101,12 +106,14 @@ team-{name}/feature-{description} # Engineer feature branches
 
 ### Workspace Setup Protocol
 
+**CRITICAL: All workspaces MUST be created at `/home/user/workspaces/`, which is OUTSIDE the main repository. This prevents git from tracking workspace files as untracked changes.**
+
 **Director spawns Architect:**
 
 ```bash
-# Director creates team workspace and Architect's checkout
-mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/architect
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/architect
+# Director creates team workspace OUTSIDE the main repository
+mkdir -p /home/user/workspaces/team-{name}
+cd /home/user/workspaces/team-{name}
 git clone <repo-url> .
 git checkout -b team-{name}/architect
 
@@ -116,9 +123,9 @@ git checkout -b team-{name}/architect
 **Architect spawns Engineer:**
 
 ```bash
-# Architect creates engineer workspace under their team folder
-mkdir -p /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-{n}
+# Architect creates engineer workspace under their team folder (still outside main repo)
+mkdir -p /home/user/workspaces/team-{name}/eng-{n}
+cd /home/user/workspaces/team-{name}/eng-{n}
 git clone <repo-url> .
 git checkout -b team-{name}/feature-{description}
 
@@ -130,7 +137,7 @@ git checkout -b team-{name}/feature-{description}
 Reviewers typically reuse an Engineer's workspace after their code is committed and pushed:
 ```bash
 # Reviewer uses eng-1's workspace after eng-1 pushes
-cd /home/user/gridiron-dynasty/workspaces/team-{name}/eng-1
+cd /home/user/workspaces/team-{name}/eng-1
 git fetch origin
 git checkout team-{name}/feature-x  # Review this branch
 ```
