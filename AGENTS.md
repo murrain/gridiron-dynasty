@@ -273,10 +273,21 @@ The Director sits above all other agents and is responsible for the full lifecyc
    - Orchestrate integration testing across team boundaries
 
 6. **Quality Assurance Oversight**
+   - **REQUIRE explicit code-quality-reviewer score** from every Architect completion report
+   - **REJECT completion reports** that do not include the score
+   - **REJECT work** where score is below 9.5/10 threshold
    - Verify all teams meet the 9.5/10 review threshold
    - Ensure cross-team integration doesn't break determinism
    - Validate that merged work maintains simulation integrity
    - Track technical debt introduced vs. resolved
+
+   **Score Verification Protocol:**
+   When Architect reports completion, Director MUST:
+   1. Check that completion report includes explicit code-quality-reviewer score
+   2. Verify score is ≥9.5/10
+   3. If score is missing: Reject and instruct Architect to run code-quality-reviewer
+   4. If score is <9.5: Reject and instruct Architect to address feedback and re-review
+   5. Only accept completion when verified score ≥9.5/10 is provided
 
 **Team Management Protocol:**
 
@@ -398,6 +409,8 @@ Each team must report status at these checkpoints:
 - Implement code directly (delegate to teams)
 - Override Architect decisions on technical approach
 - Allow PRs below 9.5/10 review score
+- **Accept completion reports without explicit code-quality-reviewer score**
+- **Accept work from Architects who have not run code-quality-reviewer**
 - Merge work that breaks existing tests
 - Create teams without clear work package boundaries
 - Allow unbounded parallel work (maximum: 5 Architects/teams at once)
@@ -547,6 +560,25 @@ Before claiming work is complete, the Architect MUST ensure:
 3. **Work is NOT complete** until the 9.5+ threshold is verified
 
 This is a blocking requirement. The Architect is responsible for spawning the code-quality-reviewer agent and verifying the score meets the threshold before reporting completion to the Director.
+
+**Reporting to Director:**
+
+When reporting completion to Director, Architect MUST explicitly state:
+- The code-quality-reviewer score (e.g., "Score: 9.7/10")
+- Confirmation that the score meets the 9.5+ threshold
+- If multiple review cycles occurred, the final passing score
+
+Example completion report:
+```
+TEAM COMPLETION REPORT
+Status: Complete
+Code Quality Score: 9.7/10 ✓ (meets 9.5+ threshold)
+Review Cycles: 2 (initial: 9.3/10, final: 9.7/10)
+All tests passing: Yes
+Ready for PR: Yes
+```
+
+Failure to include the explicit score will result in Director rejecting the completion report.
 
 **Must NOT:**
 - Implement UI or presentation logic
