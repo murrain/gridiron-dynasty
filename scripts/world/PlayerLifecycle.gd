@@ -880,29 +880,175 @@ static func _append_development_report(
 	})
 	player["development_report"] = report
 
+## Applies injury risk calculation and generates actual injury instances.
+##
+## RNG consumption pattern:
+##   - 1 call: Injury occurrence roll (always)
+##   - 2-3 additional calls if injured: type selection, severity/recovery generation, career-ending check
+##   Total: 1-4 calls per player per year (deterministic for given seed)
+##
+## Algorithm:
+##   1. Calculate base injury chance from proneness stat
+##   2. Apply position multiplier (high-contact positions more vulnerable)
+##   3. Apply durability trait modifiers (injury_prone, durable, iron_man)
+##   4. Roll for injury occurrence
+##   5. If injured, generate injury instance via _generate_injury()
+##   6. Append injury to player's injury array
+##
+## Determinism guarantee:
+##   - Same seed + same player state = same injury outcome
+##   - RNG calls occur in fixed order regardless of branching
 static func _apply_injury(
 	player: Dictionary,
 	main_cfg: Dictionary,
 	rng: RandomNumberGenerator
 ) -> Dictionary:
 	var cfg: Dictionary = main_cfg.get("injury", {}) as Dictionary
-	var base_chance := float(cfg.get("base_chance", 0.0))
-	var proneness_slope := float(cfg.get("proneness_slope", 0.0))
+	var base_chance := float(cfg.get("base_chance", 0.12))
+	var proneness_slope := float(cfg.get("proneness_slope", 0.15))
+
+	# Apply position multiplier
+	var position := String(player.get("position", ""))
+	var position_mults: Dictionary = cfg.get("position_multipliers", {}) as Dictionary
+	var position_mult := float(position_mults.get(position, 1.0))
+
+	# Apply durability trait modifiers
+	var trait_mults: Dictionary = cfg.get("durability_trait_modifiers", {}) as Dictionary
+	var trait_mult := 1.0
+	var hidden_traits: Array = player.get("hidden_traits", []) as Array
+	for i in range(hidden_traits.size()):
+		var trait_name = hidden_traits[i]
+		if trait_mults.has(trait_name):
+			trait_mult *= float(trait_mults[trait_name])
+
 	var stats: Dictionary = player.get("stats", {}) as Dictionary
 	var proneness := float(stats.get("injury_proneness", 50.0))
 	var chance := base_chance + ((proneness - 50.0) / 100.0) * proneness_slope
+	chance *= position_mult * trait_mult
 	chance = clamp(chance, 0.0, 0.95)
 
+	# RNG Call 1: Injury occurrence roll
 	var roll := rng.randf()
 	var injured := roll < chance
-	return {
+
+	var report := {
 		"base_chance": base_chance,
 		"proneness": proneness,
 		"proneness_slope": proneness_slope,
-		"chance": chance,
+		"position_mult": position_mult,
+		"trait_mult": trait_mult,
+		"final_chance": chance,
 		"roll": roll,
 		"injured": injured
 	}
+
+	# Generate actual injury if roll succeeds
+	if injured:
+		# RNG Calls 2-4: Injury generation (type, severity, career-ending check)
+		var injury: Variant = _generate_injury(player, cfg, rng)
+		if injury != null:
+			var injuries: Array = player.get("injuries", []) as Array
+			injuries.append(injury)
+			player["injuries"] = injuries
+			report["injury"] = injury
+
+	return report
+
+## Generates a specific injury instance with type, severity, and recovery timeline.
+##
+## RNG consumption pattern:
+##   - 1 call: Injury type selection (weighted random)
+##   - 1 call: Severity value (randf_range)
+##   - 1 call: Recovery years (randi_range)
+##   - 1 call: Career-ending check (if applicable)
+##   Total: 3-4 calls per injury generated
+##
+## Algorithm:
+##   1. Select injury type via weighted randomness (sum all weights, roll, accumulate)
+##   2. Generate severity within type's min/max range
+##   3. Generate recovery timeline (years) within type's min/max range
+##   4. Check for career-ending outcome (rare, only for types with career_ending_chance)
+##   5. Build long-term penalty structure (stat caps and decline multipliers)
+##
+## Returns:
+##   Dictionary with injury structure matching Injury.gd schema, or null if no types configured
+##
+## Determinism guarantee:
+##   - Same RNG state produces identical injury type, severity, and timeline
+##   - Weighted selection uses cumulative distribution for stability
+static func _generate_injury(
+	player: Dictionary,
+	injury_cfg: Dictionary,
+	rng: RandomNumberGenerator
+) -> Variant:
+	var injury_types: Array = injury_cfg.get("types", []) as Array
+	if injury_types.is_empty():
+		return null
+
+	# RNG Call 1: Weighted random selection of injury type
+	var total_weight := 0.0
+	for injury_def in injury_types:
+		total_weight += float((injury_def as Dictionary).get("weight", 0.0))
+
+	var roll := rng.randf() * total_weight
+	var accumulated := 0.0
+	var selected_def: Dictionary = {}
+
+	for injury_def in injury_types:
+		var def: Dictionary = injury_def as Dictionary
+		accumulated += float(def.get("weight", 0.0))
+		if roll <= accumulated:
+			selected_def = def
+			break
+
+	if selected_def.is_empty():
+		return null
+
+	# RNG Call 2: Generate severity within type's range
+	var severity_min := float(selected_def.get("severity_min", 1.0))
+	var severity_max := float(selected_def.get("severity_max", 2.0))
+	var severity := rng.randf_range(severity_min, severity_max)
+
+	# RNG Call 3: Generate recovery timeline within type's range
+	var recovery_min := int(selected_def.get("recovery_years_min", 0))
+	var recovery_max := int(selected_def.get("recovery_years_max", 1))
+	var recovery_years := rng.randi_range(recovery_min, recovery_max)
+
+	# RNG Call 4: Check for career-ending outcome (rare, only if type supports it)
+	var career_ending_chance := float(selected_def.get("career_ending_chance", 0.0))
+	var is_career_ending := false
+	if career_ending_chance > 0.0:
+		is_career_ending = rng.randf() < career_ending_chance
+
+	# Build injury instance matching Injury.gd schema
+	var injury := {
+		"type": String(selected_def.get("type", "unknown")),
+		"severity": severity,
+		"affected_stats": (selected_def.get("affected_stats", []) as Array).duplicate(),
+		"recovery_timeline": {
+			"years_total": recovery_years,
+			"years_remaining": recovery_years,
+			"status": "active"
+		},
+		"long_term_penalty": {
+			"stat_caps": {},
+			"decline_multipliers": {}
+		},
+		"career_ending": is_career_ending
+	}
+
+	# Set long-term penalties for affected stats
+	var long_term_cap := float(selected_def.get("long_term_cap", 1.0))
+	var decline_mult := float(selected_def.get("long_term_decline_mult", 1.0))
+	var stats: Dictionary = player.get("stats", {}) as Dictionary
+
+	for stat_name in injury["affected_stats"]:
+		if stats.has(stat_name):
+			var current_val := float(stats[stat_name])
+			(injury["long_term_penalty"]["stat_caps"] as Dictionary)[stat_name] = current_val * long_term_cap
+			(injury["long_term_penalty"]["decline_multipliers"] as Dictionary)[stat_name] = decline_mult
+
+	return injury
 
 ## Config-optimized retirement check with optional config helper.
 ##
@@ -922,6 +1068,13 @@ static func _should_retire(
 	ret_config: RetirementConfig,
 	rng: RandomNumberGenerator
 ) -> bool:
+	# Check for career-ending injury (immediate forced retirement)
+	var injuries: Array = player.get("injuries", []) as Array
+	for injury_entry in injuries:
+		var injury: Dictionary = injury_entry as Dictionary
+		if injury.get("career_ending", false):
+			return true
+
 	var age := int(player.get("age", 18))
 
 	# Use pre-extracted config values (O(1) access)
@@ -954,6 +1107,13 @@ static func _should_retire_fallback(
 	main_cfg: Dictionary,
 	rng: RandomNumberGenerator
 ) -> bool:
+	# Check for career-ending injury (immediate forced retirement)
+	var injuries: Array = player.get("injuries", []) as Array
+	for injury_entry in injuries:
+		var injury: Dictionary = injury_entry as Dictionary
+		if injury.get("career_ending", false):
+			return true
+
 	var cfg: Dictionary = main_cfg.get("retirement", {}) as Dictionary
 	var age := int(player.get("age", 18))
 	var min_age := int(cfg.get("min_age", 27))
