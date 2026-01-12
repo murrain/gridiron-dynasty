@@ -192,5 +192,20 @@ static func sort_players_by_rating(players: Array, ascending: bool = false, in_p
 
 ## Get player's full name
 ## Returns formatted "FirstName LastName" string
+##
+## Handles two name formats:
+## 1. Separate fields: first_name + last_name (Player model format)
+## 2. Combined field: name (PlayerGenerator format)
 static func get_player_name(player: Dictionary) -> String:
-	return "%s %s" % [player.get("first_name", ""), player.get("last_name", "")]
+	# Try separate first_name/last_name fields first (Player model format)
+	if player.has("first_name") or player.has("last_name"):
+		var first := String(player.get("first_name", ""))
+		var last := String(player.get("last_name", ""))
+		if not first.is_empty() or not last.is_empty():
+			return "%s %s" % [first, last]
+
+	# Fall back to combined name field (PlayerGenerator format)
+	if player.has("name"):
+		return String(player.get("name", ""))
+
+	return "Unknown"

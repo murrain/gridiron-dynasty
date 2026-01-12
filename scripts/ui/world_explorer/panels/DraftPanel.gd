@@ -173,10 +173,16 @@ func _populate_draft_prospects() -> void:
 	if not current_search.is_empty():
 		prospects_with_grades = prospects_with_grades.filter(func(p):
 			var player = p.player
-			var first = player.get("first_name", "").to_lower()
-			var last = player.get("last_name", "").to_lower()
-			var full = (first + " " + last).to_lower()
-			return full.contains(current_search) or first.contains(current_search) or last.contains(current_search)
+			# Handle both name formats: separate first/last or combined name field
+			var search_text := ""
+			if player.has("first_name") or player.has("last_name"):
+				var first = player.get("first_name", "").to_lower()
+				var last = player.get("last_name", "").to_lower()
+				search_text = (first + " " + last).to_lower()
+			elif player.has("name"):
+				search_text = player.get("name", "").to_lower()
+
+			return search_text.contains(current_search)
 		)
 
 	# Limit to top N prospects
