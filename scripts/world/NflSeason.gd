@@ -5,6 +5,7 @@ const Rand = preload("res://autoloads/Rand.gd")
 const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
+const TradeGenerator = preload("res://scripts/world/TradeGenerator.gd")
 
 ## Runs the NFL season simulation for a given year.
 ##
@@ -13,11 +14,13 @@ const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.
 ## - Retirement decisions
 ## - Contract expiration tracking
 ## - Free agency pool management
+## - Trade generation and execution
 ##
 ## Returns:
 ##   - roster_counts: Player counts per team after season
 ##   - retirements: Number of players who retired
 ##   - free_agents: Number of players entering free agency
+##   - trades: Number of trades executed
 ##   - step_seeds: Dictionary of seeds used for determinism tracking
 func run(
 	world_state: Dictionary,
@@ -49,6 +52,8 @@ func run(
 	context_rng.seed = Rand.splitmix64(seed ^ 0x5EA50002)
 	var retirement_rng := RandomNumberGenerator.new()
 	retirement_rng.seed = Rand.splitmix64(seed ^ 0x5EA50003)
+	var trade_rng := RandomNumberGenerator.new()
+	trade_rng.seed = Rand.splitmix64(seed ^ 0x7RADE001)
 
 	# OPTIMIZATION (F6): Pre-extract config values once for all teams
 	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
@@ -56,6 +61,7 @@ func run(
 
 	var total_retirements := 0
 	var total_free_agents := 0
+	var total_trades := 0
 	var roster_counts := {}
 	var new_free_agents: Array = []
 	var new_retirees: Array = []
@@ -152,16 +158,53 @@ func run(
 	free_agents[year] = new_free_agents
 	world_state["free_agents"] = free_agents
 
+	# Trade phase (after roster management, before return)
+	if not options.get("skip_trades", false):
+		var trade_cfg: Dictionary = main_cfg.get("trades", {}) as Dictionary
+
+		# Only run trades if enabled in config
+		if trade_cfg.get("enabled", true):
+			var trade_result := TradeGenerator.generate_trades(
+				world_state,
+				year,
+				trade_rng,
+				positions_cfg,
+				main_cfg,
+				trade_cfg,
+				options
+			)
+
+			total_trades = int(trade_result.get("executed", 0))
+
+			# Update trade history
+			if not world_state.has("trade_history"):
+				world_state["trade_history"] = []
+			var history: Array = world_state["trade_history"] as Array
+			history.append_array(trade_result.get("executed_trades", []) as Array)
+			world_state["trade_history"] = history
+
+			# Rosters have been updated by TradeGenerator, so recalculate counts
+			rosters = world_state.get("nfl_rosters", {}) as Dictionary
+			roster_counts = {}
+			for team in teams:
+				var t: Dictionary = team
+				var team_id := String(t.get("id", ""))
+				var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
+				var players: Array = roster.get("players", []) as Array
+				roster_counts[team_id] = players.size()
+
 	return {
 		"year": year,
 		"roster_counts": roster_counts,
 		"total_players": _sum_roster_counts(roster_counts),
 		"retirements": total_retirements,
 		"free_agents": total_free_agents,
+		"trades": total_trades,
 		"step_seeds": {
 			"lifecycle": lifecycle_rng.seed,
 			"context": context_rng.seed,
-			"retirement": retirement_rng.seed
+			"retirement": retirement_rng.seed,
+			"trades": trade_rng.seed
 		}
 	}
 

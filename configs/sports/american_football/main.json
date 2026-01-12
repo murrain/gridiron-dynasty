@@ -83,6 +83,110 @@
         "low_rating_threshold": 55.0,
         "low_rating_boost": 0.08
     },
+    "injury": {
+        "base_chance": 0.12,
+        "proneness_slope": 0.15,
+        "types": [
+            {
+                "type": "hamstring",
+                "weight": 0.20,
+                "severity_min": 1.0,
+                "severity_max": 2.0,
+                "affected_stats": ["speed", "acceleration", "agility"],
+                "recovery_years_min": 0,
+                "recovery_years_max": 1,
+                "long_term_cap": 0.95,
+                "long_term_decline_mult": 1.05
+            },
+            {
+                "type": "knee",
+                "weight": 0.15,
+                "severity_min": 2.0,
+                "severity_max": 3.0,
+                "affected_stats": ["speed", "agility", "acceleration", "strength"],
+                "recovery_years_min": 1,
+                "recovery_years_max": 2,
+                "long_term_cap": 0.90,
+                "long_term_decline_mult": 1.10
+            },
+            {
+                "type": "shoulder",
+                "weight": 0.12,
+                "severity_min": 1.0,
+                "severity_max": 2.5,
+                "affected_stats": ["throw_power", "throw_accuracy", "strength"],
+                "recovery_years_min": 0,
+                "recovery_years_max": 1,
+                "long_term_cap": 0.92,
+                "long_term_decline_mult": 1.08
+            },
+            {
+                "type": "concussion",
+                "weight": 0.10,
+                "severity_min": 1.0,
+                "severity_max": 3.0,
+                "affected_stats": ["awareness", "decision_making", "reaction_time"],
+                "recovery_years_min": 0,
+                "recovery_years_max": 1,
+                "long_term_cap": 0.93,
+                "long_term_decline_mult": 1.12,
+                "cumulative_penalty": 0.05
+            },
+            {
+                "type": "ankle",
+                "weight": 0.18,
+                "severity_min": 0.5,
+                "severity_max": 1.5,
+                "affected_stats": ["agility", "balance", "acceleration"],
+                "recovery_years_min": 0,
+                "recovery_years_max": 1,
+                "long_term_cap": 0.96,
+                "long_term_decline_mult": 1.03
+            },
+            {
+                "type": "back",
+                "weight": 0.08,
+                "severity_min": 1.5,
+                "severity_max": 3.0,
+                "affected_stats": ["strength", "speed", "agility"],
+                "recovery_years_min": 1,
+                "recovery_years_max": 2,
+                "long_term_cap": 0.88,
+                "long_term_decline_mult": 1.15,
+                "career_ending_chance": 0.03
+            },
+            {
+                "type": "minor",
+                "weight": 0.17,
+                "severity_min": 0.3,
+                "severity_max": 1.0,
+                "affected_stats": [],
+                "recovery_years_min": 0,
+                "recovery_years_max": 0,
+                "long_term_cap": 1.0,
+                "long_term_decline_mult": 1.0
+            }
+        ],
+        "position_multipliers": {
+            "RB": 1.25,
+            "WR": 1.10,
+            "TE": 1.15,
+            "QB": 0.85,
+            "OL": 1.20,
+            "DL": 1.30,
+            "EDGE": 1.25,
+            "LB": 1.20,
+            "CB": 1.10,
+            "S": 1.15,
+            "K": 0.30,
+            "P": 0.30
+        },
+        "durability_trait_modifiers": {
+            "injury_prone": 1.40,
+            "durable": 0.65,
+            "iron_man": 0.40
+        }
+    },
     "draft_class_year_offset": 8,
     "deage": {
         "core_pct_min": 0.6,
@@ -271,5 +375,12 @@
             },
             "cap_specialists_to_3_stars": true
         }
+    },
+    "trades": {
+        "enabled": true,
+        "max_trades_per_year": 15,
+        "acceptance_threshold": 1.05,
+        "min_roster_size_after_trade": 45,
+        "max_trades_per_team": 3
     }
 }
