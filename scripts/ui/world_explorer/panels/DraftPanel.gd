@@ -159,6 +159,10 @@ func _populate_draft_prospects() -> void:
 	# Sort by grade (highest first)
 	prospects_with_grades.sort_custom(func(a, b): return a.grade > b.grade)
 
+	# Assign overall ranks BEFORE filtering (this is the rank in the entire draft class)
+	for i in range(prospects_with_grades.size()):
+		prospects_with_grades[i]["overall_rank"] = i + 1
+
 	# Apply position filter
 	if current_position != "All":
 		prospects_with_grades = prospects_with_grades.filter(func(p):
@@ -203,11 +207,9 @@ func _populate_draft_prospects() -> void:
 		var prospect_data = prospects_with_grades[i]
 		var player = prospect_data.player
 		var grade = prospect_data.grade
+		var overall_rank = prospect_data.overall_rank  # Use pre-calculated overall rank
 
 		var item = content_list.create_item(root)
-
-		# Calculate overall rank
-		var overall_rank = i + 1
 
 		# Calculate positional rank
 		var pos = player.get("position", "?")
@@ -217,11 +219,13 @@ func _populate_draft_prospects() -> void:
 			pos_counters[pos] += 1
 		var pos_rank = pos_counters[pos]
 
-		# Format rank display
+		# Format rank display - ALWAYS show overall rank
+		# When filtering by position, show: #15 (overall rank in entire class)
+		# When showing all, show: #15 QB3 (overall rank + positional rank)
 		var rank_text = "#%d" % overall_rank
 		if current_position == "All":
 			# Show both overall and positional rank
-			rank_text = "#%d (%s%d)" % [overall_rank, pos, pos_rank]
+			rank_text = "#%d %s%d" % [overall_rank, pos, pos_rank]
 
 		item.set_text(0, rank_text)
 

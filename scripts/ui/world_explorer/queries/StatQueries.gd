@@ -22,9 +22,19 @@ const COLOR_AVERAGE = "#ffff00"
 const COLOR_BELOW_AVG = "#ffaa00"
 const COLOR_POOR = "#ff0000"
 
-## Calculate composite rating (simple average of all stats)
+## Calculate composite rating
 ## Returns float 0-100 representing overall player rating
+##
+## For draft-eligible players and rated recruits, uses pre-calculated composite_score
+## which includes position-specific weighting. Falls back to simple stat average
+## for players without composite_score.
 static func calculate_composite_rating(player: Dictionary) -> float:
+	# Use pre-calculated composite_score if available
+	# Draft-eligible players have this set by DraftClassGenerator with position weighting
+	if player.has("composite_score"):
+		return float(player.get("composite_score", 0.0))
+
+	# Fallback: simple average of all stats (for players without composite_score)
 	var stats = player.get("stats", {})
 	if stats.is_empty():
 		return 0.0
