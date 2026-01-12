@@ -95,6 +95,36 @@ Implement game systems and simulation logic that are correct, extensible, and te
   - Continue this cycle until 9.5/10+ is achieved
 - This standard ensures long-term project health and maintainability
 
+**MANDATORY Pre-Review Testing:**
+Before submitting to code-quality-reviewer, ALL implementations MUST pass:
+
+1. **Syntax/Compilation Check** (CRITICAL - catches parse errors):
+   ```bash
+   # Check each modified .gd file compiles without errors
+   godot --headless --check-only --script path/to/modified/file.gd
+   ```
+   - Run this for EVERY modified .gd file
+   - Zero tolerance for syntax errors - these must be fixed immediately
+   - If this fails, DO NOT proceed to code review
+
+2. **Unit Tests** (if applicable):
+   ```bash
+   # Run specific test suite
+   godot --headless -s scripts/tests/run_[feature]_test.gd
+   ```
+   - All tests must pass (no failures, no skips)
+   - Verify test output explicitly shows success
+
+3. **Integration Tests** (if applicable):
+   ```bash
+   # Run full test suite to check for regressions
+   godot --headless -s scripts/tests/TestRunner.gd
+   ```
+   - Verify no regressions in existing functionality
+   - Check that new functionality integrates correctly
+
+**Failure at ANY step means code is NOT ready for review.**
+
 **Must NOT:**
 - Bypass established models or time systems
 - Hardcode league rules, magic numbers, or tier distributions
@@ -123,6 +153,10 @@ Protect code quality and project coherence through rigorous review standards.
 - Re-review after fixes are implemented to verify improvements
 
 **Responsibilities:**
+- **FIRST**: Verify all modified .gd files compile without syntax errors
+  - Run: `godot --headless --check-only --script path/to/file.gd`
+  - If ANY file has syntax errors, IMMEDIATELY reject with score 0/10
+  - No review proceeds until all files compile cleanly
 - Review PRs for:
   - Clarity and maintainability
   - Correct abstractions and separation of concerns
@@ -220,6 +254,12 @@ If agents disagree:
 - Do NOT merge until this standard is met
 
 Before approving or merging, verify:
+
+**Compilation (MANDATORY FIRST STEP):**
+- ALL modified .gd files compile without syntax errors
+- Run: `godot --headless --check-only --script path/to/file.gd` for each modified file
+- **BLOCKER**: Any syntax error must be fixed before proceeding with review
+- This catches parse errors, invalid hex constants, type mismatches, etc.
 
 **Determinism:**
 - Is the system deterministic when seeded?
