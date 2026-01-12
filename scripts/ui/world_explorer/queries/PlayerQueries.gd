@@ -150,10 +150,15 @@ static func find_players_by_name(world_state: Dictionary, search_text: String) -
 
 	# Helper to check if player matches
 	var matches = func(player: Dictionary) -> bool:
-		var first = player.get("first_name", "").to_lower()
-		var last = player.get("last_name", "").to_lower()
-		var full = (first + " " + last).to_lower()
-		return full.contains(search_lower) or first.contains(search_lower) or last.contains(search_lower)
+		# Handle both name formats: separate first/last or combined name field
+		var search_name := ""
+		if player.has("first_name") or player.has("last_name"):
+			var first = player.get("first_name", "").to_lower()
+			var last = player.get("last_name", "").to_lower()
+			search_name = (first + " " + last).to_lower()
+		elif player.has("name"):
+			search_name = player.get("name", "").to_lower()
+		return search_name.contains(search_lower)
 
 	# Search all collections
 	results.append_array(get_all_nfl_players(world_state).filter(matches))
@@ -202,7 +207,8 @@ static func get_player_name(player: Dictionary) -> String:
 		var first := String(player.get("first_name", ""))
 		var last := String(player.get("last_name", ""))
 		if not first.is_empty() or not last.is_empty():
-			return "%s %s" % [first, last]
+			# Join parts with space, strip leading/trailing whitespace
+			return (first + " " + last).strip_edges()
 
 	# Fall back to combined name field (PlayerGenerator format)
 	if player.has("name"):

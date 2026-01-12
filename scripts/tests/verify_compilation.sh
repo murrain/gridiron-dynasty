@@ -140,12 +140,15 @@ done
 
 rm -f "$ERRORS_FILE"
 
-# Save cache
+# Save cache atomically
 if [ "$CHECK_ALL" = false ]; then
-    > "$CACHE_FILE"  # Clear cache file
-    for file_path in "${!FILE_CACHE[@]}"; do
-        echo "$file_path|${FILE_CACHE[$file_path]}" >> "$CACHE_FILE"
+    TEMP_CACHE=$(mktemp)
+    # Sort keys for consistent ordering across runs
+    for file_path in $(printf '%s\n' "${!FILE_CACHE[@]}" | sort); do
+        echo "$file_path|${FILE_CACHE[$file_path]}" >> "$TEMP_CACHE"
     done
+    # Atomic replace - mv is atomic on same filesystem
+    mv "$TEMP_CACHE" "$CACHE_FILE"
 fi
 
 echo ""
