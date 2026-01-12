@@ -100,7 +100,8 @@ func from_dict(d: Dictionary) -> void:
 	position = String(d.get("position", position))
 	age = int(d.get("age", age))
 	class_tag = String(d.get("class_tag", class_tag))
-	jersey_number = int(d.get("jersey_number", jersey_number))
+	# Valid range: 0-99 (0 = unassigned)
+	jersey_number = clampi(int(d.get("jersey_number", jersey_number)), 0, 99)
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
@@ -148,7 +149,8 @@ func from_dict(d: Dictionary) -> void:
 	var awards_data: Dictionary = d.get("career_awards", {}) as Dictionary
 	if not awards_data.is_empty():
 		for award_key in awards_data.keys():
-			career_awards[award_key] = int(awards_data[award_key])
+			# Ensure non-negative integers
+			career_awards[award_key] = max(0, int(awards_data[award_key]))
 
 func to_dict() -> Dictionary:
 	return {

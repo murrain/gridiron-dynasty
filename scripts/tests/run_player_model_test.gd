@@ -1,3 +1,7 @@
+## Test runner for Player model
+##
+## Usage: godot --headless --script scripts/tests/run_player_model_test.gd
+## Exit code: 0 = all tests passed, 1 = failures detected
 extends SceneTree
 
 const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")

@@ -3,8 +3,9 @@
 extends Resource
 class_name DepthChart
 
-# Position depth chart mapping
-# Structure: {"QB": ["player_id_1", "player_id_2"], "RB": ["player_id_3", "player_id_4"], ...}
+## Maps position name to ordered array of player IDs (starter first)
+## Structure: Dictionary[String, Array[String]]
+## Example: {"QB": ["player_001", "player_002"], "RB": ["player_003"]}
 @export var position_depths: Dictionary = {}
 
 # --- Core Methods ---
