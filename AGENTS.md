@@ -293,7 +293,8 @@ Contribute across areas while respecting current phase focus and existing archit
 **Pre-commit Hook**:
 - Automatically runs compilation verification before allowing commits
 - Prevents syntax errors from entering the repository
-- Located at `.git/hooks/pre-commit`
+- **Installation required**: Run `./scripts/hooks/install.sh` after cloning
+- Hook source: `scripts/hooks/pre-commit` (tracked in version control)
 - To test manually: `./scripts/tests/verify_compilation.sh`
 
 ## Phased Development Awareness
