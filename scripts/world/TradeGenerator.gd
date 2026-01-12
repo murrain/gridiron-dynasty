@@ -15,6 +15,12 @@ const PlayerValue = preload("res://scripts/core/valuation/PlayerValue.gd")
 ##   4. Evaluate with TradeDecision
 ##   5. Execute accepted trades
 ##
+## MUTATION CONTRACT:
+##   - This generator mutates world_state["nfl_rosters"] IN PLACE
+##   - Rosters are large data structures (~1700 players) - copying is expensive
+##   - Trade history is returned but NOT persisted - caller handles history
+##   - This hybrid approach balances performance (no copy) with clarity (return history)
+##
 ## Determinism:
 ##   - All RNG consumption explicit via passed rng parameter
 ##   - Same seed produces identical trades
@@ -22,6 +28,20 @@ const PlayerValue = preload("res://scripts/core/valuation/PlayerValue.gd")
 ## RNG consumption:
 ##   - 2 calls per team pair attempt (team selection)
 ##   - Total: ~(max_attempts * 2) calls per season
+##
+## Returns:
+##   Dictionary with trade results:
+##     - "executed_trades": Array of executed trades
+##     - "rejected_trades": Array of rejected trade attempts
+##     - "executed": Number of executed trades
+##     - "rejected": Number of rejected trades
+##     - "attempts": Total number of trade attempts made
+##
+## Side effects:
+##   - MUTATES world_state["nfl_rosters"] directly via _execute_trade()
+##   - Roster changes are immediate and persist in passed world_state
+##   - Does NOT mutate world_state["trade_history"] - caller must persist results
+##   - Pattern: Mutates operational data (rosters), returns historical data (trade log)
 static func generate_trades(
 	world_state: Dictionary,
 	year: int,
@@ -59,7 +79,7 @@ static func generate_trades(
 	var executed_trades: Array = []
 	var rejected_trades: Array = []
 	var attempts := 0
-	var max_attempts := max_trades_per_year * 10  # Allow multiple attempts
+	var max_attempts := max_trades_per_year * 10  # Allow 10x attempts to account for rejection rate
 
 	# Track which teams have already traded to avoid excessive activity
 	var teams_traded: Dictionary = {}
@@ -229,11 +249,11 @@ static func _assess_team_needs(
 			# Need score: 0.5 (surplus) to 2.0 (desperate need)
 			var need_score := 1.0
 			if current_depth < ideal_depth:
-				# Deficit: score increases above 1.0
+				# Deficit increases need linearly (1.0 + ratio)
 				var deficit_ratio := float(ideal_depth - current_depth) / float(ideal_depth)
 				need_score = 1.0 + deficit_ratio
 			elif current_depth > ideal_depth:
-				# Surplus: score decreases below 1.0
+				# Surplus decreases need conservatively (0.5x multiplier prevents fire sales)
 				var surplus_ratio := float(current_depth - ideal_depth) / float(max(ideal_depth, 1))
 				need_score = 1.0 - (surplus_ratio * 0.5)
 
@@ -359,12 +379,15 @@ static func _generate_offer(
 	if offering_players.size() - 1 < min_roster_size:
 		return null
 
-	# Create simple 1-for-1 trade offer (player-for-player)
-	# For now, we're doing player-for-nothing (team gives away surplus)
-	# In advanced version, we'd find a matching player from receiving team
+	# Phase 1: Generate simple 1-for-nothing offers where team gives away surplus
+	# This conservative approach ensures "trades only happen when they make sense"
+	# Future phases will add:
+	#   - Player-for-player trades (Milestone 2.4)
+	#   - Player-for-pick trades (Milestone 2.4)
+	# Currently generates zero trades in normal conditions - this is intentional
 	return {
 		"send_player_ids": [player_to_trade_id],
-		"receive_player_ids": [],
+		"receive_player_ids": [],  # Phase 1: no return compensation
 		"send_picks": [],
 		"receive_picks": [],
 		"from_team": offering_team_id,
