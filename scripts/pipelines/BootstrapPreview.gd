@@ -36,6 +36,9 @@ func run() -> Dictionary:
 	var summary: Dictionary = result.get("summary", {})
 	var current_year := int(result.get("start_year", 0))
 
+	# Add current_year to world_state for WorldExplorer
+	world_state["current_year"] = current_year
+
 	_emit_output("🏈 Bootstrapped game world (%d years)" % bootstrap.years_to_simulate)
 	_emit_output("Current year: %d" % current_year)
 	_emit_output("")
@@ -85,10 +88,11 @@ func _launch_world_explorer(world_state: Dictionary) -> void:
 	# Add explorer to the scene tree
 	get_tree().root.add_child(explorer)
 
-	# Hide this bootstrap preview window
-	var parent = get_parent()
-	if parent:
-		parent.visible = false
+	# Hide this bootstrap preview window (only in GUI mode, not headless)
+	if DisplayServer.get_name() != "headless":
+		var parent = get_parent()
+		if parent:
+			parent.visible = false
 
 	print("World Explorer launched successfully!")
 

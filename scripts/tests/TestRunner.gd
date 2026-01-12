@@ -16,6 +16,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_high_school_assignment.gd",
 	"res://scripts/tests/test_player_lifecycle.gd",
 	"res://scripts/tests/test_player_lifecycle_reports.gd",
+	"res://scripts/tests/test_player_growth_trajectories.gd",
 	"res://scripts/tests/test_parallel_lifecycle.gd",
 	"res://scripts/tests/test_copy_optimization.gd",
 	"res://scripts/tests/test_world_calendar.gd",
@@ -52,7 +53,11 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_cap_validation_flow.gd",
 	"res://scripts/tests/test_trade_valuation.gd",
 	"res://scripts/tests/test_phase4_scaffolding.gd",
-	"res://scripts/tests/test_bootstrap_game_world.gd"
+	"res://scripts/tests/test_bootstrap_game_world.gd",
+	"res://scripts/tests/test_a3_2_player_of_year_awards.gd",
+	"res://scripts/tests/test_a3_3_all_pro_selections.gd",
+	"res://scripts/tests/test_a3_4_pro_bowl_rosters.gd",
+	"res://scripts/tests/test_a3_8_rookie_of_year.gd"
 ]
 
 func _init() -> void:

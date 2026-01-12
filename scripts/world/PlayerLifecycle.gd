@@ -738,10 +738,26 @@ static func _development_modifiers(development_context: Dictionary) -> Dictionar
 		"rehab_quality": float(development_context.get("rehab_quality", 1.0))
 	}
 
+## Combines multiple development context modifiers into final multiplier
+##
+## Uses ADDITIVE deviation system to prevent multiplicative stacking penalties.
+## Example: [0.8, 0.8, 0.8] → deviations [-0.2, -0.2, -0.2] → sum -0.6 → clamped 0.7
+##
+## @param modifiers: Dictionary of context modifiers (program_quality, usage, etc.)
+## @return float: Combined multiplier in range [0.7, 1.4]
 static func _combined_multiplier(modifiers: Dictionary) -> float:
-	var combined := 1.0
+	# Sum deviations from 1.0 (additive, not multiplicative)
+	var total_deviation := 0.0
 	for value in modifiers.values():
-		combined *= float(value)
+		total_deviation += (float(value) - 1.0)
+
+	# Apply deviation to base (1.0) and clamp to prevent extremes
+	var combined := 1.0 + total_deviation
+
+	# CAP: Never below 0.7 (30% reduction max) or above 1.4 (40% bonus max)
+	# Floor of 0.7 ensures players in average programs reach ~80% of potential
+	combined = clamp(combined, 0.7, 1.4)
+
 	return combined
 
 ## Fallback wear update using dictionary lookups.
