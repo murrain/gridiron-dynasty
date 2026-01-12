@@ -358,6 +358,13 @@ func _score_draft_pool(
 	var scored: Array = []
 	var phase := "draft_round_%d" % round_num
 
+	# Extract position_value multipliers from class_rules (legacy market value)
+	var recruiting_cfg: Dictionary = class_rules.get("recruiting", {}) as Dictionary
+	var position_values: Dictionary = recruiting_cfg.get("position_value", {}) as Dictionary
+
+	# Extract draft_position_strategy (new tier-based system)
+	var draft_strategy: Dictionary = class_rules.get("draft_position_strategy", {})
+
 	for player in candidates:
 		var p: Dictionary = player
 		var position := String(p.get("position", ""))
@@ -374,15 +381,44 @@ func _score_draft_pool(
 			base_seed
 		)
 
-		# Apply position need weighting
+		# Calculate overall rating for position tier logic (generational check)
+		var overall_rating := PlayerRatingCalculator.calculate_overall_rating(
+			p, positions_cfg, class_rules
+		)
+
+		# Apply position tier multiplier based on round and position
+		# This implements tier-based draft strategy (premium/standard/devalued positions)
+		# and overrides legacy position_value for more realistic draft behavior
+		var position_tier_mult := _get_position_tier_multiplier(
+			position,
+			round_num,
+			overall_rating,
+			draft_strategy
+		)
+
+		# Apply position value multiplier (legacy market value, still used for within-tier rankings)
+		var position_value_mult := float(position_values.get(position, 1.0))
+
+		# Apply position need weighting with round-based scaling
+		# Early rounds (1-2): Need is minor factor (Best Player Available philosophy)
+		# Later rounds (3+): Need becomes more important (fill roster gaps)
 		var need_mult := float(needs.get(position, 1.0))
-		var weighted_score := base_score * need_mult
+		var need_weight := 0.15 if round_num <= 2 else 0.30  # 15% weight in rounds 1-2, 30% in later rounds
+		var need_adjustment := 1.0 + (need_mult - 1.0) * need_weight
+
+		# Final weighted score: position tier is primary, position value is secondary, need is tertiary
+		# Order: tier > market value > need
+		# This ensures premium positions (QB, EDGE, OL, CB) dominate round 1
+		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment
 
 		scored.append({
 			"player": p,
 			"score": weighted_score,
 			"base_score": base_score,
-			"need_mult": need_mult
+			"position_tier_mult": position_tier_mult,
+			"position_value_mult": position_value_mult,
+			"need_mult": need_mult,
+			"overall_rating": overall_rating
 		})
 
 	# Sort by weighted score descending
@@ -391,6 +427,57 @@ func _score_draft_pool(
 	)
 
 	return scored
+
+
+## Gets position tier multiplier based on draft round and position.
+##
+## Premium positions (QB, EDGE, OL, CB) receive bonuses in early rounds.
+## Devalued positions (RB, TE, S) receive penalties in early rounds unless generational talent.
+## Special teams positions (K, P) are heavily penalized in all early rounds.
+##
+## RNG Note: This function is deterministic and does not consume RNG.
+## It performs pure configuration lookups based on position and round.
+##
+## @param position: Player position (e.g., "QB", "RB", "OL")
+## @param round: Current draft round (1-7)
+## @param player_rating: Player's overall rating (for generational threshold check)
+## @param draft_strategy: Configuration from class_rules["draft_position_strategy"]
+## @return float: Multiplier to apply to draft score (0.3 to 1.4)
+static func _get_position_tier_multiplier(
+	position: String,
+	round: int,
+	player_rating: float,
+	draft_strategy: Dictionary
+) -> float:
+	var generational_threshold := float(draft_strategy.get("generational_threshold", 78.0))
+
+	# Generational talents (78+ rating) overcome position penalties
+	# This allows elite RB/TE/S to go in round 1 despite position devaluation
+	# EXCEPTION: K/P never get generational override (no kicker is worth a top pick)
+	if player_rating >= generational_threshold and position not in ["K", "P"]:
+		return 1.2  # 20% bonus for truly elite players
+
+	var position_tiers: Dictionary = draft_strategy.get("position_tiers", {})
+
+	# Find which tier this position belongs to
+	for tier_name in position_tiers.keys():
+		var tier: Dictionary = position_tiers[tier_name]
+		var tier_positions: Array = tier.get("positions", [])
+
+		if position in tier_positions:
+			# Apply round-specific multiplier
+			# Check both "bonus" and "penalty" keys for flexibility
+			if round == 1:
+				return float(tier.get("round_1_bonus", tier.get("round_1_penalty", 1.0)))
+			elif round == 2:
+				return float(tier.get("round_2_bonus", tier.get("round_2_penalty", 1.0)))
+			elif round == 3:
+				return float(tier.get("round_3_bonus", tier.get("round_3_penalty", 1.0)))
+			else:
+				return float(tier.get("round_4_plus_bonus", tier.get("round_4_plus_penalty", 1.0)))
+
+	# Default: no modifier for unlisted positions
+	return 1.0
 
 
 func _calculate_position_needs(roster: Dictionary, positions_cfg: Dictionary) -> Dictionary:

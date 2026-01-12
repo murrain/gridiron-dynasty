@@ -738,34 +738,25 @@ static func _development_modifiers(development_context: Dictionary) -> Dictionar
 		"rehab_quality": float(development_context.get("rehab_quality", 1.0))
 	}
 
-## Calculate combined development multiplier with capping to prevent extreme stacking.
+## Combines multiple development context modifiers into final multiplier
 ##
-## CRITICAL FIX: Multipliers were stacking multiplicatively causing crushing growth penalties.
-## Example: 0.8 × 0.8 × 0.8 × 0.8 × 0.8 = 0.33x (67% reduction!)
+## Uses ADDITIVE deviation system to prevent multiplicative stacking penalties.
+## Example: [0.8, 0.8, 0.8] → deviations [-0.2, -0.2, -0.2] → sum -0.6 → clamped 0.7
 ##
-## Solution: Cap combined multiplier at 0.6 minimum (40% reduction max) and 1.4 maximum (40% bonus max).
-## This ensures:
-##   - Worst-case contexts still allow meaningful development
-##   - Best-case contexts don't cause runaway growth
-##   - Players in average programs reach ~80% of potential by NFL entry
-##
-## RNG Consumption: None (deterministic calculation)
-##
-## @param modifiers: Dictionary of multiplier values (program_quality, coach_specialization, usage, competition_tier, rehab_quality)
-## @return: Combined multiplier clamped to [0.6, 1.4]
+## @param modifiers: Dictionary of context modifiers (program_quality, usage, etc.)
+## @return float: Combined multiplier in range [0.7, 1.4]
 static func _combined_multiplier(modifiers: Dictionary) -> float:
-	var combined := 1.0
+	# Sum deviations from 1.0 (additive, not multiplicative)
+	var total_deviation := 0.0
 	for value in modifiers.values():
-		combined *= float(value)
+		total_deviation += (float(value) - 1.0)
 
-	# CAP: Never let combined multiplier drop below 0.7 (30% reduction max)
-	# This prevents scenarios like poor HS + bench player from crushing development
-	# Testing showed 0.6 was still too punishing for average programs to reach 80% of potential
-	combined = max(combined, 0.7)
+	# Apply deviation to base (1.0) and clamp to prevent extremes
+	var combined := 1.0 + total_deviation
 
-	# CAP: Never let combined multiplier exceed 1.5 (50% bonus max)
-	# This prevents elite programs + starter + specialist from causing runaway growth
-	combined = min(combined, 1.5)
+	# CAP: Never below 0.7 (30% reduction max) or above 1.4 (40% bonus max)
+	# Floor of 0.7 ensures players in average programs reach ~80% of potential
+	combined = clamp(combined, 0.7, 1.4)
 
 	return combined
 
