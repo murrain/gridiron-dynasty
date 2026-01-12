@@ -177,10 +177,15 @@ func _populate_all_players() -> void:
 	if not current_search.is_empty():
 		# Search in name
 		var matches = func(p: Dictionary) -> bool:
-			var first = p.get("first_name", "").to_lower()
-			var last = p.get("last_name", "").to_lower()
-			var full = (first + " " + last).to_lower()
-			return full.contains(current_search) or first.contains(current_search) or last.contains(current_search)
+			# Handle both name formats: separate first/last or combined name field
+			var search_text := ""
+			if p.has("first_name") or p.has("last_name"):
+				var first = p.get("first_name", "").to_lower()
+				var last = p.get("last_name", "").to_lower()
+				search_text = (first + " " + last).to_lower()
+			elif p.has("name"):
+				search_text = p.get("name", "").to_lower()
+			return search_text.contains(current_search)
 
 		all_players = all_players.filter(matches)
 
@@ -226,10 +231,15 @@ func _populate_players_by_position() -> void:
 	# Filter by search
 	if not current_search.is_empty():
 		var matches = func(p: Dictionary) -> bool:
-			var first = p.get("first_name", "").to_lower()
-			var last = p.get("last_name", "").to_lower()
-			var full = (first + " " + last).to_lower()
-			return full.contains(current_search) or first.contains(current_search) or last.contains(current_search)
+			# Handle both name formats: separate first/last or combined name field
+			var search_text := ""
+			if p.has("first_name") or p.has("last_name"):
+				var first = p.get("first_name", "").to_lower()
+				var last = p.get("last_name", "").to_lower()
+				search_text = (first + " " + last).to_lower()
+			elif p.has("name"):
+				search_text = p.get("name", "").to_lower()
+			return search_text.contains(current_search)
 
 		all_players = all_players.filter(matches)
 

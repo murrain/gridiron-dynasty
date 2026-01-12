@@ -2,13 +2,15 @@
 # Pre-commit hook: Automated compilation verification
 # Prevents commits with syntax errors from entering the repository
 # Part of testing process improvements (2026-01-12)
+#
+# Only checks staged files for fast pre-commit validation
 
 set -e
 
-echo "🔍 Running pre-commit compilation check..."
+echo "🔍 Running pre-commit compilation check (staged files only)..."
 
-# Run compilation verification
-./scripts/tests/verify_compilation.sh
+# Run compilation verification on staged files only
+./scripts/tests/verify_compilation.sh --staged
 
 if [ $? -ne 0 ]; then
     echo ""
@@ -20,6 +22,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "✅ Pre-commit check PASSED: All files compile successfully"
+echo "✅ Pre-commit check PASSED: All staged files compile successfully"
 echo ""
 exit 0
