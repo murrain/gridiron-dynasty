@@ -110,6 +110,12 @@ cd ..                              # Go to /home/user/
 mkdir -p workspaces/team-alpha     # Creates /home/user/workspaces/team-alpha
 ```
 
+**Keep the main repo clean:**
+- NEVER create temporary files, notes, or untracked items in the main repository
+- The main repo should always have a clean `git status`
+- For any temporary work (notes, scratch files, planning docs), use `<workspaces>/director/`
+- This prevents accidental commits of temporary files and keeps the reference copy pristine
+
 ### Workspace Lifecycle
 
 **Workspaces are ephemeral** - they exist only for the duration of the work:
