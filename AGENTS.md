@@ -106,6 +106,7 @@ Before submitting to code-quality-reviewer, ALL implementations MUST pass:
    - Run this for EVERY modified .gd file
    - Zero tolerance for syntax errors - these must be fixed immediately
    - If this fails, DO NOT proceed to code review
+   - NOTE: This does NOT catch all type errors (e.g., null assignments to typed variables)
 
 2. **Unit Tests** (if applicable):
    ```bash
@@ -114,14 +115,32 @@ Before submitting to code-quality-reviewer, ALL implementations MUST pass:
    ```
    - All tests must pass (no failures, no skips)
    - Verify test output explicitly shows success
+   - Tests must exercise actual code paths, not just type check
 
-3. **Integration Tests** (if applicable):
+3. **Integration/Runtime Tests** (CRITICAL - catches type errors, null handling):
+   ```bash
+   # For season/lifecycle changes, run actual simulation
+   godot --headless -s scripts/pipelines/BootstrapPreview.gd
+   # OR run relevant integration test
+   godot --headless -s scripts/tests/TestRunner.gd
+   ```
+   - MUST complete without runtime errors
+   - Catches type annotation errors that --check-only misses
+   - Validates null handling, array bounds, dictionary access
+   - If simulation crashes or errors, code is NOT ready
+   - Examples of errors caught: "Trying to assign value of type 'Nil' to Dictionary"
+
+4. **Full Test Suite** (for major changes):
    ```bash
    # Run full test suite to check for regressions
    godot --headless -s scripts/tests/TestRunner.gd
    ```
    - Verify no regressions in existing functionality
    - Check that new functionality integrates correctly
+
+**IMPORTANT**: Compilation checks alone are INSUFFICIENT. Runtime testing with actual
+data is required because many type errors (especially with nulls, arrays, and strict
+typing) only manifest during execution.
 
 **Failure at ANY step means code is NOT ready for review.**
 
@@ -157,6 +176,11 @@ Protect code quality and project coherence through rigorous review standards.
   - Run: `godot --headless --check-only --script path/to/file.gd`
   - If ANY file has syntax errors, IMMEDIATELY reject with score 0/10
   - No review proceeds until all files compile cleanly
+- **SECOND**: Verify runtime tests pass (CRITICAL for season/lifecycle changes)
+  - For season files, run: `godot --headless -s scripts/pipelines/BootstrapPreview.gd`
+  - For other changes, run relevant test suite
+  - If runtime errors occur (type errors, null assignments, crashes), reject with low score
+  - Compilation checks do NOT catch all type errors - runtime validation required
 - Review PRs for:
   - Clarity and maintainability
   - Correct abstractions and separation of concerns
