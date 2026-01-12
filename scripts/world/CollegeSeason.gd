@@ -125,6 +125,9 @@ func run(
 			p["college_eligibility_status"] = new_status
 
 			var is_draft_eligible := false
+			var player_rating := 0.0
+			var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
+
 			if new_year >= 4:
 				# Seniors: Only declare if rating meets threshold
 				# OPTIMIZATION: Draft Declaration Threshold (from BACKWARD_CLASS_SIZING.md)
@@ -133,8 +136,7 @@ func run(
 				total_graduates += 1
 				var draft_threshold_cfg: Dictionary = config.get("draft_declaration", {}) as Dictionary
 				var rating_threshold := float(draft_threshold_cfg.get("rating_threshold", 65.0))
-				var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
-				var player_rating := PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
+				player_rating = PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
 				if player_rating >= rating_threshold:
 					is_draft_eligible = true
 			elif new_year == 3:
@@ -142,10 +144,14 @@ func run(
 				if _check_early_declaration(p, early_decl_cfg, early_decl_rng, positions_cfg, main_cfg):
 					is_draft_eligible = true
 					total_early_declares += 1
+					# Calculate rating for early declares (used for draft grade display)
+					player_rating = PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
 
 			if is_draft_eligible:
 				p["draft_eligible"] = true
 				p["draft_year"] = year
+				# Store composite_score for UI display (draft grades, ratings, etc.)
+				p["composite_score"] = player_rating
 				draft_eligible.append(p)
 			else:
 				active.append(p)

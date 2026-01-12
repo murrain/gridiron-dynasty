@@ -81,6 +81,9 @@ static func format_nfl_team(team: Dictionary, world_state: Dictionary) -> String
 	# Roster demographics
 	bb += _format_roster_demographics(roster, "nfl")
 
+	# Full roster
+	bb += _format_full_roster(roster, "nfl")
+
 	# Top players
 	bb += "[b]Top 5 Players[/b]\n"
 	var sorted_roster = PlayerQueries.sort_players_by_rating(roster, false)
@@ -150,6 +153,9 @@ static func format_college(college: Dictionary, world_state: Dictionary) -> Stri
 	# Recruiting class strength (college only)
 	bb += _format_recruiting_class_strength(college, world_state)
 
+	# Full roster
+	bb += _format_full_roster(roster, "college")
+
 	# Top players
 	bb += "[b]Top 5 Players[/b]\n"
 	var sorted_roster = PlayerQueries.sort_players_by_rating(roster, false)
@@ -213,6 +219,9 @@ static func format_hs_school(school: Dictionary, world_state: Dictionary) -> Str
 
 	# Roster demographics
 	bb += _format_roster_demographics(roster, "hs")
+
+	# Full roster
+	bb += _format_full_roster(roster, "hs")
 
 	# Top players
 	bb += "[b]Top Players[/b]\n"
@@ -519,3 +528,130 @@ static func _format_recruiting_class_strength(college: Dictionary, world_state: 
 
 	bb += "\n"
 	return bb
+
+## Format full roster grouped by position
+##
+## Displays all players organized by position groups (Offense/Defense/Special Teams)
+## with name, position, rating, age, and experience information.
+##
+## Parameters:
+## - roster: Array of player Dictionaries
+## - level: "nfl", "college", or "hs" (determines experience format)
+##
+## Returns: BBCode string with full roster display
+##
+## Example output:
+## [b]Full Roster[/b]
+##
+## [b]Offense[/b]
+## [table=5]
+## [cell]Name[/cell][cell]Pos[/cell][cell]Rating[/cell][cell]Age[/cell][cell]Exp[/cell]
+## [cell]John Smith[/cell][cell]QB[/cell][cell][color=#00ff00]85[/color][/cell][cell]24[/cell][cell]3 yrs[/cell]
+## ...
+static func _format_full_roster(roster: Array, level: String) -> String:
+	if roster.is_empty():
+		return ""
+
+	var bb := "[b]Full Roster[/b]\n\n"
+
+	# Get position groups from RosterQueries
+	var groups = RosterQueries.get_position_groups(roster)
+
+	# Define position order for each group
+	var offense_positions = ["QB", "RB", "WR", "TE", "OL"]
+	var defense_positions = ["DL", "EDGE", "LB", "CB", "S"]
+	var special_positions = ["K", "P"]
+
+	# Format each group
+	var group_configs = [
+		{"name": "Offense", "key": "offense", "positions": offense_positions},
+		{"name": "Defense", "key": "defense", "positions": defense_positions},
+		{"name": "Special Teams", "key": "special_teams", "positions": special_positions}
+	]
+
+	for group_config in group_configs:
+		var group_name = group_config["name"]
+		var group_key = group_config["key"]
+		var positions = group_config["positions"]
+
+		var group_players = groups.get(group_key, [])
+		if group_players.is_empty():
+			continue
+
+		bb += "[b]%s[/b]\n" % group_name
+		bb += "[table=5]"
+		bb += "[cell]Name[/cell][cell]Pos[/cell][cell]Rating[/cell][cell]Age[/cell][cell]Exp[/cell]"
+
+		# OPTIMIZATION: Sort once, then group by position (avoids O(N×M) filter+sort pattern)
+		# Pre-sort all players by rating (highest first)
+		var sorted_by_rating = PlayerQueries.sort_players_by_rating(group_players, false)
+
+		# Group by position while maintaining sort order
+		var players_by_pos := {}
+		for player in sorted_by_rating:
+			var pos = player.get("position", "?")
+			if not players_by_pos.has(pos):
+				players_by_pos[pos] = []
+			players_by_pos[pos].append(player)
+
+		# Display in position order
+		for pos in positions:
+			if not players_by_pos.has(pos):
+				continue
+
+			# Format each player row (already sorted by rating)
+			for player in players_by_pos[pos]:
+				var name = PlayerQueries.get_player_name(player)
+				var position = player.get("position", "?")
+				var rating = StatQueries.calculate_composite_rating(player)
+				var color = StatQueries.get_stat_color_hex(rating)
+				var age = player.get("age", 0)
+				var exp_text = _format_experience(player, level)
+
+				bb += "[cell]%s[/cell][cell]%s[/cell][cell][color=%s]%.0f[/color][/cell][cell]%d[/cell][cell]%s[/cell]" % [
+					name,
+					position,
+					color,
+					rating,
+					age,
+					exp_text
+				]
+
+		bb += "[/table]\n\n"
+
+	return bb
+
+## Format experience text based on level
+##
+## Parameters:
+## - player: Player Dictionary
+## - level: "nfl", "college", or "hs"
+##
+## Returns: Formatted experience string
+static func _format_experience(player: Dictionary, level: String) -> String:
+	match level.to_lower():
+		"nfl":
+			var years = player.get("nfl_years", 0)
+			if years == 0:
+				return "Rookie"
+			elif years == 1:
+				return "1 yr"
+			else:
+				return "%d yrs" % years
+
+		"college":
+			var year = player.get("college_year", 0)
+			match year:
+				1: return "FR"
+				2: return "SO"
+				3: return "JR"
+				4: return "SR"
+				5: return "5Y"
+				_: return "?"
+
+		"hs", "high_school":
+			var year = player.get("hs_year", 0)
+			return "Y%d" % year if year > 0 else "?"
+
+		_:
+			return "?"
