@@ -24,31 +24,40 @@ This file defines:
                     │  Manager)   │
                     └──────┬──────┘
                            │
+                           │ spawns
+                           │
            ┌───────────────┼───────────────┐
            │               │               │
      ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
-     │  TEAM A   │   │  TEAM B   │   │  TEAM N   │
+     │ Architect │   │ Architect │   │ Architect │
+     │  (Team A) │   │  (Team B) │   │  (Team N) │
      └─────┬─────┘   └─────┬─────┘   └─────┬─────┘
            │               │               │
-    ┌──────┴──────┐ ┌──────┴──────┐ ┌──────┴──────┐
-    │  Architect  │ │  Architect  │ │  Architect  │
-    └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
+           │ spawns        │ spawns        │ spawns
            │               │               │
-    ┌──────┼──────┐        │               │
-    │      │      │        │               │
-   Eng1  Eng2  Eng3      ...             ...
+    ┌──────┼──────┐ ┌──────┼──────┐        │
+    │      │      │ │      │      │        │
+   Eng1  Eng2  Eng3 Eng1  Eng2  ...      ...
     │      │      │
     └──────┼──────┘
+           │ assigns
            │
     ┌──────▼──────┐
     │  Reviewer   │
     └─────────────┘
 ```
 
-**Standard Team Composition:**
-- 1 Architect Agent (designs approach, splits work, verifies integration)
-- 3 Engineer Agents (implement in parallel)
-- 1 Review Agent (reviews all code before merge)
+**Spawning Chain:**
+- **Director** spawns **Architect(s)** with work packages
+- **Architect** spawns **Engineer(s)** as needed (1-5 based on work scope)
+- **Architect** spawns **Reviewer(s)** when code is ready (to avoid bottlenecks)
+- **Reviewers** can be reused across multiple engineer submissions
+
+**Dynamic Team Scaling:**
+- Architect determines Engineer count based on work decomposition
+- Multiple Reviewers can run in parallel if engineers finish at different times
+- Example: Engineers 1 & 2 finish → spawn 2 Reviewers; Engineer 3 finishes → reuse idle Reviewer
+- This prevents review bottlenecks and maximizes throughput
 
 ---
 
@@ -99,11 +108,14 @@ The Director sits above all other agents and is responsible for the full lifecyc
    - Break large initiatives into team-sized work packages
 
 2. **Team Spawning & Composition**
-   - Create teams with the standard composition: 1 Architect, 3 Engineers, 1 Reviewer
-   - Assign work packages to teams based on skill alignment
-   - Spawn teams as background agents for parallel execution
-   - Scale team count based on work complexity (1-N teams simultaneously)
-   - **For simple tasks**: Spawn a single Engineer without full team overhead
+   - **Director analyzes work** and decides how many teams (Architects) are needed
+   - **Director spawns Architect(s)** in background with work package and instructions
+   - **Maximum 5 teams (Architects) active per Director at one time**
+   - **Each Architect decides** how many Engineers to spawn (1-5 based on their work)
+   - **Architect spawns Engineers** in background with task assignments
+   - **Architect spawns Reviewers** when code is ready (multiple to avoid bottlenecks)
+   - **Reviewers are reusable** - idle reviewers can pick up new submissions
+   - **For simple tasks**: Director can spawn a single Engineer directly
      - Examples: Creating a PR, fixing a typo, updating documentation
      - No Architect needed for non-architectural changes
      - Reviewer still required for code changes (skip for docs-only)
@@ -154,16 +166,17 @@ WORK ORDER RECEIVED
 │ Packages          │
 │ - File boundaries │
 │ - Integration pts │
-│ - Team count      │
+│ - Architect count │
 └────────┬──────────┘
          │
          ▼
 ┌───────────────────┐
-│ Spawn Teams       │
+│ Spawn Architect(s)│
 │ (Background)      │
-│ - Architect first │
-│ - Then Engineers  │
-│ - Reviewer ready  │
+│ - Give work pkg   │
+│ - Set constraints │
+│ - Architect spawns│
+│   own Engineers   │
 └────────┬──────────┘
          │
          ▼
@@ -256,7 +269,7 @@ Each team must report status at these checkpoints:
 - Allow PRs below 9.5/10 review score
 - Merge work that breaks existing tests
 - Create teams without clear work package boundaries
-- Allow unbounded parallel work (max recommended: 5 teams)
+- Allow unbounded parallel work (maximum: 5 Architects/teams at once)
 
 **Spawn Command Template:**
 
@@ -309,6 +322,14 @@ Reports to Director. Leads a team of Engineers. Works with Reviewer on design co
    - Ensure new systems fit the existing world model and lifecycle flows
    - Approve or request changes to architecture-impacting PRs
    - Balance long-term extensibility with current-phase restraint
+
+5. **PR Lifecycle Management**
+   - **Create PR** once all engineer work is complete and reviewed
+   - **Handle merge conflicts**: Assign back to Engineers to resolve
+   - **Handle review feedback**: Assign fixes back to appropriate Engineers
+   - **Coordinate fix cycles**: Re-submit to Reviewers after fixes
+   - **Execute merge** once CI passes and all reviews approved
+   - Report completion status to Director
 
 **Task Decomposition Protocol:**
 

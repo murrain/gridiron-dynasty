@@ -55,18 +55,35 @@ WORK PACKAGE: [Name]
 
 ### 3. Team Spawning Protocol
 
-**Standard team composition** (for complex work):
-- 1 Architect Agent (designs approach, splits work, verifies integration)
-- 3 Engineer Agents (implement in parallel)
-- 1 Review Agent (reviews all code before merge)
+**Hierarchical spawning model:**
+1. **Director receives instructions** and analyzes work scope
+2. **Director decides team count** (how many Architects needed)
+3. **Director spawns Architect(s) in background** with work packages and instructions
+4. **Each Architect decides Engineer count** based on their work decomposition
+5. **Architect spawns Engineer(s) in background** with task assignments
+6. **Architect spawns Reviewer(s)** when engineers complete work
+
+**Limits:**
+- **Maximum 5 teams (Architects) active per Director at one time**
+- Each Architect can spawn 1-5 Engineers based on work scope
+- Reviewers are reusable across multiple engineer submissions
+
+**Dynamic scaling example:**
+```
+Director: "Implement contracts system" → spawns 3 Architects (core, AI, UI)
+
+Architect A (Core):   spawns 2 Engineers → work completes → spawns 1 Reviewer
+Architect B (AI):     spawns 3 Engineers → 2 finish → spawns 2 Reviewers → 1 finishes → reuses Reviewer
+Architect C (UI):     spawns 1 Engineer  → work completes → spawns 1 Reviewer
+```
 
 **Lightweight spawning** (for simple tasks):
-- Single Engineer for one-off tasks (PR creation, typo fixes, doc updates)
-- No Architect needed for non-architectural changes
+- Director can spawn a single Engineer directly (no Architect needed)
+- Examples: PR creation, typo fixes, documentation updates
 - Skip Reviewer for documentation-only changes
 - Use when task is < 1 day effort and touches few files
 
-Spawn teams using background agents for parallel execution:
+Spawn Architects using background agents:
 
 ```
 SPAWN TEAM: [Team Name]
