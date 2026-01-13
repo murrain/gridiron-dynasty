@@ -21,6 +21,8 @@
 extends RefCounted
 class_name FreeAgency
 
+const Rand = preload("res://autoloads/Rand.gd")
+
 
 ## Run complete free agency simulation for a given year.
 ##
@@ -500,8 +502,8 @@ static func _assess_team_needs_stub(roster: Dictionary) -> Array:
 	}
 
 	for position in ideal_depth.keys():
-		var current := by_position.get(position, []).size()
-		var target := ideal_depth[position]
+		var current: int = by_position.get(position, []).size()
+		var target: int = ideal_depth[position]
 
 		if current < target * 0.7:  # 70% threshold
 			needs.append({

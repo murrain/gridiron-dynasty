@@ -428,7 +428,7 @@ func _update_team_history(
 	champion_id: String,
 	teams: Array,
 	regions: Array
-) -> void:
+) -> Dictionary:
 	var team_history: Dictionary = world_state.get("team_history", {})
 
 	# Determine playoff teams (H4.3)

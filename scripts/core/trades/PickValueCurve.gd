@@ -2,6 +2,7 @@
 extends RefCounted
 class_name PickValueCurve
 
+const Pick = preload("res://scripts/core/trades/Pick.gd")
 const DEFAULT_PATH: String = "res://configs/sports/american_football/draft_picks.json"
 
 var round_defaults: Dictionary = {}

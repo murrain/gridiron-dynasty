@@ -1,6 +1,8 @@
 extends RefCounted
 class_name StatGenerator
 
+const DepthChart = preload("res://scripts/core/models/DepthChart.gd")
+
 ## Player Stat Generation Engine
 ##
 ## Generates realistic position-specific statistics for players during game simulation.

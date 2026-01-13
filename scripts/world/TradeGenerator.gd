@@ -692,7 +692,7 @@ static func _generate_pick_trade_offer(
 		var receiving_players: Array = receiving_roster.get("players", []) as Array
 
 		# Find a tradeable pick owned by offering team
-		var tradeable_pick := _find_tradeable_pick(
+		var tradeable_pick: Variant = _find_tradeable_pick(
 			offering_team_id, ownership, current_year, rng
 		)
 
@@ -708,7 +708,7 @@ static func _generate_pick_trade_offer(
 		var target_player_id := String(target_player.get("player_id", ""))
 
 		# Calculate values for balance check
-		var pick_value := NflDraft.value_draft_pick(
+		var pick_value: float = NflDraft.value_draft_pick(
 			int(pick.get("year", current_year)),
 			int(pick.get("round", 1)),
 			int(pick.get("pick_in_round", 16)),
@@ -720,7 +720,7 @@ static func _generate_pick_trade_offer(
 
 		# Value tolerance: picks are less precise than player values
 		var value_tolerance := float(pick_trading_cfg.get("value_tolerance", 0.15))
-		var value_ratio := pick_value / max(player_value_pts, 1.0)
+		var value_ratio: float = pick_value / max(player_value_pts, 1.0)
 
 		# Accept if pick value is within tolerance of player value
 		if value_ratio >= (1.0 - value_tolerance) and value_ratio <= (1.0 + value_tolerance):
@@ -741,7 +741,7 @@ static func _generate_pick_trade_offer(
 		var offering_players: Array = offering_roster.get("players", []) as Array
 
 		# Find a tradeable pick owned by receiving team
-		var tradeable_pick := _find_tradeable_pick(
+		var tradeable_pick: Variant = _find_tradeable_pick(
 			receiving_team_id, ownership, current_year, rng
 		)
 
@@ -757,7 +757,7 @@ static func _generate_pick_trade_offer(
 		var trade_player_id := String(trade_player.get("player_id", ""))
 
 		# Calculate values for balance check
-		var pick_value := NflDraft.value_draft_pick(
+		var pick_value: float = NflDraft.value_draft_pick(
 			int(pick.get("year", current_year)),
 			int(pick.get("round", 1)),
 			int(pick.get("pick_in_round", 16)),
@@ -769,7 +769,7 @@ static func _generate_pick_trade_offer(
 
 		# Value tolerance
 		var value_tolerance := float(pick_trading_cfg.get("value_tolerance", 0.15))
-		var value_ratio := pick_value / max(player_value_pts, 1.0)
+		var value_ratio: float = pick_value / max(player_value_pts, 1.0)
 
 		# Accept if pick value is within tolerance of player value
 		if value_ratio >= (1.0 - value_tolerance) and value_ratio <= (1.0 + value_tolerance):

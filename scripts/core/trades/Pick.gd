@@ -19,8 +19,11 @@ func to_dict() -> Dictionary:
 		"current_owner_id": current_owner_id
 	}
 
-static func from_dict(data: Dictionary) -> Pick:
-	var pick := Pick.new()
+## Create Pick from dictionary. Returns Pick instance.
+## Note: Return type untyped and uses load() to avoid circular reference.
+static func from_dict(data: Dictionary):
+	var PickClass = load("res://scripts/core/trades/Pick.gd")
+	var pick = PickClass.new()
 	pick.year = int(data.get("year", 0))
 	pick.round = int(data.get("round", 0))
 	pick.slot = int(data.get("slot", 0))

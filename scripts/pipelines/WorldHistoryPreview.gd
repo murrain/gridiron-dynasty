@@ -5,6 +5,7 @@ class_name WorldHistoryPreview
 const ConfigService = preload("res://autoloads/Config.gd")
 const Rand = preload("res://autoloads/Rand.gd")
 const AdvanceWorldYear = preload("res://scripts/pipelines/AdvanceWorldYear.gd")
+const BootstrapWorld = preload("res://scripts/pipelines/BootstrapWorld.gd")
 
 const DEFAULT_HISTORY_YEARS: int = 20
 const PRO_READY_MIN_AGE: int = 22

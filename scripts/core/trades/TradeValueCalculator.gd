@@ -2,6 +2,9 @@
 extends RefCounted
 class_name TradeValueCalculator
 
+const PickValueCurve = preload("res://scripts/core/trades/PickValueCurve.gd")
+const TradeOffer = preload("res://scripts/core/trades/TradeOffer.gd")
+
 var pick_curve: PickValueCurve
 
 func _init(p_pick_curve: PickValueCurve = null) -> void:

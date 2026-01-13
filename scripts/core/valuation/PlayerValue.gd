@@ -34,6 +34,12 @@
 extends RefCounted
 class_name PlayerValue
 
+const ValueCurve = preload("res://scripts/core/valuation/ValueCurve.gd")
+const ReplacementLevel = preload("res://scripts/core/valuation/ReplacementLevel.gd")
+const PositionalScarcity = preload("res://scripts/core/valuation/PositionalScarcity.gd")
+const TeamImpact = preload("res://scripts/core/valuation/TeamImpact.gd")
+const ContractValuation = preload("res://scripts/core/valuation/ContractValuation.gd")
+
 
 ## Calculate comprehensive player valuation.
 ##
