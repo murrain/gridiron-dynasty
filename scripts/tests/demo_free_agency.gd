@@ -116,7 +116,7 @@ func demo_franchise_tag() -> void:
 		print("NO modification to Team.gd model!")
 
 		# Verify storage
-		var stored := world_state.get("franchise_tags", {}).get(2024, {}).get("SF", {})
+		var stored: Dictionary = world_state.get("franchise_tags", {}).get(2024, {}).get("SF", {})
 		print("\nVerification:")
 		print("  Player ID: %s" % stored.get("player_id", ""))
 		print("  Stored in world_state: %s" % ("YES" if not stored.is_empty() else "NO"))
@@ -193,7 +193,7 @@ func demo_free_agency_simulation() -> void:
 
 	var world_state_2 := _create_demo_world()
 	for fa in free_agents:
-		var fa_copy := fa.duplicate(true)
+		var fa_copy: Dictionary = fa.duplicate(true)
 		fa_copy["contract"] = {"status": "expired", "years_remaining": 0}
 		world_state_2["nfl_rosters"]["FA"]["players"].append(fa_copy)
 
@@ -210,7 +210,7 @@ func demo_free_agency_simulation() -> void:
 		league_cfg
 	)
 
-	var match := (
+	var match: bool = (
 		result["signings"].size() == result2["signings"].size() and
 		result["unsigned"].size() == result2["unsigned"].size()
 	)
