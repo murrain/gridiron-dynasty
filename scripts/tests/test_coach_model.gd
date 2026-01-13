@@ -26,6 +26,10 @@ func test_default_values(t) -> void:
 	t.assert_eq(coach.specialty_position, "", "default specialty_position is empty string")
 	t.assert_eq(coach.scheme_preference, "", "default scheme_preference is empty string")
 
+	# Test default player evaluation philosophy
+	t.assert_eq(coach.character_tolerance, "moderate", "default character_tolerance is moderate")
+	t.assert_eq(coach.medical_tolerance, "cautious", "default medical_tolerance is cautious")
+
 func test_full_serialization_round_trip(t) -> void:
 	var coach: Coach = Coach.new()
 	coach.id = "coach-001"
@@ -38,6 +42,8 @@ func test_full_serialization_round_trip(t) -> void:
 	coach.experience_years = 15
 	coach.specialty_position = "Defense"
 	coach.scheme_preference = "spread"
+	coach.character_tolerance = "strict"
+	coach.medical_tolerance = "aggressive"
 
 	var serialized: Dictionary = coach.to_dict()
 	var clone: Coach = Coach.new()
@@ -59,6 +65,10 @@ func test_full_serialization_round_trip(t) -> void:
 	t.assert_eq(round_trip.get("experience_years", 0), 15, "experience_years round-trips")
 	t.assert_eq(round_trip.get("specialty_position", ""), "Defense", "specialty_position round-trips")
 	t.assert_eq(round_trip.get("scheme_preference", ""), "spread", "scheme_preference round-trips")
+
+	# Test player evaluation philosophy round-trips
+	t.assert_eq(round_trip.get("character_tolerance", ""), "strict", "character_tolerance round-trips")
+	t.assert_eq(round_trip.get("medical_tolerance", ""), "aggressive", "medical_tolerance round-trips")
 
 func test_type_conversion_edge_cases(t) -> void:
 	var coach: Coach = Coach.new()
@@ -100,6 +110,8 @@ func test_type_conversion_edge_cases(t) -> void:
 	t.assert_eq(partial_coach.first_name, "Jane", "partial dict: first_name is set")
 	t.assert_eq(partial_coach.coaching_ability, 50.0, "partial dict: coaching_ability uses default")
 	t.assert_eq(partial_coach.experience_years, 0, "partial dict: experience_years uses default")
+	t.assert_eq(partial_coach.character_tolerance, "moderate", "partial dict: character_tolerance uses default")
+	t.assert_eq(partial_coach.medical_tolerance, "cautious", "partial dict: medical_tolerance uses default")
 
 	# Test empty dictionary (all fields use defaults)
 	var empty_coach: Coach = Coach.new()

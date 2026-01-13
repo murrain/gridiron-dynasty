@@ -23,6 +23,11 @@ class_name Coach
 @export var defensive_scheme: String = ""       # For defensive coordinators / head coaches
 @export var scheme_rigidity: float = 1.0        # 0.5 = flexible, 1.0 = normal, 1.2 = rigid
 
+# --- Player Evaluation Philosophy ---
+# These influence how the coach/team evaluates players for draft, trades, and free agency
+@export var character_tolerance: String = "moderate"  # strict, moderate, lenient, win_now
+@export var medical_tolerance: String = "cautious"    # risk_averse, cautious, moderate_risk, aggressive
+
 func from_dict(d: Dictionary) -> void:
 	id = String(d.get("id", id))
 	first_name = String(d.get("first_name", first_name))
@@ -44,6 +49,10 @@ func from_dict(d: Dictionary) -> void:
 	defensive_scheme = String(d.get("defensive_scheme", defensive_scheme))
 	scheme_rigidity = float(d.get("scheme_rigidity", scheme_rigidity))
 
+	# Player evaluation philosophy
+	character_tolerance = String(d.get("character_tolerance", character_tolerance))
+	medical_tolerance = String(d.get("medical_tolerance", medical_tolerance))
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -58,5 +67,7 @@ func to_dict() -> Dictionary:
 		"scheme_preference": scheme_preference,
 		"offensive_scheme": offensive_scheme,
 		"defensive_scheme": defensive_scheme,
-		"scheme_rigidity": scheme_rigidity
+		"scheme_rigidity": scheme_rigidity,
+		"character_tolerance": character_tolerance,
+		"medical_tolerance": medical_tolerance
 	}
