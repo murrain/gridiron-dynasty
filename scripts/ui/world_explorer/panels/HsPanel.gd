@@ -150,13 +150,20 @@ func _setup_filters() -> void:
 	year_filter.select(YearFilterIndex.ALL)
 
 func _connect_signals() -> void:
-	view_mode_button.item_selected.connect(_on_view_mode_changed)
-	tier_filter.item_selected.connect(_on_tier_filter_changed)
-	position_filter.item_selected.connect(_on_position_filter_changed)
-	year_filter.item_selected.connect(_on_year_filter_changed)
-	content_list.item_selected.connect(_on_content_list_item_selected)
-	prev_page_button.pressed.connect(_on_prev_page_pressed)
-	next_page_button.pressed.connect(_on_next_page_pressed)
+	if not view_mode_button.item_selected.is_connected(_on_view_mode_changed):
+		view_mode_button.item_selected.connect(_on_view_mode_changed)
+	if not tier_filter.item_selected.is_connected(_on_tier_filter_changed):
+		tier_filter.item_selected.connect(_on_tier_filter_changed)
+	if not position_filter.item_selected.is_connected(_on_position_filter_changed):
+		position_filter.item_selected.connect(_on_position_filter_changed)
+	if not year_filter.item_selected.is_connected(_on_year_filter_changed):
+		year_filter.item_selected.connect(_on_year_filter_changed)
+	if not content_list.item_selected.is_connected(_on_content_list_item_selected):
+		content_list.item_selected.connect(_on_content_list_item_selected)
+	if not prev_page_button.pressed.is_connected(_on_prev_page_pressed):
+		prev_page_button.pressed.connect(_on_prev_page_pressed)
+	if not next_page_button.pressed.is_connected(_on_next_page_pressed):
+		next_page_button.pressed.connect(_on_next_page_pressed)
 
 ## Required by WorldExplorer: Initialize with world state
 func initialize(ws: Dictionary) -> void:

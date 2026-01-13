@@ -56,9 +56,12 @@ func _setup_filters() -> void:
 		position_filter.add_item(pos)
 
 func _connect_signals() -> void:
-	year_filter.item_selected.connect(_on_year_filter_changed)
-	position_filter.item_selected.connect(_on_position_filter_changed)
-	content_list.item_selected.connect(_on_tree_item_selected)
+	if not year_filter.item_selected.is_connected(_on_year_filter_changed):
+		year_filter.item_selected.connect(_on_year_filter_changed)
+	if not position_filter.item_selected.is_connected(_on_position_filter_changed):
+		position_filter.item_selected.connect(_on_position_filter_changed)
+	if not content_list.item_selected.is_connected(_on_tree_item_selected):
+		content_list.item_selected.connect(_on_tree_item_selected)
 
 ## Public API: Initialize panel with world state
 ## Called by WorldExplorer when panel is added or refreshed

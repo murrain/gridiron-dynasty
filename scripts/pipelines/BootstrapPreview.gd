@@ -91,8 +91,9 @@ func _launch_world_explorer(world_state: Dictionary) -> void:
 	# Hide this bootstrap preview window (only in GUI mode, not headless)
 	if DisplayServer.get_name() != "headless":
 		var parent = get_parent()
-		if parent:
-			parent.visible = false
+		if parent and parent != get_tree().root:
+			if parent is Window and parent.get_parent() != null:
+				parent.visible = false
 
 	print("World Explorer launched successfully!")
 

@@ -73,9 +73,12 @@ func _setup_filters() -> void:
 	position_label.visible = false
 
 func _connect_signals() -> void:
-	view_mode_button.item_selected.connect(_on_view_mode_changed)
-	position_filter.item_selected.connect(_on_position_filter_changed)
-	content_list.item_selected.connect(_on_tree_item_selected)
+	if not view_mode_button.item_selected.is_connected(_on_view_mode_changed):
+		view_mode_button.item_selected.connect(_on_view_mode_changed)
+	if not position_filter.item_selected.is_connected(_on_position_filter_changed):
+		position_filter.item_selected.connect(_on_position_filter_changed)
+	if not content_list.item_selected.is_connected(_on_tree_item_selected):
+		content_list.item_selected.connect(_on_tree_item_selected)
 
 ## Public API: Initialize panel with world state
 ## Called by WorldExplorer when panel is added or refreshed

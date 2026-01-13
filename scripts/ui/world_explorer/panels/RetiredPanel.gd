@@ -71,11 +71,16 @@ func _setup_filters() -> void:
 	sort_filter.add_item("Name", SortMode.NAME)
 
 func _connect_signals() -> void:
-	position_filter.item_selected.connect(_on_position_filter_changed)
-	sort_filter.item_selected.connect(_on_sort_filter_changed)
-	content_list.item_selected.connect(_on_tree_item_selected)
-	prev_page_button.pressed.connect(_on_prev_page_pressed)
-	next_page_button.pressed.connect(_on_next_page_pressed)
+	if not position_filter.item_selected.is_connected(_on_position_filter_changed):
+		position_filter.item_selected.connect(_on_position_filter_changed)
+	if not sort_filter.item_selected.is_connected(_on_sort_filter_changed):
+		sort_filter.item_selected.connect(_on_sort_filter_changed)
+	if not content_list.item_selected.is_connected(_on_tree_item_selected):
+		content_list.item_selected.connect(_on_tree_item_selected)
+	if not prev_page_button.pressed.is_connected(_on_prev_page_pressed):
+		prev_page_button.pressed.connect(_on_prev_page_pressed)
+	if not next_page_button.pressed.is_connected(_on_next_page_pressed):
+		next_page_button.pressed.connect(_on_next_page_pressed)
 
 ## Public API: Initialize panel with world state
 ## Called by WorldExplorer when panel is added or refreshed
