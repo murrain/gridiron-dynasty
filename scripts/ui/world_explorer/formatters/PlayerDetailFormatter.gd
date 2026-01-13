@@ -357,7 +357,38 @@ static func _format_hype_info(player: Dictionary) -> String:
 	return bb
 
 
-## Format player history (awards, injuries, discipline events)
+## Format player history (awards, injuries, discipline, contracts, milestones)
+##
+## Event Types:
+##   Career Milestones (cyan):
+##     - college_commit: Committed to college
+##     - redshirt: Took redshirt year
+##     - transfer: Transferred to another school
+##     - draft_declaration: Declared for draft (early or senior)
+##     - draft: Selected in NFL draft
+##     - undrafted_signing: Signed as undrafted free agent
+##     - combine_invite: Invited to NFL Combine
+##
+##   Contract Events (green):
+##     - rookie_contract: Signed rookie contract
+##     - contract_extension: Signed contract extension
+##     - contract_signing: Signed with team (free agency)
+##     - franchise_tag: Franchise tagged
+##     - released: Released/waived
+##     - traded: Traded to another team
+##     - retirement: Retired from NFL
+##
+##   Achievements (purple):
+##     - pro_bowl: Pro Bowl selection
+##     - all_pro: All-Pro selection
+##     - super_bowl: Super Bowl champion
+##     - mvp: MVP/OPOY/DPOY award
+##     - milestone: Career statistical milestone
+##     - first_start: First NFL start
+##
+##   Awards (gold): award
+##   Discipline (orange): discipline
+##   Injuries (red): injury
 static func _format_player_history(player: Dictionary) -> String:
 	var history: Array = player.get("history", [])
 	if history.is_empty():
@@ -365,77 +396,79 @@ static func _format_player_history(player: Dictionary) -> String:
 
 	var bb := "[b]Career History[/b]\n"
 
-	# Group by type for cleaner display
-	var awards: Array = []
-	var discipline: Array = []
-	var injuries: Array = []
-	var other: Array = []
+	# Group events by category for cleaner display
+	var career_milestones: Array = []  # College commit, draft, etc.
+	var contract_events: Array = []     # Contracts, trades, releases
+	var achievements: Array = []        # Pro Bowl, All-Pro, milestones
+	var awards: Array = []              # College awards (Heisman, etc.)
+	var discipline: Array = []          # Discipline issues
+	var injuries: Array = []            # Injury history
+	var other: Array = []               # Uncategorized
 
 	for event in history:
 		var event_dict: Dictionary = event
 		var event_type = event_dict.get("type", "")
 		match event_type:
+			# Career milestones
+			"college_commit", "redshirt", "transfer", "draft_declaration", \
+			"draft", "undrafted_signing", "combine_invite":
+				career_milestones.append(event_dict)
+			# Contract events
+			"rookie_contract", "contract_extension", "contract_signing", \
+			"franchise_tag", "released", "traded", "retirement":
+				contract_events.append(event_dict)
+			# Achievements
+			"pro_bowl", "all_pro", "super_bowl", "mvp", "milestone", "first_start":
+				achievements.append(event_dict)
+			# Awards
 			"award":
 				awards.append(event_dict)
+			# Discipline
 			"discipline":
 				discipline.append(event_dict)
+			# Injuries
 			"injury":
 				injuries.append(event_dict)
 			_:
 				other.append(event_dict)
 
-	# Awards (positive events)
+	# Career Milestones (cyan)
+	if not career_milestones.is_empty():
+		bb += "\n[color=#00ccff]Career Timeline[/color]\n"
+		for event in career_milestones:
+			bb += _format_career_milestone_event(event)
+
+	# Contract Events (green)
+	if not contract_events.is_empty():
+		bb += "\n[color=#00cc66]Transactions[/color]\n"
+		for event in contract_events:
+			bb += _format_contract_event(event)
+
+	# Achievements (purple)
+	if not achievements.is_empty():
+		bb += "\n[color=#cc66ff]Achievements[/color]\n"
+		for event in achievements:
+			bb += _format_achievement_event(event)
+
+	# Awards (gold)
 	if not awards.is_empty():
 		bb += "\n[color=#ffcc00]Awards & Honors[/color]\n"
 		for event in awards:
-			var year = event.get("year", 0)
-			var award_name = event.get("award", event.get("description", "Unknown Award"))
-			var hype_impact = event.get("hype_impact", 0.0)
-			bb += "  Year %d: %s" % [year, award_name]
-			if hype_impact != 0:
-				var impact_color = "#00ff00" if hype_impact > 0 else "#ff0000"
-				bb += " [color=%s](%+.0f hype)[/color]" % [impact_color, hype_impact]
-			bb += "\n"
+			bb += _format_award_event(event)
 
-	# Discipline events (negative character)
+	# Discipline events (orange)
 	if not discipline.is_empty():
 		bb += "\n[color=#ff6600]Discipline Record[/color]\n"
 		for event in discipline:
-			var year = event.get("year", 0)
-			var event_name = event.get("event", "Unknown")
-			var description = event.get("description", "")
-			var games = event.get("games_suspended", 0)
-			var hype_impact = event.get("hype_impact", 0.0)
+			bb += _format_discipline_event(event)
 
-			bb += "  Year %d: %s" % [year, _format_discipline_type(event_name)]
-			if games > 0:
-				bb += " (%d games)" % games
-			if hype_impact != 0:
-				bb += " [color=#ff0000](%+.0f hype)[/color]" % hype_impact
-			bb += "\n"
-			if not description.is_empty():
-				bb += "    [color=#999999]%s[/color]\n" % description
-
-	# Injuries
+	# Injuries (red)
 	if not injuries.is_empty():
 		bb += "\n[color=#ff3333]Injury History[/color]\n"
 		for event in injuries:
-			var year = event.get("year", 0)
-			var injury_type = event.get("injury_type", "Unknown")
-			var severity = event.get("severity", 0.0)
-			var games_missed = event.get("games_missed", 0)
-			var hype_impact = event.get("hype_impact", 0.0)
+			bb += _format_injury_event(event)
 
-			bb += "  Year %d: %s" % [year, injury_type.capitalize().replace("_", " ")]
-			if severity > 0:
-				bb += " (severity %.1f)" % severity
-			if games_missed > 0:
-				bb += " - %d games missed" % games_missed
-			if hype_impact != 0:
-				bb += " [color=#ff0000](%+.0f hype)[/color]" % hype_impact
-			bb += "\n"
-
-	# Other events
+	# Other/uncategorized events
 	if not other.is_empty():
 		bb += "\n[color=#999999]Other Events[/color]\n"
 		for event in other:
@@ -443,6 +476,220 @@ static func _format_player_history(player: Dictionary) -> String:
 			var description = event.get("description", "Unknown event")
 			bb += "  Year %d: %s\n" % [year, description]
 
+	return bb
+
+
+## Format career milestone event (commit, draft, transfer, etc.)
+static func _format_career_milestone_event(event: Dictionary) -> String:
+	var year = event.get("year", 0)
+	var event_type = event.get("type", "")
+	var bb := "  %d: " % year
+
+	match event_type:
+		"college_commit":
+			var college = event.get("college", "Unknown")
+			var stars = event.get("stars", 0)
+			bb += "Committed to %s" % college
+			if stars > 0:
+				bb += " (%d-star recruit)" % stars
+		"redshirt":
+			bb += "Redshirt season"
+		"transfer":
+			var from_school = event.get("from", "")
+			var to_school = event.get("to", "Unknown")
+			if not from_school.is_empty():
+				bb += "Transferred from %s to %s" % [from_school, to_school]
+			else:
+				bb += "Transferred to %s" % to_school
+		"draft_declaration":
+			var early = event.get("early", false)
+			if early:
+				bb += "Declared for NFL Draft (early entry)"
+			else:
+				bb += "Entered NFL Draft"
+		"draft":
+			var round_num = event.get("round", 0)
+			var pick = event.get("pick", 0)
+			var team = event.get("team", "Unknown")
+			bb += "Drafted by %s (Round %d, Pick %d)" % [team, round_num, pick]
+		"undrafted_signing":
+			var team = event.get("team", "Unknown")
+			bb += "Signed with %s as undrafted free agent" % team
+		"combine_invite":
+			bb += "Invited to NFL Combine"
+		_:
+			bb += event.get("description", event_type)
+
+	bb += "\n"
+	return bb
+
+
+## Format contract/transaction event
+static func _format_contract_event(event: Dictionary) -> String:
+	var year = event.get("year", 0)
+	var event_type = event.get("type", "")
+	var bb := "  %d: " % year
+
+	match event_type:
+		"rookie_contract":
+			var team = event.get("team", "")
+			var years = event.get("years", 0)
+			var value = event.get("value", 0.0)
+			bb += "Signed rookie contract"
+			if not team.is_empty():
+				bb += " with %s" % team
+			if years > 0 and value > 0:
+				bb += " (%d yr, $%.1fM)" % [years, value]
+			elif years > 0:
+				bb += " (%d years)" % years
+		"contract_extension":
+			var team = event.get("team", "")
+			var years = event.get("years", 0)
+			var value = event.get("value", 0.0)
+			var guaranteed = event.get("guaranteed", 0.0)
+			bb += "Signed contract extension"
+			if not team.is_empty():
+				bb += " with %s" % team
+			if years > 0 and value > 0:
+				bb += " (%d yr, $%.1fM" % [years, value]
+				if guaranteed > 0:
+					bb += ", $%.1fM guaranteed" % guaranteed
+				bb += ")"
+		"contract_signing":
+			var team = event.get("team", "")
+			var years = event.get("years", 0)
+			var value = event.get("value", 0.0)
+			bb += "Signed"
+			if not team.is_empty():
+				bb += " with %s" % team
+			if years > 0 and value > 0:
+				bb += " (%d yr, $%.1fM)" % [years, value]
+		"franchise_tag":
+			var team = event.get("team", "")
+			var tag_type = event.get("tag_type", "franchise")
+			bb += "%s tagged" % tag_type.capitalize()
+			if not team.is_empty():
+				bb += " by %s" % team
+		"released":
+			var team = event.get("team", "")
+			var reason = event.get("reason", "")
+			bb += "Released"
+			if not team.is_empty():
+				bb += " by %s" % team
+			if not reason.is_empty():
+				bb += " (%s)" % reason
+		"traded":
+			var from_team = event.get("from", "")
+			var to_team = event.get("to", "Unknown")
+			if not from_team.is_empty():
+				bb += "Traded from %s to %s" % [from_team, to_team]
+			else:
+				bb += "Traded to %s" % to_team
+		"retirement":
+			bb += "Retired from NFL"
+			var reason = event.get("reason", "")
+			if not reason.is_empty():
+				bb += " (%s)" % reason
+		_:
+			bb += event.get("description", event_type)
+
+	bb += "\n"
+	return bb
+
+
+## Format achievement event (Pro Bowl, All-Pro, milestones)
+static func _format_achievement_event(event: Dictionary) -> String:
+	var year = event.get("year", 0)
+	var event_type = event.get("type", "")
+	var bb := "  %d: " % year
+
+	match event_type:
+		"pro_bowl":
+			var times = event.get("career_total", 0)
+			bb += "Pro Bowl selection"
+			if times > 1:
+				bb += " (%dx)" % times
+		"all_pro":
+			var team_type = event.get("team", "First")  # First or Second
+			bb += "%s-Team All-Pro" % team_type
+		"super_bowl":
+			var sb_number = event.get("number", "")
+			bb += "Super Bowl Champion"
+			if not str(sb_number).is_empty():
+				bb += " (Super Bowl %s)" % str(sb_number)
+		"mvp":
+			var award_type = event.get("award", "MVP")
+			bb += "%s" % award_type
+		"milestone":
+			var milestone_type = event.get("milestone", "")
+			var value = event.get("value", 0)
+			if not milestone_type.is_empty():
+				bb += "Career milestone: %s" % milestone_type
+				if value > 0:
+					bb += " (%d)" % value
+			else:
+				bb += event.get("description", "Career milestone")
+		"first_start":
+			var team = event.get("team", "")
+			bb += "First NFL start"
+			if not team.is_empty():
+				bb += " (%s)" % team
+		_:
+			bb += event.get("description", event_type)
+
+	bb += "\n"
+	return bb
+
+
+## Format award event (Heisman, conference awards, etc.)
+static func _format_award_event(event: Dictionary) -> String:
+	var year = event.get("year", 0)
+	var award_name = event.get("award", event.get("description", "Unknown Award"))
+	var hype_impact = event.get("hype_impact", 0.0)
+
+	var bb := "  %d: %s" % [year, award_name]
+	if hype_impact != 0:
+		var impact_color = "#00ff00" if hype_impact > 0 else "#ff0000"
+		bb += " [color=%s](%+.0f hype)[/color]" % [impact_color, hype_impact]
+	bb += "\n"
+	return bb
+
+
+## Format discipline event
+static func _format_discipline_event(event: Dictionary) -> String:
+	var year = event.get("year", 0)
+	var event_name = event.get("event", "Unknown")
+	var description = event.get("description", "")
+	var games = event.get("games_suspended", 0)
+	var hype_impact = event.get("hype_impact", 0.0)
+
+	var bb := "  %d: %s" % [year, _format_discipline_type(event_name)]
+	if games > 0:
+		bb += " (%d games)" % games
+	if hype_impact != 0:
+		bb += " [color=#ff0000](%+.0f hype)[/color]" % hype_impact
+	bb += "\n"
+	if not description.is_empty():
+		bb += "    [color=#999999]%s[/color]\n" % description
+	return bb
+
+
+## Format injury event
+static func _format_injury_event(event: Dictionary) -> String:
+	var year = event.get("year", 0)
+	var injury_type = event.get("injury_type", "Unknown")
+	var severity = event.get("severity", 0.0)
+	var games_missed = event.get("games_missed", 0)
+	var hype_impact = event.get("hype_impact", 0.0)
+
+	var bb := "  %d: %s" % [year, injury_type.capitalize().replace("_", " ")]
+	if severity > 0:
+		bb += " (severity %.1f)" % severity
+	if games_missed > 0:
+		bb += " - %d games missed" % games_missed
+	if hype_impact != 0:
+		bb += " [color=#ff0000](%+.0f hype)[/color]" % hype_impact
+	bb += "\n"
 	return bb
 
 
