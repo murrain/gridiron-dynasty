@@ -642,16 +642,6 @@ func _score_draft_pool(
 		if position in positions_with_need and p not in candidates:
 			# Prioritize contrarian matches and measurement blind spots at front of candidate pool
 			if contrarian_match or measurement_blind:
-				# Log hidden gem discoveries
-				var player_name := String(p.get("name", "Unknown"))
-				if contrarian_match:
-					print("[NflDraft] Hidden gem: %s %s (contrarian match for %s)" % [
-						position, player_name, team_id
-					])
-				if measurement_blind:
-					print("[NflDraft] Hidden gem: %s %s (measurement blind spot for %s)" % [
-						position, player_name, team_id
-					])
 				candidates.insert(0, p)
 				gems_added += 1
 			else:
