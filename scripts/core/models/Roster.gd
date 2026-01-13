@@ -1,6 +1,8 @@
 extends Resource
 class_name SportRoster
 
+const DepthChart = preload("res://scripts/core/models/DepthChart.gd")
+
 # Roster entries are plain dictionaries to keep persistence explicit and stable.
 # Expected shape:
 # {

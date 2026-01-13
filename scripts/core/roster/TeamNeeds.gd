@@ -257,7 +257,7 @@ static func _rate_depth_quality(sorted_ratings: Array, required_starters: int) -
 	avg_backup_rating /= float(backup_ratings.size())
 
 	# Number of backups factor (more is better, diminishing returns)
-	var depth_count_factor := min(1.0, float(depth_count) / DEPTH_IDEAL_BACKUP_COUNT)
+	var depth_count_factor: float = min(1.0, float(depth_count) / DEPTH_IDEAL_BACKUP_COUNT)
 
 	# Quality factor (based on average backup rating)
 	var quality_factor := avg_backup_rating / 100.0

@@ -92,7 +92,7 @@ update_cache() {
 # Get list of files to check
 if [ "$CHECK_STAGED" = true ]; then
     # Only check staged .gd files
-    FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.gd$' | grep -E '^(scripts|autoloads)/' || true)
+    FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.gd' | grep -E '^(scripts|autoloads)/' || true)
     if [ -z "$FILES" ]; then
         echo "No staged .gd files to check."
         echo ""

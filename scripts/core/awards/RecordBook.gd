@@ -271,8 +271,8 @@ static func _extract_stat_value(stats: Dictionary, category: String) -> float:
 		"total_tds":
 			var rush := float(stats.get("rush_tds", 0.0))
 			var rec := float(stats.get("receiving_tds", 0.0))
-			var pass := float(stats.get("pass_tds", 0.0))
-			return rush + rec + pass
+			var passing := float(stats.get("pass_tds", 0.0))
+			return rush + rec + passing
 		_:
 			return float(stats.get(category, 0.0))
 

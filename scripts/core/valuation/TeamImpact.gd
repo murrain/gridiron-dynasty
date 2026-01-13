@@ -14,6 +14,8 @@
 extends RefCounted
 class_name TeamImpact
 
+const ReplacementLevel = preload("res://scripts/core/valuation/ReplacementLevel.gd")
+
 ## Compute team-specific value for a player on their current roster.
 ##
 ## Returns a comprehensive dictionary with:

@@ -63,7 +63,7 @@ func get_ir_eligible_week(current_week: int) -> int:
 	var ir_min_weeks := 4
 	# Calculate from when injury occurred (current_week - weeks_elapsed)
 	var week_occurred := current_week - weeks_elapsed
-	var eligible_week := week_occurred + max(weeks_total, ir_min_weeks)
+	var eligible_week: int = week_occurred + max(weeks_total, ir_min_weeks)
 
 	return eligible_week
 

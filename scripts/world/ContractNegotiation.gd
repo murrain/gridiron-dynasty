@@ -249,7 +249,7 @@ static func evaluate_offer(
 	var guaranteed_ratio := offer_guaranteed / demand_guaranteed if demand_guaranteed > 0.0 else 1.0
 
 	# 3. Check years match (tolerance of +/- 1 year)
-	var years_match := abs(offer_years - demand_years) <= 1
+	var years_match: bool = abs(offer_years - demand_years) <= 1
 	var years_penalty := 0.0 if years_match else -0.1
 
 	# 4. Calculate acceptance score

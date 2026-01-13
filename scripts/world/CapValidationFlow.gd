@@ -48,7 +48,8 @@ static func run(
 
 		# Validate roster limits (Feature 5)
 		var roster_validation := _validate_roster_limits(roster, roster_limits, team_id)
-		var has_roster_violations := not roster_validation["violations"].is_empty()
+		var violations: Array = roster_validation["violations"]
+		var has_roster_violations: bool = not violations.is_empty()
 
 		var cap_dict: Dictionary = team.get("cap", {}) as Dictionary
 		cap_dict["cap_limit"] = cap_limit
