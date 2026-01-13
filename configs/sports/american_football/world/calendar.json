@@ -74,18 +74,26 @@
       "placeholder": false
     },
     {
-      "id": "cap_validation",
-      "label": "Cap validation",
+      "id": "nfl_free_agency",
+      "label": "NFL free agency",
       "start_tick": 9,
       "end_tick": 9,
+      "tags": ["nfl"],
+      "placeholder": false
+    },
+    {
+      "id": "cap_validation",
+      "label": "Cap validation",
+      "start_tick": 10,
+      "end_tick": 10,
       "tags": ["nfl", "cap"],
       "placeholder": false
     },
     {
       "id": "nfl_season",
       "label": "NFL season",
-      "start_tick": 10,
-      "end_tick": 10,
+      "start_tick": 11,
+      "end_tick": 11,
       "tags": ["nfl"],
       "placeholder": false
     }
