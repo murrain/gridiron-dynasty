@@ -1,0 +1,116 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Character and discipline tracking system for draft evaluation. Tracks college discipline events (academic, team rules, substance abuse, conduct, legal) and assigns character grades (exemplary, clean, concern, red_flag) that impact draft position.",
+
+    "discipline_events": {
+        "note": "Random discipline events occur during college years with 2% base chance per player per year. Events are weighted by type and result in games suspended.",
+        "base_chance_per_year": 0.02,
+        "types": [
+            {
+                "type": "academic",
+                "weight": 0.4,
+                "games_range": [1, 4],
+                "severity": "minor",
+                "description": "Academic violations: GPA issues, missed classes, academic dishonesty",
+                "draft_penalty": 0.98
+            },
+            {
+                "type": "team_rules",
+                "weight": 0.3,
+                "games_range": [1, 2],
+                "severity": "minor",
+                "description": "Team policy violations: curfew, dress code, missed meetings",
+                "draft_penalty": 0.99
+            },
+            {
+                "type": "substance_abuse",
+                "weight": 0.15,
+                "games_range": [2, 6],
+                "severity": "moderate",
+                "description": "Substance policy violations: failed drug tests, alcohol violations, PED suspensions",
+                "draft_penalty": 0.90
+            },
+            {
+                "type": "conduct",
+                "weight": 0.10,
+                "games_range": [1, 8],
+                "severity": "major",
+                "description": "Conduct violations: unsportsmanlike behavior, altercations, code of conduct breaches",
+                "draft_penalty": 0.85
+            },
+            {
+                "type": "legal_trouble",
+                "weight": 0.05,
+                "games_range": [4, 16],
+                "severity": "severe",
+                "description": "Legal issues: arrests, criminal charges, DUI, assault",
+                "draft_penalty": 0.70
+            }
+        ]
+    },
+
+    "character_grades": {
+        "note": "Character grades are evaluated at draft time based on complete discipline history. Grades determine draft impact multipliers.",
+
+        "exemplary": {
+            "max_incidents": 0,
+            "draft_boost": 1.02,
+            "description": "No discipline issues throughout college career. High character evaluation provides slight draft boost."
+        },
+
+        "clean": {
+            "max_incidents": 1,
+            "max_severity": "minor",
+            "draft_impact": 1.0,
+            "description": "Single minor incident only. No draft penalty - considered normal college behavior."
+        },
+
+        "concern": {
+            "max_incidents": 2,
+            "max_severity": "moderate",
+            "draft_penalty": 0.95,
+            "description": "Multiple minor incidents or single moderate incident. Character concerns result in 5% draft penalty."
+        },
+
+        "red_flag": {
+            "triggers": [
+                "legal_trouble",
+                "multiple_major",
+                "pattern"
+            ],
+            "draft_penalty_range": [0.70, 0.90],
+            "description": "Serious character concerns: legal trouble, multiple major incidents, or pattern of behavior. Draft penalty ranges from 10-30% based on severity.",
+            "penalty_scaling": "Higher severity incidents (legal_trouble, conduct) result in larger penalties within range. Multiple incidents compound the penalty."
+        }
+    },
+
+    "interview_red_flags": {
+        "note": "PHASE 2 FEATURE - Currently disabled. Will simulate pre-draft visits and interviews where scouts can detect hidden character concerns.",
+        "enabled": false,
+        "detection_chance_base": 0.30,
+        "scout_skill_bonus": 0.25,
+        "red_flag_types": [
+            "poor_work_ethic",
+            "coachability_concerns",
+            "attitude_issues",
+            "maturity_concerns",
+            "leadership_deficiencies"
+        ],
+        "description": "When enabled, scouts conduct pre-draft interviews. Higher scout skill increases red flag detection chance. Detected flags amplify character grade penalties."
+    },
+
+    "draft_integration": {
+        "note": "Character grades are evaluated once at draft time and cached in player.character_profile.character_grade. Draft scores are multiplied by character_draft_impact.",
+        "evaluation_timing": "pre_scout_evaluation",
+        "score_adjustment_method": "multiplicative",
+        "stacks_with_medical": true,
+        "description": "Character impact multiplies with medical impact: base_score * medical_impact * character_impact. A player with major medical concerns (0.85) and character concerns (0.95) receives combined 0.8075 multiplier (19.25% penalty)."
+    },
+
+    "tuning_notes": {
+        "base_chance_rationale": "2% per year means ~8% of draft class has discipline history (32 out of 400 players). Matches real NFL draft data where 5-10% of prospects have character concerns.",
+        "weight_distribution_rationale": "Academic (40%) and team rules (30%) are most common but least impactful. Legal trouble (5%) is rare but creates red flags. Distribution matches NCAA violation statistics.",
+        "grade_distribution_expected": "Exemplary: 65%, Clean: 20%, Concern: 12%, Red Flag: 3%. Most players have clean records, serious concerns are rare.",
+        "draft_impact_rationale": "Red flag penalties (10-30%) match real draft slides. Examples: Randy Gregory fell 60+ spots due to substance issues, La'el Collins went undrafted due to legal investigation."
+    }
+}
