@@ -49,32 +49,69 @@ static func calculate_composite_rating(player: Dictionary) -> float:
 	return total / count if count > 0 else 0.0
 
 ## Get core stats for a position
-## These are the most important attributes for each position
+## Reads from positions.json configuration file
 ## Returns Array of stat name strings
 static func get_core_stats_for_position(position: String) -> Array:
-	match position:
-		"QB":
-			return ["throw_power", "throw_accuracy", "awareness", "decision_making"]
-		"RB":
-			return ["speed", "agility", "strength", "vision"]
-		"WR":
-			return ["speed", "route_running", "catching", "awareness"]
-		"TE":
-			return ["catching", "route_running", "blocking", "strength"]
-		"OL":
-			return ["strength", "blocking", "awareness", "technique"]
-		"DL":
-			return ["strength", "speed", "tackling", "technique"]
-		"LB":
-			return ["speed", "tackling", "awareness", "coverage"]
-		"CB":
-			return ["speed", "coverage", "awareness", "agility"]
-		"S":
-			return ["speed", "coverage", "tackling", "awareness"]
-		"K", "P":
-			return ["kick_power", "kick_accuracy"]
-		_:
-			return []
+	var config_path := "res://configs/sports/american_football/positions.json"
+	if not FileAccess.file_exists(config_path):
+		push_warning("StatQueries: positions.json not found at %s" % config_path)
+		return []
+
+	var file := FileAccess.open(config_path, FileAccess.READ)
+	if file == null:
+		push_warning("StatQueries: Cannot open positions.json")
+		return []
+
+	var json_text := file.get_as_text()
+	file.close()
+
+	var json := JSON.new()
+	var error := json.parse(json_text)
+	if error != OK:
+		push_warning("StatQueries: Cannot parse positions.json: %s" % json.get_error_message())
+		return []
+
+	var positions_cfg: Dictionary = json.data
+	if not positions_cfg.has(position):
+		return []
+
+	var pos_config: Dictionary = positions_cfg[position]
+	return pos_config.get("core_stats", [])
+
+## Get secondary stats for a position
+## Reads stats with role="secondary" from distributions in positions.json
+## Returns Array of stat name strings
+static func get_secondary_stats_for_position(position: String) -> Array:
+	var config_path := "res://configs/sports/american_football/positions.json"
+	if not FileAccess.file_exists(config_path):
+		return []
+
+	var file := FileAccess.open(config_path, FileAccess.READ)
+	if file == null:
+		return []
+
+	var json_text := file.get_as_text()
+	file.close()
+
+	var json := JSON.new()
+	var error := json.parse(json_text)
+	if error != OK:
+		return []
+
+	var positions_cfg: Dictionary = json.data
+	if not positions_cfg.has(position):
+		return []
+
+	var pos_config: Dictionary = positions_cfg[position]
+	var distributions: Dictionary = pos_config.get("distributions", {})
+
+	var secondary_stats: Array = []
+	for stat_name in distributions.keys():
+		var stat_config: Dictionary = distributions[stat_name]
+		if stat_config.get("role", "") == "secondary":
+			secondary_stats.append(stat_name)
+
+	return secondary_stats
 
 ## Get color for stat value (Color object)
 ## value: Stat value 0-100
