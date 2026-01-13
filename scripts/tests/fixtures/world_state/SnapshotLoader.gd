@@ -28,6 +28,14 @@
 ##   - load_10yr() - Trade tests, contract history (~120-180s saved)
 ##   - load_20yr() - HoF, dynasty, long-term trends (~240-360s saved)
 ##
+## ADVANCED: Generating or advancing world state:
+##   Generate fresh:
+##     var world_state := SnapshotLoader.advance_world({}, 3, 0xFRESH001)
+##   Add years to snapshot:
+##     var world_state := SnapshotLoader.load_10yr_copy()
+##     world_state = SnapshotLoader.advance_world(world_state, 2, 0xTRADE001)
+##   Performance: ~10-15s per year simulated.
+##
 ## Regenerate snapshots by running:
 ##   godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd
 ##
@@ -190,6 +198,65 @@ static func load_10yr_copy() -> Dictionary:
 static func load_20yr_copy() -> Dictionary:
 	var original := load_20yr()
 	return _deep_copy(original)
+
+## Generate or advance a world state by simulating years.
+##
+## This is useful for tests that need:
+## - Fresh world data generated from scratch
+## - Mature world data plus fresh randomized scenarios
+##
+## Parameters:
+##   world_state: The world state to advance, or empty {} to generate fresh
+##   years: Number of years to simulate (must be > 0)
+##   simulation_seed: Seed for deterministic simulation
+##
+## Returns:
+##   The generated/advanced world state.
+##
+## Performance:
+##   Each year: ~10-15 seconds
+##
+## Examples:
+##   # Generate fresh 3-year world state
+##   var world_state := SnapshotLoader.advance_world({}, 3, 0xFRESH001)
+##
+##   # Load 10yr snapshot + simulate 2 more years
+##   var world_state := SnapshotLoader.load_10yr_copy()
+##   world_state = SnapshotLoader.advance_world(world_state, 2, 0xTRADE001)
+static func advance_world(world_state: Dictionary, years: int, simulation_seed: int) -> Dictionary:
+	if years <= 0:
+		push_error("SnapshotLoader: years must be > 0")
+		return world_state if not world_state.is_empty() else {}
+
+	if simulation_seed == 0:
+		push_error("SnapshotLoader: simulation_seed required (cannot be 0)")
+		return {}
+
+	# If world_state is empty, generate fresh using BootstrapGameWorld
+	if world_state.is_empty():
+		const BootstrapGameWorld = preload("res://scripts/pipelines/BootstrapGameWorld.gd")
+		var bootstrap := BootstrapGameWorld.new()
+		bootstrap.years_to_simulate = years
+		var result := bootstrap.run(simulation_seed, false)
+		return result.get("world_state", {})
+
+	# Otherwise, advance existing world state
+	const AdvanceWorldYear = preload("res://scripts/pipelines/AdvanceWorldYear.gd")
+	var advancer := AdvanceWorldYear.new()
+	advancer.set_bootstrap_mode(true)  # Skip reports for test performance
+
+	# Get current year from world state, default to 2020 if not found
+	var current_year: int = int(world_state.get("current_year", 2020))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = simulation_seed
+
+	for i in range(years):
+		var year_seed := rng.randi()
+		var result := advancer.run(world_state, current_year, year_seed)
+		world_state = result.get("world_state", world_state)
+		current_year += 1
+
+	return world_state
 
 ## Internal: Validate snapshot schema version matches current code
 ## Returns false and logs error if mismatch detected

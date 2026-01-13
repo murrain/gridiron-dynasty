@@ -79,6 +79,34 @@ TestRunner automatically clears the snapshot cache between test files to ensure 
 SnapshotLoader.clear_cache()
 ```
 
+### Advanced: Generating or Advancing World State
+
+Use `advance_world()` to generate fresh world data or add years to an existing snapshot:
+
+```gdscript
+# Option 1: Generate fresh 3-year world state
+var world_state := SnapshotLoader.advance_world({}, 3, 0xFRESH001)
+
+# Option 2: Load snapshot + add more years
+var world_state := SnapshotLoader.load_10yr_copy()
+world_state = SnapshotLoader.advance_world(world_state, 2, 0xTRADE001)
+# Now have 12 years: 10 from snapshot + 2 fresh
+```
+
+**Parameters:**
+- `world_state`: Existing world state to advance, or `{}` to generate fresh
+- `years`: Number of years to simulate (must be > 0)
+- `simulation_seed`: Required seed for deterministic simulation
+
+**Performance:**
+- Each year: ~10-15 seconds
+
+**Use cases:**
+- Fresh world generation when snapshots don't fit your test needs
+- Trade deadline tests with established rosters + fresh scenarios
+- Contract negotiation tests with varied market conditions
+- Injury progression tests with different outcomes per seed
+
 ### Files
 
 - Generator: `scripts/tests/fixtures/world_state/SnapshotGenerator.gd`
