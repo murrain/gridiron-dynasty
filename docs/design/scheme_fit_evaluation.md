@@ -941,6 +941,173 @@ Different scouts have different susceptibility to hype:
 
 Teams with "tape grinder" scouts are less likely to reach on hyped players. Teams with "media connected" scouts might overdraft based on buzz.
 
+#### Hype Generation & Assignment
+
+Hype is generated at key moments in a prospect's journey and modified by events.
+
+##### Initial Hype Assignment (High School → College)
+
+When a player enters college recruiting, base hype is calculated:
+
+```gdscript
+func generate_initial_hype(player: Dictionary, school: Dictionary) -> float:
+    var base_hype = 50.0  # Neutral starting point
+
+    # Factor 1: Recruiting ranking creates initial buzz
+    var recruiting_rank_bonus = 0.0
+    if player.get("star_rating", 0) == 5:
+        recruiting_rank_bonus = randf_range(25, 35)  # 5-stars get major hype
+    elif player.get("star_rating", 0) == 4:
+        recruiting_rank_bonus = randf_range(10, 20)
+    elif player.get("star_rating", 0) == 3:
+        recruiting_rank_bonus = randf_range(-5, 8)
+    else:
+        recruiting_rank_bonus = randf_range(-15, 0)  # Low-rated = low hype
+
+    # Factor 2: School media market
+    var market_bonus = school.get("media_market_modifier", 0.0) * 10.0
+    # USC/Alabama/Ohio State: +8 to +12
+    # Mid-majors: -5 to +2
+    # Small schools: -10 to -5
+
+    # Factor 3: Position visibility (QBs get more attention)
+    var position_modifier = {
+        "QB": 12.0, "RB": 6.0, "WR": 5.0,
+        "TE": 2.0, "OL": -3.0, "DL": 1.0,
+        "EDGE": 4.0, "LB": 2.0, "CB": 3.0,
+        "S": 1.0, "K": -8.0, "P": -10.0
+    }.get(player.position, 0.0)
+
+    # Factor 4: Random "it factor" variance
+    var it_factor = randf_range(-8, 12)
+
+    return clamp(base_hype + recruiting_rank_bonus + market_bonus + position_modifier + it_factor, 15, 95)
+```
+
+##### Hype Modifiers During College Career
+
+| Event | Hype Change | Notes |
+|-------|-------------|-------|
+| Heisman finalist | +15 to +25 | Major national exposure |
+| Conference player of year | +8 to +12 | Regional buzz |
+| Bowl game MVP | +10 to +18 | Big stage performance |
+| Viral highlight play | +5 to +15 | Social media boost |
+| National championship starter | +8 to +15 | Peak exposure |
+| Injury (major) | -10 to -20 | Concerns emerge |
+| Off-field incident | -15 to -30 | Red flags |
+| Underwhelming season | -5 to -12 | Hype cools |
+| Transfer to bigger program | +5 to +12 | New market exposure |
+| Limited playing time | -8 to -15 | "Why isn't he playing?" |
+
+```gdscript
+func apply_hype_event(current_hype: float, event_type: String) -> float:
+    var modifiers = {
+        "heisman_finalist": randf_range(15, 25),
+        "conference_poy": randf_range(8, 12),
+        "bowl_mvp": randf_range(10, 18),
+        "viral_highlight": randf_range(5, 15),
+        "natl_championship": randf_range(8, 15),
+        "major_injury": randf_range(-20, -10),
+        "off_field_issue": randf_range(-30, -15),
+        "underwhelming_season": randf_range(-12, -5),
+        "transfer_up": randf_range(5, 12),
+        "limited_snaps": randf_range(-15, -8)
+    }
+
+    var change = modifiers.get(event_type, 0.0)
+    return clamp(current_hype + change, 10, 98)
+```
+
+##### Combine/Pro Day Hype Spikes
+
+The combine creates massive hype swings based on measurables:
+
+```gdscript
+func apply_combine_hype(current_hype: float, player: Dictionary, position: String) -> float:
+    var combine_modifier = 0.0
+
+    # Elite 40 time creates buzz
+    var forty = player.get("forty_time", 5.0)
+    var expected_forty = get_position_expected_forty(position)
+    if forty < expected_forty - 0.15:
+        combine_modifier += randf_range(8, 18)  # "He ran a 4.3!"
+    elif forty > expected_forty + 0.15:
+        combine_modifier += randf_range(-12, -5)  # "Slower than expected"
+
+    # Bench press for OL/DL
+    if position in ["OL", "DL", "TE", "EDGE"]:
+        var bench = player.get("bench_reps", 20)
+        if bench >= 30:
+            combine_modifier += randf_range(3, 8)
+        elif bench < 15:
+            combine_modifier += randf_range(-5, -2)
+
+    # Vertical/broad for skill positions
+    if position in ["WR", "CB", "RB", "S"]:
+        var vertical = player.get("vertical_jump", 32)
+        if vertical >= 40:
+            combine_modifier += randf_range(5, 12)  # "Elite explosion!"
+
+    # Interview presence (subjective but real)
+    var interview_score = player.get("charisma", 50) + randf_range(-10, 10)
+    if interview_score >= 75:
+        combine_modifier += randf_range(3, 8)  # "Great kid, coaches love him"
+    elif interview_score < 40:
+        combine_modifier += randf_range(-8, -3)  # "Personality concerns"
+
+    return clamp(current_hype + combine_modifier, 10, 98)
+```
+
+##### Hype Distribution by Draft Position
+
+Expected hype ranges correlate with (but don't guarantee) draft position:
+
+| Draft Range | Typical Hype | Notes |
+|-------------|--------------|-------|
+| Top 5 | 75-95 | Generational buzz |
+| 6-15 | 65-82 | High-profile prospects |
+| 16-32 | 55-72 | Solid first-rounders |
+| Round 2 | 45-62 | Known quantities |
+| Round 3-4 | 35-55 | Role player expectations |
+| Round 5-7 | 20-45 | Low profile, camp bodies |
+| UDFA | 15-35 | Unknown, prove-it guys |
+
+**Key insight:** Hype and ability are correlated but not identical. A 70-hype player might be a true 80 (hidden gem) or a true 60 (bust). The variance creates draft intrigue.
+
+##### Anti-Hype: The "Boring" Prospect Penalty
+
+Some legitimately good players have LOW hype due to:
+- Playing at small schools (no TV exposure)
+- "Pro style" game that doesn't create highlights
+- Quiet personality, avoids media
+- Position that doesn't get attention (guards, safeties)
+- Consistent but unspectacular production
+
+```gdscript
+func calculate_boring_prospect_penalty(player: Dictionary, school: Dictionary) -> float:
+    var penalty = 0.0
+
+    # Small school penalty
+    if school.get("media_tier", "small") == "small":
+        penalty -= randf_range(8, 15)
+
+    # "Pro style" players don't pop on tape
+    if player.get("play_style", "") == "pro_style":
+        penalty -= randf_range(3, 8)
+
+    # Low charisma = no media buzz
+    if player.get("charisma", 50) < 40:
+        penalty -= randf_range(5, 10)
+
+    # Position visibility
+    if player.position in ["OL", "S", "K", "P"]:
+        penalty -= randf_range(3, 8)
+
+    return penalty
+```
+
+This creates situations where good players fall in drafts because nobody's talking about them - just like real life.
+
 ## Rating Calculation with Visibility
 
 ### Displayed Rating (What Teams See)
@@ -1147,3 +1314,196 @@ Expanded to prevent inflated ratings:
 - Elite kicker: (92 + 90 + 80 + 78) / 4 = **85 overall**
 
 More realistic ceiling that doesn't exceed elite QBs/pass rushers.
+
+---
+
+# High School Simulation Simplification
+
+## Current State (Overly Complex)
+
+The current HS system includes:
+- 420 individual high schools with capacity tracking
+- Per-school program quality tiers
+- Position specialist coaches at schools
+- Annual performance bundles with games/snaps
+- Regional competition tiers
+- Scheme fit calculations
+- Full eligibility tracking (4 years)
+
+This is too much simulation depth for a level of play that doesn't directly impact the core NFL experience.
+
+## Design Goal
+
+High school should:
+1. **Exist** as a player origin point
+2. **Affect development** based on program quality
+3. **Generate recruiting rankings** (star ratings)
+4. **NOT require deep simulation** - no game-by-game tracking
+
+## Simplified HS Model
+
+### What We Keep
+
+**Player attributes assigned at HS entry:**
+```gdscript
+{
+    "hs_program_tier": "elite" | "good" | "avg" | "low",
+    "hs_region": "south" | "midwest" | "west" | "northeast",
+    "recruiting_star_rating": 2-5,
+    "initial_hype": float,  # Based on star rating + region
+    "development_modifier": float  # From program tier
+}
+```
+
+**Development multipliers (simplified):**
+```json
+{
+    "hs_program_tiers": {
+        "elite": { "dev_modifier": 1.08, "weight": 0.08 },
+        "good": { "dev_modifier": 1.03, "weight": 0.25 },
+        "avg": { "dev_modifier": 1.00, "weight": 0.50 },
+        "low": { "dev_modifier": 0.95, "weight": 0.17 }
+    }
+}
+```
+
+### What We Remove
+
+- Individual school entities (no more 420 schools)
+- School capacity tracking
+- Position specialist coaches at HS level
+- Per-year performance bundles
+- Detailed usage profiles (games, snaps)
+- HS school assignment algorithm
+- HS season simulation
+
+### Simplified Flow
+
+**Generation (once per player):**
+```gdscript
+func generate_hs_background(player: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+    # Assign region based on weighted distribution
+    var region = weighted_pick(["south", "midwest", "west", "northeast"], [0.34, 0.22, 0.18, 0.26], rng)
+
+    # Assign program tier (correlates slightly with player potential)
+    var potential_factor = player.get("potential_overall", 50) / 100.0
+    var tier_weights = adjust_tier_weights_by_potential(potential_factor)
+    var program_tier = weighted_pick(["elite", "good", "avg", "low"], tier_weights, rng)
+
+    # Star rating based on potential + noise
+    var star_rating = calculate_star_rating(player, program_tier, rng)
+
+    # Development modifier from program tier
+    var dev_modifier = HS_TIER_MODIFIERS[program_tier]
+
+    return {
+        "hs_region": region,
+        "hs_program_tier": program_tier,
+        "recruiting_star_rating": star_rating,
+        "development_modifier": dev_modifier,
+        "initial_hype": generate_initial_hype_from_stars(star_rating, region, player.position, rng)
+    }
+```
+
+**Development application (once at college entry):**
+```gdscript
+func apply_hs_development(player: Dictionary) -> void:
+    var hs_years = 4
+    var dev_modifier = player.get("development_modifier", 1.0)
+
+    # Apply cumulative development effect
+    for stat in player.stats.keys():
+        var growth = calculate_hs_growth(stat, hs_years, dev_modifier)
+        player.stats[stat] = min(player.stats[stat] + growth, player.potential[stat])
+```
+
+### Star Rating Calculation
+
+```gdscript
+func calculate_star_rating(player: Dictionary, program_tier: String, rng: RandomNumberGenerator) -> int:
+    var base_potential = player.get("potential_overall", 50)
+
+    # Program tier affects visibility (elite programs get more scouts)
+    var visibility_bonus = {
+        "elite": 8,
+        "good": 3,
+        "avg": 0,
+        "low": -5
+    }[program_tier]
+
+    var effective_rating = base_potential + visibility_bonus + rng.randf_range(-10, 10)
+
+    # Convert to stars
+    if effective_rating >= 88:
+        return 5
+    elif effective_rating >= 78:
+        return 4
+    elif effective_rating >= 65:
+        return 3
+    else:
+        return 2  # Minimum for college prospects
+```
+
+### Benefits of Simplification
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Schools tracked | 420 entities | 0 (just tier label) |
+| Per-player HS data | ~15 fields | ~5 fields |
+| Simulation passes | 3 per year | 1 at generation |
+| Assignment algorithm | Complex weighted | None |
+| Season simulation | Full | None |
+
+**Performance impact:** HS phase goes from O(n × schools) to O(n) where n = players.
+
+### What This Preserves
+
+1. **Regional flavor** - Players still come from different parts of the country
+2. **Development variance** - Elite programs still produce better-developed prospects
+3. **Recruiting rankings** - Star ratings still exist and affect hype/draft
+4. **Hidden gems** - Low-tier program players can still have high potential
+5. **Bust potential** - Elite program + high stars doesn't guarantee success
+
+### Migration Path
+
+1. Remove `HighSchoolGenerator.gd` - no longer needed
+2. Remove `HighSchoolAssignment.gd` - no longer needed
+3. Simplify `HighSchoolSeason.gd` → `HighSchoolBackground.gd` (one-time generation)
+4. Update `AdvanceWorldYear.gd` to use simplified flow
+5. Remove HS school capacity from world state
+6. Update UI to show simplified HS background info
+
+### Example Output
+
+**Before (complex):**
+```json
+{
+    "hs_school_id": "hs_0247",
+    "hs_year": 4,
+    "eligibility_status": "hs_grad",
+    "hs_stats": {
+        "year": 2025,
+        "performance_score": 72.4,
+        "school_id": "hs_0247",
+        "rating_basis": 68.2
+    },
+    "development_context": {
+        "program_quality": { "multiplier": 1.04 },
+        "position_specialist": { "applies": false },
+        "scheme_fit": { "score": 0.08 }
+    }
+}
+```
+
+**After (simplified):**
+```json
+{
+    "hs_region": "south",
+    "hs_program_tier": "good",
+    "recruiting_star_rating": 4,
+    "development_modifier": 1.03,
+    "initial_hype": 62
+}
+```
+
+Much cleaner, same gameplay impact.
