@@ -7,6 +7,7 @@ const WorldCalendar = preload("res://scripts/world/WorldCalendar.gd")
 const HighSchoolGenerator = preload("res://scripts/world/HighSchoolGenerator.gd")
 const HighSchoolAssignment = preload("res://scripts/world/HighSchoolAssignment.gd")
 const HighSchoolSeason = preload("res://scripts/world/HighSchoolSeason.gd")
+const HighSchoolBackground = preload("res://scripts/world/HighSchoolBackground.gd")
 const CollegeGenerator = preload("res://scripts/world/CollegeGenerator.gd")
 const CollegeRecruiting = preload("res://scripts/pipelines/CollegeRecruiting.gd")
 const CollegeSeason = preload("res://scripts/world/CollegeSeason.gd")
@@ -172,7 +173,8 @@ func _handle_hs_generation(
 	var step_seeds := {
 		"hs_school_gen": _derive_seed(year_seed, phase_id, "hs_school_gen"),
 		"hs_player_gen": _derive_seed(year_seed, phase_id, "hs_player_gen"),
-		"hs_player_meta": _derive_seed(year_seed, phase_id, "hs_player_meta")
+		"hs_player_meta": _derive_seed(year_seed, phase_id, "hs_player_meta"),
+		"hs_background": _derive_seed(year_seed, phase_id, "hs_background")
 	}
 	for step_id in step_seeds.keys():
 		_log_step_seed(year, phase_id, step_id, int(step_seeds[step_id]))
@@ -190,6 +192,9 @@ func _handle_hs_generation(
 	var generator := DraftClassGenerator.new()
 	var players := generator.generate_for_year(year, step_seeds["hs_player_gen"])
 	_apply_hs_player_fields(players, year, hs_cfg, step_seeds["hs_player_meta"])
+
+	# Generate HS background for each player (region, tier, stars, hype)
+	_apply_hs_backgrounds(players, step_seeds["hs_background"])
 
 	var hs_players: Array = world_state.get("hs_players", []) as Array
 	hs_players.append_array(players)
@@ -642,6 +647,33 @@ func _apply_hs_player_fields(players: Array, year: int, cfg: Dictionary, seed: i
 		var region := _weighted_pick(regions, region_weights, rng)
 		p["home_region"] = String(region.get("id", ""))
 		p["proximity_bias"] = rng.randf_range(bias_min, bias_max)
+		players[i] = p
+
+## Generates HS background for each player (region, tier, stars, hype)
+## This uses HighSchoolBackground for simplified one-time generation
+## instead of complex multi-year school simulation.
+##
+## RNG consumption: 6-8 randf() calls per player
+func _apply_hs_backgrounds(players: Array, seed: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(seed)
+
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if p == null:
+			continue
+
+		# Generate HS background (region, tier, stars, dev modifier, hype)
+		var background := HighSchoolBackground.generate_hs_background(p, rng)
+
+		# Merge background fields into player
+		for key in background.keys():
+			p[key] = background[key]
+
+		# Use hs_region as home_region if not already set (for recruiting proximity)
+		if p.get("home_region", "") == "":
+			p["home_region"] = String(background.get("hs_region", ""))
+
 		players[i] = p
 
 static func _weights_for(items: Array) -> Array:

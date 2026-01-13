@@ -79,3 +79,141 @@ static func calculate_overall_rating(
 
 	# Ultimate fallback: neutral rating
 	return 50.0
+
+## Get visibility tier for a stat from position config
+##
+## Parameters:
+##   stat_name: Name of the stat
+##   position: Position string
+##   positions_cfg: Position configuration dictionary
+##
+## Returns: "public", "scoutable", "hidden", or "" if not found
+static func get_stat_visibility(
+	stat_name: String,
+	position: String,
+	positions_cfg: Dictionary
+) -> String:
+	if position == "" or not positions_cfg.has(position):
+		return ""
+
+	var pos_cfg: Dictionary = positions_cfg.get(position, {}) as Dictionary
+	var distributions: Dictionary = pos_cfg.get("distributions", {}) as Dictionary
+
+	if not distributions.has(stat_name):
+		return ""
+
+	var stat_cfg: Dictionary = distributions.get(stat_name, {}) as Dictionary
+	return String(stat_cfg.get("visibility", ""))
+
+## Calculate displayed rating (what teams see pre-scouting)
+##
+## Only includes:
+## - Public stats (always visible)
+## - Scouted stats (from scouting_data, with noise)
+##
+## Excludes:
+## - Hidden stats (never in displayed rating)
+## - Unscouted scoutable stats
+##
+## Parameters:
+##   player: Player dictionary with stats
+##   position: Position string
+##   positions_cfg: Position configuration
+##   scouting_data: Dictionary with "revealed_stats" (stat_name -> scouted_value)
+##
+## Returns: Displayed rating (float)
+static func calculate_displayed_rating(
+	player: Dictionary,
+	position: String,
+	positions_cfg: Dictionary,
+	scouting_data: Dictionary
+) -> float:
+	if position == "" or not positions_cfg.has(position):
+		return calculate_overall_rating(player, positions_cfg, {})
+
+	var pos_cfg: Dictionary = positions_cfg.get(position, {}) as Dictionary
+	var core_stats: Array = pos_cfg.get("core_stats", []) as Array
+	var distributions: Dictionary = pos_cfg.get("distributions", {}) as Dictionary
+
+	if core_stats.is_empty():
+		return calculate_overall_rating(player, positions_cfg, {})
+
+	var player_stats: Dictionary = player.get("stats", {}) as Dictionary
+	var revealed_stats: Dictionary = scouting_data.get("revealed_stats", {}) as Dictionary
+
+	var stat_sum := 0.0
+	var stat_count := 0
+
+	# Only include core stats that are public or scouted
+	for stat in core_stats:
+		var stat_name := String(stat)
+		var visibility := get_stat_visibility(stat_name, position, positions_cfg)
+
+		if visibility == "public":
+			# Public stat - always use true value
+			stat_sum += float(player_stats.get(stat_name, 50.0))
+			stat_count += 1
+		elif visibility == "scoutable" and revealed_stats.has(stat_name):
+			# Scoutable stat that has been scouted - use scouted value (with noise)
+			stat_sum += float(revealed_stats.get(stat_name, 50.0))
+			stat_count += 1
+		# Hidden stats and unscouted scoutable stats are excluded
+
+	if stat_count > 0:
+		return stat_sum / float(stat_count)
+	else:
+		# Fallback: only public stats
+		return calculate_true_rating(player, position, positions_cfg)
+
+## Calculate true rating (internal, no scouting noise)
+##
+## Includes:
+## - Public stats (always known)
+## - ALL scoutable stats (true values, no noise)
+##
+## Excludes:
+## - Hidden stats (never affect rating)
+##
+## This is the "true" player rating that would be known with perfect scouting.
+##
+## Parameters:
+##   player: Player dictionary with stats
+##   position: Position string
+##   positions_cfg: Position configuration
+##
+## Returns: True rating (float)
+static func calculate_true_rating(
+	player: Dictionary,
+	position: String,
+	positions_cfg: Dictionary
+) -> float:
+	if position == "" or not positions_cfg.has(position):
+		return calculate_overall_rating(player, positions_cfg, {})
+
+	var pos_cfg: Dictionary = positions_cfg.get(position, {}) as Dictionary
+	var core_stats: Array = pos_cfg.get("core_stats", []) as Array
+
+	if core_stats.is_empty():
+		return calculate_overall_rating(player, positions_cfg, {})
+
+	var player_stats: Dictionary = player.get("stats", {}) as Dictionary
+
+	var stat_sum := 0.0
+	var stat_count := 0
+
+	# Include all core stats that are public or scoutable (no hidden)
+	for stat in core_stats:
+		var stat_name := String(stat)
+		var visibility := get_stat_visibility(stat_name, position, positions_cfg)
+
+		if visibility in ["public", "scoutable"]:
+			# Include public and scoutable stats at true value
+			stat_sum += float(player_stats.get(stat_name, 50.0))
+			stat_count += 1
+		# Hidden stats are excluded
+
+	if stat_count > 0:
+		return stat_sum / float(stat_count)
+	else:
+		# Fallback to standard calculation
+		return calculate_overall_rating(player, positions_cfg, {})

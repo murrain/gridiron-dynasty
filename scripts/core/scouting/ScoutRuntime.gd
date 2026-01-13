@@ -168,3 +168,145 @@ static func _blend_stats(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
 		var vb := float(sb.get(k, 50.0))
 		out["stats"][k] = clamp(va * (1.0 - t) + vb * t, 0.0, 100.0)
 	return out
+
+## Apply hype bias to scout evaluation
+##
+## Hype represents media attention and buzz that can bias scout evaluations.
+## High-hype players get overrated, low-hype players get underrated.
+##
+## RNG consumption: None (deterministic bias)
+##
+## Parameters:
+##   base_evaluation: Scout's base evaluation score
+##   player_hype: Player's hype stat (0-100, 50=neutral)
+##   scout_hype_susceptibility: How much this scout buys into narratives (0.0-1.0)
+##
+## Returns: Biased evaluation score
+static func apply_hype_bias(
+	base_evaluation: float,
+	player_hype: float,
+	scout_hype_susceptibility: float
+) -> float:
+	# hype ranges 0-100, 50 = neutral
+	# scout_hype_susceptibility ranges 0.0-1.0 (how much they buy into narratives)
+
+	var hype_modifier := (player_hype - 50.0) / 100.0  # -0.5 to +0.5
+	var bias := hype_modifier * scout_hype_susceptibility * 8.0  # Max ±4 points
+
+	return base_evaluation + bias
+
+## Get scout difficulty accuracy multiplier
+##
+## Maps scout difficulty to base accuracy percentage.
+##
+## Parameters:
+##   difficulty: "easy", "medium", "hard", or "very_hard"
+##
+## Returns: Base accuracy (0.35-0.85)
+static func get_difficulty_accuracy(difficulty: String) -> float:
+	match difficulty:
+		"easy":
+			return 0.85
+		"medium":
+			return 0.70
+		"hard":
+			return 0.50
+		"very_hard":
+			return 0.35
+		_:
+			return 0.70  # Default to medium
+
+## Check if a stat should be perceived based on visibility
+##
+## Parameters:
+##   stat_name: Name of the stat
+##   position: Position string
+##   positions_cfg: Position configuration
+##
+## Returns: true if stat should be perceived (public or scoutable), false if hidden
+static func should_perceive_stat(
+	stat_name: String,
+	position: String,
+	positions_cfg: Dictionary
+) -> bool:
+	if position == "" or not positions_cfg.has(position):
+		return true  # Default: perceive everything
+
+	var pos_cfg: Dictionary = positions_cfg.get(position, {}) as Dictionary
+	var distributions: Dictionary = pos_cfg.get("distributions", {}) as Dictionary
+
+	if not distributions.has(stat_name):
+		return true  # Not in config, default to visible
+
+	var stat_cfg: Dictionary = distributions.get(stat_name, {}) as Dictionary
+	var visibility := String(stat_cfg.get("visibility", "public"))
+
+	# Hidden stats should not be perceived
+	return visibility != "hidden"
+
+## Enhanced score_player with scheme fit, visibility, and hype
+##
+## This is an extended version of score_player that includes:
+## - Visibility respect (hidden stats not perceived)
+## - Scheme fit adjustment
+## - Hype bias
+##
+## RNG consumption: Same as score_player + potential hype bias RNG
+##
+## Parameters:
+##   scout: Scout dictionary (from scouts.json)
+##   player: Player dictionary
+##   positions_data: Position configuration
+##   stats_cfg: Stats configuration
+##   class_rules: Class rules configuration
+##   team_offensive_scheme: Team's offensive scheme
+##   team_defensive_scheme: Team's defensive scheme
+##   coach_rigidity: Coach's scheme rigidity (default 1.0)
+##   rng: RandomNumberGenerator
+##
+## Returns: Final evaluation score (float)
+static func score_player_enhanced(
+	scout: Dictionary,
+	player: Dictionary,
+	positions_data: Dictionary,
+	stats_cfg: Dictionary,
+	class_rules: Dictionary,
+	team_offensive_scheme: String,
+	team_defensive_scheme: String,
+	coach_rigidity: float,
+	rng: RandomNumberGenerator
+) -> float:
+	# Step 1: Get base evaluation using existing system
+	var base_score := score_player(scout, player, positions_data, stats_cfg, class_rules, rng)
+
+	# Step 2: Apply scheme fit adjustment
+	const SchemeFitCalculator = preload("res://scripts/core/scouting/SchemeFitCalculator.gd")
+	var position := String(player.get("position", ""))
+	var scheme_adjusted_score := SchemeFitCalculator.calculate_for_team(
+		player,
+		position,
+		base_score,
+		team_offensive_scheme,
+		team_defensive_scheme,
+		coach_rigidity
+	)
+
+	# Step 3: Apply hype bias
+	var player_stats: Dictionary = player.get("stats", {}) as Dictionary
+	var player_hype := float(player_stats.get("hype", 50.0))
+	var scout_hype_susceptibility := float(scout.get("hype_susceptibility", 0.5))
+
+	var final_score := apply_hype_bias(
+		scheme_adjusted_score,
+		player_hype,
+		scout_hype_susceptibility
+	)
+
+	return final_score
+
+## Update RNG consumption count for enhanced scoring
+##
+## Returns: Number of randf() calls consumed by score_player_enhanced
+static func get_enhanced_rng_calls_per_evaluation(num_stats: int) -> int:
+	# Base score_player RNG + no additional RNG for scheme/hype (deterministic)
+	return get_rng_calls_per_evaluation(num_stats)

@@ -1,0 +1,442 @@
+{
+  "offensive_schemes": {
+    "west_coast": {
+      "philosophy": "Short timing routes, YAC, ball control",
+      "position_stat_weights": {
+        "QB": {
+          "throw_accuracy": 1.25,
+          "decision_making": 1.20,
+          "reaction_time": 1.15,
+          "throw_power": 0.90,
+          "speed": 0.95
+        },
+        "TE": {
+          "catching": 1.30,
+          "route_running": 1.25,
+          "agility": 1.15,
+          "awareness": 1.10,
+          "blocking": 0.75,
+          "strength": 0.85
+        },
+        "RB": {
+          "catching": 1.25,
+          "route_running": 1.20,
+          "agility": 1.15,
+          "blocking": 1.10,
+          "strength": 0.90
+        },
+        "WR": {
+          "route_running": 1.25,
+          "catching": 1.20,
+          "agility": 1.15,
+          "speed": 0.95
+        },
+        "OL": {}
+      }
+    },
+
+    "power_run": {
+      "philosophy": "Physical, downhill running, heavy personnel",
+      "position_stat_weights": {
+        "QB": {
+          "decision_making": 1.15,
+          "awareness": 1.10,
+          "throw_power": 1.05,
+          "speed": 0.85,
+          "agility": 0.85
+        },
+        "TE": {
+          "blocking": 1.35,
+          "strength": 1.30,
+          "balance": 1.15,
+          "catching": 0.80,
+          "route_running": 0.70,
+          "speed": 0.85
+        },
+        "RB": {
+          "strength": 1.25,
+          "balance": 1.20,
+          "stamina": 1.15,
+          "catching": 0.85,
+          "speed": 0.95
+        },
+        "WR": {
+          "blocking": 1.20,
+          "strength": 1.10,
+          "catching": 1.05,
+          "speed": 0.95
+        },
+        "OL": {
+          "strength": 1.20,
+          "blocking": 1.15,
+          "balance": 1.10,
+          "agility": 0.85
+        }
+      }
+    },
+
+    "spread_option": {
+      "philosophy": "RPO, QB run threat, space creation",
+      "position_stat_weights": {
+        "QB": {
+          "speed": 1.30,
+          "agility": 1.25,
+          "decision_making": 1.20,
+          "throw_accuracy": 1.10,
+          "throw_power": 0.95
+        },
+        "TE": {
+          "speed": 1.20,
+          "agility": 1.15,
+          "catching": 1.15,
+          "route_running": 1.10,
+          "blocking": 0.80
+        },
+        "RB": {
+          "speed": 1.20,
+          "agility": 1.20,
+          "catching": 1.10,
+          "strength": 0.90
+        },
+        "WR": {
+          "blocking": 1.20,
+          "speed": 1.10,
+          "agility": 1.10
+        },
+        "OL": {
+          "agility": 1.15,
+          "speed": 1.10,
+          "blocking": 1.05,
+          "strength": 0.95
+        }
+      }
+    },
+
+    "air_raid": {
+      "philosophy": "Vertical passing, 4-5 wide, stretch the field",
+      "position_stat_weights": {
+        "QB": {
+          "throw_power": 1.30,
+          "throw_accuracy": 1.20,
+          "decision_making": 1.15,
+          "speed": 0.85
+        },
+        "TE": {
+          "speed": 1.25,
+          "catching": 1.25,
+          "route_running": 1.20,
+          "blocking": 0.65,
+          "strength": 0.75
+        },
+        "WR": {
+          "speed": 1.25,
+          "catching": 1.20,
+          "route_running": 1.15
+        },
+        "RB": {
+          "catching": 1.20,
+          "route_running": 1.15,
+          "blocking": 1.10,
+          "strength": 0.90
+        },
+        "OL": {
+          "agility": 1.10,
+          "awareness": 1.10,
+          "blocking": 1.05
+        }
+      }
+    },
+
+    "zone_run": {
+      "philosophy": "Outside zone, cutback lanes, athletic OL",
+      "position_stat_weights": {
+        "QB": {
+          "decision_making": 1.15,
+          "throw_accuracy": 1.10,
+          "awareness": 1.10
+        },
+        "TE": {
+          "blocking": 1.20,
+          "agility": 1.15,
+          "speed": 1.10,
+          "catching": 1.05,
+          "strength": 0.95
+        },
+        "RB": {
+          "agility": 1.25,
+          "awareness": 1.20,
+          "balance": 1.15,
+          "speed": 1.10
+        },
+        "WR": {
+          "blocking": 1.15,
+          "speed": 1.05
+        },
+        "OL": {
+          "agility": 1.25,
+          "speed": 1.20,
+          "balance": 1.15,
+          "strength": 0.90
+        }
+      }
+    },
+
+    "pro_style": {
+      "philosophy": "Balanced, multiple formations, adaptable",
+      "position_stat_weights": {
+        "QB": {
+          "awareness": 1.10,
+          "decision_making": 1.10,
+          "throw_accuracy": 1.05,
+          "throw_power": 1.05
+        },
+        "TE": {
+          "catching": 1.10,
+          "blocking": 1.10,
+          "route_running": 1.05,
+          "strength": 1.05
+        },
+        "RB": {
+          "balance": 1.10,
+          "agility": 1.05,
+          "catching": 1.05,
+          "blocking": 1.05
+        },
+        "WR": {
+          "route_running": 1.10,
+          "catching": 1.05,
+          "speed": 1.05
+        },
+        "OL": {
+          "blocking": 1.10,
+          "awareness": 1.05,
+          "strength": 1.05
+        }
+      }
+    }
+  },
+
+  "defensive_schemes": {
+    "4_3_under": {
+      "philosophy": "DE pass rush, athletic LBs, single-gap",
+      "position_stat_weights": {
+        "EDGE": {
+          "pass_rush": 1.30,
+          "acceleration": 1.25,
+          "speed": 1.20,
+          "agility": 1.15,
+          "run_defense": 0.85,
+          "strength": 0.90
+        },
+        "DL": {
+          "pass_rush": 1.20,
+          "acceleration": 1.15,
+          "shedding_blocks": 1.10,
+          "run_defense": 0.95,
+          "strength": 0.95
+        },
+        "LB": {
+          "coverage": 1.25,
+          "speed": 1.20,
+          "agility": 1.15,
+          "tackling": 1.00,
+          "strength": 0.90
+        },
+        "CB": {},
+        "S": {}
+      }
+    },
+
+    "3_4_two_gap": {
+      "philosophy": "Space-eating DL, versatile OLBs, two-gap",
+      "position_stat_weights": {
+        "EDGE": {
+          "pass_rush": 1.15,
+          "coverage": 1.15,
+          "run_defense": 1.10,
+          "strength": 1.10,
+          "speed": 0.95
+        },
+        "DL": {
+          "strength": 1.35,
+          "run_defense": 1.30,
+          "shedding_blocks": 1.20,
+          "pass_rush": 0.80,
+          "speed": 0.75
+        },
+        "LB": {
+          "tackling": 1.20,
+          "run_defense": 1.15,
+          "strength": 1.15,
+          "shedding_blocks": 1.10,
+          "coverage": 0.90
+        },
+        "CB": {},
+        "S": {}
+      }
+    },
+
+    "cover_2": {
+      "philosophy": "Zone coverage, split safeties, CBs play flats",
+      "position_stat_weights": {
+        "CB": {
+          "tackling": 1.25,
+          "awareness": 1.20,
+          "coverage": 1.15,
+          "press_coverage": 0.85,
+          "speed": 0.95
+        },
+        "S": {
+          "coverage": 1.25,
+          "awareness": 1.20,
+          "speed": 1.15,
+          "tackling": 0.95
+        },
+        "LB": {
+          "coverage": 1.30,
+          "speed": 1.25,
+          "awareness": 1.20,
+          "strength": 0.85
+        },
+        "EDGE": {},
+        "DL": {}
+      }
+    },
+
+    "cover_3": {
+      "philosophy": "Single high safety, CBs play deep thirds",
+      "position_stat_weights": {
+        "CB": {
+          "coverage": 1.25,
+          "speed": 1.20,
+          "awareness": 1.15,
+          "press_coverage": 0.90
+        },
+        "S": {
+          "speed": 1.30,
+          "coverage": 1.25,
+          "awareness": 1.20,
+          "tackling": 0.90
+        },
+        "LB": {
+          "coverage": 1.15,
+          "speed": 1.10,
+          "tackling": 1.05
+        },
+        "EDGE": {},
+        "DL": {}
+      }
+    },
+
+    "press_man": {
+      "philosophy": "Physical CBs, man coverage, aggressive",
+      "position_stat_weights": {
+        "CB": {
+          "press_coverage": 1.35,
+          "speed": 1.25,
+          "agility": 1.20,
+          "strength": 1.15,
+          "coverage": 1.10,
+          "awareness": 0.85
+        },
+        "S": {
+          "speed": 1.20,
+          "tackling": 1.15,
+          "coverage": 1.10,
+          "awareness": 0.90
+        },
+        "LB": {
+          "coverage": 1.15,
+          "speed": 1.10,
+          "tackling": 1.05
+        },
+        "EDGE": {},
+        "DL": {}
+      }
+    },
+
+    "tampa_2": {
+      "philosophy": "Cover 2 with MLB dropping deep middle",
+      "position_stat_weights": {
+        "LB": {
+          "speed": 1.35,
+          "coverage": 1.30,
+          "awareness": 1.20,
+          "agility": 1.15,
+          "strength": 0.80,
+          "tackling": 0.90
+        },
+        "CB": {
+          "tackling": 1.20,
+          "awareness": 1.15,
+          "coverage": 1.10,
+          "press_coverage": 0.80
+        },
+        "S": {
+          "coverage": 1.20,
+          "awareness": 1.20,
+          "speed": 1.15
+        },
+        "EDGE": {},
+        "DL": {}
+      }
+    },
+
+    "aggressive_blitz": {
+      "philosophy": "Pressure-heavy, disguised blitzes, risk/reward",
+      "position_stat_weights": {
+        "LB": {
+          "pass_rush": 1.25,
+          "acceleration": 1.20,
+          "speed": 1.15,
+          "coverage": 1.10,
+          "tackling": 1.05
+        },
+        "CB": {
+          "press_coverage": 1.20,
+          "speed": 1.20,
+          "coverage": 1.15,
+          "awareness": 0.90
+        },
+        "S": {
+          "tackling": 1.20,
+          "speed": 1.15,
+          "coverage": 1.10
+        },
+        "EDGE": {
+          "pass_rush": 1.25,
+          "speed": 1.20,
+          "acceleration": 1.15
+        },
+        "DL": {
+          "pass_rush": 1.20,
+          "acceleration": 1.15
+        }
+      }
+    }
+  },
+
+  "config": {
+    "scheme_fit": {
+      "weight_range": {
+        "min": 0.65,
+        "max": 1.35
+      },
+      "elite_thresholds": {
+        "elite": 90,
+        "very_good": 80,
+        "average": 70
+      },
+      "elite_dampening": {
+        "elite": 0.2,
+        "very_good": 0.5,
+        "average": 1.0
+      },
+      "coach_rigidity": {
+        "min": 0.5,
+        "max": 1.2,
+        "default": 1.0
+      }
+    }
+  }
+}
