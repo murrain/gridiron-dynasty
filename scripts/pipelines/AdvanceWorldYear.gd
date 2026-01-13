@@ -17,6 +17,7 @@ const NflSeason = preload("res://scripts/world/NflSeason.gd")
 const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
 const ValuationFlow = preload("res://scripts/world/ValuationFlow.gd")
 const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
+const AsyncLogger = preload("res://autoloads/AsyncLogger.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const FreeAgency = preload("res://scripts/world/FreeAgency.gd")
 
@@ -695,7 +696,9 @@ func _apply_hs_backgrounds(players: Array, seed: int) -> Dictionary:
 		total_hype += float(background.get("initial_hype", 50.0))
 
 	var avg_hype: float = total_hype / max(processed, 1)
-	print("[HS Background] Generated %d backgrounds: stars=[5★:%d 4★:%d 3★:%d 2★:%d] tiers=[elite:%d good:%d avg:%d low:%d] avg_hype=%.1f" % [
+
+	# Non-blocking async logging
+	AsyncLogger.log("[HS Background] Generated %d backgrounds: stars=[5★:%d 4★:%d 3★:%d 2★:%d] tiers=[elite:%d good:%d avg:%d low:%d] avg_hype=%.1f" % [
 		processed,
 		star_counts[5], star_counts[4], star_counts[3], star_counts[2],
 		tier_counts["elite"], tier_counts["good"], tier_counts["avg"], tier_counts["low"],
