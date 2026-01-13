@@ -675,3 +675,344 @@ Some players can play multiple positions with different scheme fits:
   }
 }
 ```
+
+---
+
+# Stat Visibility & Scouting System
+
+## Overview
+
+Stats have different visibility levels that affect how they contribute to player ratings and how scouts can evaluate them. This creates information asymmetry between teams with different scouting investments.
+
+## Visibility Tiers
+
+| Tier | Description | Rating Impact | Scouting |
+|------|-------------|---------------|----------|
+| **Public** | Combine/pro day measurable, obvious on tape | Always included in displayed rating | Always known |
+| **Scoutable** | Requires film study, interviews, deeper evaluation | Included in rating once scouted | Revealed through scouting investment |
+| **Hidden** | Only revealed through actual gameplay over time | **Never** in displayed rating | Never directly revealed |
+
+### Key Principle
+
+**Hidden stats affect simulation performance but NOT displayed ratings.** This means:
+- A player's rating reflects what scouts can reasonably evaluate
+- Hidden traits like `clutch_factor` create "paper tigers" or "clutch performers" that emerge through gameplay
+- Teams learn hidden traits through experience, not scouting
+
+## Scouting Difficulty
+
+Scoutable stats have varying difficulty levels affecting evaluation accuracy:
+
+| Difficulty | Base Accuracy | Scout Investment | Examples |
+|------------|--------------|------------------|----------|
+| **Easy** | 85% | Minimal film | Aggression, footwork, tackling form |
+| **Medium** | 70% | Standard evaluation | Coverage technique, awareness, blocking |
+| **Hard** | 50% | Deep dive required | Composure, leadership, work ethic |
+| **Very Hard** | 35% | Extensive, still uncertain | Football IQ, anticipation |
+
+### Scouting Accuracy Formula
+
+```gdscript
+func scout_stat(true_value: float, difficulty: String, scout_skill: float) -> float:
+    var base_accuracy = {
+        "easy": 0.85,
+        "medium": 0.70,
+        "hard": 0.50,
+        "very_hard": 0.35
+    }[difficulty]
+
+    var effective_accuracy = base_accuracy * scout_skill  # scout_skill typically 0.6-1.2
+    var noise_sigma = (1.0 - effective_accuracy) * 15.0
+    var noise = randfn(0, noise_sigma)
+
+    return clamp(true_value + noise, 0, 100)
+```
+
+## Complete Stat Classification
+
+### Physical/Athletic Stats
+
+| Stat | Visibility | Scout Difficulty | Rationale |
+|------|-----------|------------------|-----------|
+| `speed` | Public | - | 40-yard dash |
+| `acceleration` | Public | - | 10-yard split |
+| `agility` | Public | - | Shuttle, 3-cone |
+| `balance` | Scoutable | Medium | Film - contact absorption |
+| `strength` | Public | - | Bench press |
+| `core_strength` | Scoutable | Hard | Shows in pad level, leverage |
+| `stamina` | Scoutable | Hard | 4th quarter tape, full game film |
+
+### Technical Skills - Passing/Receiving
+
+| Stat | Visibility | Scout Difficulty | Rationale |
+|------|-----------|------------------|-----------|
+| `throw_power` | Public | - | Radar gun, velocity |
+| `throw_accuracy` | Public | - | Combine drills, completion % |
+| `catching` | Public | - | Drop rate, catch radius tests |
+| `route_running` | Scoutable | Medium | Film - technique, breaks |
+| `blocking` | Scoutable | Medium | Film - sustain, technique |
+| `footwork` | Scoutable | Easy | Clearly visible on film |
+
+### Technical Skills - Defense
+
+| Stat | Visibility | Scout Difficulty | Rationale |
+|------|-----------|------------------|-----------|
+| `tackling` | Scoutable | Easy | Film - wrap up, missed tackles |
+| `coverage` | Scoutable | Medium | Film - positioning, technique |
+| `press_coverage` | Scoutable | Medium | Film - jam, recovery |
+| `run_defense` | Scoutable | Medium | Film - gap discipline |
+| `pass_rush` | Scoutable | Medium | Film - moves, bend |
+| `shedding_blocks` | Scoutable | Medium | Film - hand usage |
+| `hand_fighting` | Scoutable | Medium | Film - technique at LOS |
+
+### Special Teams
+
+| Stat | Visibility | Scout Difficulty | Rationale |
+|------|-----------|------------------|-----------|
+| `kick_power` | Public | - | Distance measurable |
+| `kick_accuracy` | Public | - | Make %, direction |
+
+### Mental - Processing
+
+| Stat | Visibility | Scout Difficulty | Rationale |
+|------|-----------|------------------|-----------|
+| `awareness` | Scoutable | Medium | Film - positioning, pre-snap |
+| `reaction_time` | Public | - | Release timing, tests exist |
+| `decision_making` | Scoutable | Medium | Film - reads, turnover-worthy |
+| `anticipation` | Scoutable | Very Hard | Timing throws, expert eye needed |
+| `football_IQ` | Scoutable | Very Hard | Wonderlic limited, needs deep film |
+| `focus` | Scoutable | Medium | Film - consistency |
+
+### Mental - Character
+
+| Stat | Visibility | Scout Difficulty | Rationale |
+|------|-----------|------------------|-----------|
+| `composure` | Scoutable | Hard | Pressure tape, big games |
+| `confidence` | Scoutable | Medium | Interviews, body language |
+| `aggression` | Scoutable | Easy | Obvious playing style |
+| `discipline` | Scoutable | Hard | Penalties, interviews |
+| `leadership` | Scoutable | Hard | Coach/teammate interviews |
+| `work_ethic` | Scoutable | Hard | Facility visits, references |
+| `coachability` | Scoutable | Hard | College coach interviews |
+| `charisma` | Scoutable | Easy | Interviews, media presence |
+
+### Hidden Stats (Simulation Only - Never in Rating)
+
+| Stat | Why Hidden | How It Manifests |
+|------|-----------|------------------|
+| `clutch_factor` | No predictive test exists | Big moment performance |
+| `morale` | Internal, fluctuates | Effort, consistency |
+| `loyalty` | True feelings hidden | Contract negotiations |
+| `fatigue` | Game state variable | In-game stamina |
+| `recovery_rate` | Internal physical trait | Week-to-week availability |
+| `durability` | Part medical, part luck | Injury frequency |
+| `pain_tolerance` | Cannot ethically test | Playing through injury |
+| `flexibility` | Rarely evaluated | Injury prevention |
+| `medical_history_score` | Separate medical eval | Injury risk |
+
+## Rating Calculation with Visibility
+
+### Displayed Rating (What Teams See)
+
+```gdscript
+func calculate_displayed_rating(player: Player, position: String, scouting_data: Dictionary) -> float:
+    var public_stats = get_public_stats_for_position(position)
+    var scouted_stats = scouting_data.get("revealed_stats", {})
+
+    var sum = 0.0
+    var count = 0
+
+    # Always include public stats
+    for stat in public_stats:
+        sum += player.stats.get(stat, 50.0)
+        count += 1
+
+    # Include scouted stats at their evaluated (possibly inaccurate) values
+    for stat in scouted_stats:
+        sum += scouted_stats[stat]  # This is the scout's estimate, not true value
+        count += 1
+
+    return sum / count if count > 0 else 50.0
+```
+
+### True Rating (Internal)
+
+```gdscript
+func calculate_true_rating(player: Player, position: String) -> float:
+    var public_stats = get_public_stats_for_position(position)
+    var scoutable_stats = get_scoutable_stats_for_position(position)
+    # Note: Hidden stats intentionally excluded
+
+    var sum = 0.0
+    var count = 0
+
+    for stat in public_stats + scoutable_stats:
+        sum += player.stats.get(stat, 50.0)
+        count += 1
+
+    return sum / count if count > 0 else 50.0
+```
+
+## Information Asymmetry Example
+
+**Rookie QB "Marcus Webb"**
+
+| Stat | True Value | Visibility | Unscouted | Scouted (by avg scout) |
+|------|-----------|------------|-----------|------------------------|
+| throw_power | 88 | Public | 88 | 88 |
+| throw_accuracy | 82 | Public | 82 | 82 |
+| speed | 72 | Public | 72 | 72 |
+| reaction_time | 75 | Public | 75 | 75 |
+| decision_making | 68 | Scoutable (Medium) | ? | 71 |
+| awareness | 65 | Scoutable (Medium) | ? | 62 |
+| anticipation | 58 | Scoutable (Very Hard) | ? | 68 |
+| composure | 55 | Scoutable (Hard) | ? | 61 |
+| football_IQ | 60 | Scoutable (Very Hard) | ? | 72 |
+| clutch_factor | 42 | Hidden | ? | ? |
+
+**Unscouted Rating (Public only):** 79.3 - "Great arm talent!"
+**Scouted Rating (with noise):** 74.2 - "Mental game needs work"
+**True Rating (all scoutable):** 69.2 - "Significant processing concerns"
+**In-Game Performance:** Affected by all stats including clutch_factor = 42
+
+The team that didn't scout sees a 79. The team that scouted sees a 74. The true value is 69. And in big moments, that hidden 42 clutch_factor creates problems nobody predicted.
+
+---
+
+# Position Stat Configurations
+
+## QB (Proposed)
+
+Based on Option B (Mental-Heavy Core), with visibility tiers:
+
+```json
+"QB": {
+  "core_stats": ["throw_accuracy", "decision_making", "awareness", "anticipation", "composure"],
+  "distributions": {
+    "throw_accuracy":   { "mu": 78, "sigma": 9,  "cap_pct": 0.99, "role": "core", "visibility": "public" },
+    "decision_making":  { "mu": 73, "sigma": 7,  "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "awareness":        { "mu": 73, "sigma": 7,  "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "anticipation":     { "mu": 70, "sigma": 8,  "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "very_hard" },
+    "composure":        { "mu": 68, "sigma": 9,  "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "hard" },
+
+    "throw_power":      { "mu": 79, "sigma": 9,  "cap_pct": 0.99, "role": "secondary", "visibility": "public" },
+    "reaction_time":    { "mu": 72, "sigma": 7,  "cap_pct": 0.99, "role": "secondary", "visibility": "public" },
+    "football_IQ":      { "mu": 68, "sigma": 8,  "cap_pct": 0.99, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "very_hard" },
+    "speed":            { "mu": 55, "sigma": 10, "cap_pct": 0.97, "role": "secondary", "visibility": "public" },
+    "agility":          { "mu": 56, "sigma": 9,  "cap_pct": 0.97, "role": "secondary", "visibility": "public" },
+
+    "focus":            { "mu": 65, "sigma": 8,  "cap_pct": 0.98, "role": "other", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "confidence":       { "mu": 68, "sigma": 10, "cap_pct": 0.98, "role": "other", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "stamina":          { "mu": 58, "sigma": 8,  "cap_pct": 0.96, "role": "other", "visibility": "scoutable", "scout_difficulty": "hard" },
+    "strength":         { "mu": 45, "sigma": 6,  "cap_pct": 0.95, "role": "other", "visibility": "public" },
+    "tackling":         { "mu": 30, "sigma": 6,  "cap_pct": 0.95, "role": "other", "visibility": "scoutable", "scout_difficulty": "easy" },
+    "blocking":         { "mu": 28, "sigma": 6,  "cap_pct": 0.95, "role": "other", "visibility": "scoutable", "scout_difficulty": "easy" }
+  },
+  "archetypes": {
+    "PocketPasser": {
+      "weight": 0.45,
+      "core_stats_override": ["throw_accuracy", "decision_making", "awareness", "anticipation", "throw_power"],
+      "dist_overrides": {
+        "throw_accuracy":  { "mu_add": 4 },
+        "throw_power":     { "mu_add": 3, "role": "core" },
+        "decision_making": { "mu_add": 3 },
+        "awareness":       { "mu_add": 2 },
+        "speed":           { "mu_add": -4 },
+        "agility":         { "mu_add": -3 },
+        "composure":       { "mu_add": 2 }
+      }
+    },
+    "DualThreat": {
+      "weight": 0.35,
+      "core_stats_override": ["throw_accuracy", "speed", "agility", "decision_making", "anticipation"],
+      "dist_overrides": {
+        "speed":           { "mu_add": 10, "role": "core", "cap_pct": 1.0 },
+        "agility":         { "mu_add": 8, "role": "core" },
+        "throw_power":     { "mu_add": 2 },
+        "awareness":       { "mu_add": -2 },
+        "decision_making": { "mu_add": -1 },
+        "composure":       { "mu_add": -2 }
+      }
+    },
+    "FieldGeneral": {
+      "weight": 0.20,
+      "core_stats_override": ["throw_accuracy", "decision_making", "awareness", "anticipation", "football_IQ"],
+      "dist_overrides": {
+        "throw_accuracy":  { "mu_add": 5, "cap_pct": 1.0 },
+        "decision_making": { "mu_add": 5 },
+        "awareness":       { "mu_add": 4 },
+        "football_IQ":     { "mu_add": 5, "role": "core" },
+        "anticipation":    { "mu_add": 4 },
+        "composure":       { "mu_add": 4 },
+        "throw_power":     { "mu_add": -3 },
+        "speed":           { "mu_add": -2 }
+      }
+    }
+  }
+}
+```
+
+### QB Rating Impact Analysis
+
+**Public stats only (unscouted):** throw_accuracy, throw_power, reaction_time, speed, agility, strength
+- Average: ~65 for a typical QB prospect
+- Missing: decision_making, awareness, anticipation, composure, football_IQ
+
+**Fully scouted:** Adds decision_making, awareness, anticipation, composure, football_IQ
+- The mental game stats are what separate good from great
+- Very Hard stats (anticipation, football_IQ) are often mis-evaluated
+
+This creates meaningful scouting value for QBs specifically.
+
+## K/P (Proposed)
+
+Expanded to prevent inflated ratings:
+
+```json
+"K": {
+  "core_stats": ["kick_power", "kick_accuracy", "composure", "focus"],
+  "distributions": {
+    "kick_power":    { "mu": 78, "sigma": 8, "cap_pct": 0.99, "role": "core", "visibility": "public" },
+    "kick_accuracy": { "mu": 76, "sigma": 8, "cap_pct": 0.99, "role": "core", "visibility": "public" },
+    "composure":     { "mu": 68, "sigma": 12, "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "hard" },
+    "focus":         { "mu": 66, "sigma": 10, "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "medium" },
+
+    "awareness":     { "mu": 58, "sigma": 8, "cap_pct": 0.98, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "confidence":    { "mu": 65, "sigma": 12, "cap_pct": 0.98, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "discipline":    { "mu": 60, "sigma": 8, "cap_pct": 0.98, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "hard" },
+
+    "strength":      { "mu": 52, "sigma": 8, "cap_pct": 0.96, "role": "other", "visibility": "public" },
+    "speed":         { "mu": 45, "sigma": 7, "cap_pct": 0.90, "role": "other", "visibility": "public" },
+    "tackling":      { "mu": 32, "sigma": 8, "cap_pct": 0.95, "role": "other", "visibility": "scoutable", "scout_difficulty": "easy" }
+  }
+},
+
+"P": {
+  "core_stats": ["kick_power", "kick_accuracy", "composure", "focus"],
+  "distributions": {
+    "kick_power":    { "mu": 80, "sigma": 7, "cap_pct": 0.99, "role": "core", "visibility": "public" },
+    "kick_accuracy": { "mu": 74, "sigma": 8, "cap_pct": 0.99, "role": "core", "visibility": "public" },
+    "composure":     { "mu": 66, "sigma": 10, "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "hard" },
+    "focus":         { "mu": 64, "sigma": 10, "cap_pct": 0.99, "role": "core", "visibility": "scoutable", "scout_difficulty": "medium" },
+
+    "awareness":     { "mu": 60, "sigma": 8, "cap_pct": 0.98, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "confidence":    { "mu": 62, "sigma": 10, "cap_pct": 0.98, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "medium" },
+    "tackling":      { "mu": 42, "sigma": 10, "cap_pct": 0.96, "role": "secondary", "visibility": "scoutable", "scout_difficulty": "easy" },
+
+    "speed":         { "mu": 52, "sigma": 8, "cap_pct": 0.95, "role": "other", "visibility": "public" },
+    "strength":      { "mu": 48, "sigma": 8, "cap_pct": 0.96, "role": "other", "visibility": "public" },
+    "agility":       { "mu": 50, "sigma": 8, "cap_pct": 0.95, "role": "other", "visibility": "public" },
+    "throw_accuracy":{ "mu": 38, "sigma": 10, "cap_pct": 0.95, "role": "other", "visibility": "public" }
+  }
+}
+```
+
+### K/P Rating Impact
+
+**Before (2 core stats):**
+- Elite kicker: (92 + 90) / 2 = **91 overall**
+
+**After (4 core stats):**
+- Elite kicker: (92 + 90 + 80 + 78) / 4 = **85 overall**
+
+More realistic ceiling that doesn't exceed elite QBs/pass rushers.
