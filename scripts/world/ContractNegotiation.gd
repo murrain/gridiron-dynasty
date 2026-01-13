@@ -15,6 +15,8 @@
 extends RefCounted
 class_name ContractNegotiation
 
+const PlayerValue = preload("res://scripts/core/valuation/PlayerValue.gd")
+
 
 ## Calculate what a player expects to be paid in free agency.
 ##
