@@ -194,7 +194,7 @@ func _handle_hs_generation(
 	_apply_hs_player_fields(players, year, hs_cfg, step_seeds["hs_player_meta"])
 
 	# Generate HS background for each player (region, tier, stars, hype)
-	_apply_hs_backgrounds(players, step_seeds["hs_background"])
+	var bg_stats := _apply_hs_backgrounds(players, step_seeds["hs_background"])
 
 	var hs_players: Array = world_state.get("hs_players", []) as Array
 	hs_players.append_array(players)
@@ -204,7 +204,8 @@ func _handle_hs_generation(
 		"class_year": year,
 		"count": players.size(),
 		"schools": schools.size(),
-		"step_seeds": step_seeds
+		"step_seeds": step_seeds,
+		"background_stats": bg_stats
 	}
 
 func _handle_hs_assignment(
@@ -654,9 +655,16 @@ func _apply_hs_player_fields(players: Array, year: int, cfg: Dictionary, seed: i
 ## instead of complex multi-year school simulation.
 ##
 ## RNG consumption: 6-8 randf() calls per player
-func _apply_hs_backgrounds(players: Array, seed: int) -> void:
+## Returns: Dictionary with generation stats for logging
+func _apply_hs_backgrounds(players: Array, seed: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(seed)
+
+	# Track stats for logging
+	var star_counts := {2: 0, 3: 0, 4: 0, 5: 0}
+	var tier_counts := {"elite": 0, "good": 0, "avg": 0, "low": 0}
+	var total_hype := 0.0
+	var processed := 0
 
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
@@ -675,6 +683,31 @@ func _apply_hs_backgrounds(players: Array, seed: int) -> void:
 			p["home_region"] = String(background.get("hs_region", ""))
 
 		players[i] = p
+		processed += 1
+
+		# Track stats
+		var stars: int = background.get("recruiting_star_rating", 2)
+		if star_counts.has(stars):
+			star_counts[stars] += 1
+		var tier: String = background.get("hs_program_tier", "avg")
+		if tier_counts.has(tier):
+			tier_counts[tier] += 1
+		total_hype += float(background.get("initial_hype", 50.0))
+
+	var avg_hype: float = total_hype / max(processed, 1)
+	print("[HS Background] Generated %d backgrounds: stars=[5★:%d 4★:%d 3★:%d 2★:%d] tiers=[elite:%d good:%d avg:%d low:%d] avg_hype=%.1f" % [
+		processed,
+		star_counts[5], star_counts[4], star_counts[3], star_counts[2],
+		tier_counts["elite"], tier_counts["good"], tier_counts["avg"], tier_counts["low"],
+		avg_hype
+	])
+
+	return {
+		"processed": processed,
+		"star_distribution": star_counts,
+		"tier_distribution": tier_counts,
+		"avg_hype": avg_hype
+	}
 
 static func _weights_for(items: Array) -> Array:
 	var weights: Array = []
