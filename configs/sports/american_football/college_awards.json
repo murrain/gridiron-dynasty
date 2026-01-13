@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "description": "Configuration for college football awards and media mock draft rankings",
+
+  "heisman": {
+    "description": "Heisman Trophy - Most Outstanding Player in College Football",
+    "eligible_positions": ["QB", "RB", "WR"],
+    "finalist_count": 4,
+    "min_games_played": 10,
+    "voting_weights": {
+      "stats_production": 0.40,
+      "efficiency_metrics": 0.25,
+      "team_success": 0.20,
+      "hype": 0.15
+    },
+    "position_bias": {
+      "QB": 1.0,
+      "RB": 0.85,
+      "WR": 0.80,
+      "note": "QBs historically favored in Heisman voting"
+    },
+    "team_success_bonus": {
+      "championship": 20.0,
+      "playoff_appearance": 10.0,
+      "note": "Bonus points added to team success score"
+    }
+  },
+
+  "all_american": {
+    "description": "All-American Teams - Best players at each position",
+    "teams": ["first", "second", "third"],
+    "min_games_started": 8,
+    "positions": {
+      "QB": 1,
+      "RB": 2,
+      "WR": 3,
+      "TE": 2,
+      "OL": 5,
+      "DL": 4,
+      "EDGE": 2,
+      "LB": 3,
+      "CB": 2,
+      "S": 2
+    },
+    "selection_criteria": {
+      "stats_production": 0.60,
+      "efficiency_metrics": 0.40,
+      "note": "Weights for calculating All-American score"
+    }
+  },
+
+  "conference_awards": {
+    "description": "Conference-level awards (Offensive/Defensive Player of the Year)",
+    "awards": [
+      "offensive_poy",
+      "defensive_poy"
+    ],
+    "voting_weights": {
+      "stats_production": 0.50,
+      "efficiency_metrics": 0.30,
+      "team_contribution": 0.20
+    },
+    "min_games_played": 8
+  },
+
+  "mock_draft": {
+    "description": "Media mock draft rankings with source-specific biases",
+    "sources": ["espn", "nfl_network", "pff"],
+    "top_n_players": 100,
+    "noise_sigma": 15.0,
+    "note": "Gaussian noise with sigma=15 means ~68% of rankings within ±15 spots",
+
+    "hype_susceptibility_by_source": {
+      "espn": 0.70,
+      "nfl_network": 0.50,
+      "pff": 0.30,
+      "note": "How much each source is influenced by media hype (0.0-1.0)"
+    },
+
+    "source_bias": {
+      "espn": {
+        "description": "Entertainment-focused, high hype susceptibility, favors big names and big schools",
+        "big_school_bias": 1.15,
+        "flashy_positions": ["QB", "RB", "WR"],
+        "position_boost": 3.0,
+        "note": "ESPN ranks for entertainment value and viewer engagement"
+      },
+      "nfl_network": {
+        "description": "Balanced analysis with moderate hype influence, considers intangibles",
+        "big_school_bias": 1.05,
+        "flashy_positions": [],
+        "position_boost": 0.0,
+        "note": "NFL Network balances tape study with narrative"
+      },
+      "pff": {
+        "description": "Analytics-focused, low hype susceptibility, grades over narrative",
+        "big_school_bias": 1.0,
+        "flashy_positions": [],
+        "position_boost": 0.0,
+        "note": "PFF relies on film grades and analytics, resistant to hype"
+      }
+    },
+
+    "hype_vs_talent": {
+      "overhyped_threshold": 0.3,
+      "underhyped_threshold": -0.3,
+      "draft_adjustment_max": 0.15,
+      "note": "Gap thresholds for classification and max adjustment to draft evaluation (±15%)"
+    }
+  },
+
+  "award_hype_events": {
+    "description": "Hype changes triggered by winning awards",
+    "heisman_winner": {
+      "hype_min": 25.0,
+      "hype_max": 35.0,
+      "note": "Massive hype boost for Heisman winner"
+    },
+    "heisman_finalist": {
+      "hype_min": 15.0,
+      "hype_max": 25.0,
+      "note": "Significant hype for being in top 4"
+    },
+    "all_american_first": {
+      "hype_min": 12.0,
+      "hype_max": 18.0,
+      "note": "Strong hype boost for first team All-American"
+    },
+    "all_american_second": {
+      "hype_min": 6.0,
+      "hype_max": 12.0,
+      "note": "Moderate hype boost for second team"
+    },
+    "all_american_third": {
+      "hype_min": 3.0,
+      "hype_max": 8.0,
+      "note": "Small hype boost for third team"
+    },
+    "conference_poy": {
+      "hype_min": 8.0,
+      "hype_max": 12.0,
+      "note": "Conference player of the year gets solid hype boost"
+    }
+  },
+
+  "integration": {
+    "enable_college_awards": true,
+    "enable_mock_drafts": true,
+    "enable_hype_events": true,
+    "run_after_season_simulation": true,
+    "note": "Feature flags for controlling award systems"
+  }
+}
