@@ -240,6 +240,13 @@ func run(
 				return String((p as Dictionary).get("player_id", "")) != player_id
 			)
 
+	# Normalize field names: draft uses "player_id", FA expects "id"
+	# This ensures UDFAs are compatible with FreeAgency system
+	for player in remaining_pool:
+		var p: Dictionary = player
+		if p.has("player_id") and not p.has("id"):
+			p["id"] = p["player_id"]
+
 	# Store undrafted players
 	var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {}) as Dictionary
 	undrafted_pool[year] = remaining_pool

@@ -18,6 +18,31 @@
 ## Integration:
 ## - Depends on: ContractNegotiation, ContractLifecycle, PlayerValue
 ## - Soft dependency: TeamNeeds (stub provided if not available)
+##
+## UDFA LIFECYCLE POLICY:
+##
+## 1. Draft Phase (NflDraft.run):
+##    - Creates world_state["undrafted_pool"][year] with ~150 college seniors
+##    - Players have "player_id" field (matches draft pool format)
+##    - Players stored with full attributes: position, age, composite_score, stats
+##
+## 2. Free Agency Phase (FreeAgency.collect_free_agents):
+##    - UDFAs from current year added to FA pool automatically
+##    - Marked with previous_team_id="UDFA" to distinguish from veteran FAs
+##    - Tier assigned based on composite_score (typically depth/camp_body)
+##    - Market value calculated like any other FA
+##
+## 3. Signing Phase (FreeAgency._execute_signing):
+##    - UDFA moved from undrafted_pool to team roster
+##    - Contract created (rookie minimum, 1-2 years typical)
+##    - Player object transferred via _move_player_to_team()
+##    - Uses _find_player_object() to locate player in undrafted_pool
+##
+## 4. Cleanup (End of year):
+##    - Unsigned UDFAs remain in undrafted_pool[year]
+##    - Historical record preserved for analysis
+##    - Do NOT auto-retire - may sign in subsequent years
+##    - Teams can sign UDFAs from previous years if still available
 extends RefCounted
 class_name FreeAgency
 
@@ -27,14 +52,17 @@ const Rand = preload("res://autoloads/Rand.gd")
 ## Run complete free agency simulation for a given year.
 ##
 ## This orchestrates the entire free agency process:
-## 1. Collect all free agents (expired contracts)
+## 1. Collect all free agents (expired contracts + UDFAs)
 ## 2. Apply franchise tags (if any)
 ## 3. Generate team interest scores for each free agent
 ## 4. Process signings by tier (elite → starter → depth → camp body)
 ## 5. Update rosters, contracts, and cap space
 ## 6. Record transaction history
 ##
-## RNG Budget: ~7000 calls per FA period
+## RNG Budget (with UDFA integration):
+## - Team interest generation: ~32 teams × (220 veteran FAs + 150 UDFAs) = ~11,840 calls
+## - Player decision-making: ~370 FAs × avg 3 offers × 1 call = ~1,110 calls
+## - Total: ~12,950 RNG calls per FA period (was ~7,000 before UDFA integration)
 ##
 ## @param world_state: World state dictionary (MUTATED in-place)
 ##   Required keys:
@@ -250,6 +278,16 @@ static func collect_free_agents(
 					main_cfg
 				)
 				free_agents.append(fa_profile)
+
+	# Add undrafted players from this year's draft class
+	var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {})
+	var year_undrafted: Array = undrafted_pool.get(year, [])
+
+	for player in year_undrafted:
+		var p: Dictionary = player
+		# Create FA profile for UDFA
+		var fa_profile := _create_udfa_fa_profile(p, year, positions_cfg, main_cfg)
+		free_agents.append(fa_profile)
 
 	return free_agents
 
@@ -505,6 +543,51 @@ static func _create_fa_profile(
 	}
 
 
+## INTERNAL: Create FA profile for undrafted player.
+##
+## Creates a free agent profile for a UDFA, using composite_score as rating
+## and marking them with from_team="UDFA" to distinguish from veteran FAs.
+##
+## RNG: None (deterministic profile creation)
+##
+## @param player: UDFA player dictionary from undrafted_pool
+## @param year: Current year
+## @param positions_cfg: Positions configuration
+## @param main_cfg: Main configuration
+## @return: FreeAgentProfile dictionary
+static func _create_udfa_fa_profile(
+	player: Dictionary,
+	year: int,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
+) -> Dictionary:
+	var player_id := String(player.get("player_id", ""))
+	var position := String(player.get("position", "?"))
+	var age := int(player.get("age", 22))
+	var composite_score := float(player.get("composite_score", 50.0))
+
+	# Calculate market value and demand for UDFA
+	# UDFAs typically get rookie minimum contracts
+	var demand := ContractNegotiation.generate_player_demand(player, positions_cfg, main_cfg)
+	var minimum_demand := float(demand.get("minimum_annual_value", 1.0))
+
+	# Determine priority tier based on composite_score
+	# Most UDFAs will be depth or camp_body tier
+	var priority_tier := _determine_priority_tier(composite_score)
+
+	return {
+		"player_id": player_id,
+		"position": position,
+		"age": age,
+		"overall_rating": composite_score,
+		"previous_team_id": "UDFA",  # Mark as undrafted
+		"contract_expired": false,  # Never had a contract
+		"minimum_demand": minimum_demand,
+		"priority_tier": priority_tier,
+		"demand": demand  # Store full demand for later use
+	}
+
+
 ## INTERNAL: Determine free agent priority tier from evaluation score.
 static func _determine_priority_tier(eval_score: float) -> String:
 	if eval_score >= 80.0:
@@ -697,6 +780,11 @@ static func _find_offer(offers: Array, team_id: String) -> Dictionary:
 
 
 ## INTERNAL: Execute player signing (mutate world_state).
+##
+## Handles signing for both veteran FAs and UDFAs.
+## Uses _find_player_object() to locate player in either rosters or undrafted_pool.
+##
+## RNG: None (deterministic signing execution)
 static func _execute_signing(
 	world_state: Dictionary,
 	player_id: String,
@@ -705,12 +793,14 @@ static func _execute_signing(
 	year: int,
 	team_spending: Dictionary
 ) -> Dictionary:
-	# Find player in current roster
-	var player := _find_player_in_rosters(world_state, player_id)
+	# Find player object (checks rosters first, then undrafted pool)
+	var player := _find_player_object(world_state, player_id, year)
 	if player.is_empty():
-		print("[FreeAgency] ERROR: Cannot find player %s for signing" % player_id)
+		var timestamp := _get_timestamp()
+		print("%s %d nfl_free_agency: ERROR: Cannot find player %s for signing" % [timestamp, year, player_id])
 		return {}
 
+	# Determine previous team (empty for UDFAs)
 	var previous_team_id := _find_player_team(world_state, player_id)
 
 	# Create new contract from offer
@@ -736,8 +826,8 @@ static func _execute_signing(
 
 	player["contract"] = transition["contract"]
 
-	# Move player to new team
-	_move_player_to_team(world_state, player_id, previous_team_id, team_id)
+	# Move player to new team (pass year for UDFA pool lookup)
+	_move_player_to_team(world_state, player_id, previous_team_id, team_id, year)
 
 	# Update team cap space
 	var team := _find_team(world_state, team_id)
@@ -750,14 +840,17 @@ static func _execute_signing(
 		team_spending[team_id] = 0.0
 	team_spending[team_id] = float(team_spending[team_id]) + aav
 
-	print("[FreeAgency] Signed %s to %s for %.2fM AAV" % [
-		player_id, team_id, aav
+	# Log signing with UDFA indicator
+	var timestamp := _get_timestamp()
+	var udfa_marker := " (UDFA)" if previous_team_id.is_empty() else ""
+	print("%s %d nfl_free_agency: Signed %s to %s for %.2fM AAV%s" % [
+		timestamp, year, player_id, team_id, aav, udfa_marker
 	])
 
 	return {
 		"player_id": player_id,
 		"team_id": team_id,
-		"previous_team_id": previous_team_id,
+		"previous_team_id": previous_team_id if not previous_team_id.is_empty() else "UDFA",
 		"contract": contract,
 		"year": year
 	}
@@ -928,6 +1021,63 @@ static func _find_player_in_rosters(world_state: Dictionary, player_id: String) 
 	return {}
 
 
+## INTERNAL: Find player in undrafted pool by player_id.
+##
+## Searches the undrafted pool for a specific year to find a player.
+## Returns player Dictionary or empty {} if not found.
+##
+## RNG: None (deterministic lookup)
+##
+## @param world_state: World state dictionary
+## @param player_id: Player identifier to search for
+## @param year: Year of the undrafted pool to search
+## @return: Player dictionary or empty {} if not found
+static func _find_player_in_undrafted_pool(
+	world_state: Dictionary,
+	player_id: String,
+	year: int
+) -> Dictionary:
+	var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {})
+	var year_pool: Array = undrafted_pool.get(year, [])
+
+	for player in year_pool:
+		var p: Dictionary = player
+		if String(p.get("player_id", "")) == player_id:
+			return p
+
+	return {}
+
+
+## INTERNAL: Find player object by ID, searching both rosters and undrafted pool.
+##
+## First searches all NFL rosters, then falls back to undrafted pool if not found.
+## This enables UDFA signing by finding players not yet on any roster.
+##
+## VERIFICATION: This function enables UDFA integration by:
+## 1. Searching rosters first for veteran FAs (normal path)
+## 2. Falling back to undrafted_pool[year] for UDFAs (new path)
+## 3. Returning player dict with "player_id" field (normalized in NflDraft)
+##
+## RNG: None (deterministic lookup)
+##
+## @param world_state: World state dictionary
+## @param player_id: Player identifier to search for
+## @param year: Year of the undrafted pool to search (if needed)
+## @return: Player dictionary or empty {} if not found
+static func _find_player_object(
+	world_state: Dictionary,
+	player_id: String,
+	year: int
+) -> Dictionary:
+	# Try rosters first (veteran FAs)
+	var player := _find_player_in_rosters(world_state, player_id)
+	if not player.is_empty():
+		return player
+
+	# Try undrafted pool (UDFAs)
+	return _find_player_in_undrafted_pool(world_state, player_id, year)
+
+
 ## INTERNAL: Find which team a player is on.
 static func _find_player_team(world_state: Dictionary, player_id: String) -> String:
 	var nfl_rosters := world_state.get("nfl_rosters", {}) as Dictionary
@@ -960,24 +1110,55 @@ static func _find_team_by_id(teams: Array, team_id: String) -> Dictionary:
 
 
 ## INTERNAL: Move player from one team to another.
+##
+## Supports moving players from:
+## - Team roster to another team roster (normal FA/trade)
+## - Undrafted pool to team roster (UDFA signing)
+##
+## RNG: None (deterministic move operation)
+##
+## @param world_state: World state dictionary (MUTATED in-place)
+## @param player_id: Player identifier to move
+## @param from_team_id: Source team ID (empty string for UDFA)
+## @param to_team_id: Destination team ID
+## @param year: Current year (for undrafted pool lookup, optional for backward compatibility)
 static func _move_player_to_team(
 	world_state: Dictionary,
 	player_id: String,
 	from_team_id: String,
-	to_team_id: String
+	to_team_id: String,
+	year: int = 0
 ) -> void:
 	var nfl_rosters := world_state.get("nfl_rosters", {}) as Dictionary
 
-	# Remove from old team
+	# Find player object (checks rosters first, then undrafted pool)
+	var player := _find_player_object(world_state, player_id, year)
+	if player.is_empty():
+		var timestamp := _get_timestamp()
+		print("%s %d nfl_free_agency: ERROR: Cannot find player %s" % [timestamp, year, player_id])
+		return
+
+	# Remove from old team (if from a team roster)
 	if not from_team_id.is_empty() and nfl_rosters.has(from_team_id):
 		var from_roster := nfl_rosters.get(from_team_id, {}) as Dictionary
 		var from_players := from_roster.get("players", []) as Array
 
 		for i in range(from_players.size()):
-			var player := from_players[i] as Dictionary
-			if player.get("id", "") == player_id:
+			var p := from_players[i] as Dictionary
+			if p.get("id", "") == player_id:
 				from_players.remove_at(i)
 				break
+
+	# Remove from undrafted pool if present
+	if year > 0:
+		var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {})
+		if undrafted_pool.has(year):
+			var year_pool: Array = undrafted_pool[year]
+			for i in range(year_pool.size()):
+				var p: Dictionary = year_pool[i]
+				if String(p.get("player_id", "")) == player_id:
+					year_pool.remove_at(i)
+					break
 
 	# Add to new team
 	if not to_team_id.is_empty():
@@ -989,7 +1170,6 @@ static func _move_player_to_team(
 			to_roster["players"] = []
 
 		var to_players := to_roster.get("players", []) as Array
-		var player := _find_player_in_rosters(world_state, player_id)
 		to_players.append(player)
 
 ## Returns current timestamp in HH:MM:SS format
