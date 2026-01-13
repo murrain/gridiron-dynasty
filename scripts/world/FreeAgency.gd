@@ -22,6 +22,8 @@ extends RefCounted
 class_name FreeAgency
 
 const Rand = preload("res://autoloads/Rand.gd")
+const ContractNegotiation = preload("res://scripts/world/ContractNegotiation.gd")
+const ContractLifecycle = preload("res://scripts/world/ContractLifecycle.gd")
 
 
 ## Run complete free agency simulation for a given year.

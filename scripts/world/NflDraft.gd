@@ -83,7 +83,7 @@ func run(
 	var team_scouts := _generate_team_scouts(teams, stats_cfg, scouts_cfg, scout_rng, team_quality)
 
 	# Sort teams by draft order for each round
-	var sorted_teams := _sort_by_draft_order(teams)
+	var sorted_teams := _sort_by_draft_order(teams, world_state, year)
 
 	var picks: Array = []
 	var remaining_pool := draft_pool.duplicate()
@@ -536,8 +536,57 @@ static func _apply_team_quality_to_scout(
 		scout["tape_grinder"] = clamp(tape_grinder + tape_bonus, 0.0, 1.0)
 
 
-func _sort_by_draft_order(teams: Array) -> Array:
+## Sorts teams by draft order, using previous season standings if available.
+##
+## For year > 0: Uses inverse standings (worst record picks first)
+## For year 0: Falls back to static draft_order field
+##
+## Tiebreaker: strength_of_schedule (lower = earlier pick)
+##
+## RNG Pattern: None (pure deterministic sort)
+func _sort_by_draft_order(teams: Array, world_state: Dictionary, year: int) -> Array:
 	var sorted := teams.duplicate()
+
+	# Try to use standings-based order from previous season
+	if year > 0:
+		var season_records: Dictionary = world_state.get("season_records", {})
+		var prev_year_records: Dictionary = season_records.get(year - 1, {})
+
+		if not prev_year_records.is_empty():
+			# Sort by previous season performance (inverse standings)
+			# Worst record → Pick 1st, Best record → Pick last
+			sorted.sort_custom(func(a, b):
+				var a_dict := a as Dictionary
+				var b_dict := b as Dictionary
+				var a_id := String(a_dict.get("id", ""))
+				var b_id := String(b_dict.get("id", ""))
+
+				var a_record: Dictionary = prev_year_records.get(a_id, {})
+				var b_record: Dictionary = prev_year_records.get(b_id, {})
+
+				var a_wins := int(a_record.get("wins", 0))
+				var a_losses := int(a_record.get("losses", 0))
+				var b_wins := int(b_record.get("wins", 0))
+				var b_losses := int(b_record.get("losses", 0))
+
+				# Calculate win percentage
+				var a_games := a_wins + a_losses
+				var b_games := b_wins + b_losses
+				var a_win_pct := 0.0 if a_games == 0 else float(a_wins) / float(a_games)
+				var b_win_pct := 0.0 if b_games == 0 else float(b_wins) / float(b_games)
+
+				# Primary sort: lower win percentage picks earlier
+				if abs(a_win_pct - b_win_pct) > 0.001:  # Avoid floating point comparison issues
+					return a_win_pct < b_win_pct
+
+				# Tiebreaker: strength of schedule (lower = earlier pick)
+				var a_sos := float(a_record.get("strength_of_schedule", 0.5))
+				var b_sos := float(b_record.get("strength_of_schedule", 0.5))
+				return a_sos < b_sos
+			)
+			return sorted
+
+	# Fallback: Use static draft_order field (for year 0 or if no records exist)
 	sorted.sort_custom(func(a, b):
 		return int((a as Dictionary).get("draft_order", 999)) < int((b as Dictionary).get("draft_order", 999))
 	)
@@ -1245,6 +1294,10 @@ func _create_rookie_contract(
 	var signing_bonus := base_salary * (0.8 - (float(round_num - 1) * 0.1))
 	signing_bonus = max(signing_bonus, 0.1)
 
+	# Calculate annual value (AAV) for cap tracking
+	# Formula matches FreeAgency contract structure: base + amortized bonus
+	var annual_value := base_salary + (signing_bonus / float(years))
+
 	return {
 		"type": "rookie",
 		"years_total": years,
@@ -1252,6 +1305,7 @@ func _create_rookie_contract(
 		"base_salary": base_salary,
 		"signing_bonus": signing_bonus,
 		"cap_hit": base_salary + (signing_bonus / float(years)),
+		"annual_value": annual_value,
 		"fifth_year_option": has_fifth_year_option,
 		"gtd_remaining": signing_bonus
 	}
