@@ -62,24 +62,31 @@ const STARTER_POSITION_THRESHOLDS := {
 ## avoiding repeated O(n log n) sorts for every game (Phase A Optimization A1).
 ##
 ## RNG Consumption: None (pure calculation)
-## Performance: O(n log n) where n = roster size
+## Performance: O(n) if depth_chart provided, O(n log n) if using rating fallback
 ##
 ## Parameters:
 ##   roster: Dictionary with "players" array
 ##   positions_cfg: Position configuration
 ##   main_cfg: Main configuration
+##   depth_chart: Optional DepthChart resource (if null, falls back to rating-based)
 ##
 ## Returns:
 ##   Dictionary: Set of starter player_ids (player_id -> true)
 static func compute_starters(
 	roster: Dictionary,
 	positions_cfg: Dictionary,
-	main_cfg: Dictionary
+	main_cfg: Dictionary,
+	depth_chart: DepthChart = null
 ) -> Dictionary:
 	var players: Array = roster.get("players", [])
 	if players.is_empty():
 		return {}
 
+	# Prefer depth chart if available (architectural alignment with Team 1)
+	if depth_chart != null and not depth_chart.is_empty():
+		return _starters_from_depth_chart(depth_chart, players)
+
+	# Fallback to rating-based determination (backward compatibility)
 	return _determine_starters(players, positions_cfg, main_cfg)
 
 
@@ -89,7 +96,7 @@ static func compute_starters(
 ## Performance: O(n) where n = total players (~50-100 players per game)
 ##
 ## Algorithm:
-##   1. Determine starters for each team based on ratings (or use cached starters)
+##   1. Determine starters for each team based on depth chart or ratings (or use cached starters)
 ##   2. Generate position-specific stats for each player
 ##   3. Track games_played and games_started
 ##   4. Return dictionary mapping player_id -> stat_line
@@ -103,6 +110,8 @@ static func compute_starters(
 ##   rng: RandomNumberGenerator (explicit, caller-controlled)
 ##   cached_home_starters: Optional pre-computed starters for home team (optimization)
 ##   cached_away_starters: Optional pre-computed starters for away team (optimization)
+##   home_depth_chart: Optional DepthChart for home team (Team 1 integration)
+##   away_depth_chart: Optional DepthChart for away team (Team 1 integration)
 ##
 ## Returns:
 ##   Dictionary: {player_id: stat_line_dict}
@@ -116,6 +125,7 @@ static func compute_starters(
 ##   When cached_home_starters and cached_away_starters are provided, this function
 ##   skips the O(n log n) starter determination per team, reducing from O(games × teams × n log n)
 ##   to O(teams × n log n) complexity for an entire season.
+##   When depth charts are provided, starter determination is O(n) instead of O(n log n).
 static func generate_game_stats(
 	home_roster: Dictionary,
 	away_roster: Dictionary,
@@ -124,7 +134,9 @@ static func generate_game_stats(
 	main_cfg: Dictionary,
 	rng: RandomNumberGenerator,
 	cached_home_starters: Dictionary = {},
-	cached_away_starters: Dictionary = {}
+	cached_away_starters: Dictionary = {},
+	home_depth_chart: DepthChart = null,
+	away_depth_chart: DepthChart = null
 ) -> Dictionary:
 	var all_stats := {}
 
@@ -137,7 +149,8 @@ static func generate_game_stats(
 		positions_cfg,
 		main_cfg,
 		rng,
-		cached_home_starters
+		cached_home_starters,
+		home_depth_chart
 	)
 	for player_id in home_stats.keys():
 		all_stats[player_id] = home_stats[player_id]
@@ -151,7 +164,8 @@ static func generate_game_stats(
 		positions_cfg,
 		main_cfg,
 		rng,
-		cached_away_starters
+		cached_away_starters,
+		away_depth_chart
 	)
 	for player_id in away_stats.keys():
 		all_stats[player_id] = away_stats[player_id]
@@ -164,12 +178,13 @@ static func generate_game_stats(
 ## RNG Consumption: Variable per player (documented in _generate_player_stats)
 ##
 ## Algorithm:
-##   1. Determine starters by position and rating (or use cached starters)
+##   1. Determine starters by depth chart/position/rating (or use cached starters)
 ##   2. Generate stats for each player
 ##   3. Mark starters vs bench players
 ##
 ## Parameters:
 ##   cached_starters: Optional pre-computed starters (optimization A1)
+##   depth_chart: Optional DepthChart (Team 1 integration)
 ##
 ## Returns:
 ##   Dictionary: {player_id: stat_line_dict}
@@ -180,7 +195,8 @@ static func _generate_team_game_stats(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	rng: RandomNumberGenerator,
-	cached_starters: Dictionary = {}
+	cached_starters: Dictionary = {},
+	depth_chart: DepthChart = null
 ) -> Dictionary:
 	var players: Array = roster.get("players", [])
 	if players.is_empty():
@@ -195,6 +211,9 @@ static func _generate_team_game_stats(
 	if not cached_starters.is_empty():
 		# Use cached starters (A1 optimization - avoids O(n log n) sort)
 		starters = cached_starters
+	elif depth_chart != null and not depth_chart.is_empty():
+		# Use depth chart if available (Team 1 integration)
+		starters = _starters_from_depth_chart(depth_chart, players)
 	else:
 		# Fallback: Compute starters on-the-fly (legacy behavior)
 		starters = _determine_starters(players, positions_cfg, main_cfg)
@@ -822,3 +841,41 @@ static func _generate_p_stats(rating: float, won: bool, is_starter: bool, rng: R
 		"punts_inside_20": int(float(punts) * 0.3),  # ~30% inside 20
 		"touchbacks": int(float(punts) * 0.1)  # ~10% touchbacks
 	}
+
+
+## Determines starters from a DepthChart (Team 1 integration)
+##
+## RNG Consumption: None (pure lookup)
+## Performance: O(positions × depth) where depth is typically 1 (starters only)
+##
+## Algorithm:
+##   1. Iterate through all positions in depth chart
+##   2. Extract starter (index 0) from each position
+##   3. Validate starter exists in player roster
+##   4. Return set of starter player_ids
+##
+## Parameters:
+##   depth_chart: DepthChart resource
+##   players: Array of player dictionaries (for validation)
+##
+## Returns:
+##   Dictionary: Set of starter player_ids (player_id -> true)
+static func _starters_from_depth_chart(depth_chart: DepthChart, players: Array) -> Dictionary:
+	var starters := {}
+
+	# Build set of valid player_ids for validation
+	var valid_players := {}
+	for player in players:
+		var p: Dictionary = player as Dictionary
+		var player_id := String(p.get("player_id", ""))
+		if player_id != "":
+			valid_players[player_id] = true
+
+	# Extract starters from each position
+	var filled_positions := depth_chart.get_filled_positions()
+	for position in filled_positions:
+		var starter_id := depth_chart.get_starter(position)
+		if starter_id != "" and valid_players.has(starter_id):
+			starters[starter_id] = true
+
+	return starters
