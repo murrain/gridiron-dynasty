@@ -1,6 +1,12 @@
 extends Control
 class_name WorldExplorer
 
+# Preload query utilities and formatters
+const PlayerQueries = preload("res://scripts/ui/world_explorer/queries/PlayerQueries.gd")
+const TeamQueries = preload("res://scripts/ui/world_explorer/queries/TeamQueries.gd")
+const PlayerDetailFormatter = preload("res://scripts/ui/world_explorer/formatters/PlayerDetailFormatter.gd")
+const TeamDetailFormatter = preload("res://scripts/ui/world_explorer/formatters/TeamDetailFormatter.gd")
+
 ## World Explorer UI - Main entry point for exploring bootstrapped worlds
 ##
 ## Architecture:
@@ -157,10 +163,17 @@ func show_player_detail(player_id: String) -> void:
 	current_player_id = player_id
 	current_team_id = ""
 
-	# For now, show placeholder - Track 2 will provide PlayerDetailFormatter
 	detail_text.clear()
-	detail_text.append_text("[center][color=#66ff66]Player Detail: %s[/color][/center]\n\n" % player_id)
-	detail_text.append_text("(Detailed formatting will be provided by PlayerDetailFormatter from Track 2)")
+
+	# Find player in world state
+	var player = PlayerQueries.get_player_by_id(world_state, player_id)
+	if player == null:
+		detail_text.append_text("[center][color=#ff0000]Player not found: %s[/color][/center]" % player_id)
+		return
+
+	# Format and display player details
+	var formatted_text = PlayerDetailFormatter.format(player, world_state)
+	detail_text.append_text(formatted_text)
 
 ## Public API: Show team/school detail in right panel
 func show_team_detail(team_id: String, level: String) -> void:
@@ -171,10 +184,28 @@ func show_team_detail(team_id: String, level: String) -> void:
 	current_level = level
 	current_player_id = ""
 
-	# For now, show placeholder - Track 2 will provide TeamDetailFormatter
 	detail_text.clear()
-	detail_text.append_text("[center][color=#66ff66]%s Detail: %s[/color][/center]\n\n" % [level.to_upper(), team_id])
-	detail_text.append_text("(Detailed formatting will be provided by TeamDetailFormatter from Track 2)")
+
+	# Find team/school in world state based on level
+	var team: Variant = null
+	match level.to_lower():
+		"nfl":
+			team = TeamQueries.get_nfl_team(world_state, team_id)
+		"college":
+			team = TeamQueries.get_college(world_state, team_id)
+		"hs", "high_school":
+			team = TeamQueries.get_hs_school(world_state, team_id)
+		_:
+			detail_text.append_text("[center][color=#ff0000]Unknown level: %s[/color][/center]" % level)
+			return
+
+	if team == null:
+		detail_text.append_text("[center][color=#ff0000]%s not found: %s[/color][/center]" % [level.to_upper(), team_id])
+		return
+
+	# Format and display team details
+	var formatted_text = TeamDetailFormatter.format(team, world_state, level)
+	detail_text.append_text(formatted_text)
 
 ## Public API: Clear detail panel
 func clear_detail() -> void:

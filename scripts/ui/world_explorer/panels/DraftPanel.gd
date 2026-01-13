@@ -51,7 +51,8 @@ func _setup_filters() -> void:
 	# Position filter
 	position_filter.clear()
 	position_filter.add_item("All")
-	var positions = ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S", "K", "P"]
+	# Exclude P/K - they're rarely tracked on draft boards
+	var positions = ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S"]
 	for pos in positions:
 		position_filter.add_item(pos)
 
@@ -151,8 +152,13 @@ func _populate_draft_prospects() -> void:
 
 	# Calculate draft grades for all prospects
 	# RNG consumption: One calculate_composite_rating() call per player
+	# Exclude P/K from draft board (rarely tracked)
 	var prospects_with_grades: Array = []
 	for player in draft_pool:
+		var position: String = String(player.get("position", ""))
+		if position == "P" or position == "K":
+			continue  # Skip punters and kickers
+
 		var grade = DraftQueries.calculate_draft_grade(player)
 		prospects_with_grades.append({
 			"player": player,
