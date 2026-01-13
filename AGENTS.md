@@ -1180,3 +1180,211 @@ Many features, poorly understood
 
 Commit message requirements live in `docs/contributing/COMMIT_STYLE.md`.
 All agents and contributors are expected to follow it.
+
+---
+
+## Lessons Learned - Multi-Team Coordination
+
+### Critical Success Factors for Director-Led Projects
+
+Based on production experience coordinating multiple architecture-guardian teams, the following protocols are MANDATORY for future multi-team initiatives:
+
+#### 1. Pre-Flight Feature Audit (MANDATORY)
+
+**Before spawning any teams:**
+- Audit main/ codebase to verify which features actually need implementation
+- Check if features already exist but are undocumented
+- Create verified work packages based on reality, not outdated planning docs
+- Document findings: "Feature X already exists at path/to/file.gd:line_range"
+
+**Failure Mode Prevented:** Team 3 spent entire cycle analyzing features that already existed. Team 2 falsely claimed features existed when they didn't.
+
+#### 2. Git Workspace Enforcement (MANDATORY)
+
+**Director must set up git workspaces before spawning teams:**
+
+```bash
+# Director creates team workspace with proper git clone
+cd /path/to/project
+mkdir -p workspaces/team-{name}
+cd workspaces/team-{name}
+git clone git@github.com:org/repo.git architect
+cd architect
+git checkout -b team-{name}/architect
+```
+
+**In team spawn directive, provide ABSOLUTE paths:**
+- Workspace: `/absolute/path/to/workspaces/team-{name}/architect`
+- Main repo: `/absolute/path/to/main/` (READ ONLY reference)
+
+**Explicitly forbid main/ modification:**
+"You MUST NOT modify files in `/path/to/main/` - this is a read-only reference. ALL changes must be made in your workspace: `/path/to/workspaces/team-{name}/architect`"
+
+**Failure Mode Prevented:** Teams worked in main/ directly, creating unauthorized files and modifications. Team 5 created files in main/ that had to be cleaned up.
+
+#### 3. Checkpoint Verification Protocol (MANDATORY)
+
+**At each checkpoint, require:**
+- Git commit hash (if code written): "Latest commit: abc1234"
+- File change summary: "Modified: X.gd (+50 lines), Created: Y.gd (200 lines)"
+- Explicit code-quality-reviewer score (CP4+): "Score: 9.7/10 ✓"
+- Branch push confirmation: "Pushed to origin/team-{name}/architect"
+
+**Director must verify claims:**
+```bash
+cd /path/to/workspaces/team-{name}/architect
+git log --oneline -5
+git diff main --stat
+ls -la path/to/claimed/files
+```
+
+**Failure Mode Prevented:** Team 5 claimed "PR-Ready" with all features complete, but no code existed. Team 2 claimed features existed when they didn't. False reports wasted Director oversight time.
+
+#### 4. Code Quality Gate Automation (MANDATORY)
+
+**At CP3 (Implementation 100%), Director must automatically:**
+- Spawn code-quality-reviewer agent for each team's completed code
+- Block CP4 progression until score ≥9.5/10 received
+- Reject completion reports that don't include explicit scores
+- Require re-review if score below threshold
+
+**Code-quality-reviewer spawn example:**
+```
+SPAWN: code-quality-reviewer for Team {N}
+Workspace: /path/to/workspaces/team-{name}/architect
+Files to review: [list from git diff]
+Score threshold: 9.5/10 minimum
+```
+
+**Failure Mode Prevented:** No code quality reviews occurred. Mandatory ≥9.5/10 threshold never enforced. Work quality unverified.
+
+#### 5. Engineer Spawn Authority (PRE-APPROVED)
+
+**In Architect spawn directive, explicitly state:**
+"You have PRE-APPROVED authority to spawn 1-3 game-systems-engineer agents as needed. Create engineer workspaces under `workspaces/team-{name}/eng-{n}/` and provide them with clear task specifications. You do NOT need Director approval to spawn engineers."
+
+**Architect Task Specification Template:**
+```
+ENGINEER {N} TASK
+Workspace: /path/to/workspaces/team-{name}/eng-{n}/
+Branch: team-{name}/feature-{description}
+Files Owned: [exclusive file list]
+Dependencies: [other engineers or none]
+Acceptance Criteria: [checklist]
+```
+
+**Failure Mode Prevented:** Team 4 designed excellent 2-engineer architecture but stopped at design phase, awaiting unclear "Director approval" to spawn engineers.
+
+#### 6. Work Package Validation
+
+**Each work package must specify:**
+- Exact file paths to modify/create
+- Line ranges if modifying existing files
+- Interface contracts if cross-team dependencies exist
+- Stub interfaces for soft dependencies
+- Verification commands to confirm feature existence
+
+**Example:**
+```
+Feature: DepthChart Integration
+Files to modify:
+  - scripts/core/game_simulation/StatGenerator.gd (add depth chart lookup in get_starter_at_position())
+  - scripts/core/models/Roster.gd (add depth_chart: DepthChart field)
+Verification:
+  - grep "depth_chart" scripts/core/models/Roster.gd
+  - grep "get_starter.*depth" scripts/core/game_simulation/StatGenerator.gd
+```
+
+**Failure Mode Prevented:** Vague work packages led to confusion about what needed implementation vs. what existed.
+
+#### 7. Main Branch Protection
+
+**Git repository configuration:**
+- Set main/ repo to read-only for all agents
+- Use git hooks to prevent accidental commits to main
+- Require all work to happen in workspaces/
+- Enforce PR-only merges to main
+
+**Directory access control:**
+- Main repo: Read-only reference
+- Workspaces: Full read-write access
+- Each team isolated to their workspace
+
+**Failure Mode Prevented:** Teams modified main/ directly instead of working in isolated branches. Cleanup required.
+
+#### 8. Completion Report Template (MANDATORY)
+
+**All teams must report using this exact format:**
+
+```
+CHECKPOINT {N} REPORT - TEAM {Name}
+Status: [Complete/Blocked/In Progress]
+Current Checkpoint: CP{N}
+Next Checkpoint: CP{N+1}
+
+Implementation Status:
+- Feature 1: [Complete/In Progress/Not Started] - [file paths modified]
+- Feature 2: [Complete/In Progress/Not Started] - [file paths modified]
+- Feature 3: [Complete/In Progress/Not Started] - [file paths modified]
+...
+
+Git Status:
+- Branch: team-{name}/architect
+- Latest Commit: [commit hash]
+- Files Modified: [count]
+- Files Created: [count]
+- Pushed to Remote: [Yes/No]
+
+Code Quality (if CP4+):
+- Review Score: [X.X/10] [✓ meets threshold / ✗ below threshold]
+- Review Cycle: [1st review / 2nd review after fixes]
+
+Blockers: [None / Description with specific issue]
+
+ETA to Next Checkpoint: [Realistic estimate]
+
+Verification Commands:
+[Commands Director can run to verify claims]
+```
+
+**Director rejection criteria:**
+- Missing commit hash when code written
+- Missing code quality score at CP4+
+- Claims without verification commands
+- "Complete" status with no git changes
+
+#### 9. Post-Mortem Analysis
+
+**When a team fails or produces false reports:**
+- Document the failure mode
+- Identify the missing protocol that would have prevented it
+- Update this section with the new protocol
+- Brief all subsequent teams on the lessons
+
+**Continuous improvement:** This section should grow as we learn from each multi-team project.
+
+---
+
+### Quick Reference: Director's Pre-Spawn Checklist
+
+Before spawning any architecture-guardian:
+
+- [ ] Pre-flight feature audit completed (verified what needs implementation)
+- [ ] Git workspaces created with proper clones and branches
+- [ ] Work packages validated with exact file paths
+- [ ] Stub interfaces created for cross-team dependencies
+- [ ] Engineer spawn authority explicitly granted
+- [ ] Completion report template provided
+- [ ] Verification commands prepared
+- [ ] Code-quality-reviewer spawn planned for CP3
+
+During team execution:
+
+- [ ] Checkpoint reports received using mandatory template
+- [ ] Git changes verified (commit hashes, file existence)
+- [ ] Code-quality-reviewer spawned at CP3
+- [ ] Scores verified ≥9.5/10 before CP4 approval
+- [ ] Cross-team conflicts resolved before merge
+- [ ] PR creation coordinated in dependency order
+
+---
