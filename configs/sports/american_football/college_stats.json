@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "description": "Configuration for college statistics analysis and draft evaluation metrics",
+
+  "efficiency_metrics": {
+    "QB": {
+      "qbr": {
+        "description": "NFL passer rating calculation",
+        "weight": 0.4,
+        "good_threshold": 85.0,
+        "elite_threshold": 95.0
+      },
+      "completion_percentage": {
+        "description": "Percentage of pass attempts completed",
+        "weight": 0.2,
+        "good_threshold": 62.0,
+        "elite_threshold": 68.0
+      },
+      "yards_per_attempt": {
+        "description": "Average passing yards per attempt",
+        "weight": 0.3,
+        "good_threshold": 7.5,
+        "elite_threshold": 9.0
+      },
+      "td_int_ratio": {
+        "description": "Ratio of touchdown passes to interceptions",
+        "weight": 0.1,
+        "good_threshold": 2.0,
+        "elite_threshold": 3.5
+      }
+    },
+    "RB": {
+      "yards_per_carry": {
+        "description": "Average rushing yards per carry",
+        "weight": 0.5,
+        "good_threshold": 5.0,
+        "elite_threshold": 6.5
+      },
+      "yards_per_reception": {
+        "description": "Average receiving yards per reception",
+        "weight": 0.2,
+        "good_threshold": 8.0,
+        "elite_threshold": 12.0
+      },
+      "yards_per_touch": {
+        "description": "Total yards per touch (rushing + receiving)",
+        "weight": 0.3,
+        "good_threshold": 5.5,
+        "elite_threshold": 7.0
+      }
+    },
+    "WR": {
+      "catch_rate": {
+        "description": "Percentage of targets caught",
+        "weight": 0.3,
+        "good_threshold": 60.0,
+        "elite_threshold": 70.0
+      },
+      "yards_per_reception": {
+        "description": "Average receiving yards per reception",
+        "weight": 0.4,
+        "good_threshold": 13.0,
+        "elite_threshold": 17.0
+      },
+      "yards_per_game": {
+        "description": "Average receiving yards per game",
+        "weight": 0.3,
+        "good_threshold": 60.0,
+        "elite_threshold": 90.0
+      }
+    },
+    "TE": {
+      "catch_rate": {
+        "description": "Percentage of targets caught",
+        "weight": 0.4,
+        "good_threshold": 62.0,
+        "elite_threshold": 72.0
+      },
+      "yards_per_reception": {
+        "description": "Average receiving yards per reception",
+        "weight": 0.3,
+        "good_threshold": 11.0,
+        "elite_threshold": 14.0
+      },
+      "yards_per_game": {
+        "description": "Average receiving yards per game",
+        "weight": 0.3,
+        "good_threshold": 40.0,
+        "elite_threshold": 65.0
+      }
+    },
+    "OL": {
+      "start_percentage": {
+        "description": "Percentage of games started",
+        "weight": 0.5,
+        "good_threshold": 80.0,
+        "elite_threshold": 95.0
+      },
+      "pancakes_per_game": {
+        "description": "Average pancake blocks per game",
+        "weight": 0.3,
+        "good_threshold": 2.0,
+        "elite_threshold": 3.5
+      },
+      "sacks_allowed_per_game": {
+        "description": "Average sacks allowed per game (lower is better)",
+        "weight": 0.2,
+        "good_threshold": 0.5,
+        "elite_threshold": 0.2
+      }
+    },
+    "DL": {
+      "sacks_per_game": {
+        "description": "Average sacks per game",
+        "weight": 0.4,
+        "good_threshold": 0.5,
+        "elite_threshold": 1.0
+      },
+      "tackles_per_game": {
+        "description": "Average tackles per game",
+        "weight": 0.3,
+        "good_threshold": 4.0,
+        "elite_threshold": 6.0
+      },
+      "tfl_per_game": {
+        "description": "Average tackles for loss per game",
+        "weight": 0.3,
+        "good_threshold": 1.0,
+        "elite_threshold": 1.8
+      }
+    },
+    "EDGE": {
+      "sacks_per_game": {
+        "description": "Average sacks per game",
+        "weight": 0.5,
+        "good_threshold": 0.6,
+        "elite_threshold": 1.2
+      },
+      "tackles_per_game": {
+        "description": "Average tackles per game",
+        "weight": 0.2,
+        "good_threshold": 3.5,
+        "elite_threshold": 5.5
+      },
+      "tfl_per_game": {
+        "description": "Average tackles for loss per game",
+        "weight": 0.3,
+        "good_threshold": 1.2,
+        "elite_threshold": 2.0
+      }
+    },
+    "LB": {
+      "tackles_per_game": {
+        "description": "Average tackles per game",
+        "weight": 0.5,
+        "good_threshold": 6.0,
+        "elite_threshold": 9.0
+      },
+      "sacks_per_game": {
+        "description": "Average sacks per game",
+        "weight": 0.2,
+        "good_threshold": 0.3,
+        "elite_threshold": 0.7
+      },
+      "passes_defended_per_game": {
+        "description": "Average passes defended per game",
+        "weight": 0.3,
+        "good_threshold": 0.5,
+        "elite_threshold": 1.0
+      }
+    },
+    "CB": {
+      "interceptions_per_game": {
+        "description": "Average interceptions per game",
+        "weight": 0.4,
+        "good_threshold": 0.2,
+        "elite_threshold": 0.4
+      },
+      "passes_defended_per_game": {
+        "description": "Average passes defended per game",
+        "weight": 0.4,
+        "good_threshold": 1.0,
+        "elite_threshold": 1.8
+      },
+      "tackles_per_game": {
+        "description": "Average tackles per game",
+        "weight": 0.2,
+        "good_threshold": 3.5,
+        "elite_threshold": 5.0
+      }
+    },
+    "S": {
+      "interceptions_per_game": {
+        "description": "Average interceptions per game",
+        "weight": 0.3,
+        "good_threshold": 0.2,
+        "elite_threshold": 0.4
+      },
+      "passes_defended_per_game": {
+        "description": "Average passes defended per game",
+        "weight": 0.3,
+        "good_threshold": 0.8,
+        "elite_threshold": 1.5
+      },
+      "tackles_per_game": {
+        "description": "Average tackles per game",
+        "weight": 0.4,
+        "good_threshold": 5.0,
+        "elite_threshold": 7.5
+      }
+    },
+    "K": {
+      "field_goal_percentage": {
+        "description": "Percentage of field goals made",
+        "weight": 0.7,
+        "good_threshold": 75.0,
+        "elite_threshold": 85.0
+      },
+      "extra_point_percentage": {
+        "description": "Percentage of extra points made",
+        "weight": 0.3,
+        "good_threshold": 95.0,
+        "elite_threshold": 98.0
+      }
+    },
+    "P": {
+      "punt_average": {
+        "description": "Average punt distance in yards",
+        "weight": 1.0,
+        "good_threshold": 42.0,
+        "elite_threshold": 46.0
+      }
+    }
+  },
+
+  "trajectory_analysis": {
+    "rising": {
+      "description": "Player showing consistent improvement year-over-year",
+      "year_over_year_threshold": 5.0,
+      "draft_boost": 0.05,
+      "note": "5% boost to draft grade for players with rising trajectory"
+    },
+    "declining": {
+      "description": "Player showing decline in production",
+      "year_over_year_threshold": -3.0,
+      "draft_penalty": -0.03,
+      "note": "3% penalty to draft grade for players with declining trajectory"
+    },
+    "stable": {
+      "description": "Player maintaining consistent production",
+      "year_over_year_range": [-3.0, 5.0],
+      "draft_modifier": 0.0,
+      "note": "No modifier for stable production"
+    },
+    "breakout": {
+      "description": "Player with single-season breakout performance",
+      "sophomore_to_junior_threshold": 10.0,
+      "junior_to_senior_threshold": 10.0,
+      "draft_boost": 0.08,
+      "note": "8% boost for players with breakout junior or senior season"
+    }
+  },
+
+  "career_evaluation": {
+    "minimum_games_for_evaluation": 16,
+    "minimum_seasons_for_trajectory": 2,
+    "consistency_weight": 0.15,
+    "production_weight": 0.65,
+    "trajectory_weight": 0.20,
+    "note": "Weights for combining metrics into overall draft evaluation"
+  },
+
+  "position_importance": {
+    "QB": 1.0,
+    "EDGE": 0.95,
+    "CB": 0.90,
+    "OT": 0.90,
+    "WR": 0.85,
+    "DL": 0.85,
+    "S": 0.80,
+    "LB": 0.80,
+    "RB": 0.75,
+    "TE": 0.75,
+    "OG": 0.70,
+    "C": 0.70,
+    "K": 0.40,
+    "P": 0.35,
+    "note": "Position value multipliers for draft evaluation (QB most valuable)"
+  }
+}

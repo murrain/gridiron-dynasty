@@ -2,6 +2,7 @@ extends RefCounted
 class_name CollegeGenerator
 
 const ConfigService = preload("res://autoloads/Config.gd")
+const ConferenceService = preload("res://scripts/world/ConferenceService.gd")
 
 const DEFAULT_CONFIG_KEY := "world/colleges"
 
@@ -56,7 +57,15 @@ func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
 			college["capacity"] = default_capacity
 		colleges[i] = college
 
-	return {"colleges": colleges, "config": cfg}
+	# PHASE 2: Assign colleges to conferences
+	# RNG: Uses explicit rng parameter
+	# Expected consumption: O(colleges × conferences) operations
+	ConferenceService.assign_colleges_to_conferences(colleges, cfg, rng)
+
+	# Build conference index for world_state
+	var conferences := ConferenceService.build_conference_index(colleges, cfg)
+
+	return {"colleges": colleges, "conferences": conferences, "config": cfg}
 
 func _validate_config(cfg: Dictionary) -> bool:
 	var college_count := int(cfg.get("college_count", 0))
