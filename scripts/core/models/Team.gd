@@ -6,6 +6,10 @@ class_name Team
 @export var id: String = ""
 @export var name: String = ""
 
+# --- Scheme preferences ---
+@export var offensive_scheme: String = "pro_style"
+@export var defensive_scheme: String = "cover_2"
+
 # --- Cap accounting ---
 # cap_limit = max allowed cap space
 # league_cap should be supplied from league config or a future LeagueContainer.
@@ -34,6 +38,10 @@ func from_dict(d: Dictionary) -> void:
 	id = String(d.get("id", id))
 	name = String(d.get("name", name))
 
+	# Scheme preferences
+	offensive_scheme = String(d.get("offensive_scheme", offensive_scheme))
+	defensive_scheme = String(d.get("defensive_scheme", defensive_scheme))
+
 	var cap: Dictionary = d.get("cap", {})
 	cap_limit = float(cap.get("cap_limit", cap_limit))
 	# cap_used and cap_space are computed properties, not loaded
@@ -54,6 +62,8 @@ func to_dict() -> Dictionary:
 	return {
 		"id": id,
 		"name": name,
+		"offensive_scheme": offensive_scheme,
+		"defensive_scheme": defensive_scheme,
 		"cap": {
 			"league_cap": league_cap,
 			"cap_used": cap_used,

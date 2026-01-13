@@ -16,7 +16,12 @@ class_name Coach
 # --- Experience & Background ---
 @export var experience_years: int = 0           # Total years coaching
 @export var specialty_position: String = ""     # e.g., "QB", "Defense", "Offense"
-@export var scheme_preference: String = ""      # e.g., "spread", "pro_style", "west_coast"
+@export var scheme_preference: String = ""      # e.g., "spread", "pro_style", "west_coast" (deprecated)
+
+# --- Scheme System ---
+@export var offensive_scheme: String = ""       # For offensive coordinators / head coaches
+@export var defensive_scheme: String = ""       # For defensive coordinators / head coaches
+@export var scheme_rigidity: float = 1.0        # 0.5 = flexible, 1.0 = normal, 1.2 = rigid
 
 func from_dict(d: Dictionary) -> void:
 	id = String(d.get("id", id))
@@ -34,6 +39,11 @@ func from_dict(d: Dictionary) -> void:
 	specialty_position = String(d.get("specialty_position", specialty_position))
 	scheme_preference = String(d.get("scheme_preference", scheme_preference))
 
+	# Scheme system
+	offensive_scheme = String(d.get("offensive_scheme", offensive_scheme))
+	defensive_scheme = String(d.get("defensive_scheme", defensive_scheme))
+	scheme_rigidity = float(d.get("scheme_rigidity", scheme_rigidity))
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -45,5 +55,8 @@ func to_dict() -> Dictionary:
 		"player_development": player_development,
 		"experience_years": experience_years,
 		"specialty_position": specialty_position,
-		"scheme_preference": scheme_preference
+		"scheme_preference": scheme_preference,
+		"offensive_scheme": offensive_scheme,
+		"defensive_scheme": defensive_scheme,
+		"scheme_rigidity": scheme_rigidity
 	}

@@ -41,6 +41,7 @@
 
     { "name": "morale",            "type": "base", "measurement_difficulty": 0.20, "hidden": true, "default": "50" },
     { "name": "clutch_factor",     "type": "base", "measurement_difficulty": 0.20, "hidden": true },
+    { "name": "hype",              "type": "base", "measurement_difficulty": 0.10, "hidden": true, "default": "50" },
     { "name": "charisma",          "type": "base", "measurement_difficulty": 0.50 },
 
     { "name": "fatigue",           "type": "base", "measurement_difficulty": 0.80, "hidden": true, "default": "100" },

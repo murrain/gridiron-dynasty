@@ -1151,6 +1151,351 @@ func calculate_true_rating(player: Player, position: String) -> float:
     return sum / count if count > 0 else 50.0
 ```
 
+## Team-Specific Scouting System
+
+### Core Principle
+
+**Scouting reveals information only to the team that invests in it.** When Team A scouts a player, only Team A sees those revealed stats. Team B must do their own scouting to get their own (possibly different) evaluations.
+
+This creates:
+- Information asymmetry between teams
+- Strategic resource allocation decisions
+- Realistic "sleeper pick" scenarios
+- Value in having better scouts
+
+### Scouting Data Storage
+
+Each team maintains their own scouting database:
+
+```gdscript
+# In Team.gd or TeamScoutingData.gd
+var scouting_reports: Dictionary = {}  # player_id -> ScoutingReport
+
+class ScoutingReport:
+    var player_id: String
+    var revealed_stats: Dictionary  # stat_name -> scouted_value (with noise)
+    var scouting_hours_invested: float
+    var scout_ids: Array  # Which scouts evaluated
+    var last_updated_year: int
+    var confidence_level: String  # "minimal", "basic", "detailed", "comprehensive"
+    var notes: Array  # Scout observations
+```
+
+### National Scouting Baseline
+
+All teams have access to baseline "national scouting" information without investment:
+
+**What National Scouting Provides:**
+- Public stats at true values (combine measurables)
+- Basic biographical data (school, position, age, eligibility)
+- Recruiting star rating (for college prospects)
+- General consensus ranking tier (1st round talent, day 2, etc.)
+- Public injury history
+
+**What National Scouting Does NOT Provide:**
+- Scoutable stat values (must invest to reveal)
+- Character/work ethic information
+- Scheme fit analysis
+- Interview impressions
+- Medical deep-dive
+
+```gdscript
+func get_national_scouting_baseline(player: Dictionary, position: String, positions_cfg: Dictionary) -> Dictionary:
+    var baseline = {
+        "player_id": player.get("player_id", ""),
+        "position": position,
+        "school": player.get("school", ""),
+        "eligibility": player.get("eligibility_status", ""),
+        "star_rating": player.get("recruiting_star_rating", 0),
+        "consensus_tier": calculate_consensus_tier(player),
+        "public_stats": {},
+        "known_injuries": player.get("public_injury_history", [])
+    }
+
+    # Include only public stats at true values
+    var player_stats = player.get("stats", {})
+    var distributions = positions_cfg.get(position, {}).get("distributions", {})
+
+    for stat_name in distributions.keys():
+        var stat_cfg = distributions.get(stat_name, {})
+        if stat_cfg.get("visibility", "") == "public":
+            baseline.public_stats[stat_name] = player_stats.get(stat_name, 50.0)
+
+    return baseline
+```
+
+### Scouting Resource Allocation
+
+Scouting is a limited resource. Teams must choose who to invest in.
+
+#### Resource Model
+
+```gdscript
+const SCOUTING_RESOURCES = {
+    "nfl": {
+        "annual_scout_hours": 8000,  # Total hours across all scouts
+        "max_detailed_reports": 150,  # Comprehensive evaluations
+        "max_basic_reports": 400,     # Cursory looks
+        "years_to_scout_college": 4   # Can scout juniors, sophomores, freshmen
+    },
+    "college_p5": {
+        "annual_scout_hours": 3000,
+        "max_detailed_reports": 60,
+        "max_basic_reports": 200,
+        "years_to_scout_hs": 2        # Junior and senior years
+    },
+    "college_g5": {
+        "annual_scout_hours": 1500,
+        "max_detailed_reports": 30,
+        "max_basic_reports": 100,
+        "years_to_scout_hs": 1        # Senior year mostly
+    },
+    "college_fcs": {
+        "annual_scout_hours": 800,
+        "max_detailed_reports": 15,
+        "max_basic_reports": 50,
+        "years_to_scout_hs": 1
+    }
+}
+```
+
+#### Scouting Depth Levels
+
+Teams can invest different amounts in each prospect:
+
+| Level | Hours Required | Stats Revealed | Accuracy Modifier |
+|-------|----------------|----------------|-------------------|
+| **Minimal** | 2-4 hours | 2-3 easy stats | 0.7x |
+| **Basic** | 8-12 hours | All easy + some medium | 0.85x |
+| **Detailed** | 25-40 hours | All easy/medium + some hard | 1.0x |
+| **Comprehensive** | 60-100 hours | All scoutable stats | 1.15x |
+
+```gdscript
+func calculate_scouting_depth(hours_invested: float) -> Dictionary:
+    if hours_invested >= 60:
+        return {
+            "level": "comprehensive",
+            "stats_revealed": "all",
+            "accuracy_modifier": 1.15,
+            "difficulty_threshold": "very_hard"
+        }
+    elif hours_invested >= 25:
+        return {
+            "level": "detailed",
+            "stats_revealed": "most",
+            "accuracy_modifier": 1.0,
+            "difficulty_threshold": "hard"
+        }
+    elif hours_invested >= 8:
+        return {
+            "level": "basic",
+            "stats_revealed": "some",
+            "accuracy_modifier": 0.85,
+            "difficulty_threshold": "medium"
+        }
+    else:
+        return {
+            "level": "minimal",
+            "stats_revealed": "few",
+            "accuracy_modifier": 0.7,
+            "difficulty_threshold": "easy"
+        }
+```
+
+### Multi-Year NFL Scouting
+
+NFL teams can begin scouting college players up to 4 years before draft eligibility:
+
+```gdscript
+# Year 1 (Freshman): Limited access, high uncertainty
+# Year 2 (Sophomore): More tape, better projections
+# Year 3 (Junior): Primary scouting year for most
+# Year 4 (Senior): Final evaluation, combine, pro days
+
+func accumulate_scouting_data(
+    team_id: String,
+    player_id: String,
+    current_year: int,
+    new_scouting: Dictionary
+) -> Dictionary:
+    var existing = team_scouting_data.get(player_id, {})
+
+    # Merge new observations with existing
+    for stat_name in new_scouting.revealed_stats.keys():
+        var new_value = new_scouting.revealed_stats[stat_name]
+        var old_value = existing.get("revealed_stats", {}).get(stat_name, null)
+
+        if old_value != null:
+            # Average multiple evaluations for better accuracy
+            # More recent evaluations weighted higher
+            var recency_weight = 0.7  # 70% weight to new observation
+            existing.revealed_stats[stat_name] = (
+                old_value * (1 - recency_weight) +
+                new_value * recency_weight
+            )
+        else:
+            existing.revealed_stats[stat_name] = new_value
+
+    # Track total investment
+    existing.total_hours = existing.get("total_hours", 0) + new_scouting.hours
+    existing.evaluation_years = existing.get("evaluation_years", [])
+    existing.evaluation_years.append(current_year)
+
+    return existing
+```
+
+#### Benefits of Multi-Year Scouting
+
+| Years Scouted | Benefit |
+|---------------|---------|
+| 1 year | Baseline evaluation, high variance |
+| 2 years | Track development trajectory, reduce variance |
+| 3 years | Pattern recognition, character insight |
+| 4 years | Comprehensive understanding, project NFL trajectory |
+
+```gdscript
+func calculate_multi_year_bonus(years_scouted: int) -> Dictionary:
+    match years_scouted:
+        1:
+            return {"accuracy_bonus": 0.0, "variance_reduction": 0.0}
+        2:
+            return {"accuracy_bonus": 0.05, "variance_reduction": 0.15}
+        3:
+            return {"accuracy_bonus": 0.10, "variance_reduction": 0.30}
+        4:
+            return {"accuracy_bonus": 0.15, "variance_reduction": 0.45}
+        _:
+            return {"accuracy_bonus": 0.15, "variance_reduction": 0.45}
+```
+
+### Strategic Scouting Decisions
+
+Teams must make tradeoffs:
+
+**Breadth vs Depth:**
+- Scout 400 players minimally, OR
+- Scout 50 players comprehensively
+
+**Position Priorities:**
+- Invest heavily in QBs (expensive to miss)
+- Light touch on kickers (lower impact)
+
+**Draft Position Considerations:**
+- Top-10 pick teams: Focus on elite prospects
+- Late-round teams: Find hidden gems others missed
+
+**Multi-Year Investment:**
+- Start scouting early for long-term targets
+- Heavy investment in junior year before declaration
+
+```gdscript
+func allocate_scouting_budget(
+    team: Team,
+    available_prospects: Array,
+    draft_position: int,
+    team_needs: Dictionary
+) -> Array[ScoutingAssignment]:
+    var assignments: Array[ScoutingAssignment] = []
+    var remaining_hours = team.scouting_resources.annual_hours
+
+    # Priority 1: Comprehensive on top prospects at need positions
+    var need_positions = get_top_needs(team_needs)
+    var top_prospects = filter_by_position_and_ranking(available_prospects, need_positions, "top_50")
+
+    for prospect in top_prospects:
+        if remaining_hours >= 60:
+            assignments.append(ScoutingAssignment.new(prospect, "comprehensive", 80))
+            remaining_hours -= 80
+
+    # Priority 2: Detailed on likely draft range
+    var draft_range_prospects = get_prospects_in_range(available_prospects, draft_position, 15)
+
+    for prospect in draft_range_prospects:
+        if remaining_hours >= 30 and not already_assigned(assignments, prospect):
+            assignments.append(ScoutingAssignment.new(prospect, "detailed", 35))
+            remaining_hours -= 35
+
+    # Priority 3: Basic on broader pool
+    var broader_pool = get_broader_pool(available_prospects, 200)
+
+    for prospect in broader_pool:
+        if remaining_hours >= 10 and not already_assigned(assignments, prospect):
+            assignments.append(ScoutingAssignment.new(prospect, "basic", 10))
+            remaining_hours -= 10
+
+    return assignments
+```
+
+### Scouting Report Staleness
+
+Scouting information can become outdated:
+
+```gdscript
+func calculate_staleness_penalty(last_scouted_year: int, current_year: int) -> float:
+    var years_since = current_year - last_scouted_year
+
+    if years_since == 0:
+        return 1.0  # Current year, no penalty
+    elif years_since == 1:
+        return 0.9  # Slight penalty, player developed
+    elif years_since == 2:
+        return 0.75  # Significant change possible
+    else:
+        return 0.5  # Very outdated, should re-scout
+```
+
+### Cross-Team Information Leakage
+
+In reality, some information leaks (agents, shared scouts, media):
+
+```gdscript
+const INFORMATION_LEAKAGE_RATE = 0.10  # 10% chance per stat per year
+
+func apply_information_leakage(all_team_scouting: Dictionary, current_year: int, rng: RandomNumberGenerator) -> void:
+    # For each player with any scouting data
+    for player_id in get_all_scouted_players(all_team_scouting):
+        # Find the "best known" value for each stat across all teams
+        var best_known = aggregate_best_known(all_team_scouting, player_id)
+
+        # Each team has a chance to learn leaked info
+        for team_id in all_team_scouting.keys():
+            var team_data = all_team_scouting[team_id].get(player_id, {})
+
+            for stat_name in best_known.keys():
+                if not team_data.has(stat_name):
+                    if rng.randf() < INFORMATION_LEAKAGE_RATE:
+                        # Team learns this stat (with additional noise)
+                        var leaked_value = best_known[stat_name] + rng.randf_range(-5, 5)
+                        team_data.revealed_stats[stat_name] = leaked_value
+```
+
+### NFL Combine and Pro Days
+
+These events provide equal access to public measurements but teams can gain advantages:
+
+```gdscript
+func process_combine_for_team(team: Team, player: Dictionary, combine_data: Dictionary) -> Dictionary:
+    var team_report = {}
+
+    # All teams get public measurables
+    team_report.public_stats = combine_data.public_measurements
+
+    # Teams who interview get character insight
+    if team.interview_slots.has(player.player_id):
+        team_report.interview_impression = conduct_interview(player, team.scouts)
+        # Can reveal composure, confidence, coachability estimates
+
+    # Medical checks (limited slots)
+    if team.medical_checks.has(player.player_id):
+        team_report.medical_grade = conduct_medical(player)
+        # Can reveal durability, injury risk
+
+    # Position drills (all teams watch, but interpretation varies)
+    team_report.drill_evaluation = evaluate_drills(player, team.scouts)
+
+    return team_report
+```
+
 ## Information Asymmetry Example
 
 **Rookie QB "Marcus Webb"**
