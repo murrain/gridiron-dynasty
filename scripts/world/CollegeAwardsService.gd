@@ -965,11 +965,14 @@ static func _update_player_award_references(
 		var player_id := String(p.get("player_id", ""))
 		player_lookup[player_id] = p
 
-	# Update Heisman winner - permanent hype boost (0 = no decay)
+	# Update Heisman winner - dual hype: permanent legacy + temporary draft buzz
 	var winner_id := String(heisman.get("winner", {}).get("player_id", ""))
 	var winner: Dictionary = player_lookup.get(winner_id, {})
 	if not winner.is_empty():
-		_add_to_player_history(winner, year, "award", "Heisman Trophy", "Won the Heisman Trophy", 20.0, 0.0)
+		# Permanent legacy boost - you're always "Heisman winner"
+		_add_to_player_history(winner, year, "award", "Heisman Trophy", "Won the Heisman Trophy", 8.0, 0.0)
+		# Temporary draft buzz - massive but fades if not drafted soon
+		_add_to_player_history(winner, year, "award", "Heisman Draft Buzz", "Heisman winner media frenzy", 25.0, 1.5)
 
 	# Update Heisman finalists
 	var finalists: Array = heisman.get("finalists", [])
@@ -991,18 +994,25 @@ static func _update_player_award_references(
 
 		player["awards"]["college"] = college_awards
 
-		# Add to history (finalists who didn't win) - very long lasting
+		# Add to history (finalists who didn't win) - dual hype like winner but smaller
 		if player_id != winner_id:
-			_add_to_player_history(player, year, "award", "Heisman Finalist", "Named Heisman Trophy finalist", 10.0, 5.0)
+			# Permanent recognition as finalist
+			_add_to_player_history(player, year, "award", "Heisman Finalist", "Named Heisman Trophy finalist", 5.0, 0.0)
+			# Temporary draft buzz from finalist status
+			_add_to_player_history(player, year, "award", "Heisman Finalist Buzz", "Heisman finalist media attention", 12.0, 1.5)
 
-	# Update All-Americans - permanent for 1st team, long-lasting for others
-	var aa_hype_by_team := {"first_team": 12.0, "second_team": 7.0, "third_team": 4.0}
-	var aa_halflife_by_team := {"first_team": 0.0, "second_team": 5.0, "third_team": 3.0}
+	# Update All-Americans - 1st team gets dual hype, others get single
+	# Permanent legacy component
+	var aa_legacy_hype := {"first_team": 6.0, "second_team": 4.0, "third_team": 2.0}
+	# Temporary draft buzz component (only 1st team gets significant buzz)
+	var aa_buzz_hype := {"first_team": 10.0, "second_team": 0.0, "third_team": 0.0}
+	var aa_buzz_halflife := {"first_team": 1.5, "second_team": 0.0, "third_team": 0.0}
 	for team_name in ["first_team", "second_team", "third_team"]:
 		var team: Array = all_americans.get(team_name, [])
 		var team_label := team_name.replace("_", " ").capitalize()
-		var hype_boost := float(aa_hype_by_team.get(team_name, 3.0))
-		var halflife := float(aa_halflife_by_team.get(team_name, 3.0))
+		var legacy_boost := float(aa_legacy_hype.get(team_name, 2.0))
+		var buzz_boost := float(aa_buzz_hype.get(team_name, 0.0))
+		var buzz_halflife := float(aa_buzz_halflife.get(team_name, 0.0))
 
 		for member in team:
 			var m: Dictionary = member
@@ -1024,8 +1034,11 @@ static func _update_player_award_references(
 			college_awards["all_american"] = aa_dict
 			player["awards"]["college"] = college_awards
 
-			# Add to history with appropriate halflife
-			_add_to_player_history(player, year, "award", "All-American " + team_label, "Named to All-American " + team_label, hype_boost, halflife)
+			# Add permanent legacy to history
+			_add_to_player_history(player, year, "award", "All-American " + team_label, "Named to All-American " + team_label, legacy_boost, 0.0)
+			# Add temporary draft buzz for 1st team only
+			if buzz_boost > 0.0:
+				_add_to_player_history(player, year, "award", "All-American Draft Buzz", "1st Team All-American media attention", buzz_boost, buzz_halflife)
 
 	# Update conference award winners
 	for conference_id in conference_awards.keys():
