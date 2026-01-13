@@ -74,7 +74,7 @@ func _test_generate_player_demand_elite_qb() -> void:
 	# Verify high guarantee percentage
 	var guaranteed := float(demand.get("guaranteed_demand", 0.0))
 	var total_value := aav * years
-	var guarantee_pct := guaranteed / total_value if total_value > 0 else 0.0
+	var guarantee_pct := guaranteed / total_value if total_value > 0 else 0
 	_assert(guarantee_pct >= 0.55, test_name, "Elite QB guarantees >= 55%% (got %.1f%%)" % (guarantee_pct * 100))
 
 

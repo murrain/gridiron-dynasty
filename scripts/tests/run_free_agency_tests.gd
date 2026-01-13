@@ -9,8 +9,8 @@ func _init() -> void:
 	var all_failures: Array = []
 
 	# Run free agency tests
-	var test: TestFreeAgency = TestFreeAgency.new()
-	var helper: TestHelpers = TestHelpers.new()
+	var test = TestFreeAgency.new()
+	var helper = TestHelpers.new()
 	test.run(helper)
 	for failure in helper.failures:
 		all_failures.append("test_free_agency.gd: %s" % failure)

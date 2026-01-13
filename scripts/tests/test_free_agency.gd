@@ -139,8 +139,7 @@ func test_generate_team_interest_prioritizes_needs(helper: TestHelpers) -> void:
 
 	helper.assert_true(team_interest.has("CAR"), "CAR team has interest dict")
 
-	var car_interest_dict: Dictionary = team_interest.get("CAR", {})
-	var car_interest := float(car_interest_dict.get("player-qb", 0.0))
+	var car_interest := float(team_interest.get("CAR", {}).get("player-qb", 0.0))
 	helper.assert_gt(car_interest, 1.0, "Team with QB need shows interest")
 
 
@@ -275,7 +274,7 @@ func test_franchise_tag_stored_in_world_state(helper: TestHelpers) -> void:
 		"franchise_tags[year] has team"
 	)
 
-	var stored_tag: Dictionary = world_state["franchise_tags"][year]["NYJ"]
+	var stored_tag := world_state["franchise_tags"][year]["NYJ"]
 	helper.assert_eq(
 		stored_tag.get("player_id", ""),
 		"player-tag",
@@ -467,9 +466,7 @@ func test_run_free_agency_signs_players(helper: TestHelpers) -> void:
 	helper.assert_true(result.has("signings"), "Result has signings")
 	helper.assert_true(result.has("unsigned"), "Result has unsigned")
 
-	var signings_array: Array = result["signings"]
-	var unsigned_array: Array = result["unsigned"]
-	var total_participants: int = signings_array.size() + unsigned_array.size()
+	var total_participants := result["signings"].size() + result["unsigned"].size()
 	helper.assert_gte(total_participants, 1, "At least one FA processed")
 
 
@@ -586,14 +583,13 @@ func _create_test_player(id: String, position: String, age: int, eval_score: flo
 
 ## Helper: Add test free agents to world
 func _add_test_free_agents(world_state: Dictionary, count: int) -> void:
-	var positions: Array = ["QB", "WR", "RB", "TE", "OL"]
-	var teams: Array = world_state["nfl_teams"]
+	var positions := ["QB", "WR", "RB", "TE", "OL"]
+	var teams := world_state["nfl_teams"]
 
 	for i in range(count):
-		var pos: String = positions[i % positions.size()]
-		var team_idx: int = i % teams.size()
-		var team_dict: Dictionary = teams[team_idx]
-		var team_id := String(team_dict.get("id", ""))
+		var pos := positions[i % positions.size()]
+		var team_idx := i % teams.size()
+		var team_id := String(teams[team_idx].get("id", ""))
 
 		var player := _create_test_player("fa-player-%d" % i, pos, 25, 70.0)
 		player["contract"] = {"status": "expired", "years_remaining": 0}
