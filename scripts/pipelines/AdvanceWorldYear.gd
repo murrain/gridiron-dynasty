@@ -545,13 +545,16 @@ func _handle_unknown_phase(
 	}
 
 func _log_phase_start(year: int, phase_id: String, seed: int) -> void:
-	print("WorldYear: start phase %s year=%d seed=%d" % [phase_id, year, seed])
+	var timestamp := _get_timestamp()
+	print("%s %d %s: start (seed=%d)" % [timestamp, year, phase_id, seed])
 
 func _log_phase_end(year: int, phase_id: String, seed: int) -> void:
-	print("WorldYear: end phase %s year=%d seed=%d" % [phase_id, year, seed])
+	var timestamp := _get_timestamp()
+	print("%s %d %s: end (seed=%d)" % [timestamp, year, phase_id, seed])
 
 func _log_step_seed(year: int, phase_id: String, step_id: String, seed: int) -> void:
-	print("WorldYear: step %s.%s year=%d seed=%d" % [phase_id, step_id, year, seed])
+	var timestamp := _get_timestamp()
+	print("%s %d %s.%s: step (seed=%d)" % [timestamp, year, phase_id, step_id, seed])
 
 ## Logs a formatted summary of phase execution with key metrics and timing
 func _log_phase_summary(phase_id: String, year: int, output: Dictionary, elapsed_ms: float) -> void:
@@ -584,7 +587,13 @@ func _log_phase_summary(phase_id: String, year: int, output: Dictionary, elapsed
 		metrics.append("commits=%d" % commits_count)
 
 	var summary: String = " | ".join(metrics) if not metrics.is_empty() else "complete"
-	print("[%s] Year %d: %s (%.1fms)" % [phase_id.to_upper(), year, summary, elapsed_ms])
+	var timestamp := _get_timestamp()
+	print("%s %d %s: %s (%.1fms)" % [timestamp, year, phase_id.to_upper(), summary, elapsed_ms])
+
+## Returns current timestamp in HH:MM:SS format
+func _get_timestamp() -> String:
+	var time := Time.get_time_dict_from_system()
+	return "%02d:%02d:%02d" % [time["hour"], time["minute"], time["second"]]
 
 func _derive_seed(year_seed: int, phase_id: String, step_id: String) -> int:
 	var key := "%s:%s" % [phase_id, step_id]

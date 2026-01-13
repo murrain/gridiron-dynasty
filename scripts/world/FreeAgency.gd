@@ -73,7 +73,8 @@ static func run_free_agency(
 	stats_cfg: Dictionary,
 	league_cfg: Dictionary
 ) -> Dictionary:
-	print("[FreeAgency] Starting free agency for year %d (seed: %d)" % [year, seed])
+	var timestamp := _get_timestamp()
+	print("%s %d nfl_free_agency: Starting (seed: %d)" % [timestamp, year, seed])
 
 	# Initialize RNG with FA-specific seed
 	# RNG PATTERN: Derive FA seed from master seed using XOR and splitmix64
@@ -82,15 +83,18 @@ static func run_free_agency(
 
 	# 1. Collect free agents
 	var free_agents := collect_free_agents(world_state, year, positions_cfg, main_cfg)
-	print("[FreeAgency] Found %d free agents" % free_agents.size())
+	timestamp = _get_timestamp()
+	print("%s %d nfl_free_agency: Found %d free agents" % [timestamp, year, free_agents.size()])
 
 	# 2. Apply franchise tags (before FA market opens)
 	var franchise_tagged := _apply_franchise_tags(world_state, year, free_agents, league_cfg)
-	print("[FreeAgency] Applied %d franchise tags" % franchise_tagged.size())
+	timestamp = _get_timestamp()
+	print("%s %d nfl_free_agency: Applied %d franchise tags" % [timestamp, year, franchise_tagged.size()])
 
 	# Remove franchise-tagged players from FA pool
 	free_agents = _remove_franchise_tagged(free_agents, franchise_tagged)
-	print("[FreeAgency] %d players entering free agency" % free_agents.size())
+	timestamp = _get_timestamp()
+	print("%s %d nfl_free_agency: %d players entering free agency" % [timestamp, year, free_agents.size()])
 
 	# 3. Generate team interest for all FA/team pairs
 	# RNG: 1 randf_range() call per team-player pair
@@ -103,7 +107,8 @@ static func run_free_agency(
 
 	for tier in tiers:
 		var tier_players := _filter_by_tier(free_agents, tier)
-		print("[FreeAgency] Processing %d %s players" % [tier_players.size(), tier])
+		timestamp = _get_timestamp()
+		print("%s %d nfl_free_agency: Processing %d %s players" % [timestamp, year, tier_players.size(), tier])
 
 		for fa_profile in tier_players:
 			var player_id: String = fa_profile.get("player_id", "")
@@ -155,7 +160,10 @@ static func run_free_agency(
 	# 7. Return summary
 	var total_spent := _calculate_total_spent(signings)
 
-	print("[FreeAgency] Completed: %d signings, %d unsigned, %.2fM spent" % [
+	timestamp = _get_timestamp()
+	print("%s %d nfl_free_agency: Completed: %d signings, %d unsigned, %.2fM spent" % [
+		timestamp,
+		year,
 		signings.size(),
 		unsigned.size(),
 		total_spent
@@ -163,7 +171,8 @@ static func run_free_agency(
 
 	# Log cap space impact summary
 	if not team_spending.is_empty():
-		print("[FreeAgency] Cap space impact:")
+		timestamp = _get_timestamp()
+		print("%s %d nfl_free_agency: Cap space impact:" % [timestamp, year])
 		var teams_by_spending: Array = []
 		for tid in team_spending.keys():
 			var spent: float = float(team_spending[tid])
@@ -982,3 +991,8 @@ static func _move_player_to_team(
 		var to_players := to_roster.get("players", []) as Array
 		var player := _find_player_in_rosters(world_state, player_id)
 		to_players.append(player)
+
+## Returns current timestamp in HH:MM:SS format
+static func _get_timestamp() -> String:
+	var time := Time.get_time_dict_from_system()
+	return "%02d:%02d:%02d" % [time["hour"], time["minute"], time["second"]]
