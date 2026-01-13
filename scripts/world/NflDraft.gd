@@ -200,6 +200,37 @@ func run(
 			}
 			picks.append(pick_record)
 
+			# Log Round 1 picks with alternatives for visibility
+			if round_num == 1:
+				# Temporarily annotate scored_players with draft_score for sorting
+				var pool_with_scores: Array = []
+				for sp in scored_players:
+					var sp_dict: Dictionary = sp
+					var sp_player: Dictionary = sp_dict.get("player", {})
+					var sp_copy: Dictionary = sp_player.duplicate(false)
+					sp_copy["draft_score"] = float(sp_dict.get("score", 0.0))
+					pool_with_scores.append(sp_copy)
+
+				var top_alternatives: Array = _get_top_alternatives(pool_with_scores, 3, player_id)
+				var alt_text: String = ""
+				if top_alternatives.size() >= 2:
+					var second: Dictionary = top_alternatives[0]
+					var third: Dictionary = top_alternatives[1]
+					alt_text = " (2nd: %s %s, 3rd: %s %s)" % [
+						String(second.get("position", "?")),
+						String(second.get("name", "Unknown")),
+						String(third.get("position", "?")),
+						String(third.get("name", "Unknown"))
+					]
+
+				print("[NflDraft] Pick %d (%s): %s %s%s" % [
+					overall_pick,
+					team_id,
+					String(player.get("position", "?")),
+					String(player.get("name", "Unknown")),
+					alt_text
+				])
+
 			# Remove from pool
 			remaining_pool = remaining_pool.filter(func(p):
 				return String((p as Dictionary).get("player_id", "")) != player_id
@@ -611,6 +642,16 @@ func _score_draft_pool(
 		if position in positions_with_need and p not in candidates:
 			# Prioritize contrarian matches and measurement blind spots at front of candidate pool
 			if contrarian_match or measurement_blind:
+				# Log hidden gem discoveries
+				var player_name := String(p.get("name", "Unknown"))
+				if contrarian_match:
+					print("[NflDraft] Hidden gem: %s %s (contrarian match for %s)" % [
+						position, player_name, team_id
+					])
+				if measurement_blind:
+					print("[NflDraft] Hidden gem: %s %s (measurement blind spot for %s)" % [
+						position, player_name, team_id
+					])
 				candidates.insert(0, p)
 				gems_added += 1
 			else:
@@ -637,6 +678,11 @@ func _score_draft_pool(
 				)
 				# Insert at front of candidate pool if elite talent found
 				if rating >= 78.0 and p not in candidates:
+					var player_name := String(p.get("name", "Unknown"))
+					var player_position := String(p.get("position", "?"))
+					print("[NflDraft] RARE EVENT: Elite slip - %s %s fell to round %d" % [
+						player_position, player_name, round_num
+					])
 					candidates.insert(0, p)
 					break
 
@@ -1073,6 +1119,24 @@ func _calculate_position_needs(
 	# This ensures the config-specified multipliers (desperate: 2.8x, moderate: 1.6x) are applied exactly once
 
 	return needs
+
+
+## Returns top N alternative players from draft pool, excluding the specified player
+## Used to show what other players were available when a pick was made
+func _get_top_alternatives(pool: Array, count: int, exclude_id: String) -> Array:
+	var sorted_pool: Array = pool.duplicate()
+	sorted_pool.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("draft_score", 0.0)) > float(b.get("draft_score", 0.0))
+	)
+
+	var alternatives: Array = []
+	for player in sorted_pool:
+		var p: Dictionary = player
+		if String(p.get("player_id", "")) != exclude_id:
+			alternatives.append(p)
+			if alternatives.size() >= count:
+				break
+	return alternatives
 
 
 ## Evaluates team's QB urgency level based on roster composition.

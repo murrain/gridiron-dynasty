@@ -99,6 +99,7 @@ static func run_free_agency(
 	# 4. Process signings by tier (elite → depth)
 	var signings: Array = []
 	var tiers := ["elite", "starter", "depth", "camp_body"]
+	var team_spending: Dictionary = {}  # team_id -> total_spent (float)
 
 	for tier in tiers:
 		var tier_players := _filter_by_tier(free_agents, tier)
@@ -138,7 +139,8 @@ static func run_free_agency(
 				player_id,
 				chosen_team_id,
 				chosen_offer,
-				year
+				year,
+				team_spending
 			)
 
 			if not signing.is_empty():
@@ -158,6 +160,33 @@ static func run_free_agency(
 		unsigned.size(),
 		total_spent
 	])
+
+	# Log cap space impact summary
+	if not team_spending.is_empty():
+		print("[FreeAgency] Cap space impact:")
+		var teams_by_spending: Array = []
+		for tid in team_spending.keys():
+			var spent: float = float(team_spending[tid])
+			var team := _find_team(world_state, String(tid))
+			var remaining: float = float(team.get("cap_space", 0.0))
+			teams_by_spending.append({
+				"team": String(tid),
+				"spent": spent,
+				"remaining": remaining
+			})
+
+		teams_by_spending.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return float(a["spent"]) > float(b["spent"])
+		)
+
+		# Log top 5 spenders to avoid excessive output
+		for i in range(mini(5, teams_by_spending.size())):
+			var entry: Dictionary = teams_by_spending[i]
+			print("  %s: $%.2fM spent, $%.2fM remaining" % [
+				String(entry["team"]),
+				float(entry["spent"]),
+				float(entry["remaining"])
+			])
 
 	return {
 		"year": year,
@@ -664,7 +693,8 @@ static func _execute_signing(
 	player_id: String,
 	team_id: String,
 	offer: Dictionary,
-	year: int
+	year: int,
+	team_spending: Dictionary
 ) -> Dictionary:
 	# Find player in current roster
 	var player := _find_player_in_rosters(world_state, player_id)
@@ -705,8 +735,14 @@ static func _execute_signing(
 	var cap_impact := float(transition.get("cap_impact", {}).get("annual_value_delta", 0.0))
 	team["cap_space"] = float(team.get("cap_space", 0.0)) - cap_impact
 
+	# Track spending for cap space summary
+	var aav := float(contract.get("annual_value", 0.0))
+	if not team_spending.has(team_id):
+		team_spending[team_id] = 0.0
+	team_spending[team_id] = float(team_spending[team_id]) + aav
+
 	print("[FreeAgency] Signed %s to %s for %.2fM AAV" % [
-		player_id, team_id, contract.get("annual_value", 0.0)
+		player_id, team_id, aav
 	])
 
 	return {

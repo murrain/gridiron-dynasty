@@ -91,9 +91,7 @@ func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: boo
 		var phase_seed := _derive_seed(resolved_year_seed, phase_id, "phase")
 
 		# Start timing capture (does NOT consume RNG)
-		var phase_start_time := 0
-		if capture_timing:
-			phase_start_time = Time.get_ticks_usec()
+		var start_time: int = Time.get_ticks_usec()
 
 		_log_phase_start(year, phase_id, phase_seed)
 		var handler: Callable = handlers.get(phase_id, _handle_unknown_phase)
@@ -101,9 +99,15 @@ func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: boo
 		_log_phase_end(year, phase_id, phase_seed)
 
 		# End timing capture (does NOT consume RNG)
+		var elapsed_usec: int = Time.get_ticks_usec() - start_time
+		var elapsed_ms: float = elapsed_usec / 1000.0
+
+		phase_timings[phase_id] = elapsed_ms
+		_log_phase_summary(phase_id, year, output, elapsed_ms)
+
+		# Legacy capture_timing support (store microseconds if requested)
 		if capture_timing:
-			var phase_elapsed := Time.get_ticks_usec() - phase_start_time
-			phase_timings[phase_id] = phase_elapsed
+			phase_timings[phase_id] = elapsed_usec
 
 		results.append({
 			"phase_id": phase_id,
@@ -115,6 +119,16 @@ func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: boo
 			},
 			"output": output
 		})
+
+	# Log timing summary
+	print("[AdvanceWorldYear] Year %d timing summary:" % year)
+	var total_ms: float = 0.0
+	for pid in phase_timings.keys():
+		var ms: float = phase_timings[pid] if not capture_timing else phase_timings[pid] / 1000.0
+		total_ms += ms
+		if ms > 100.0:  # Only log phases >100ms to reduce noise
+			print("  %s: %.1fms" % [pid, ms])
+	print("  TOTAL: %.1fms" % total_ms)
 
 	var result := {
 		"year": year,
@@ -538,6 +552,39 @@ func _log_phase_end(year: int, phase_id: String, seed: int) -> void:
 
 func _log_step_seed(year: int, phase_id: String, step_id: String, seed: int) -> void:
 	print("WorldYear: step %s.%s year=%d seed=%d" % [phase_id, step_id, year, seed])
+
+## Logs a formatted summary of phase execution with key metrics and timing
+func _log_phase_summary(phase_id: String, year: int, output: Dictionary, elapsed_ms: float) -> void:
+	var metrics: Array = []
+
+	# Standard metrics that phases might return
+	if output.has("picks_count"):
+		metrics.append("picks=%d" % output["picks_count"])
+	if output.has("undrafted_count"):
+		metrics.append("undrafted=%d" % output["undrafted_count"])
+	if output.has("signings"):
+		var signings_count: int = output["signings"] if output["signings"] is int else len(output["signings"])
+		metrics.append("signings=%d" % signings_count)
+	if output.has("unsigned"):
+		var unsigned_count: int = output["unsigned"] if output["unsigned"] is int else len(output["unsigned"])
+		metrics.append("unsigned=%d" % unsigned_count)
+	if output.has("retirements"):
+		metrics.append("retirements=%d" % output["retirements"])
+	if output.has("total_spent"):
+		metrics.append("spent=$%.2fM" % output["total_spent"])
+	if output.has("trades"):
+		metrics.append("trades=%d" % output["trades"])
+	if output.has("franchise_tags"):
+		var tags_count: int = output["franchise_tags"] if output["franchise_tags"] is int else len(output["franchise_tags"])
+		metrics.append("tags=%d" % tags_count)
+	if output.has("offers"):
+		metrics.append("offers=%d" % output["offers"])
+	if output.has("commitments"):
+		var commits_count: int = output["commitments"] if output["commitments"] is int else len(output["commitments"])
+		metrics.append("commits=%d" % commits_count)
+
+	var summary: String = " | ".join(metrics) if not metrics.is_empty() else "complete"
+	print("[%s] Year %d: %s (%.1fms)" % [phase_id.to_upper(), year, summary, elapsed_ms])
 
 func _derive_seed(year_seed: int, phase_id: String, step_id: String) -> int:
 	var key := "%s:%s" % [phase_id, step_id]
