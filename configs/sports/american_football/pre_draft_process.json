@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "combine": {
+    "invite_count": 330,
+    "invite_criteria": {
+      "min_rating_threshold": 68.0,
+      "conference_tier_bonus": {
+        "power_5": 2.0,
+        "group_of_5": 0.0,
+        "fcs": -3.0
+      }
+    },
+    "performance_impact": {
+      "elite_performance_boost": {
+        "threshold_percentile": 90.0,
+        "draft_boost": 0.08
+      },
+      "poor_performance_penalty": {
+        "threshold_percentile": 25.0,
+        "draft_penalty": 0.05
+      }
+    }
+  },
+  "all_star_games": {
+    "senior_bowl": {
+      "invite_count": 110,
+      "min_rating": 72.0,
+      "draft_boost_range": [0.02, 0.06],
+      "eligible_class_years": [4, 5]
+    },
+    "east_west_shrine": {
+      "invite_count": 100,
+      "min_rating": 65.0,
+      "draft_boost_range": [0.01, 0.03],
+      "eligible_class_years": [4, 5]
+    }
+  },
+  "team_visits": {
+    "max_per_player": 30,
+    "visit_impact_range": [-0.03, 0.05],
+    "top_prospects_threshold": 100,
+    "visit_allocation": {
+      "elite_prospects": {
+        "rating_threshold": 85.0,
+        "visit_count_range": [25, 30]
+      },
+      "first_round_prospects": {
+        "rating_threshold": 75.0,
+        "visit_count_range": [18, 25]
+      },
+      "mid_round_prospects": {
+        "rating_threshold": 65.0,
+        "visit_count_range": [10, 18]
+      },
+      "late_round_prospects": {
+        "rating_threshold": 0.0,
+        "visit_count_range": [5, 10]
+      }
+    }
+  },
+  "draft_stock_movement": {
+    "evaluation_windows": [
+      "pre_season",
+      "post_season",
+      "post_combine",
+      "final"
+    ],
+    "event_impacts": {
+      "combine_standout": [8, 20],
+      "combine_disappointment": [-15, -5],
+      "senior_bowl_star": [5, 12],
+      "shrine_game_standout": [3, 8],
+      "medical_concern_revealed": [-25, -10],
+      "character_issue_surfaced": [-30, -15],
+      "interview_red_flag": [-10, -5],
+      "pro_day_standout": [3, 8]
+    },
+    "movement_categories": {
+      "major_riser": {
+        "min_movement": 25,
+        "label": "Major Riser"
+      },
+      "riser": {
+        "min_movement": 15,
+        "label": "Riser"
+      },
+      "slight_riser": {
+        "min_movement": 5,
+        "label": "Slight Riser"
+      },
+      "steady": {
+        "min_movement": -4,
+        "max_movement": 4,
+        "label": "Steady"
+      },
+      "slight_faller": {
+        "max_movement": -5,
+        "label": "Slight Faller"
+      },
+      "faller": {
+        "max_movement": -15,
+        "label": "Faller"
+      },
+      "major_faller": {
+        "max_movement": -25,
+        "label": "Major Faller"
+      }
+    }
+  },
+  "interview_scoring": {
+    "base_score": 50.0,
+    "score_sigma": 10.0,
+    "character_adjustments": {
+      "exemplary": 8.0,
+      "clean": 0.0,
+      "concern": -5.0,
+      "red_flag": -15.0
+    },
+    "medical_adjustments": {
+      "clean": 0.0,
+      "minor_concern": -3.0,
+      "major_concern": -10.0,
+      "failed": -20.0
+    }
+  }
+}
