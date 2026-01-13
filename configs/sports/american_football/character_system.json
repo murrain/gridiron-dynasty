@@ -1,0 +1,153 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Character and discipline tracking system for draft evaluation. Tracks college discipline events (academic, team rules, substance abuse, conduct, legal) and assigns character grades (exemplary, clean, concern, red_flag) that impact draft position.",
+
+    "discipline_events": {
+        "note": "Random discipline events occur during college years with 2% base chance per player per year. Events are weighted by type and result in games suspended. Hype impact directly affects player's hype stat (0-100 scale, 50 neutral). Halflife controls how quickly the impact fades from public memory.",
+        "base_chance_per_year": 0.02,
+        "types": [
+            {
+                "type": "academic",
+                "weight": 0.4,
+                "games_range": [1, 4],
+                "severity": "minor",
+                "description": "Academic violations: GPA issues, missed classes, academic dishonesty",
+                "hype_impact": -3,
+                "halflife_years": 0.5
+            },
+            {
+                "type": "team_rules",
+                "weight": 0.3,
+                "games_range": [1, 2],
+                "severity": "minor",
+                "description": "Team policy violations: curfew, dress code, missed meetings",
+                "hype_impact": -2,
+                "halflife_years": 0.25
+            },
+            {
+                "type": "substance_abuse",
+                "weight": 0.15,
+                "games_range": [2, 6],
+                "severity": "moderate",
+                "description": "Substance policy violations: failed drug tests, alcohol violations, PED suspensions",
+                "hype_impact": -15,
+                "halflife_years": 0.75
+            },
+            {
+                "type": "conduct",
+                "weight": 0.10,
+                "games_range": [1, 8],
+                "severity": "major",
+                "description": "Conduct violations: unsportsmanlike behavior, altercations, code of conduct breaches",
+                "hype_impact": -20,
+                "halflife_years": 1.0
+            },
+            {
+                "type": "legal_trouble",
+                "weight": 0.05,
+                "games_range": [4, 16],
+                "severity": "severe",
+                "description": "Legal issues: arrests, criminal charges, DUI, assault",
+                "hype_impact": -35,
+                "halflife_years": 1.5
+            }
+        ]
+    },
+
+    "team_tolerance_levels": {
+        "note": "Different teams have different tolerance for character concerns. This affects how they evaluate players in the draft.",
+        "strict": {
+            "penalty_multiplier": 1.5,
+            "description": "Character is paramount. Teams like the Patriots historically avoid character risks."
+        },
+        "moderate": {
+            "penalty_multiplier": 1.0,
+            "description": "Normal evaluation. Character matters but talent can outweigh concerns."
+        },
+        "lenient": {
+            "penalty_multiplier": 0.5,
+            "description": "Talent over character. Willing to take calculated risks on talented players."
+        },
+        "win_now": {
+            "penalty_multiplier": 0.25,
+            "description": "Desperate for talent. Will draft anyone who can help immediately."
+        }
+    },
+
+    "character_grades": {
+        "note": "Character grades are evaluated at draft time based on complete discipline history. Draft impact flows through the hype stat which is modified when events occur.",
+
+        "exemplary": {
+            "max_incidents": 0,
+            "description": "No discipline issues throughout college career. Player maintains baseline hype unaffected by character concerns."
+        },
+
+        "clean": {
+            "max_incidents": 1,
+            "max_severity": "minor",
+            "description": "Single minor incident only. Minimal hype impact - considered normal college behavior."
+        },
+
+        "concern": {
+            "max_incidents": 2,
+            "max_severity": "moderate",
+            "description": "Multiple minor incidents or single moderate incident. Cumulative hype impact affects draft perception."
+        },
+
+        "red_flag": {
+            "triggers": [
+                "legal_trouble",
+                "multiple_major",
+                "pattern"
+            ],
+            "description": "Serious character concerns: legal trouble, multiple major incidents, or pattern of behavior. Significant negative hype impact affects draft stock substantially."
+        }
+    },
+
+    "interview_red_flags": {
+        "note": "PHASE 2 FEATURE - Currently disabled. Will simulate pre-draft visits and interviews where scouts can detect hidden character concerns.",
+        "enabled": false,
+        "detection_chance_base": 0.30,
+        "scout_skill_bonus": 0.25,
+        "red_flag_types": [
+            "poor_work_ethic",
+            "coachability_concerns",
+            "attitude_issues",
+            "maturity_concerns",
+            "leadership_deficiencies"
+        ],
+        "description": "When enabled, scouts conduct pre-draft interviews. Higher scout skill increases red flag detection chance. Detected flags amplify character grade penalties."
+    },
+
+    "draft_integration": {
+        "note": "Character events directly modify the player's hype stat. Draft evaluation uses hype through CollegeAwardsService mock draft rankings.",
+        "evaluation_timing": "on_event_occurrence",
+        "score_adjustment_method": "hype_modification",
+        "description": "Character events immediately affect hype when they occur. The cumulative hype change flows into draft evaluation through the existing hype → mock draft → draft stock pipeline."
+    },
+
+    "player_history": {
+        "note": "All discipline events are logged to player.history array alongside awards and other career milestones.",
+        "event_format": {
+            "type": "discipline",
+            "year": "int - college year when event occurred",
+            "event": "string - event type (academic, team_rules, etc.)",
+            "description": "string - human-readable reason",
+            "games_suspended": "int - number of games missed",
+            "hype_impact": "float - change applied to hype stat"
+        }
+    },
+
+    "tuning_notes": {
+        "base_chance_rationale": "2% per year means ~8% of draft class has discipline history (32 out of 400 players). Matches real NFL draft data where 5-10% of prospects have character concerns.",
+        "weight_distribution_rationale": "Academic (40%) and team rules (30%) are most common but least impactful. Legal trouble (5%) is rare but creates red flags. Distribution matches NCAA violation statistics.",
+        "grade_distribution_expected": "Exemplary: 65%, Clean: 20%, Concern: 12%, Red Flag: 3%. Most players have clean records, serious concerns are rare.",
+        "hype_impact_rationale": "Hype impacts scaled to 0-100 hype range. Minor events (-2 to -3) barely noticeable. Legal trouble (-35) can devastate draft stock. Multiple events compound.",
+        "halflife_rationale": "Minor violations fade quickly (0.25-0.5 years) as media moves on. Serious incidents linger longer (1-1.5 years) but still decay. This allows players to rehabilitate their image over time. A legal issue at start of junior year (-35 hype) decays to ~-17.5 by draft day (1 year later).",
+        "team_tolerance_rationale": "Real NFL teams vary significantly in character evaluation. Patriots historically strict, Raiders historically lenient. Win-now teams desperate for talent may overlook red flags. Tolerance affects draft position variance - same player might go round 1 to one team, round 3 to another.",
+        "examples": {
+            "randy_gregory": "Multiple substance abuse issues would accumulate -30+ hype over time, but with 0.75 year halflife some recovery is possible between incidents.",
+            "laremy_tunsil": "Single major incident (conduct -20) right before draft with no time to decay. Team tolerance determines if he's a first-round pick or falls to day 2."
+        }
+    }
+}

@@ -192,6 +192,87 @@
             "iron_man": 0.40
         }
     },
+    "college_injury_system": {
+        "note": "College injury tracking uses the existing PlayerLifecycle injury system with college-specific context annotation. Injuries are tracked with year and games_missed for draft evaluation.",
+        "enabled": true,
+        "games_per_season": 12
+    },
+    "medical_evaluation": {
+        "note": "Medical evaluation system for draft prospects. Analyzes college injury history and assigns medical grades that impact draft position.",
+        "grade_criteria": {
+            "clean": {
+                "max_injuries": 1,
+                "max_surgeries": 0,
+                "max_severity_sum": 3.0,
+                "description": "Minor or no injury history. No draft penalty."
+            },
+            "minor_concern": {
+                "max_injuries": 2,
+                "max_surgeries": 1,
+                "max_severity_sum": 6.0,
+                "description": "Moderate injury history. Minor draft slide (5% penalty)."
+            },
+            "major_concern": {
+                "max_injuries": 4,
+                "max_surgeries": 2,
+                "max_severity_sum": 12.0,
+                "description": "Significant injury history. Major draft slide (15% penalty)."
+            },
+            "failed": {
+                "triggers": ["career_ending", "recurring_major", "multiple_surgeries"],
+                "description": "Career-ending injury, recurring major injuries, or 3+ surgeries. Severe draft slide (30% penalty)."
+            }
+        },
+        "recurring_injury_multiplier": 1.5,
+        "surgery_required_types": ["knee", "shoulder", "back"],
+        "draft_impact_multipliers": {
+            "clean": 1.0,
+            "minor_concern": 0.95,
+            "major_concern": 0.85,
+            "failed": 0.70
+        },
+        "injury_hype_impact": {
+            "note": "Injuries affect player hype with decay over time. More severe injuries have larger impact and longer halflife.",
+            "base_per_severity": -4.0,
+            "base_halflife": 0.5,
+            "halflife_per_severity": 0.25,
+            "type_multipliers": {
+                "knee": 1.5,
+                "back": 1.4,
+                "concussion": 1.3,
+                "shoulder": 1.2,
+                "ankle": 1.0,
+                "hamstring": 0.9,
+                "foot": 0.9,
+                "hand": 0.8,
+                "wrist": 0.7
+            },
+            "examples": {
+                "minor_ankle": "Severity 1.0 ankle: -4 hype, 0.75yr halflife",
+                "acl_tear": "Severity 4.0 knee: -24 hype (4*4*1.5), 1.5yr halflife",
+                "back_injury": "Severity 3.0 back: -16.8 hype (3*4*1.4), 1.25yr halflife"
+            }
+        },
+        "team_medical_tolerance": {
+            "note": "Teams have different risk tolerance for medical concerns, separate from character tolerance.",
+            "risk_averse": {
+                "penalty_multiplier": 1.5,
+                "description": "Avoid injury-prone players. Prioritize durability over upside."
+            },
+            "cautious": {
+                "penalty_multiplier": 1.0,
+                "description": "Normal medical evaluation. Balance risk and reward."
+            },
+            "moderate_risk": {
+                "penalty_multiplier": 0.7,
+                "description": "Willing to take calculated risks on talented but injury-prone players."
+            },
+            "aggressive": {
+                "penalty_multiplier": 0.4,
+                "description": "Talent over durability. Will draft high-ceiling players despite medical red flags."
+            }
+        }
+    },
     "draft_class_year_offset": 8,
     "deage": {
         "core_pct_min": 0.6,

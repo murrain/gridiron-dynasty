@@ -2,6 +2,8 @@ extends RefCounted
 class_name CollegeGenerator
 
 const ConfigService = preload("res://autoloads/Config.gd")
+const ConferenceService = preload("res://scripts/world/ConferenceService.gd")
+const CoachGenerator = preload("res://scripts/generation/CoachGenerator.gd")
 
 const DEFAULT_CONFIG_KEY := "world/colleges"
 
@@ -54,9 +56,23 @@ func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
 			college["capacity"] = rng.randi_range(cap_min, cap_max)
 		elif default_capacity > 0:
 			college["capacity"] = default_capacity
+
+		# Generate head coach for this college
+		# Coach quality is influenced by college eliteness
+		var coach := CoachGenerator.generate_coach_for_team(rng, "%s_coach" % college_id, eliteness)
+		college["coach"] = coach
+
 		colleges[i] = college
 
-	return {"colleges": colleges, "config": cfg}
+	# PHASE 2: Assign colleges to conferences
+	# RNG: Uses explicit rng parameter
+	# Expected consumption: O(colleges × conferences) operations
+	ConferenceService.assign_colleges_to_conferences(colleges, cfg, rng)
+
+	# Build conference index for world_state
+	var conferences := ConferenceService.build_conference_index(colleges, cfg)
+
+	return {"colleges": colleges, "conferences": conferences, "config": cfg}
 
 func _validate_config(cfg: Dictionary) -> bool:
 	var college_count := int(cfg.get("college_count", 0))

@@ -2,6 +2,7 @@ extends RefCounted
 class_name NflTeamGenerator
 
 const ConfigService = preload("res://autoloads/Config.gd")
+const CoachGenerator = preload("res://scripts/generation/CoachGenerator.gd")
 
 const DEFAULT_CONFIG_KEY := "world/league"
 
@@ -43,6 +44,13 @@ func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
 			"roster": [],
 			"draft_order": i + 1
 		}
+
+		# Generate coaching staff for this NFL team
+		# NFL teams get higher quality coaches (base eliteness 70)
+		var coaching_staff := CoachGenerator.generate_coaching_staff(rng, team_id, 70.0)
+		team["coach"] = coaching_staff["head_coach"]
+		team["coaching_staff"] = coaching_staff
+
 		teams[i] = team
 
 	return {"teams": teams, "config": cfg}

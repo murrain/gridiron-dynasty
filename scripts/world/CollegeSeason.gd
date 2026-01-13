@@ -9,6 +9,9 @@ const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCa
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
 const StatGenerator = preload("res://scripts/core/game_simulation/StatGenerator.gd")
 const PlayerMorale = preload("res://scripts/core/player_agency/PlayerMorale.gd")
+const CollegeStatsService = preload("res://scripts/world/CollegeStatsService.gd")
+const ConferenceService = preload("res://scripts/world/ConferenceService.gd")
+const EarlyDeclarationService = preload("res://scripts/world/EarlyDeclarationService.gd")
 
 func run(
 	world_state: Dictionary,
@@ -140,8 +143,11 @@ func run(
 				if player_rating >= rating_threshold:
 					is_draft_eligible = true
 			elif new_year == 3:
-				# Check for early declaration
-				if _check_early_declaration(p, early_decl_cfg, early_decl_rng, positions_cfg, main_cfg):
+				# PHASE 8: Early Declaration Advisory System
+				# Replace simple check with multi-factor advisory system
+				if EarlyDeclarationService.simulate_declaration_decision(
+					p, year, positions_cfg, main_cfg, early_decl_cfg, early_decl_rng
+				):
 					is_draft_eligible = true
 					total_early_declares += 1
 					# Calculate rating for early declares (used for draft grade display)
@@ -166,6 +172,12 @@ func run(
 	world_state["college_rosters"] = rosters
 	draft_pool[year] = draft_eligible
 	world_state["draft_pool"] = draft_pool
+
+	# PHASE 1: Update college stat analysis for draft evaluation
+	# This computes efficiency metrics and production trajectories
+	# RNG: None (pure calculation)
+	if options.get("enable_stat_analysis", true):
+		_update_college_stat_analysis(world_state, year, positions_cfg, config)
 
 	return {
 		"year": year,
@@ -252,6 +264,13 @@ func _eligibility_status(college_year: int) -> String:
 		_:
 			return "senior"
 
+## DEPRECATED: Use EarlyDeclarationService.simulate_declaration_decision() instead
+##
+## This method is preserved for backward compatibility and reference.
+## Phase 8 introduced a more sophisticated advisory system with multi-factor
+## decision making, agent influence, and return-to-school bonuses.
+##
+## See: EarlyDeclarationService for the new implementation
 func _check_early_declaration(
 	player: Dictionary,
 	early_decl_cfg: Dictionary,
@@ -593,6 +612,10 @@ func _simulate_college_season(
 	# Expected RNG consumption: None (pure aggregation)
 	_update_team_history(world_state, year, season_results, String(best_record["team_id"]))
 
+	# PHASE 2: Calculate strength of schedule for all colleges
+	# RNG: None (pure calculation)
+	_update_strength_of_schedule(world_state, year, season_results, college_ids)
+
 	# Return summary
 	return {
 		"enabled": true,
@@ -747,3 +770,106 @@ func _process_transfer_decisions(
 	world_state["transfer_portal"] = transfer_portal
 
 	return total_transfers
+
+
+## Updates college stat analysis for all players with career stats.
+##
+## Implements Phase 1: College Performance Statistics
+##   - Calculates efficiency metrics (QBR, yards per carry, etc.)
+##   - Analyzes production trajectories (rising, declining, stable)
+##   - Computes career totals
+##
+## RNG Pattern: None (pure calculation)
+## Performance: O(players with stats) = ~500 draft-eligible players
+##
+## Parameters:
+##   world_state: Dictionary containing player_career_stats
+##   year: Current season year
+##   positions_cfg: Position configuration
+##   config: Season configuration
+##
+## Side Effects:
+##   Stores computed analysis in world_state["college_stat_analysis"]
+func _update_college_stat_analysis(
+	world_state: Dictionary,
+	year: int,
+	positions_cfg: Dictionary,
+	config: Dictionary
+) -> void:
+	var career_stats: Dictionary = world_state.get("player_career_stats", {})
+	var analysis: Dictionary = world_state.get("college_stat_analysis", {})
+
+	for player_id in career_stats.keys():
+		var player_years: Dictionary = career_stats[player_id]
+		if not player_years.has(year):
+			continue
+
+		# Calculate efficiency metrics for this season
+		var efficiency := CollegeStatsService.calculate_efficiency_metrics(
+			player_id, year, career_stats, positions_cfg
+		)
+
+		# Analyze production trajectory
+		var trajectory := CollegeStatsService.analyze_production_trajectory(
+			player_id, career_stats, positions_cfg
+		)
+
+		# Get career totals
+		var totals := CollegeStatsService.get_career_totals(
+			player_id, career_stats
+		)
+
+		analysis[player_id] = {
+			"efficiency_metrics": efficiency,
+			"trajectory": trajectory,
+			"career_totals": totals
+		}
+
+	world_state["college_stat_analysis"] = analysis
+
+
+## Updates strength of schedule for all colleges based on season results.
+##
+## Implements Phase 2: Conference/Competition Level Weighting
+##   - Calculates strength of schedule based on opponents' conference tiers
+##   - Stores SOS in each college's data
+##
+## RNG Pattern: None (pure calculation)
+## Performance: O(colleges) = ~130 operations
+##
+## Parameters:
+##   world_state: Dictionary containing colleges array
+##   year: Current season year
+##   season_results: Dictionary of team_id -> season record
+##   college_ids: Array of all college IDs (for performance)
+##
+## Side Effects:
+##   Updates world_state["colleges"][i]["strength_of_schedule"] in-place
+func _update_strength_of_schedule(
+	world_state: Dictionary,
+	year: int,
+	season_results: Dictionary,
+	college_ids: Array
+) -> void:
+	var colleges: Array = world_state.get("colleges", [])
+
+	# Build college index for fast lookups
+	var college_index := {}
+	for college in colleges:
+		var c: Dictionary = college
+		var id := String(c.get("id", ""))
+		if not id.is_empty():
+			college_index[id] = c
+
+	# Calculate SOS for each college
+	for college in colleges:
+		var c: Dictionary = college
+		var college_id := String(c.get("id", ""))
+
+		var sos := ConferenceService.calculate_strength_of_schedule_indexed(
+			college_id,
+			season_results,
+			college_index
+		)
+
+		c["strength_of_schedule"] = sos
