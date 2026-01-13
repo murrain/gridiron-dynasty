@@ -33,6 +33,7 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_college_recruiting.gd",
 	"res://scripts/tests/test_college_season.gd",
 	"res://scripts/tests/test_nfl_team_generator.gd",
+	"res://scripts/tests/test_coach_generator.gd",
 	"res://scripts/tests/test_nfl_draft.gd",
 	"res://scripts/tests/test_draft_fixes.gd",
 	"res://scripts/tests/test_nfl_season.gd",
