@@ -17,6 +17,20 @@ const PRIORITY_HIGH := 0.7       # Weak starter or insufficient depth
 const PRIORITY_MEDIUM := 0.5     # Average starter but no depth
 const PRIORITY_LOW := 0.3        # Adequate starter and some depth
 
+## Priority calculation weights
+const PRIORITY_WEIGHT_STARTER := 0.6   # Weight for starter quality in priority calculation
+const PRIORITY_WEIGHT_DEPTH := 0.4     # Weight for depth quality in priority calculation
+
+## Depth evaluation constants
+const DEPTH_MIN_BACKUP_COUNT := 1      # Minimum number of backups per position
+const DEPTH_IDEAL_BACKUP_COUNT := 3.0  # Ideal number of backups for full depth score
+const DEPTH_WEIGHT_COUNT := 0.5        # Weight for backup count in depth quality
+const DEPTH_WEIGHT_QUALITY := 0.5      # Weight for backup rating in depth quality
+
+## Age thresholds for future need assessment (reserved for future use)
+const AGE_THRESHOLD_AGING := 30   # Age at which players begin decline
+const AGE_THRESHOLD_OLD := 33     # Age at which players are considered old
+
 ## Assess team needs based on roster composition and depth chart
 ##
 ## Algorithm:
@@ -128,7 +142,14 @@ static func categorize_needs(needs_dict: Dictionary) -> Dictionary:
 	return categories
 
 
-## Internal: Group players by position
+## Groups roster entries by position string
+##
+## Returns: Dictionary mapping position strings to Arrays of roster entry Dictionaries
+##   {
+##     "QB": [entry1, entry2, ...],
+##     "RB": [entry3, entry4, ...],
+##     ...
+##   }
 static func _group_by_position(players: Array[Dictionary]) -> Dictionary:
 	var grouped := {}
 	for player in players:
@@ -184,12 +205,11 @@ static func _assess_position_need(
 	var depth_quality := _rate_depth_quality(player_ratings, required_starters)
 
 	# Combine factors into priority score
-	# Starter quality is 60% weight, depth quality is 40% weight
-	var priority := (1.0 - starter_quality) * 0.6 + (1.0 - depth_quality) * 0.4
+	var priority := (1.0 - starter_quality) * PRIORITY_WEIGHT_STARTER + (1.0 - depth_quality) * PRIORITY_WEIGHT_DEPTH
 
 	# Boost priority if position is critically understaffed
 	var player_count := position_players.size()
-	var min_required := required_starters + 1  # Need at least 1 backup
+	var min_required := required_starters + DEPTH_MIN_BACKUP_COUNT
 	if player_count < required_starters:
 		priority = max(priority, PRIORITY_CRITICAL)
 	elif player_count < min_required:
@@ -237,13 +257,13 @@ static func _rate_depth_quality(sorted_ratings: Array, required_starters: int) -
 	avg_backup_rating /= float(backup_ratings.size())
 
 	# Number of backups factor (more is better, diminishing returns)
-	var depth_count_factor := min(1.0, float(depth_count) / 3.0)  # 3+ backups = 1.0
+	var depth_count_factor := min(1.0, float(depth_count) / DEPTH_IDEAL_BACKUP_COUNT)
 
 	# Quality factor (based on average backup rating)
 	var quality_factor := avg_backup_rating / 100.0
 
-	# Combine factors (50/50 weight)
-	return depth_count_factor * 0.5 + quality_factor * 0.5
+	# Combine factors
+	return depth_count_factor * DEPTH_WEIGHT_COUNT + quality_factor * DEPTH_WEIGHT_QUALITY
 
 
 ## Internal: Get player overall rating

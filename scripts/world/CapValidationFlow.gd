@@ -47,7 +47,7 @@ static func run(
 		var is_over := cap_limit > 0.0 and cap_used > cap_limit
 
 		# Validate roster limits (Feature 5)
-		var roster_validation := _validate_roster_limits(roster, roster_limits)
+		var roster_validation := _validate_roster_limits(roster, roster_limits, team_id)
 		var has_roster_violations := not roster_validation["violations"].is_empty()
 
 		var cap_dict: Dictionary = team.get("cap", {}) as Dictionary
@@ -124,7 +124,7 @@ static func _get_roster_limits(main_cfg: Dictionary) -> Dictionary:
 
 ## Validate roster composition against limits
 ## Returns dictionary with counts and violations array
-static func _validate_roster_limits(roster: Array, limits: Dictionary) -> Dictionary:
+static func _validate_roster_limits(roster: Array, limits: Dictionary, team_id: String) -> Dictionary:
 	var active_count := 0
 	var practice_squad_count := 0
 	var ir_count := 0
@@ -145,19 +145,40 @@ static func _validate_roster_limits(roster: Array, limits: Dictionary) -> Dictio
 				suspended_count += 1
 
 	# Check violations
-	var violations: Array[String] = []
+	var violations: Array = []
 	var active_limit := int(limits.get("active_limit", DEFAULT_ACTIVE_ROSTER_LIMIT))
 	var ps_limit := int(limits.get("practice_squad_limit", DEFAULT_PRACTICE_SQUAD_LIMIT))
 	var ir_limit := int(limits.get("ir_limit", DEFAULT_IR_LIMIT))
 
 	if active_limit > 0 and active_count > active_limit:
-		violations.append("Active roster exceeds limit: %d/%d" % [active_count, active_limit])
+		violations.append({
+			"type": "active_roster_exceeded",
+			"team_id": team_id,
+			"status": "active",
+			"count": active_count,
+			"limit": active_limit,
+			"over_by": active_count - active_limit
+		})
 
 	if ps_limit > 0 and practice_squad_count > ps_limit:
-		violations.append("Practice squad exceeds limit: %d/%d" % [practice_squad_count, ps_limit])
+		violations.append({
+			"type": "practice_squad_exceeded",
+			"team_id": team_id,
+			"status": "practice_squad",
+			"count": practice_squad_count,
+			"limit": ps_limit,
+			"over_by": practice_squad_count - ps_limit
+		})
 
 	if ir_limit > 0 and ir_count > ir_limit:
-		violations.append("Injured reserve exceeds limit: %d/%d" % [ir_count, ir_limit])
+		violations.append({
+			"type": "injured_reserve_exceeded",
+			"team_id": team_id,
+			"status": "injured_reserve",
+			"count": ir_count,
+			"limit": ir_limit,
+			"over_by": ir_count - ir_limit
+		})
 
 	return {
 		"active_count": active_count,

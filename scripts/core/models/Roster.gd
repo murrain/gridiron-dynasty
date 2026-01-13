@@ -99,7 +99,7 @@ func get_status_count(status: RosterStatus) -> int:
 ## Returns true if successful, false if player not found
 func move_to_practice_squad(player_id: String) -> bool:
 	var entry := _find_entry(player_id)
-	if entry == null:
+	if entry.is_empty():
 		return false
 
 	entry["status"] = "practice_squad"
@@ -117,7 +117,7 @@ func move_to_practice_squad(player_id: String) -> bool:
 ## Returns true if successful, false if player not found or not on PS
 func promote_from_practice_squad(player_id: String) -> bool:
 	var entry := _find_entry(player_id)
-	if entry == null:
+	if entry.is_empty():
 		return false
 
 	if String(entry.get("status", "")) != "practice_squad":
@@ -138,7 +138,7 @@ func promote_from_practice_squad(player_id: String) -> bool:
 ## Returns true if successful, false if player not found
 func place_on_ir(player_id: String, eligible_week: int = 0) -> bool:
 	var entry := _find_entry(player_id)
-	if entry == null:
+	if entry.is_empty():
 		return false
 
 	entry["status"] = "ir"
@@ -157,7 +157,7 @@ func place_on_ir(player_id: String, eligible_week: int = 0) -> bool:
 ## Returns true if successful, false if player not found or not on IR
 func activate_from_ir(player_id: String) -> bool:
 	var entry := _find_entry(player_id)
-	if entry == null:
+	if entry.is_empty():
 		return false
 
 	if String(entry.get("status", "")) != "ir":

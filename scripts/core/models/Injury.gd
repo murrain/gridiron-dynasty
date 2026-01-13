@@ -1,8 +1,9 @@
 extends Resource
 class_name Injury
 
-## Injury severity threshold for requiring Injured Reserve placement
-## Injuries with severity >= this value should typically be placed on IR
+## Severity threshold for IR placement (range 0.0-1.0)
+## Values >=0.7 indicate injuries severe enough to warrant IR designation
+## Based on NFL IR rules for season-ending or multi-week injuries
 const IR_SEVERITY_THRESHOLD := 0.7
 
 @export var type: String = ""
@@ -56,9 +57,13 @@ func get_ir_eligible_week(current_week: int) -> int:
 	if weeks_total == 0:
 		return 0  # Season-ending or unspecified
 
+	var weeks_elapsed := int(recovery_timeline.get("weeks_elapsed", 0))
+
 	# IR designation requires minimum 4 weeks out
 	var ir_min_weeks := 4
-	var eligible_week := current_week + max(weeks_total, ir_min_weeks)
+	# Calculate from when injury occurred (current_week - weeks_elapsed)
+	var week_occurred := current_week - weeks_elapsed
+	var eligible_week := week_occurred + max(weeks_total, ir_min_weeks)
 
 	return eligible_week
 
