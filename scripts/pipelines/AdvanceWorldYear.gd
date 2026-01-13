@@ -17,6 +17,7 @@ const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerato
 const ValuationFlow = preload("res://scripts/world/ValuationFlow.gd")
 const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
+const FreeAgency = preload("res://scripts/world/FreeAgency.gd")
 
 ## Cached config instance for performance optimization.
 ## The Config object is read-only during simulation and contains no mutable state
@@ -139,8 +140,9 @@ func _phase_handlers() -> Dictionary:
 		"college_recruiting": Callable(self, "_handle_college_recruiting"),
 		"college_season": Callable(self, "_handle_college_season"),
 		"draft_prep": Callable(self, "_handle_draft_prep"),
-		"cap_validation": Callable(self, "_handle_cap_validation"),
 		"nfl_draft": Callable(self, "_handle_nfl_draft"),
+		"nfl_free_agency": Callable(self, "_handle_nfl_free_agency"),
+		"cap_validation": Callable(self, "_handle_cap_validation"),
 		"nfl_season": Callable(self, "_handle_nfl_season")
 	}
 
@@ -445,6 +447,44 @@ func _handle_nfl_draft(
 
 	var draft := NflDraft.new()
 	return draft.run(world_state, year, step_seed, league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg)
+
+func _handle_nfl_free_agency(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "nfl_free_agency")
+	_log_step_seed(year, phase_id, "nfl_free_agency", step_seed)
+
+	var league_cfg: Dictionary = _get_config().get_config("world/league")
+	var positions_cfg: Dictionary = _get_config().get_config("positions")
+	var main_cfg: Dictionary = _get_config().get_config("main")
+	var stats_cfg: Dictionary = _get_config().get_config("stats")
+
+	# Run free agency simulation
+	# RNG PATTERN: FreeAgency.run_free_agency() uses step_seed for all deterministic operations
+	# Expected RNG calls: ~7000 (team interest generation + player decisions)
+	var output := FreeAgency.run_free_agency(
+		world_state,
+		year,
+		step_seed,
+		positions_cfg,
+		main_cfg,
+		stats_cfg,
+		league_cfg
+	)
+
+	return {
+		"year": year,
+		"signings": int(output.get("signings", []).size()),
+		"unsigned": int(output.get("unsigned", []).size()),
+		"franchise_tags": int(output.get("franchise_tags", []).size()),
+		"total_spent": float(output.get("total_spent", 0.0)),
+		"step_seeds": {"nfl_free_agency": step_seed}
+	}
 
 func _handle_nfl_season(
 	world_state: Dictionary,
