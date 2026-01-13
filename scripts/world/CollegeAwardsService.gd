@@ -965,6 +965,12 @@ static func _update_player_award_references(
 		var player_id := String(p.get("player_id", ""))
 		player_lookup[player_id] = p
 
+	# Update Heisman winner - permanent hype boost (0 = no decay)
+	var winner_id := String(heisman.get("winner", {}).get("player_id", ""))
+	var winner: Dictionary = player_lookup.get(winner_id, {})
+	if not winner.is_empty():
+		_add_to_player_history(winner, year, "award", "Heisman Trophy", "Won the Heisman Trophy", 20.0, 0.0)
+
 	# Update Heisman finalists
 	var finalists: Array = heisman.get("finalists", [])
 	for finalist in finalists:
@@ -985,9 +991,19 @@ static func _update_player_award_references(
 
 		player["awards"]["college"] = college_awards
 
-	# Update All-Americans
+		# Add to history (finalists who didn't win) - very long lasting
+		if player_id != winner_id:
+			_add_to_player_history(player, year, "award", "Heisman Finalist", "Named Heisman Trophy finalist", 10.0, 5.0)
+
+	# Update All-Americans - permanent for 1st team, long-lasting for others
+	var aa_hype_by_team := {"first_team": 12.0, "second_team": 7.0, "third_team": 4.0}
+	var aa_halflife_by_team := {"first_team": 0.0, "second_team": 5.0, "third_team": 3.0}
 	for team_name in ["first_team", "second_team", "third_team"]:
 		var team: Array = all_americans.get(team_name, [])
+		var team_label := team_name.replace("_", " ").capitalize()
+		var hype_boost := float(aa_hype_by_team.get(team_name, 3.0))
+		var halflife := float(aa_halflife_by_team.get(team_name, 3.0))
+
 		for member in team:
 			var m: Dictionary = member
 			var player_id := String(m.get("player_id", ""))
@@ -1008,13 +1024,16 @@ static func _update_player_award_references(
 			college_awards["all_american"] = aa_dict
 			player["awards"]["college"] = college_awards
 
+			# Add to history with appropriate halflife
+			_add_to_player_history(player, year, "award", "All-American " + team_label, "Named to All-American " + team_label, hype_boost, halflife)
+
 	# Update conference award winners
 	for conference_id in conference_awards.keys():
 		var conf_awards: Dictionary = conference_awards[conference_id]
 
 		for award_type in ["offensive_poy", "defensive_poy"]:
-			var winner: Dictionary = conf_awards.get(award_type, {})
-			var player_id := String(winner.get("player_id", ""))
+			var award_winner: Dictionary = conf_awards.get(award_type, {})
+			var player_id := String(award_winner.get("player_id", ""))
 			var player: Dictionary = player_lookup.get(player_id, {})
 
 			if player.is_empty():
@@ -1034,3 +1053,65 @@ static func _update_player_award_references(
 
 			college_awards["conference_awards"] = conf_awards_dict
 			player["awards"]["college"] = college_awards
+
+			# Add to history - conference awards have moderate staying power
+			var award_label := "Offensive POY" if award_type == "offensive_poy" else "Defensive POY"
+			_add_to_player_history(player, year, "award", conference_id + " " + award_label, "Named " + conference_id + " " + award_label, 6.0, 3.0)
+
+
+## Adds an event to player's history and applies hype modifier.
+##
+## Creates a unified history entry and applies a hype modifier with optional decay.
+## History entries are used for player career tracking and UI display.
+##
+## @param player: Player dictionary to modify
+## @param year: Year the event occurred
+## @param event_type: Type of event ("award", "discipline", "milestone", etc.)
+## @param event_name: Short name of the event
+## @param description: Human-readable description
+## @param hype_impact: Immediate hype change (positive for awards, negative for discipline)
+## @param halflife_years: Years for modifier to decay to half strength (0 = permanent)
+static func _add_to_player_history(
+	player: Dictionary,
+	year: int,
+	event_type: String,
+	event_name: String,
+	description: String,
+	hype_impact: float,
+	halflife_years: float = 0.0
+) -> void:
+	# Initialize history if not exists
+	if not player.has("history"):
+		player["history"] = []
+
+	# Add to history
+	var history: Array = player["history"]
+	var entry := {
+		"type": event_type,
+		"year": year,
+		"event": event_name,
+		"description": description,
+		"hype_impact": hype_impact
+	}
+
+	# Add halflife if specified (for decaying modifiers)
+	if halflife_years > 0.0:
+		entry["halflife_years"] = halflife_years
+
+	history.append(entry)
+
+	# Apply immediate hype change
+	var current_hype := float(player.get("hype", 50.0))
+	player["hype"] = clamp(current_hype + hype_impact, 0.0, 100.0)
+
+	# Track decaying modifiers separately for accurate calculation
+	if halflife_years > 0.0:
+		if not player.has("hype_modifiers"):
+			player["hype_modifiers"] = []
+		var modifiers: Array = player["hype_modifiers"]
+		modifiers.append({
+			"source": event_name,
+			"year_applied": year,
+			"initial_impact": hype_impact,
+			"halflife_years": halflife_years
+		})

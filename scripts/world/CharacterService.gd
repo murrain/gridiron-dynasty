@@ -10,19 +10,25 @@ const Rand = preload("res://autoloads/Rand.gd")
 ## This service handles:
 ##   1. Random discipline event generation during college years
 ##   2. Character grade evaluation based on discipline history
-##   3. Draft impact calculation based on character concerns
+##   3. Hype impact from character events (positive and negative media attention)
 ##
 ## Design Philosophy:
 ##   - Discipline events are rare (2% base chance per year) but impactful
-##   - Character grades range from "exemplary" (bonus) to "red_flag" (major penalty)
+##   - Character grades range from "exemplary" (bonus) to "red_flag" (major concern)
 ##   - Severity escalates: academic < team_rules < substance < conduct < legal
+##   - Character events directly affect player hype (media attention)
+##
+## Hype Integration:
+##   - Negative events (arrests, suspensions) reduce hype
+##   - Hype scale: 0-100 with 50 as neutral
+##   - Draft evaluation already uses hype, so no separate draft_impact needed
 ##
 ## RNG Pattern: 2-3 calls per player per year (if event occurs)
 ##   - Call 1: Event occurrence roll (randf)
 ##   - Call 2: Event type selection (weighted random)
 ##   - Call 3: Games suspended (randi_range)
 ##
-## Integration Points: CollegeSeason (event generation), NflDraft (evaluation)
+## Integration Points: CollegeSeason (event generation), CollegeAwardsService (hype usage)
 
 ## Applies random discipline events during college season.
 ##
@@ -57,9 +63,12 @@ static func apply_discipline_events(
 	if not player.has("character_profile"):
 		player["character_profile"] = {
 			"discipline_record": [],
-			"character_grade": "clean",
-			"character_draft_impact": 1.0
+			"character_grade": "clean"
 		}
+
+	# Initialize player history if not exists
+	if not player.has("history"):
+		player["history"] = []
 
 	var discipline_cfg: Dictionary = config.get("discipline_events", {}) as Dictionary
 	var base_chance := float(discipline_cfg.get("base_chance_per_year", 0.02))
@@ -99,13 +108,20 @@ static func apply_discipline_events(
 	var games_max := int(games_range[1])
 	var games_suspended := rng.randi_range(games_min, games_max)
 
+	# Get hype impact and halflife from config
+	var hype_impact := float(selected_type.get("hype_impact", -5.0))
+	var halflife_years := float(selected_type.get("halflife_years", 0.5))
+
 	# Create event record
+	var event_type := String(selected_type.get("type", "unknown"))
 	var event := {
 		"year": year,
-		"type": String(selected_type.get("type", "unknown")),
+		"type": event_type,
 		"games": games_suspended,
 		"severity": String(selected_type.get("severity", "minor")),
-		"reason": _generate_reason(selected_type.get("type", ""), rng)
+		"reason": _generate_reason(event_type, rng),
+		"hype_impact": hype_impact,
+		"halflife_years": halflife_years
 	}
 
 	# Append to discipline record
@@ -113,6 +129,33 @@ static func apply_discipline_events(
 	var discipline_record: Array = profile.get("discipline_record", []) as Array
 	discipline_record.append(event)
 	profile["discipline_record"] = discipline_record
+
+	# Apply hype impact (immediate effect)
+	var current_hype := float(player.get("hype", 50.0))
+	player["hype"] = clamp(current_hype + hype_impact, 0.0, 100.0)
+
+	# Track decaying hype modifier for recovery over time
+	if not player.has("hype_modifiers"):
+		player["hype_modifiers"] = []
+	var modifiers: Array = player["hype_modifiers"]
+	modifiers.append({
+		"source": event_type,
+		"year_applied": year,
+		"initial_impact": hype_impact,
+		"halflife_years": halflife_years
+	})
+
+	# Add to player history
+	var history: Array = player["history"] as Array
+	history.append({
+		"type": "discipline",
+		"year": year,
+		"event": event_type,
+		"description": event["reason"],
+		"games_suspended": games_suspended,
+		"hype_impact": hype_impact,
+		"halflife_years": halflife_years
+	})
 
 	return event
 
@@ -229,63 +272,137 @@ static func evaluate_character_grade(
 	return "concern"
 
 
-## Calculates draft impact multiplier from character grade.
+## Calculates total hype impact from character events.
 ##
-## Called by NflDraft during scout evaluation to adjust draft score.
-## Applies configured multipliers based on character grade.
-##
-## Multiplier Examples:
-##   - exemplary: 1.02 (2% boost)
-##   - clean: 1.0 (no change)
-##   - concern: 0.95 (5% penalty)
-##   - red_flag: 0.70-0.90 (10-30% penalty, varies by severity)
-##
-## Algorithm:
-##   1. Get character grade from player's character_profile
-##   2. Look up multiplier from config
-##   3. For red_flag, calculate penalty based on incident severity
-##
-## RNG: None (deterministic calculation)
+## NOTE: Draft impact now flows through the player's hype stat.
+## This function returns the cumulative hype impact from all discipline events
+## for informational purposes. The actual draft evaluation uses the hype stat
+## which is already modified when events occur.
 ##
 ## @param player: Player dictionary with character_profile
-## @param config: Character system configuration
-## @return float: Draft impact multiplier
-static func calculate_character_draft_impact(
+## @param _config: Character system configuration (unused, kept for API compat)
+## @return float: Total hype impact from discipline events
+static func calculate_character_hype_impact(
 	player: Dictionary,
-	config: Dictionary
+	_config: Dictionary
 ) -> float:
 	var profile: Dictionary = player.get("character_profile", {}) as Dictionary
-	var grade := String(profile.get("character_grade", "clean"))
-	var grade_criteria: Dictionary = config.get("character_grades", {}) as Dictionary
+	var discipline_record: Array = profile.get("discipline_record", []) as Array
 
-	# Get base multiplier for grade
-	var grade_config: Dictionary = grade_criteria.get(grade, {}) as Dictionary
+	var total_impact := 0.0
+	for event_entry in discipline_record:
+		var event: Dictionary = event_entry as Dictionary
+		total_impact += float(event.get("hype_impact", 0.0))
 
-	# Handle different grade types
-	if grade == "exemplary":
-		return float(grade_config.get("draft_boost", 1.02))
-	elif grade == "clean":
-		return float(grade_config.get("draft_impact", 1.0))
-	elif grade == "concern":
-		return float(grade_config.get("draft_penalty", 0.95))
-	elif grade == "red_flag":
-		# Red flag penalty varies by severity of incidents
-		var penalty_range: Array = grade_config.get("draft_penalty_range", [0.70, 0.90]) as Array
-		var min_penalty := float(penalty_range[0])
-		var max_penalty := float(penalty_range[1])
+	return total_impact
 
-		# Calculate penalty based on incident severity
-		var discipline_record: Array = profile.get("discipline_record", []) as Array
-		var severity_score := _calculate_severity_score(discipline_record)
 
-		# Map severity score (0-10+) to penalty range
-		# Low severity (0-3): closer to max_penalty (0.90)
-		# High severity (7-10): closer to min_penalty (0.70)
-		var penalty_ratio := clamp(severity_score / 10.0, 0.0, 1.0)
-		return max_penalty - (penalty_ratio * (max_penalty - min_penalty))
-
-	# Default to 1.0 if grade not recognized
+## DEPRECATED: Use calculate_character_hype_impact instead.
+## Draft impact now flows through the hype stat.
+##
+## Returns 1.0 for backward compatibility.
+static func calculate_character_draft_impact(
+	_player: Dictionary,
+	_config: Dictionary
+) -> float:
 	return 1.0
+
+
+## Calculates the current effective hype modifier after decay.
+##
+## Applies exponential decay based on halflife to all active modifiers.
+## Formula: remaining_impact = initial_impact * (0.5 ^ (years_elapsed / halflife))
+##
+## This should be called periodically (e.g., yearly) to update player hype
+## as negative events fade from public memory.
+##
+## @param player: Player dictionary with hype_modifiers
+## @param current_year: Current simulation year
+## @return float: Net hype adjustment from all decaying modifiers
+static func calculate_decayed_hype_modifier(
+	player: Dictionary,
+	current_year: int
+) -> float:
+	var modifiers: Array = player.get("hype_modifiers", [])
+	if modifiers.is_empty():
+		return 0.0
+
+	var total_modifier := 0.0
+	for mod in modifiers:
+		var m: Dictionary = mod
+		var year_applied := int(m.get("year_applied", current_year))
+		var initial_impact := float(m.get("initial_impact", 0.0))
+		var halflife := float(m.get("halflife_years", 1.0))
+
+		if halflife <= 0.0:
+			# Permanent modifier (no decay)
+			total_modifier += initial_impact
+		else:
+			var years_elapsed := float(current_year - year_applied)
+			var decay_factor := pow(0.5, years_elapsed / halflife)
+			total_modifier += initial_impact * decay_factor
+
+	return total_modifier
+
+
+## Updates player hype based on decayed modifiers.
+##
+## Call this at the start of each year to apply hype recovery/decay.
+## Recalculates hype from base + all decayed modifiers.
+##
+## @param player: Player dictionary
+## @param current_year: Current simulation year
+## @param base_hype: Player's base hype without modifiers (default 50)
+static func apply_hype_decay(
+	player: Dictionary,
+	current_year: int,
+	base_hype: float = 50.0
+) -> void:
+	var decayed_modifier := calculate_decayed_hype_modifier(player, current_year)
+	player["hype"] = clamp(base_hype + decayed_modifier, 0.0, 100.0)
+
+
+## Evaluates how a specific team views a player's character concerns.
+##
+## Some teams are more willing to draft players with character issues
+## if they believe the talent is worth the risk. This function returns
+## a multiplier that adjusts how much the team penalizes character concerns.
+##
+## Team tolerance levels:
+##   - "strict": 1.5x penalty (character is paramount)
+##   - "moderate": 1.0x penalty (normal evaluation)
+##   - "lenient": 0.5x penalty (talent over character)
+##   - "win_now": 0.25x penalty (desperate for talent)
+##
+## @param player: Player dictionary with character_profile
+## @param team: Team dictionary with character_tolerance setting
+## @param config: Character system configuration
+## @return float: Adjusted character evaluation score (0-100)
+static func evaluate_for_team(
+	player: Dictionary,
+	team: Dictionary,
+	config: Dictionary
+) -> float:
+	var tolerance := String(team.get("character_tolerance", "moderate"))
+	var tolerance_cfg: Dictionary = config.get("team_tolerance_levels", {})
+	var tolerance_settings: Dictionary = tolerance_cfg.get(tolerance, {})
+
+	var penalty_multiplier := float(tolerance_settings.get("penalty_multiplier", 1.0))
+	var grade := evaluate_character_grade(player, config)
+
+	# Base score: 100 for exemplary, lower for concerns
+	var base_scores := {
+		"exemplary": 100.0,
+		"clean": 90.0,
+		"concern": 70.0,
+		"red_flag": 40.0
+	}
+	var base_score := float(base_scores.get(grade, 70.0))
+
+	# Apply tolerance - lenient teams see less penalty
+	var penalty := 100.0 - base_score
+	var adjusted_penalty := penalty * penalty_multiplier
+	return 100.0 - adjusted_penalty
 
 
 ## Simulates pre-draft interview red flag detection.
@@ -319,39 +436,6 @@ static func simulate_interview_red_flag_detection(
 	#   4. Return array of detected flags
 
 	return []
-
-
-## Calculates severity score from discipline record.
-##
-## Internal helper for calculate_character_draft_impact().
-## Maps incident types and counts to severity score (0-10+ scale).
-##
-## Severity Weights:
-##   - minor (academic, team_rules): 1 point each
-##   - moderate (substance_abuse): 2 points each
-##   - major (conduct): 3 points each
-##   - severe (legal_trouble): 5 points each
-##
-## RNG: None (deterministic calculation)
-##
-## @param discipline_record: Array of discipline events
-## @return float: Severity score
-static func _calculate_severity_score(discipline_record: Array) -> float:
-	var score := 0.0
-
-	var severity_weights := {
-		"minor": 1.0,
-		"moderate": 2.0,
-		"major": 3.0,
-		"severe": 5.0
-	}
-
-	for event_entry in discipline_record:
-		var event: Dictionary = event_entry as Dictionary
-		var severity := String(event.get("severity", "minor"))
-		score += float(severity_weights.get(severity, 1.0))
-
-	return score
 
 
 ## Generates a contextual reason string for discipline event.
