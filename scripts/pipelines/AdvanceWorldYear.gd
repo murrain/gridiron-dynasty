@@ -17,7 +17,7 @@ const NflSeason = preload("res://scripts/world/NflSeason.gd")
 const DraftClassGenerator = preload("res://scripts/generation/DraftClassGenerator.gd")
 const ValuationFlow = preload("res://scripts/world/ValuationFlow.gd")
 const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
-const AsyncLogger = preload("res://autoloads/AsyncLogger.gd")
+const SimLogger = preload("res://autoloads/SimLogger.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const FreeAgency = preload("res://scripts/world/FreeAgency.gd")
 
@@ -122,15 +122,11 @@ func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: boo
 			"output": output
 		})
 
-	# Log timing summary
-	print("[AdvanceWorldYear] Year %d timing summary:" % year)
-	var total_ms: float = 0.0
+	# Log timing summary (convert to ms if capture_timing used microseconds)
+	var timing_ms := {}
 	for pid in phase_timings.keys():
-		var ms: float = phase_timings[pid] if not capture_timing else phase_timings[pid] / 1000.0
-		total_ms += ms
-		if ms > 100.0:  # Only log phases >100ms to reduce noise
-			print("  %s: %.1fms" % [pid, ms])
-	print("  TOTAL: %.1fms" % total_ms)
+		timing_ms[pid] = phase_timings[pid] if not capture_timing else phase_timings[pid] / 1000.0
+	SimLogger.timing_summary(year, timing_ms)
 
 	var result := {
 		"year": year,
@@ -552,55 +548,40 @@ func _handle_unknown_phase(
 	}
 
 func _log_phase_start(year: int, phase_id: String, seed: int) -> void:
-	var timestamp := _get_timestamp()
-	print("%s %d %s: start (seed=%d)" % [timestamp, year, phase_id, seed])
+	SimLogger.phase_start(phase_id, year, seed)
 
 func _log_phase_end(year: int, phase_id: String, seed: int) -> void:
-	var timestamp := _get_timestamp()
-	print("%s %d %s: end (seed=%d)" % [timestamp, year, phase_id, seed])
+	SimLogger.phase_end(phase_id, year, seed)
 
 func _log_step_seed(year: int, phase_id: String, step_id: String, seed: int) -> void:
-	var timestamp := _get_timestamp()
-	print("%s %d %s.%s: step (seed=%d)" % [timestamp, year, phase_id, step_id, seed])
+	SimLogger.step_seed(year, phase_id, step_id, seed)
 
 ## Logs a formatted summary of phase execution with key metrics and timing
 func _log_phase_summary(phase_id: String, year: int, output: Dictionary, elapsed_ms: float) -> void:
-	var metrics: Array = []
-
-	# Standard metrics that phases might return
+	# Extract metrics from output
+	var metrics := {}
 	if output.has("picks_count"):
-		metrics.append("picks=%d" % output["picks_count"])
+		metrics["picks"] = output["picks_count"]
 	if output.has("undrafted_count"):
-		metrics.append("undrafted=%d" % output["undrafted_count"])
+		metrics["undrafted"] = output["undrafted_count"]
 	if output.has("signings"):
-		var signings_count: int = output["signings"] if output["signings"] is int else len(output["signings"])
-		metrics.append("signings=%d" % signings_count)
+		metrics["signings"] = output["signings"] if output["signings"] is int else len(output["signings"])
 	if output.has("unsigned"):
-		var unsigned_count: int = output["unsigned"] if output["unsigned"] is int else len(output["unsigned"])
-		metrics.append("unsigned=%d" % unsigned_count)
+		metrics["unsigned"] = output["unsigned"] if output["unsigned"] is int else len(output["unsigned"])
 	if output.has("retirements"):
-		metrics.append("retirements=%d" % output["retirements"])
+		metrics["retirements"] = output["retirements"]
 	if output.has("total_spent"):
-		metrics.append("spent=$%.2fM" % output["total_spent"])
+		metrics["spent"] = output["total_spent"]
 	if output.has("trades"):
-		metrics.append("trades=%d" % output["trades"])
+		metrics["trades"] = output["trades"]
 	if output.has("franchise_tags"):
-		var tags_count: int = output["franchise_tags"] if output["franchise_tags"] is int else len(output["franchise_tags"])
-		metrics.append("tags=%d" % tags_count)
+		metrics["tags"] = output["franchise_tags"] if output["franchise_tags"] is int else len(output["franchise_tags"])
 	if output.has("offers"):
-		metrics.append("offers=%d" % output["offers"])
+		metrics["offers"] = output["offers"]
 	if output.has("commitments"):
-		var commits_count: int = output["commitments"] if output["commitments"] is int else len(output["commitments"])
-		metrics.append("commits=%d" % commits_count)
+		metrics["commits"] = output["commitments"] if output["commitments"] is int else len(output["commitments"])
 
-	var summary: String = " | ".join(metrics) if not metrics.is_empty() else "complete"
-	var timestamp := _get_timestamp()
-	print("%s %d %s: %s (%.1fms)" % [timestamp, year, phase_id.to_upper(), summary, elapsed_ms])
-
-## Returns current timestamp in HH:MM:SS format
-func _get_timestamp() -> String:
-	var time := Time.get_time_dict_from_system()
-	return "%02d:%02d:%02d" % [time["hour"], time["minute"], time["second"]]
+	SimLogger.phase_summary(phase_id, year, metrics, elapsed_ms)
 
 func _derive_seed(year_seed: int, phase_id: String, step_id: String) -> int:
 	var key := "%s:%s" % [phase_id, step_id]
@@ -697,13 +678,13 @@ func _apply_hs_backgrounds(players: Array, seed: int) -> Dictionary:
 
 	var avg_hype: float = total_hype / max(processed, 1)
 
-	# Non-blocking async logging
-	AsyncLogger.log("[HS Background] Generated %d backgrounds: stars=[5★:%d 4★:%d 3★:%d 2★:%d] tiers=[elite:%d good:%d avg:%d low:%d] avg_hype=%.1f" % [
-		processed,
-		star_counts[5], star_counts[4], star_counts[3], star_counts[2],
-		tier_counts["elite"], tier_counts["good"], tier_counts["avg"], tier_counts["low"],
-		avg_hype
-	])
+	# Log via centralized Logger (async by default)
+	SimLogger.stats("HS Background", {
+		"generated": processed,
+		"stars": {"5★": star_counts[5], "4★": star_counts[4], "3★": star_counts[3], "2★": star_counts[2]},
+		"tiers": tier_counts,
+		"avg_hype": avg_hype
+	})
 
 	return {
 		"processed": processed,
