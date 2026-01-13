@@ -34,21 +34,21 @@ func demo_contract_negotiation() -> void:
 	print("Player Demands:\n")
 
 	# Elite QB demand
-	var qb_demand := ContractNegotiation.generate_player_demand(elite_qb, positions_cfg, main_cfg)
+	var qb_demand: Dictionary = ContractNegotiation.generate_player_demand(elite_qb, positions_cfg, main_cfg)
 	print("  Elite QB (age 27, rating 88):")
 	print("    AAV: $%.2fM" % qb_demand.get("minimum_annual_value", 0.0))
 	print("    Years: %d" % qb_demand.get("desired_years", 0))
 	print("    Guaranteed: $%.2fM" % qb_demand.get("guaranteed_demand", 0.0))
 
 	# Aging RB demand
-	var rb_demand := ContractNegotiation.generate_player_demand(aging_rb, positions_cfg, main_cfg)
+	var rb_demand: Dictionary = ContractNegotiation.generate_player_demand(aging_rb, positions_cfg, main_cfg)
 	print("\n  Aging RB (age 30, rating 72):")
 	print("    AAV: $%.2fM" % rb_demand.get("minimum_annual_value", 0.0))
 	print("    Years: %d" % rb_demand.get("desired_years", 0))
 	print("    Guaranteed: $%.2fM" % rb_demand.get("guaranteed_demand", 0.0))
 
 	# Depth LB demand
-	var lb_demand := ContractNegotiation.generate_player_demand(depth_lb, positions_cfg, main_cfg)
+	var lb_demand: Dictionary = ContractNegotiation.generate_player_demand(depth_lb, positions_cfg, main_cfg)
 	print("\n  Depth LB (age 24, rating 62):")
 	print("    AAV: $%.2fM" % lb_demand.get("minimum_annual_value", 0.0))
 	print("    Years: %d" % lb_demand.get("desired_years", 0))
@@ -58,7 +58,7 @@ func demo_contract_negotiation() -> void:
 	print("\n\nOffer Evaluation:\n")
 
 	var team := {"id": "KC", "cap_space": 50.0}
-	var fair_offer := ContractNegotiation.generate_offer(team, elite_qb, qb_demand, 1.05)
+	var fair_offer: Dictionary = ContractNegotiation.generate_offer(team, elite_qb, qb_demand, 1.05)
 
 	print("  Kansas City offers Elite QB:")
 	print("    AAV: $%.2fM (105%% of demand)" % fair_offer.get("annual_value", 0.0))
@@ -66,7 +66,7 @@ func demo_contract_negotiation() -> void:
 	print("    Guaranteed: $%.2fM" % fair_offer.get("guaranteed_value", 0.0))
 	print("    Year 1 cap hit: $%.2fM" % fair_offer.get("cap_hit_year_1", 0.0))
 
-	var evaluation := ContractNegotiation.evaluate_offer(fair_offer, qb_demand)
+	var evaluation: Dictionary = ContractNegotiation.evaluate_offer(fair_offer, qb_demand)
 	print("\n  Player Decision:")
 	print("    Accept: %s" % ("YES" if evaluation.get("accept", false) else "NO"))
 	print("    Score: %.2f (threshold: 0.85)" % evaluation.get("score", 0.0))
@@ -99,7 +99,7 @@ func demo_franchise_tag() -> void:
 	# Apply franchise tag
 	print("\nSan Francisco applies non-exclusive franchise tag to QB:")
 	var league_cfg := _load_league_config()
-	var tag := FreeAgency.apply_franchise_tag(
+	var tag: Dictionary = FreeAgency.apply_franchise_tag(
 		world_state,
 		"SF",
 		"qb-tag-target",
@@ -159,7 +159,7 @@ func demo_free_agency_simulation() -> void:
 	var stats_cfg := {}
 	var league_cfg := _load_league_config()
 
-	var result := FreeAgency.run_free_agency(
+	var result: Dictionary = FreeAgency.run_free_agency(
 		world_state,
 		2024,
 		123456,
@@ -200,7 +200,7 @@ func demo_free_agency_simulation() -> void:
 	for team in world_state_2["nfl_teams"]:
 		team["cap_space"] = 40.0
 
-	var result2 := FreeAgency.run_free_agency(
+	var result2: Dictionary = FreeAgency.run_free_agency(
 		world_state_2,
 		2024,
 		123456,  # Same seed

@@ -10,8 +10,8 @@ const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")
 
 ## Test: initialize_pick_ownership creates proper ownership structure
 static func test_initialize_pick_ownership() -> Dictionary:
-	var world_state := {}
-	var teams := [
+	var world_state: Dictionary = {}
+	var teams: Array = [
 		{"id": "SF"},
 		{"id": "CHI"},
 		{"id": "NYJ"}
@@ -35,7 +35,8 @@ static func test_initialize_pick_ownership() -> Dictionary:
 
 		# Verify each team owns their own pick
 		for team in teams:
-			var team_id := String(team.get("id", ""))
+			var team_dict: Dictionary = team
+			var team_id := String(team_dict.get("id", ""))
 			assert(round_ownership.has(team_id), "Should have entry for %s" % team_id)
 			assert(round_ownership[team_id] == team_id, "%s should own their own pick" % team_id)
 
@@ -44,12 +45,12 @@ static func test_initialize_pick_ownership() -> Dictionary:
 
 ## Test: resolve_draft_order_with_ownership respects default ownership
 static func test_resolve_draft_order_default_ownership() -> Dictionary:
-	var teams := [
+	var teams: Array = [
 		{"id": "SF", "draft_order": 1},
 		{"id": "CHI", "draft_order": 2},
 		{"id": "NYJ", "draft_order": 3}
 	]
-	var ownership := {
+	var ownership: Dictionary = {
 		2025: {
 			1: {
 				"SF": "SF",
@@ -61,7 +62,7 @@ static func test_resolve_draft_order_default_ownership() -> Dictionary:
 	var year := 2025
 	var round_num := 1
 
-	var picks := NflDraft.resolve_draft_order_with_ownership(teams, ownership, year, round_num)
+	var picks: Array = NflDraft.resolve_draft_order_with_ownership(teams, ownership, year, round_num)
 
 	# Verify order and ownership
 	assert(picks.size() == 3, "Should have 3 picks")
@@ -77,12 +78,12 @@ static func test_resolve_draft_order_default_ownership() -> Dictionary:
 
 ## Test: resolve_draft_order_with_ownership respects traded picks
 static func test_resolve_draft_order_traded_picks() -> Dictionary:
-	var teams := [
+	var teams: Array = [
 		{"id": "SF", "draft_order": 1},
 		{"id": "CHI", "draft_order": 2},
 		{"id": "NYJ", "draft_order": 3}
 	]
-	var ownership := {
+	var ownership: Dictionary = {
 		2025: {
 			1: {
 				"SF": "CHI",  # Bears own 49ers' pick
@@ -94,7 +95,7 @@ static func test_resolve_draft_order_traded_picks() -> Dictionary:
 	var year := 2025
 	var round_num := 1
 
-	var picks := NflDraft.resolve_draft_order_with_ownership(teams, ownership, year, round_num)
+	var picks: Array = NflDraft.resolve_draft_order_with_ownership(teams, ownership, year, round_num)
 
 	# Verify traded pick
 	var pick1: Dictionary = picks[0]
@@ -108,7 +109,7 @@ static func test_resolve_draft_order_traded_picks() -> Dictionary:
 
 ## Test: value_draft_pick calculates correct values by round
 static func test_value_draft_pick_by_round() -> Dictionary:
-	var config := {
+	var config: Dictionary = {
 		"draft_pick_trading": {
 			"future_year_discount": 0.9
 		}
@@ -116,19 +117,19 @@ static func test_value_draft_pick_by_round() -> Dictionary:
 	var current_year := 2025
 
 	# Test Round 1 values
-	var rd1_pick1 := NflDraft.value_draft_pick(2025, 1, 1, current_year, config)
-	var rd1_pick32 := NflDraft.value_draft_pick(2025, 1, 32, current_year, config)
+	var rd1_pick1: float = NflDraft.value_draft_pick(2025, 1, 1, current_year, config)
+	var rd1_pick32: float = NflDraft.value_draft_pick(2025, 1, 32, current_year, config)
 	assert(rd1_pick1 > rd1_pick32, "Pick 1 should be worth more than pick 32")
 	assert(rd1_pick1 == 1000.0, "Pick 1 should be 1000 points")
 	assert(rd1_pick32 == 800.0, "Pick 32 should be 800 points")
 
 	# Test Round 2 values
-	var rd2_pick1 := NflDraft.value_draft_pick(2025, 2, 1, current_year, config)
+	var rd2_pick1: float = NflDraft.value_draft_pick(2025, 2, 1, current_year, config)
 	assert(rd2_pick1 == 600.0, "Round 2 pick 1 should be 600 points")
 	assert(rd1_pick32 > rd2_pick1, "Late round 1 worth more than early round 2")
 
 	# Test Round 7 values
-	var rd7_pick1 := NflDraft.value_draft_pick(2025, 7, 1, current_year, config)
+	var rd7_pick1: float = NflDraft.value_draft_pick(2025, 7, 1, current_year, config)
 	assert(rd7_pick1 == 50.0, "Round 7 pick 1 should be 50 points")
 
 	return {"passed": true, "message": "value_draft_pick calculates correct values"}
@@ -136,7 +137,7 @@ static func test_value_draft_pick_by_round() -> Dictionary:
 
 ## Test: value_draft_pick applies future year discount
 static func test_value_draft_pick_future_discount() -> Dictionary:
-	var config := {
+	var config: Dictionary = {
 		"draft_pick_trading": {
 			"future_year_discount": 0.9
 		}
@@ -144,13 +145,13 @@ static func test_value_draft_pick_future_discount() -> Dictionary:
 	var current_year := 2025
 
 	# Current year pick (no discount)
-	var current_pick := NflDraft.value_draft_pick(2025, 1, 1, current_year, config)
+	var current_pick: float = NflDraft.value_draft_pick(2025, 1, 1, current_year, config)
 
 	# Next year pick (10% discount)
-	var next_year_pick := NflDraft.value_draft_pick(2026, 1, 1, current_year, config)
+	var next_year_pick: float = NflDraft.value_draft_pick(2026, 1, 1, current_year, config)
 
 	# Two years out (20% discount - 0.9^2)
-	var two_year_pick := NflDraft.value_draft_pick(2027, 1, 1, current_year, config)
+	var two_year_pick: float = NflDraft.value_draft_pick(2027, 1, 1, current_year, config)
 
 	assert(current_pick == 1000.0, "Current year pick should be 1000")
 	assert(next_year_pick == 900.0, "Next year pick should be 900 (10% discount)")
@@ -161,8 +162,8 @@ static func test_value_draft_pick_future_discount() -> Dictionary:
 
 ## Test: transfer_pick_ownership updates ownership correctly
 static func test_transfer_pick_ownership() -> Dictionary:
-	var world_state := {}
-	var teams := [
+	var world_state: Dictionary = {}
+	var teams: Array = [
 		{"id": "SF"},
 		{"id": "CHI"}
 	]
@@ -188,7 +189,7 @@ static func test_transfer_pick_ownership() -> Dictionary:
 ## Test: Draft run respects ownership
 static func test_draft_run_respects_ownership() -> Dictionary:
 	# Setup minimal world state
-	var world_state := {
+	var world_state: Dictionary = {
 		"draft_pool": {
 			2025: [
 				{"player_id": "player1", "position": "QB", "stats": {"arm_strength": 80.0}},
@@ -216,13 +217,14 @@ static func test_draft_run_respects_ownership() -> Dictionary:
 	}
 
 	# Mock configs
-	var league_cfg := {"draft": {"rounds": 1}, "compensatory_picks": {"enabled": false}}
-	var positions_cfg := {"QB": {"core_stats": []}, "RB": {"core_stats": []}}
-	var stats_cfg := {"stats": []}
-	var scouts_cfg := {"national_scouts": []}
-	var main_cfg := {"class_rules": {}}
+	var league_cfg: Dictionary = {"draft": {"rounds": 1}, "compensatory_picks": {"enabled": false}}
+	var positions_cfg: Dictionary = {"QB": {"core_stats": []}, "RB": {"core_stats": []}}
+	var stats_cfg: Dictionary = {"stats": []}
+	var scouts_cfg: Dictionary = {"national_scouts": []}
+	var main_cfg: Dictionary = {"class_rules": {}}
 
-	var result := NflDraft.run(
+	var nfl_draft: NflDraft = NflDraft.new()
+	var result: Dictionary = nfl_draft.run(
 		world_state, 2025, 12345,
 		league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg
 	)
@@ -241,16 +243,15 @@ static func test_draft_run_respects_ownership() -> Dictionary:
 
 ## Test: Determinism - same seed produces same results
 static func test_determinism() -> Dictionary:
-	var world_state1 := {
+	var world_state1: Dictionary = {
 		"draft_pool": {2025: []},
 		"nfl_teams": [{"id": "SF", "draft_order": 1}],
 		"nfl_rosters": {"SF": {"players": [], "by_position": {}}}
 	}
-	var world_state2 := world_state1.duplicate(true)
+	var world_state2: Dictionary = world_state1.duplicate(true)
 
-	var teams := [{"id": "SF"}]
+	var teams: Array = [{"id": "SF"}]
 	var year := 2025
-	var seed := 42
 
 	# Initialize ownership twice with same seed
 	NflDraft.initialize_pick_ownership(world_state1, teams, year, 7)
@@ -267,7 +268,7 @@ static func test_determinism() -> Dictionary:
 
 ## Run all tests
 static func run_all_tests() -> Dictionary:
-	var tests := [
+	var tests: Array[Callable] = [
 		test_initialize_pick_ownership,
 		test_resolve_draft_order_default_ownership,
 		test_resolve_draft_order_traded_picks,
@@ -278,7 +279,7 @@ static func run_all_tests() -> Dictionary:
 		test_determinism
 	]
 
-	var results := []
+	var results: Array = []
 	var passed := 0
 	var failed := 0
 
