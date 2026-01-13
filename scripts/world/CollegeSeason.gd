@@ -11,6 +11,7 @@ const StatGenerator = preload("res://scripts/core/game_simulation/StatGenerator.
 const PlayerMorale = preload("res://scripts/core/player_agency/PlayerMorale.gd")
 const CollegeStatsService = preload("res://scripts/world/CollegeStatsService.gd")
 const ConferenceService = preload("res://scripts/world/ConferenceService.gd")
+const EarlyDeclarationService = preload("res://scripts/world/EarlyDeclarationService.gd")
 
 func run(
 	world_state: Dictionary,
@@ -142,8 +143,11 @@ func run(
 				if player_rating >= rating_threshold:
 					is_draft_eligible = true
 			elif new_year == 3:
-				# Check for early declaration
-				if _check_early_declaration(p, early_decl_cfg, early_decl_rng, positions_cfg, main_cfg):
+				# PHASE 8: Early Declaration Advisory System
+				# Replace simple check with multi-factor advisory system
+				if EarlyDeclarationService.simulate_declaration_decision(
+					p, year, positions_cfg, main_cfg, early_decl_cfg, early_decl_rng
+				):
 					is_draft_eligible = true
 					total_early_declares += 1
 					# Calculate rating for early declares (used for draft grade display)
@@ -260,6 +264,13 @@ func _eligibility_status(college_year: int) -> String:
 		_:
 			return "senior"
 
+## DEPRECATED: Use EarlyDeclarationService.simulate_declaration_decision() instead
+##
+## This method is preserved for backward compatibility and reference.
+## Phase 8 introduced a more sophisticated advisory system with multi-factor
+## decision making, agent influence, and return-to-school bonuses.
+##
+## See: EarlyDeclarationService for the new implementation
 func _check_early_declaration(
 	player: Dictionary,
 	early_decl_cfg: Dictionary,
