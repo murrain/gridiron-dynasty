@@ -66,7 +66,7 @@ static func generate_hs_background(player: Dictionary, rng: RandomNumberGenerato
 	var region := _weighted_pick_region(rng)
 
 	# Step 2: Assign program tier (slightly correlated with potential)
-	var potential_overall := _estimate_potential_overall(player)
+	var potential_overall := _get_player_rating(player)
 	var program_tier := _assign_program_tier(potential_overall, rng)
 
 	# Step 3: Calculate star rating (potential + tier visibility + noise)
@@ -96,21 +96,34 @@ static func generate_hs_background(player: Dictionary, rng: RandomNumberGenerato
 		"initial_hype": initial_hype
 	}
 
-## Estimate player's potential overall rating
+## Get player's rating for star calculation
 ##
-## This looks at potential stats to estimate what the player could become.
-## Used for assigning program tier and star rating.
+## Prefers composite_score (actual calculated rating) when available,
+## falls back to potential estimate for early-stage players.
 ##
 ## Parameters:
 ##   player: Player dictionary
 ##
-## Returns: Estimated potential overall (float)
-static func _estimate_potential_overall(player: Dictionary) -> float:
-	# Try to get pre-calculated potential rating
+## Returns: Rating value (float) - higher = better prospect
+static func _get_player_rating(player: Dictionary) -> float:
+	# Priority 1: Use composite_score if available (most accurate)
+	if player.has("composite_score"):
+		var score := float(player.get("composite_score", 0.0))
+		if score > 0.0:
+			return score
+
+	# Priority 2: Check ratings dict for composite_score
+	var ratings: Dictionary = player.get("ratings", {}) as Dictionary
+	if ratings.has("composite_score"):
+		var score := float(ratings.get("composite_score", 0.0))
+		if score > 0.0:
+			return score
+
+	# Priority 3: Use pre-calculated potential rating
 	if player.has("potential_overall"):
 		return float(player.get("potential_overall", 50.0))
 
-	# Otherwise estimate from potential stats
+	# Priority 4: Estimate from potential stats
 	var potential: Dictionary = player.get("potential", {}) as Dictionary
 	if potential.is_empty():
 		return 50.0  # Neutral fallback
