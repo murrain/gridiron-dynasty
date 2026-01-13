@@ -561,7 +561,9 @@ static func _create_udfa_fa_profile(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary
 ) -> Dictionary:
-	var player_id := String(player.get("player_id", ""))
+	# NflDraft normalizes: adds "id" field while keeping "player_id"
+	# Prefer "id" for consistency with roster players, fallback to "player_id"
+	var player_id := String(player.get("id", player.get("player_id", "")))
 	var position := String(player.get("position", "?"))
 	var age := int(player.get("age", 22))
 	var composite_score := float(player.get("composite_score", 50.0))
@@ -1042,7 +1044,9 @@ static func _find_player_in_undrafted_pool(
 
 	for player in year_pool:
 		var p: Dictionary = player
-		if String(p.get("player_id", "")) == player_id:
+		# NflDraft normalizes: check "id" first, fallback to "player_id"
+		var pid := String(p.get("id", p.get("player_id", "")))
+		if pid == player_id:
 			return p
 
 	return {}
@@ -1156,7 +1160,9 @@ static func _move_player_to_team(
 			var year_pool: Array = undrafted_pool[year]
 			for i in range(year_pool.size()):
 				var p: Dictionary = year_pool[i]
-				if String(p.get("player_id", "")) == player_id:
+				# NflDraft normalizes: check "id" first, fallback to "player_id"
+				var pid := String(p.get("id", p.get("player_id", "")))
+				if pid == player_id:
 					year_pool.remove_at(i)
 					break
 
