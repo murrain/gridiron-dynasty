@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "college_count": 130,
   "default_capacity": 85,
   "name_format": "College %03d",
@@ -104,5 +104,144 @@
     "strength_sensitivity": 0.1,
     "upset_threshold": 5.0,
     "calculation_method": "mean_rating"
+  },
+
+  "conferences": [
+    {
+      "id": "sec",
+      "name": "SEC",
+      "tier": "power_5",
+      "draft_weight_multiplier": 1.15,
+      "preferred_regions": ["south"],
+      "region_weight": 0.6,
+      "min_eliteness": 70.0,
+      "size_min": 12,
+      "size_max": 16
+    },
+    {
+      "id": "big_ten",
+      "name": "Big Ten",
+      "tier": "power_5",
+      "draft_weight_multiplier": 1.12,
+      "preferred_regions": ["midwest", "northeast"],
+      "region_weight": 0.5,
+      "min_eliteness": 68.0,
+      "size_min": 12,
+      "size_max": 16
+    },
+    {
+      "id": "acc",
+      "name": "ACC",
+      "tier": "power_5",
+      "draft_weight_multiplier": 1.10,
+      "preferred_regions": ["south", "northeast"],
+      "region_weight": 0.5,
+      "min_eliteness": 65.0,
+      "size_min": 12,
+      "size_max": 16
+    },
+    {
+      "id": "pac_12",
+      "name": "Pac-12",
+      "tier": "power_5",
+      "draft_weight_multiplier": 1.08,
+      "preferred_regions": ["west"],
+      "region_weight": 0.7,
+      "min_eliteness": 63.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "big_12",
+      "name": "Big 12",
+      "tier": "power_5",
+      "draft_weight_multiplier": 1.07,
+      "preferred_regions": ["midwest", "south"],
+      "region_weight": 0.5,
+      "min_eliteness": 60.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "american",
+      "name": "American Athletic Conference",
+      "tier": "group_5",
+      "draft_weight_multiplier": 0.95,
+      "preferred_regions": ["south", "midwest"],
+      "region_weight": 0.3,
+      "min_eliteness": 50.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "mountain_west",
+      "name": "Mountain West",
+      "tier": "group_5",
+      "draft_weight_multiplier": 0.93,
+      "preferred_regions": ["west"],
+      "region_weight": 0.5,
+      "min_eliteness": 48.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "mac",
+      "name": "Mid-American Conference",
+      "tier": "group_5",
+      "draft_weight_multiplier": 0.90,
+      "preferred_regions": ["midwest"],
+      "region_weight": 0.4,
+      "min_eliteness": 45.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "cusa",
+      "name": "Conference USA",
+      "tier": "group_5",
+      "draft_weight_multiplier": 0.88,
+      "preferred_regions": ["south"],
+      "region_weight": 0.4,
+      "min_eliteness": 45.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "sun_belt",
+      "name": "Sun Belt",
+      "tier": "group_5",
+      "draft_weight_multiplier": 0.87,
+      "preferred_regions": ["south"],
+      "region_weight": 0.4,
+      "min_eliteness": 43.0,
+      "size_min": 10,
+      "size_max": 14
+    },
+    {
+      "id": "fcs_independent",
+      "name": "FCS Independent",
+      "tier": "fcs",
+      "draft_weight_multiplier": 0.80,
+      "preferred_regions": [],
+      "region_weight": 0.0,
+      "min_eliteness": 0.0,
+      "size_min": 1,
+      "size_max": 999
+    }
+  ],
+
+  "tier_weights": {
+    "power_5": {
+      "base_draft_multiplier": 1.10,
+      "competition_multiplier": 1.05
+    },
+    "group_5": {
+      "base_draft_multiplier": 0.95,
+      "competition_multiplier": 1.00
+    },
+    "fcs": {
+      "base_draft_multiplier": 0.80,
+      "competition_multiplier": 0.95
+    }
   }
 }
