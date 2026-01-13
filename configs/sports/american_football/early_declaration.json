@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "description": "Configuration for NFL Draft Advisory Board system and early declaration decisions",
+
+  "enabled": true,
+  "note_enabled": "Feature flag to enable/disable advisory system. When false, falls back to simple rating-based declaration.",
+
+  "nfl_advisory_grades": {
+    "description": "Advisory grade thresholds and expected declaration rates by tier",
+    "note": "Grades represent NFL Draft Advisory Board evaluation of player draft stock",
+
+    "1st_round": {
+      "description": "Elite prospects projected as first round picks",
+      "min_rating": 85.0,
+      "declaration_rate": 0.95,
+      "note": "95% of first-round prospects declare (Zion Williamson, Trevor Lawrence types)"
+    },
+
+    "2nd_round": {
+      "description": "Strong prospects projected as second round picks",
+      "min_rating": 78.0,
+      "declaration_rate": 0.80,
+      "note": "80% declare, some stay to improve stock (high-level starters)"
+    },
+
+    "3rd_day": {
+      "description": "Developmental prospects projected for rounds 3-7",
+      "min_rating": 70.0,
+      "declaration_rate": 0.45,
+      "note": "45% declare, many stay to develop (borderline prospects)"
+    },
+
+    "return_to_school": {
+      "description": "Below draft threshold, advised to return to school",
+      "below_rating": 70.0,
+      "declaration_rate": 0.15,
+      "note": "15% still declare (financial pressure, overconfidence, bad advice)"
+    }
+  },
+
+  "agent_influence": {
+    "description": "Agent contact probability and influence on declaration decisions",
+    "note": "Agents push borderline players to declare, sometimes resulting in undrafted free agents",
+
+    "agent_contact_rating_threshold": 75.0,
+    "description_threshold": "Minimum rating for significant agent interest",
+
+    "agent_push_declaration_rate_boost": 0.15,
+    "description_boost": "Additional 15% declaration probability when agent involved",
+
+    "agent_quality_tiers": {
+      "description": "Agent quality affects advice quality (future enhancement)",
+      "elite": {
+        "accuracy": 0.90,
+        "note": "Elite agents give accurate advice"
+      },
+      "standard": {
+        "accuracy": 0.70,
+        "note": "Standard agents sometimes overestimate player stock"
+      },
+      "fringe": {
+        "accuracy": 0.50,
+        "note": "Fringe agents often push players to declare prematurely"
+      }
+    },
+
+    "note": "Agent quality tiers are defined but not yet implemented in Phase 8"
+  },
+
+  "decision_factors": {
+    "description": "Weights for multi-factor declaration decision model",
+    "note": "Final probability = base_rate + weighted_factors (clamped to 0.05-0.98)",
+
+    "financial_need_weight": 0.25,
+    "description_financial": "Financial pressure can override low grade (25% weight)",
+
+    "injury_history_weight": 0.20,
+    "description_injury": "Injury risk increases urgency to declare (20% weight)",
+
+    "development_upside_weight": 0.30,
+    "description_upside": "Low upside encourages declaring now (30% weight)",
+
+    "draft_grade_weight": 0.25,
+    "description_grade": "Advisory grade is primary factor (25% base weight)",
+
+    "note_weights": "Weights are additive modifiers to base declaration rate, not standalone probabilities"
+  },
+
+  "return_to_school_boost": {
+    "description": "Benefits and risks for players who return to school for senior year",
+
+    "development_bonus": 1.15,
+    "description_bonus": "15% faster attribute development for returning players",
+
+    "hype_maintenance": 0.80,
+    "description_hype": "Hype decays slower for returning high-profile players (80% retention)",
+
+    "injury_risk_per_year": 0.15,
+    "description_injury_risk": "15% chance of significant injury per additional year (handled by PlayerLifecycle)",
+
+    "note": "Development bonus applied via development_context.usage multiplier"
+  },
+
+  "financial_need_mapping": {
+    "description": "Socioeconomic status to financial need mapping (used by _calculate_financial_need)",
+    "note": "High financial need increases declaration probability regardless of grade",
+
+    "low": 0.9,
+    "lower_middle": 0.7,
+    "middle": 0.5,
+    "upper_middle": 0.3,
+    "high": 0.1,
+
+    "family_size_bonus": 0.1,
+    "description_family": "Large families (6+) add 0.1 to financial need"
+  },
+
+  "injury_risk_calculation": {
+    "description": "Formula for calculating injury risk factor from player history",
+    "note": "High injury risk makes players more likely to declare (fear of career-ending injury)",
+
+    "injury_count_weight": 0.125,
+    "description_count": "Each injury adds 12.5% risk (capped at 0.5 for 4+ injuries)",
+
+    "severity_weight": 0.10,
+    "description_severity": "Average severity contributes up to 0.3 to risk score",
+
+    "major_injury_penalty": 0.20,
+    "description_major": "Any major injury (severity >= 3.0) adds 0.2 to risk",
+
+    "note": "Risk score clamped to 0.0-1.0, used to boost declaration probability"
+  },
+
+  "development_upside_calculation": {
+    "description": "Formula for calculating player development potential",
+    "note": "Low upside players benefit less from staying, so they're more likely to declare",
+
+    "age_factor_weight": 0.5,
+    "description_age": "Younger players have more upside (age 20 = 1.0, age 25 = 0.0)",
+
+    "ceiling_gap_weight": 0.5,
+    "description_ceiling": "Room to grow to potential ceiling (future enhancement)",
+
+    "note": "Currently uses age-based upside only. Ceiling-based calculation planned for future."
+  },
+
+  "backward_compatibility": {
+    "description": "Fallback to original simple declaration logic when advisory system disabled",
+    "note": "Preserves existing behavior for testing and transition",
+
+    "rating_threshold": 85.0,
+    "base_chance": 0.15,
+    "rating_bonus_per_point": 0.01,
+
+    "note_formula": "chance = base_chance + (rating - threshold) * bonus_per_point, clamped to 0.0-0.95"
+  },
+
+  "integration_notes": {
+    "note_1": "Called from CollegeSeason for junior players (college_year == 3)",
+    "note_2": "Advisory grade stored in player.declaration_advisory for draft evaluation",
+    "note_3": "Return bonus applied via player.development_context.usage multiplier",
+    "note_4": "RNG consumption: 2 randf() calls per eligible player (agent contact + declaration)",
+    "note_5": "Optional Phase 6 integration: Hype boosts agent contact probability"
+  }
+}
