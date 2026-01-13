@@ -3,6 +3,7 @@ class_name CollegeGenerator
 
 const ConfigService = preload("res://autoloads/Config.gd")
 const ConferenceService = preload("res://scripts/world/ConferenceService.gd")
+const CoachGenerator = preload("res://scripts/generation/CoachGenerator.gd")
 
 const DEFAULT_CONFIG_KEY := "world/colleges"
 
@@ -55,6 +56,12 @@ func generate(seed: int, config_key: String = DEFAULT_CONFIG_KEY) -> Dictionary:
 			college["capacity"] = rng.randi_range(cap_min, cap_max)
 		elif default_capacity > 0:
 			college["capacity"] = default_capacity
+
+		# Generate head coach for this college
+		# Coach quality is influenced by college eliteness
+		var coach := CoachGenerator.generate_coach_for_team(rng, "%s_coach" % college_id, eliteness)
+		college["coach"] = coach
+
 		colleges[i] = college
 
 	# PHASE 2: Assign colleges to conferences

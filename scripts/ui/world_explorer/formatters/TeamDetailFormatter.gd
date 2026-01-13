@@ -43,6 +43,9 @@ static func format_nfl_team(team: Dictionary, world_state: Dictionary) -> String
 	bb += "[center][font_size=20][b]%s[/b][/font_size][/center]\n" % team.get("name", "Unknown Team")
 	bb += "[center][font_size=14]%s[/font_size][/center]\n\n" % team.get("region", "").capitalize().replace("_", " ")
 
+	# Coach Info
+	bb += _format_coach_info(team)
+
 	# Salary Cap
 	bb += "[b]Salary Cap[/b]\n"
 	bb += "[table=2]"
@@ -111,6 +114,9 @@ static func format_college(college: Dictionary, world_state: Dictionary) -> Stri
 		college.get("tier", "").capitalize(),
 		college.get("region", "").capitalize().replace("_", " ")
 	]
+
+	# Coach Info
+	bb += _format_coach_info(college)
 
 	# Program info
 	bb += "[b]Program Info[/b]\n"
@@ -655,3 +661,110 @@ static func _format_experience(player: Dictionary, level: String) -> String:
 
 		_:
 			return "?"
+
+
+## Format coach information for team detail view
+##
+## Displays head coach name, scheme, experience, and player evaluation philosophy.
+## Shows both offensive and defensive schemes, tolerance settings, and coaching ratings.
+##
+## Parameters:
+## - team: Team Dictionary with optional "coach" field
+##
+## Returns: BBCode string with coach information, or empty string if no coach
+##
+## Example output:
+## [b]Head Coach[/b]
+## [table=2]
+## [cell]Name:[/cell][cell]John Smith[/cell]
+## [cell]Experience:[/cell][cell]15 years[/cell]
+## [cell]Offense:[/cell][cell]West Coast[/cell]
+## [cell]Defense:[/cell][cell]4-3 Under[/cell]
+## [cell]Character Policy:[/cell][cell]Strict[/cell]
+## [cell]Medical Policy:[/cell][cell]Cautious[/cell]
+## [/table]
+static func _format_coach_info(team: Dictionary) -> String:
+	var coach = team.get("coach", {})
+	if coach.is_empty():
+		return ""
+
+	var bb := "[b]Head Coach[/b]\n"
+	bb += "[table=2]"
+
+	# Coach name
+	var first_name = coach.get("first_name", "")
+	var last_name = coach.get("last_name", "")
+	var coach_name = "%s %s" % [first_name, last_name] if not first_name.is_empty() else "Unnamed Coach"
+	bb += "[cell]Name:[/cell][cell]%s[/cell]" % coach_name.strip_edges()
+
+	# Experience
+	var exp_years = coach.get("experience_years", 0)
+	bb += "[cell]Experience:[/cell][cell]%d years[/cell]" % exp_years
+
+	# Coaching ability
+	var ability = coach.get("coaching_ability", 50.0)
+	var ability_color = StatQueries.get_stat_color_hex(ability)
+	bb += "[cell]Coaching Ability:[/cell][cell][color=%s]%.0f[/color][/cell]" % [ability_color, ability]
+
+	# Offensive scheme
+	var off_scheme = coach.get("offensive_scheme", "")
+	if not off_scheme.is_empty():
+		bb += "[cell]Offense:[/cell][cell]%s[/cell]" % _format_scheme_display(off_scheme)
+
+	# Defensive scheme
+	var def_scheme = coach.get("defensive_scheme", "")
+	if not def_scheme.is_empty():
+		bb += "[cell]Defense:[/cell][cell]%s[/cell]" % _format_scheme_display(def_scheme)
+
+	# Scheme rigidity
+	var rigidity = coach.get("scheme_rigidity", 1.0)
+	var rigidity_desc := "Balanced"
+	if rigidity < 0.7:
+		rigidity_desc = "Flexible"
+	elif rigidity > 1.1:
+		rigidity_desc = "Rigid"
+	bb += "[cell]Scheme Style:[/cell][cell]%s (%.1fx)[/cell]" % [rigidity_desc, rigidity]
+
+	# Character tolerance
+	var char_tolerance = coach.get("character_tolerance", "moderate")
+	bb += "[cell]Character Policy:[/cell][cell]%s[/cell]" % _format_tolerance_display(char_tolerance)
+
+	# Medical tolerance
+	var med_tolerance = coach.get("medical_tolerance", "cautious")
+	bb += "[cell]Medical Policy:[/cell][cell]%s[/cell]" % _format_tolerance_display(med_tolerance)
+
+	bb += "[/table]\n\n"
+	return bb
+
+
+## Format scheme name for display (converts snake_case to Title Case)
+static func _format_scheme_display(scheme: String) -> String:
+	match scheme:
+		"west_coast": return "West Coast"
+		"power_run": return "Power Run"
+		"spread_option": return "Spread Option"
+		"air_raid": return "Air Raid"
+		"zone_run": return "Zone Run"
+		"pro_style": return "Pro Style"
+		"4_3_under": return "4-3 Under"
+		"3_4_two_gap": return "3-4 Two Gap"
+		"cover_2": return "Cover 2"
+		"cover_3": return "Cover 3"
+		"press_man": return "Press Man"
+		"tampa_2": return "Tampa 2"
+		"aggressive_blitz": return "Aggressive Blitz"
+		_: return scheme.capitalize().replace("_", " ")
+
+
+## Format tolerance level for display
+static func _format_tolerance_display(tolerance: String) -> String:
+	match tolerance:
+		"strict": return "Strict"
+		"moderate": return "Moderate"
+		"lenient": return "Lenient"
+		"win_now": return "Win Now"
+		"risk_averse": return "Risk Averse"
+		"cautious": return "Cautious"
+		"moderate_risk": return "Moderate Risk"
+		"aggressive": return "Aggressive"
+		_: return tolerance.capitalize().replace("_", " ")
