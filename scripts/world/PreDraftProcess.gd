@@ -515,9 +515,9 @@ static func _simulate_team_visits(
 		var visit_count := int(max_per_player * (rating / 100.0))
 		visit_count = clamp(visit_count, 5, max_per_player)
 
-		# Randomly select teams
+		# Randomly select teams using explicit RNG (Fisher-Yates shuffle)
 		var shuffled_teams := teams.duplicate()
-		shuffled_teams.shuffle()  # Uses global RNG, but OK for non-critical selection
+		_shuffle_with_rng(shuffled_teams, rng)
 
 		var visits: Array = []
 		var visit_impacts := {}
@@ -714,6 +714,22 @@ static func _gaussian(mean: float, sigma: float, rng: RandomNumberGenerator) -> 
 	var u2 := rng.randf()
 	var z0 := sqrt(-2.0 * log(u1)) * cos(2.0 * PI * u2)
 	return mean + z0 * sigma
+
+
+## Shuffles an array in place using explicit RNG (Fisher-Yates algorithm).
+##
+## This replaces Array.shuffle() which uses global RNG and breaks determinism.
+##
+## RNG: (n-1) randi_range() calls where n = array size
+##
+## @param arr: Array to shuffle in place
+## @param rng: RNG instance for deterministic shuffling
+static func _shuffle_with_rng(arr: Array, rng: RandomNumberGenerator) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var temp = arr[i]
+		arr[i] = arr[j]
+		arr[j] = temp
 
 
 ## Returns current timestamp in HH:MM:SS format
