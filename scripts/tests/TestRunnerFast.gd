@@ -34,7 +34,8 @@ const FAST_TESTS := [
 	"res://scripts/tests/test_positional_scarcity.gd",
 	"res://scripts/tests/test_team_impact.gd",
 	"res://scripts/tests/test_cap_accounting.gd",
-	"res://scripts/tests/test_phase4_scaffolding.gd"
+	"res://scripts/tests/test_phase4_scaffolding.gd",
+	"res://scripts/tests/test_scouting_resource_manager.gd"
 ]
 
 func _init() -> void:

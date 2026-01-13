@@ -73,11 +73,11 @@ static func generate_hs_background(player: Dictionary, rng: RandomNumberGenerato
 	var star_rating := _calculate_star_rating(potential_overall, program_tier, rng)
 
 	# Step 4: Get development modifier from tier
-	var dev_modifier := TIER_DEV_MODIFIERS.get(program_tier, 1.0)
+	var dev_modifier: float = TIER_DEV_MODIFIERS.get(program_tier, 1.0)
 
 	# Step 5: Generate initial hype
 	var position := String(player.get("position", ""))
-	var school_media_tier := TIER_MEDIA_MARKET.get(program_tier, 0.3)
+	var school_media_tier: float = TIER_MEDIA_MARKET.get(program_tier, 0.3)
 
 	const HypeGenerator = preload("res://scripts/generation/HypeGenerator.gd")
 	var initial_hype := HypeGenerator.generate_initial_hype(
