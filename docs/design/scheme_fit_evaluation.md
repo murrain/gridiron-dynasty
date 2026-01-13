@@ -809,6 +809,137 @@ func scout_stat(true_value: float, difficulty: String, scout_skill: float) -> fl
 | `pain_tolerance` | Cannot ethically test | Playing through injury |
 | `flexibility` | Rarely evaluated | Injury prevention |
 | `medical_history_score` | Separate medical eval | Injury risk |
+| `hype` | Meta-stat affecting perception | Scout bias, contract demands |
+
+### Hype: A Special Hidden Stat
+
+`hype` is unique among hidden stats because it affects **evaluation**, not performance. It represents the buzz, media attention, and perceived "heat" around a player that can cause scouts to buy into narratives.
+
+**What Hype Affects:**
+- Scout evaluation bias (positive noise toward high-hype players)
+- Contract negotiation demands (high-hype players expect more money)
+- Draft position expectations (GMs feel pressure to take hyped players)
+- Media/fan pressure after picks
+
+**What Hype Does NOT Affect:**
+- Actual on-field performance (a hyped player with 70 speed still has 70 speed)
+- True player rating
+- Hidden performance stats like clutch_factor
+
+**Hype Sources (can fluctuate):**
+- Combine performance (great 40 time creates hype)
+- Media market (USC QB vs Idaho QB)
+- Highlight-reel plays vs consistent grinder
+- Draft analyst rankings
+- Social media presence
+- Previous draft position (1st rounders carry hype baggage)
+
+#### Hype Mechanics
+
+```gdscript
+func apply_hype_bias(base_evaluation: float, player_hype: float, scout_hype_susceptibility: float) -> float:
+    # hype ranges 0-100, 50 = neutral
+    # scout_hype_susceptibility ranges 0.0-1.0 (how much they buy into narratives)
+
+    var hype_modifier = (player_hype - 50.0) / 100.0  # -0.5 to +0.5
+    var bias = hype_modifier * scout_hype_susceptibility * 8.0  # Max ±4 points
+
+    return base_evaluation + bias
+```
+
+**Example:**
+- Player true rating: 72
+- Player hype: 85 (lots of buzz)
+- Scout A (hype_susceptibility: 0.8): Evaluates at 72 + 2.8 = **74.8**
+- Scout B (hype_susceptibility: 0.2): Evaluates at 72 + 0.7 = **72.7**
+- Scout C (veteran, hype_susceptibility: 0.0): Evaluates at **72.0** (sees through it)
+
+#### Hype Decay
+
+Hype naturally decays over time if not reinforced:
+
+```gdscript
+func decay_hype(current_hype: float, years_in_league: int) -> float:
+    # Rookies maintain hype, veterans' hype fades toward neutral
+    var decay_rate = 0.15 * years_in_league
+    var neutral = 50.0
+    return lerp(current_hype, neutral, min(decay_rate, 0.8))
+```
+
+A hyped rookie (85 hype) after 3 years with average performance: 85 → 70 → 60 → 54
+
+#### Hype vs Performance Divergence
+
+The most interesting scenarios occur when hype diverges from reality:
+
+| Scenario | Hype | True Rating | Result |
+|----------|------|-------------|--------|
+| **Bust** | 90 | 65 | Overdrafted, overpaid, fan disappointment |
+| **Hidden Gem** | 35 | 80 | Falls in draft, team gets value pick |
+| **Justified Star** | 85 | 88 | Hype matches reality, everyone happy |
+| **Known Quantity** | 50 | 72 | Fairly evaluated, market-rate contract |
+
+This creates realistic draft narratives:
+- The "can't miss prospect" who misses
+- The "overlooked" player who becomes a star
+- The late-round pick who outperforms their draft slot
+- The team that trades the farm for a hyped prospect who busts
+
+#### Real-World Parallel: The "Trade Up" Trap
+
+High hype creates pressure that leads to bad decisions:
+
+```
+Scenario: "Trey Lance" situation
+- Player hype: 92 (elite tools, upside narrative, limited tape)
+- True rating: 68 (raw, unproven, small sample)
+- Scoutable stats accuracy: Very low (few college starts to evaluate)
+
+Team A (hype_susceptibility: 0.85):
+  - Perceives player as ~78 overall
+  - Trades 3 first-round picks to move up
+  - Reality: Player was a 68 all along
+
+Team B (hype_susceptibility: 0.20):
+  - Perceives player as ~70 overall
+  - Passes, takes "boring" prospect at original pick
+  - Reality: Made the right call
+```
+
+The system naturally creates these situations because:
+1. Limited college tape → higher scouting noise on mental stats
+2. Elite measurables → public stats look great (speed, arm strength)
+3. High hype → susceptible scouts add positive bias
+4. Result: Massive gap between perceived and true value
+
+#### Scout Hype Susceptibility
+
+Different scouts have different susceptibility to hype:
+
+```json
+{
+  "scout_archetypes": {
+    "old_school_tape_grinder": {
+      "hype_susceptibility": 0.15,
+      "description": "Trusts film over buzz"
+    },
+    "analytics_focused": {
+      "hype_susceptibility": 0.25,
+      "description": "Numbers over narratives"
+    },
+    "consensus_builder": {
+      "hype_susceptibility": 0.70,
+      "description": "Influenced by industry groupthink"
+    },
+    "media_connected": {
+      "hype_susceptibility": 0.85,
+      "description": "Buys into draft Twitter narratives"
+    }
+  }
+}
+```
+
+Teams with "tape grinder" scouts are less likely to reach on hyped players. Teams with "media connected" scouts might overdraft based on buzz.
 
 ## Rating Calculation with Visibility
 
