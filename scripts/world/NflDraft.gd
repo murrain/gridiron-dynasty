@@ -153,7 +153,8 @@ func run(
 				class_rules,
 				round_num,
 				seed,
-				score_cache
+				score_cache,
+				year
 			)
 
 			if scored_players.is_empty():
@@ -223,7 +224,10 @@ func run(
 						String(third.get("name", "Unknown"))
 					]
 
-				print("[NflDraft] Pick %d (%s): %s %s%s" % [
+				var timestamp := _get_timestamp()
+				print("%s %d nfl_draft: Pick %d (%s): %s %s%s" % [
+					timestamp,
+					year,
 					overall_pick,
 					team_id,
 					String(player.get("position", "?")),
@@ -235,6 +239,13 @@ func run(
 			remaining_pool = remaining_pool.filter(func(p):
 				return String((p as Dictionary).get("player_id", "")) != player_id
 			)
+
+	# Normalize field names: draft uses "player_id", FA expects "id"
+	# This ensures UDFAs are compatible with FreeAgency system
+	for player in remaining_pool:
+		var p: Dictionary = player
+		if p.has("player_id") and not p.has("id"):
+			p["id"] = p["player_id"]
 
 	# Store undrafted players
 	var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {}) as Dictionary
@@ -554,7 +565,8 @@ func _score_draft_pool(
 	class_rules: Dictionary,
 	round_num: int,
 	base_seed: int,
-	score_cache: RecruitingScoreCache
+	score_cache: RecruitingScoreCache,
+	year: int
 ) -> Array:
 	var needs := _calculate_position_needs(roster, positions_cfg, class_rules)
 
@@ -670,8 +682,9 @@ func _score_draft_pool(
 				if rating >= 78.0 and p not in candidates:
 					var player_name := String(p.get("name", "Unknown"))
 					var player_position := String(p.get("position", "?"))
-					print("[NflDraft] RARE EVENT: Elite slip - %s %s fell to round %d" % [
-						player_position, player_name, round_num
+					var timestamp := _get_timestamp()
+					print("%s %d nfl_draft: RARE EVENT: Elite slip - %s %s fell to round %d" % [
+						timestamp, year, player_position, player_name, round_num
 					])
 					candidates.insert(0, p)
 					break
@@ -1802,3 +1815,8 @@ static func insert_compensatory_picks(
 		next_pick_number += 1
 
 	return modified_picks
+
+## Returns current timestamp in HH:MM:SS format
+static func _get_timestamp() -> String:
+	var time := Time.get_time_dict_from_system()
+	return "%02d:%02d:%02d" % [time["hour"], time["minute"], time["second"]]
