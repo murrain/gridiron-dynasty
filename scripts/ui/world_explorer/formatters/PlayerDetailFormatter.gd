@@ -17,7 +17,9 @@ static func format(player: Dictionary, world_state: Dictionary) -> String:
 	bb += "\n"
 	bb += _format_core_stats(player)
 	bb += "\n"
-	bb += _format_all_stats(player)
+	bb += _format_secondary_stats(player)
+	bb += "\n"
+	bb += _format_other_stats(player)
 	bb += "\n"
 	bb += _format_traits(player)
 	bb += "\n"
@@ -101,20 +103,69 @@ static func _format_core_stats(player: Dictionary) -> String:
 	bb += "[/table]\n"
 	return bb
 
-## Format all stats in alphabetical order
-static func _format_all_stats(player: Dictionary) -> String:
+## Format secondary stats for the player's position (with bars)
+static func _format_secondary_stats(player: Dictionary) -> String:
+	var position = player.get("position", "")
+	var secondary_stat_names = StatQueries.get_secondary_stats_for_position(position)
+	if secondary_stat_names.is_empty():
+		return ""  # No secondary stats section if none defined
+
 	var stats = player.get("stats", {})
 	if stats.is_empty():
-		return "[b]All Stats[/b]\n[i][color=#999999]No stats available[/color][/i]\n\n"
+		return ""
 
 	var bb := ""
-	bb += "[b]All Stats[/b]\n"
+	bb += "[b]Secondary Stats[/b]\n"
+	bb += "[table=3]"
 
-	var stat_names = stats.keys()
-	stat_names.sort()
+	for stat_name in secondary_stat_names:
+		if not stats.has(stat_name):
+			continue  # Skip if player doesn't have this stat
+		var value = stats.get(stat_name, 0.0)
+		var color = StatQueries.get_stat_color_hex(value)
+		bb += "[cell]%s:[/cell][cell][color=%s]%.0f[/color][/cell][cell]%s[/cell]" % [
+			stat_name.capitalize().replace("_", " "),
+			color,
+			value,
+			StatsFormatter.format_stat_bar(value)
+		]
 
-	bb += "[table=4]"
-	for stat_name in stat_names:
+	bb += "[/table]\n"
+	return bb
+
+## Format other stats (role="other" or not in core/secondary, no bars)
+static func _format_other_stats(player: Dictionary) -> String:
+	var position = player.get("position", "")
+	var core_stat_names = StatQueries.get_core_stats_for_position(position)
+	var secondary_stat_names = StatQueries.get_secondary_stats_for_position(position)
+
+	# Combine core and secondary to filter them out
+	var primary_stats := {}
+	for stat in core_stat_names:
+		primary_stats[stat] = true
+	for stat in secondary_stat_names:
+		primary_stats[stat] = true
+
+	var stats = player.get("stats", {})
+	if stats.is_empty():
+		return ""
+
+	# Get stats that are not core or secondary
+	var other_stat_names: Array = []
+	for stat_name in stats.keys():
+		if not primary_stats.has(stat_name):
+			other_stat_names.append(stat_name)
+
+	if other_stat_names.is_empty():
+		return ""  # No other stats to display
+
+	other_stat_names.sort()
+
+	var bb := ""
+	bb += "[b]Other Stats[/b]\n"
+	bb += "[table=2]"
+
+	for stat_name in other_stat_names:
 		var value = stats[stat_name]
 		var color = StatQueries.get_stat_color_hex(value)
 		bb += "[cell]%s:[/cell][cell][color=%s]%.0f[/color][/cell]" % [
@@ -122,8 +173,8 @@ static func _format_all_stats(player: Dictionary) -> String:
 			color,
 			value
 		]
-	bb += "[/table]\n"
 
+	bb += "[/table]\n"
 	return bb
 
 ## Format player traits list
