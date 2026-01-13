@@ -57,6 +57,11 @@ func run(
 	var contract_rng := RandomNumberGenerator.new()
 	contract_rng.seed = Rand.splitmix64(seed ^ 0xD4AF7003)
 
+	# Initialize draft pick ownership ledger if not present
+	# This enables pick trading by tracking who owns each pick
+	if not world_state.has("draft_pick_ownership"):
+		initialize_pick_ownership(world_state, teams, year, rounds)
+
 	# Initialize team scouting quality (once per world, cached)
 	if not world_state.has("nfl_scouting_quality"):
 		world_state["nfl_scouting_quality"] = _generate_team_scouting_quality(
@@ -102,16 +107,38 @@ func run(
 	# Uses RecruitingScoreCache for year-scoped, deterministic caching
 	var score_cache := RecruitingScoreCache.new(year)
 
+	# Get draft pick ownership ledger
+	var ownership: Dictionary = world_state.get("draft_pick_ownership", {}) as Dictionary
+
+	# Calculate compensatory picks for this draft year
+	# These are awarded based on previous year's FA losses
+	var comp_picks := calculate_compensatory_picks(world_state, year, league_cfg)
+
 	# Execute each round
 	for round_num in range(1, rounds + 1):
 		if remaining_pool.is_empty():
 			break
 
-		for team in sorted_teams:
+		# Resolve pick order for this round (respects ownership/trades)
+		var round_picks := resolve_draft_order_with_ownership(
+			sorted_teams, ownership, year, round_num
+		)
+
+		# Insert compensatory picks at end of round
+		round_picks = insert_compensatory_picks(
+			round_picks, comp_picks, year, round_num, world_state
+		)
+
+		for pick_assignment in round_picks:
 			if remaining_pool.is_empty():
 				break
 
-			var team_id := String(team.get("id", ""))
+			var assignment: Dictionary = pick_assignment as Dictionary
+			var original_team_id := String(assignment.get("original_team_id", ""))
+			var team_id := String(assignment.get("current_owner_id", ""))
+			var is_traded := bool(assignment.get("traded", false))
+			var is_compensatory := bool(assignment.get("compensatory", false))
+
 			var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
 			var scout: Dictionary = team_scouts.get(team_id, {}) as Dictionary
 
@@ -166,7 +193,10 @@ func run(
 				"team_id": team_id,
 				"player_id": player_id,
 				"position": String(player.get("position", "")),
-				"score": float(selected.get("score", 0.0))
+				"score": float(selected.get("score", 0.0)),
+				"traded": is_traded,
+				"original_team_id": original_team_id if is_traded else null,
+				"compensatory": is_compensatory
 			}
 			picks.append(pick_record)
 
@@ -183,7 +213,7 @@ func run(
 
 	# Store draft history (D5.1, D5.5)
 	# Records all picks with complete information for historical tracking
-	# Includes trade tracking fields (traded, original_team_id) for future trade system
+	# Includes trade tracking fields (traded, original_team_id) for pick trading system
 	#
 	# RNG Note: Draft history recording is deterministic and does not consume RNG.
 	# It only reads and records the results of the draft execution above.
@@ -207,6 +237,9 @@ func run(
 		var p: Dictionary = pick as Dictionary
 		var player_id := String(p.get("player_id", ""))
 		var team_id := String(p.get("team_id", ""))
+		var is_traded := bool(p.get("traded", false))
+		var original_team_id: Variant = p.get("original_team_id", null)
+		var is_compensatory := bool(p.get("compensatory", false))
 
 		# Extract college from player record (O(1) lookup instead of O(n) search)
 		var player_college := ""
@@ -221,8 +254,9 @@ func run(
 			"player_id": player_id,
 			"position": String(p.get("position", "")),
 			"college": player_college,
-			"traded": false,  # Phase 1: always false (no trade system yet)
-			"original_team_id": null  # Phase 1: always null (no trade system yet)
+			"traded": is_traded,
+			"original_team_id": original_team_id,
+			"compensatory": is_compensatory
 		})
 	world_state["draft_history"] = draft_history
 
@@ -1181,3 +1215,536 @@ func _calculate_rookie_salary(overall_pick: int, cap_limit: float) -> float:
 	pct = clamp(pct, min_rookie_pct, max_rookie_pct)
 
 	return cap_limit * pct
+
+
+# ============================================================================
+# FEATURE 5: DRAFT PICK TRADING
+# ============================================================================
+
+## Initializes draft pick ownership ledger for a draft year.
+##
+## Creates the ownership structure in world_state that tracks which team
+## currently owns each draft pick. By default, each team owns their own picks.
+## This ledger is updated when picks are traded.
+##
+## Data structure created:
+##   world_state["draft_pick_ownership"][year][round][original_team_id] = current_owner_team_id
+##
+## Example:
+##   ownership[2025][1]["SF"] = "CHI"  # Bears own 49ers' 1st round pick
+##   ownership[2025][1]["CHI"] = "CHI" # Bears own their own pick
+##
+## RNG: None (deterministic initialization)
+##
+## @param world_state: World state dictionary to modify
+## @param teams: Array of team dictionaries with "id" fields
+## @param year: Draft year to initialize
+## @param rounds: Number of draft rounds (typically 7)
+static func initialize_pick_ownership(
+	world_state: Dictionary,
+	teams: Array,
+	year: int,
+	rounds: int
+) -> void:
+	if not world_state.has("draft_pick_ownership"):
+		world_state["draft_pick_ownership"] = {}
+
+	var ownership: Dictionary = world_state["draft_pick_ownership"]
+
+	if not ownership.has(year):
+		ownership[year] = {}
+
+	var year_ownership: Dictionary = ownership[year]
+
+	# Initialize each round
+	for round_num in range(1, rounds + 1):
+		if not year_ownership.has(round_num):
+			year_ownership[round_num] = {}
+
+		var round_ownership: Dictionary = year_ownership[round_num]
+
+		# Each team owns their own pick by default
+		for team in teams:
+			var t: Dictionary = team
+			var team_id := String(t.get("id", ""))
+			if team_id != "":
+				round_ownership[team_id] = team_id
+
+
+## Resolves draft order for a specific round respecting pick ownership.
+##
+## Takes the base draft order (sorted by team performance) and applies
+## pick ownership to determine who actually makes each selection.
+##
+## This is called at the start of each draft round to determine the
+## correct picking order after accounting for trades.
+##
+## RNG: None (deterministic lookup)
+##
+## @param teams: Array of team dictionaries sorted by draft_order
+## @param ownership: Draft pick ownership dictionary from world_state
+## @param year: Draft year
+## @param round_num: Current draft round (1-7)
+## @return Array of pick assignments: [{pick_number, original_team_id, current_owner_id, traded}]
+static func resolve_draft_order_with_ownership(
+	teams: Array,
+	ownership: Dictionary,
+	year: int,
+	round_num: int
+) -> Array:
+	var picks: Array = []
+
+	# Get ownership for this year and round
+	var year_ownership: Dictionary = ownership.get(year, {}) as Dictionary
+	var round_ownership: Dictionary = year_ownership.get(round_num, {}) as Dictionary
+
+	# Sort teams by draft order (worst to best)
+	var sorted_teams := teams.duplicate()
+	sorted_teams.sort_custom(func(a, b):
+		return int((a as Dictionary).get("draft_order", 999)) < int((b as Dictionary).get("draft_order", 999))
+	)
+
+	var pick_number := 1
+	for team in sorted_teams:
+		var t: Dictionary = team
+		var original_team_id := String(t.get("id", ""))
+
+		# Check who owns this pick
+		var current_owner_id := String(round_ownership.get(original_team_id, original_team_id))
+		var is_traded := (current_owner_id != original_team_id)
+
+		picks.append({
+			"pick_number": pick_number,
+			"original_team_id": original_team_id,
+			"current_owner_id": current_owner_id,
+			"traded": is_traded
+		})
+
+		pick_number += 1
+
+	return picks
+
+
+## Calculates trade value of a draft pick using pick value chart.
+##
+## Uses a Jimmy Johnson-style chart with values that decay as picks
+## get later. Also applies a discount for future year picks to reflect
+## the time value and uncertainty of future picks.
+##
+## Value chart approach:
+##   - Round 1: 800-1000 points (elite value)
+##   - Round 2: 450-600 points (high value)
+##   - Round 3: 300-400 points (solid value)
+##   - Round 4+: <250 points (depth value)
+##
+## Future pick discount:
+##   - Current year: 1.0x (full value)
+##   - Next year (+1): 0.9x (10% discount)
+##   - Two years out (+2): 0.8x (20% discount)
+##   - Three+ years out: 0.7x (30% discount)
+##
+## RNG: None (deterministic calculation)
+##
+## @param year: Draft year of the pick
+## @param round_num: Round number (1-7)
+## @param pick_in_round: Position within the round (1-32)
+## @param current_year: Current simulation year (for future discount)
+## @param config: Configuration dictionary with "draft_pick_trading" section
+## @return float: Trade value points (0-1000 scale)
+static func value_draft_pick(
+	year: int,
+	round_num: int,
+	pick_in_round: int,
+	current_year: int,
+	config: Dictionary
+) -> float:
+	var trading_cfg: Dictionary = config.get("draft_pick_trading", {}) as Dictionary
+
+	# Calculate overall pick number
+	var overall_pick := (round_num - 1) * 32 + pick_in_round
+
+	# Get base value from value chart
+	# Using draft_picks.json structure via PickValueCurve logic
+	var base_value := 0.0
+
+	# Simple value curve based on round and position
+	# Higher picks in earlier rounds are exponentially more valuable
+	match round_num:
+		1:
+			# Round 1: 800-1000 points, declining within round
+			base_value = 1000.0 - (float(pick_in_round - 1) / 31.0) * 200.0
+		2:
+			# Round 2: 450-600 points
+			base_value = 600.0 - (float(pick_in_round - 1) / 31.0) * 150.0
+		3:
+			# Round 3: 300-400 points
+			base_value = 400.0 - (float(pick_in_round - 1) / 31.0) * 100.0
+		4:
+			# Round 4: 175-250 points
+			base_value = 250.0 - (float(pick_in_round - 1) / 31.0) * 75.0
+		5:
+			# Round 5: 100-150 points
+			base_value = 150.0 - (float(pick_in_round - 1) / 31.0) * 50.0
+		6:
+			# Round 6: 60-90 points
+			base_value = 90.0 - (float(pick_in_round - 1) / 31.0) * 30.0
+		7:
+			# Round 7: 30-50 points
+			base_value = 50.0 - (float(pick_in_round - 1) / 31.0) * 20.0
+		_:
+			base_value = 10.0
+
+	# Apply future year discount
+	var years_in_future := year - current_year
+	var future_discount := 1.0
+
+	if years_in_future > 0:
+		var discount_per_year := float(trading_cfg.get("future_year_discount", 0.9))
+		# Compound discount: 0.9^years
+		future_discount = pow(discount_per_year, float(years_in_future))
+		# Floor at 0.7 (max 30% discount even for far future)
+		future_discount = max(future_discount, 0.7)
+
+	return base_value * future_discount
+
+
+## Transfers ownership of a draft pick from one team to another.
+##
+## Updates the draft_pick_ownership ledger to reflect a trade.
+## This is called when a trade involving picks is executed.
+##
+## RNG: None (deterministic update)
+##
+## @param world_state: World state dictionary to modify
+## @param year: Draft year of the pick
+## @param round_num: Round number (1-7)
+## @param original_team_id: Team that originally owned the pick
+## @param new_owner_id: Team that now owns the pick
+static func transfer_pick_ownership(
+	world_state: Dictionary,
+	year: int,
+	round_num: int,
+	original_team_id: String,
+	new_owner_id: String
+) -> void:
+	if not world_state.has("draft_pick_ownership"):
+		world_state["draft_pick_ownership"] = {}
+
+	var ownership: Dictionary = world_state["draft_pick_ownership"]
+
+	if not ownership.has(year):
+		ownership[year] = {}
+
+	var year_ownership: Dictionary = ownership[year]
+
+	if not year_ownership.has(round_num):
+		year_ownership[round_num] = {}
+
+	var round_ownership: Dictionary = year_ownership[round_num]
+
+	# Update ownership
+	round_ownership[original_team_id] = new_owner_id
+
+
+# ============================================================================
+# FEATURE 4: COMPENSATORY PICKS
+# ============================================================================
+
+## Tracks free agent transactions for compensatory pick calculation.
+##
+## This should be called at the end of free agency period to record all
+## signings and losses for compensatory pick determination. The tracking
+## data is stored in world_state["fa_transaction_tracking"].
+##
+## Data structure:
+##   world_state["fa_transaction_tracking"][year][team_id] = {
+##     "losses": [{player_id, value, destination_team}],
+##     "gains": [{player_id, value, origin_team}]
+##   }
+##
+## RNG: None (deterministic tracking)
+##
+## @param world_state: World state dictionary to modify
+## @param year: Free agency year
+## @param signings: Array of FA signings from FreeAgency.run_free_agency()
+##                  Each signing: {player_id, team_id, contract, previous_team_id, player_value}
+static func track_free_agent_transactions(
+	world_state: Dictionary,
+	year: int,
+	signings: Array
+) -> void:
+	if not world_state.has("fa_transaction_tracking"):
+		world_state["fa_transaction_tracking"] = {}
+
+	var tracking: Dictionary = world_state["fa_transaction_tracking"]
+
+	if not tracking.has(year):
+		tracking[year] = {}
+
+	var year_tracking: Dictionary = tracking[year]
+
+	# Process each signing
+	for signing in signings:
+		var s: Dictionary = signing as Dictionary
+		var player_id := String(s.get("player_id", ""))
+		var new_team_id := String(s.get("team_id", ""))
+		var previous_team_id := String(s.get("previous_team_id", ""))
+		var player_value := float(s.get("player_value", 0.0))
+
+		# Skip if no previous team (rookie FA)
+		if previous_team_id == "" or previous_team_id == "UNDRAFTED":
+			continue
+
+		# Skip if player re-signed with same team
+		if previous_team_id == new_team_id:
+			continue
+
+		# Initialize tracking for both teams if needed
+		if not year_tracking.has(previous_team_id):
+			year_tracking[previous_team_id] = {"losses": [], "gains": []}
+		if not year_tracking.has(new_team_id):
+			year_tracking[new_team_id] = {"losses": [], "gains": []}
+
+		# Record loss for previous team
+		var prev_team_data: Dictionary = year_tracking[previous_team_id]
+		var losses: Array = prev_team_data.get("losses", []) as Array
+		losses.append({
+			"player_id": player_id,
+			"value": player_value,
+			"destination_team": new_team_id
+		})
+		prev_team_data["losses"] = losses
+
+		# Record gain for new team
+		var new_team_data: Dictionary = year_tracking[new_team_id]
+		var gains: Array = new_team_data.get("gains", []) as Array
+		gains.append({
+			"player_id": player_id,
+			"value": player_value,
+			"origin_team": previous_team_id
+		})
+		new_team_data["gains"] = gains
+
+
+## Calculates compensatory picks for teams based on FA net losses.
+##
+## Awards compensatory picks to teams that lost more/better free agents
+## than they signed. Round assignment is based on the quality of players
+## lost (elite = round 3, starter = round 4, depth = round 5).
+##
+## Algorithm:
+##   1. For each team, calculate net FA loss value (losses - gains)
+##   2. If net loss > threshold, team earns comp pick(s)
+##   3. Round determined by departed player quality (80+ = Rd 3, 70-79 = Rd 4, 60-69 = Rd 5)
+##   4. Teams can earn up to 4 comp picks maximum
+##   5. Comp picks are ordered by net loss magnitude (higher loss = earlier pick)
+##
+## RNG: None (deterministic calculation)
+##
+## @param world_state: World state dictionary with fa_transaction_tracking
+## @param year: Draft year to award picks for (typically FA year + 1)
+## @param league_cfg: League configuration with compensatory_picks section
+## @return Array of CompensatoryPick dictionaries
+static func calculate_compensatory_picks(
+	world_state: Dictionary,
+	year: int,
+	league_cfg: Dictionary
+) -> Array:
+	var comp_cfg: Dictionary = league_cfg.get("compensatory_picks", {}) as Dictionary
+
+	# Check if comp picks are enabled
+	if not bool(comp_cfg.get("enabled", true)):
+		return []
+
+	var tracking: Dictionary = world_state.get("fa_transaction_tracking", {}) as Dictionary
+	var fa_year := year - 1  # Comp picks are for previous year's FA class
+	var fa_tracking: Dictionary = tracking.get(fa_year, {}) as Dictionary
+
+	if fa_tracking.is_empty():
+		return []
+
+	var net_loss_threshold := float(comp_cfg.get("net_loss_threshold", 50.0))
+	var max_per_team := int(comp_cfg.get("max_per_team", 4))
+
+	var comp_picks: Array = []
+
+	# Calculate net losses for each team
+	for team_id in fa_tracking.keys():
+		var team_data: Dictionary = fa_tracking[team_id] as Dictionary
+		var losses: Array = team_data.get("losses", []) as Array
+		var gains: Array = team_data.get("gains", []) as Array
+
+		# Calculate total loss value
+		var total_loss_value := 0.0
+		for loss in losses:
+			var l: Dictionary = loss as Dictionary
+			total_loss_value += float(l.get("value", 0.0))
+
+		# Calculate total gain value
+		var total_gain_value := 0.0
+		for gain in gains:
+			var g: Dictionary = gain as Dictionary
+			total_gain_value += float(g.get("value", 0.0))
+
+		# Calculate net loss
+		var net_loss := total_loss_value - total_gain_value
+
+		# Skip if net loss below threshold
+		if net_loss < net_loss_threshold:
+			continue
+
+		# Award comp picks for each significant loss (up to max)
+		var team_comp_picks: Array = []
+
+		# Sort losses by value (highest first)
+		var sorted_losses := losses.duplicate()
+		sorted_losses.sort_custom(func(a, b):
+			return float((a as Dictionary).get("value", 0.0)) > float((b as Dictionary).get("value", 0.0))
+		)
+
+		# Award picks for top losses
+		for loss in sorted_losses:
+			if team_comp_picks.size() >= max_per_team:
+				break
+
+			var l: Dictionary = loss as Dictionary
+			var player_id := String(l.get("player_id", ""))
+			var player_value := float(l.get("value", 0.0))
+
+			# Determine comp pick round based on player quality
+			var comp_round := _determine_comp_pick_round(player_value, comp_cfg)
+
+			if comp_round > 0:
+				team_comp_picks.append({
+					"team_id": team_id,
+					"year": year,
+					"round": comp_round,
+					"reason": "fa_loss_" + player_id,
+					"player_lost_id": player_id,
+					"player_lost_value": player_value,
+					"net_loss": net_loss,
+					"compensatory": true
+				})
+
+		comp_picks.append_array(team_comp_picks)
+
+	# Sort comp picks by round, then by net loss (higher loss = earlier pick within round)
+	comp_picks.sort_custom(func(a, b):
+		var a_dict: Dictionary = a as Dictionary
+		var b_dict: Dictionary = b as Dictionary
+		var a_round := int(a_dict.get("round", 7))
+		var b_round := int(b_dict.get("round", 7))
+		if a_round != b_round:
+			return a_round < b_round
+		# Within same round, higher net loss picks earlier
+		return float(a_dict.get("net_loss", 0.0)) > float(b_dict.get("net_loss", 0.0))
+	)
+
+	return comp_picks
+
+
+## Determines compensatory pick round based on departed player value.
+##
+## Quality thresholds (using player overall rating as proxy for value):
+##   - Elite (80+): Round 3
+##   - Starter (70-79): Round 4
+##   - Depth (60-69): Round 5
+##   - Below depth: No comp pick
+##
+## RNG: None (deterministic lookup)
+##
+## @param player_value: Player market value (0-100 scale)
+## @param comp_cfg: Compensatory picks configuration
+## @return int: Round number (3-5) or 0 if no comp pick
+static func _determine_comp_pick_round(
+	player_value: float,
+	comp_cfg: Dictionary
+) -> int:
+	var elite_round := int(comp_cfg.get("elite_comp_round", 3))
+	var starter_round := int(comp_cfg.get("starter_comp_round", 4))
+	var depth_round := int(comp_cfg.get("depth_comp_round", 5))
+
+	# Value thresholds aligned with tier definitions
+	if player_value >= 80.0:
+		return elite_round
+	elif player_value >= 70.0:
+		return starter_round
+	elif player_value >= 60.0:
+		return depth_round
+	else:
+		return 0  # No comp pick for low-value losses
+
+
+## Inserts compensatory picks into draft order at appropriate positions.
+##
+## Comp picks are added at the end of each round they're awarded in.
+## This modifies the round_picks array to include comp picks in proper order.
+##
+## Also updates draft_pick_ownership to track comp pick ownership.
+##
+## RNG: None (deterministic insertion)
+##
+## @param round_picks: Array of pick assignments for a round
+## @param comp_picks: Array of compensatory picks for this round
+## @param year: Draft year
+## @param round_num: Current round number
+## @param world_state: World state (for updating ownership)
+## @return Array: Modified round_picks with comp picks inserted
+static func insert_compensatory_picks(
+	round_picks: Array,
+	comp_picks: Array,
+	year: int,
+	round_num: int,
+	world_state: Dictionary
+) -> Array:
+	# Filter comp picks for this round
+	var round_comp_picks: Array = []
+	for cp in comp_picks:
+		var pick: Dictionary = cp as Dictionary
+		if int(pick.get("round", 0)) == round_num:
+			round_comp_picks.append(pick)
+
+	# If no comp picks for this round, return unchanged
+	if round_comp_picks.is_empty():
+		return round_picks
+
+	# Create modified pick order with comp picks at end
+	var modified_picks := round_picks.duplicate()
+
+	# Get starting pick number for comp picks
+	var next_pick_number := round_picks.size() + 1
+
+	# Add comp picks
+	for cp in round_comp_picks:
+		var pick: Dictionary = cp as Dictionary
+		var team_id := String(pick.get("team_id", ""))
+
+		modified_picks.append({
+			"pick_number": next_pick_number,
+			"original_team_id": team_id,
+			"current_owner_id": team_id,
+			"traded": false,
+			"compensatory": true,
+			"reason": String(pick.get("reason", "")),
+			"player_lost_value": float(pick.get("player_lost_value", 0.0))
+		})
+
+		# Update ownership ledger for comp pick
+		# Comp picks are awarded to the team, so they own it by default
+		if not world_state.has("draft_pick_ownership"):
+			world_state["draft_pick_ownership"] = {}
+		var ownership: Dictionary = world_state["draft_pick_ownership"]
+		if not ownership.has(year):
+			ownership[year] = {}
+		var year_ownership: Dictionary = ownership[year]
+		if not year_ownership.has(round_num):
+			year_ownership[round_num] = {}
+		var round_ownership: Dictionary = year_ownership[round_num]
+
+		# Use team_id with comp suffix to avoid collision with regular picks
+		var comp_pick_key := team_id + "_comp_" + str(next_pick_number)
+		round_ownership[comp_pick_key] = team_id
+
+		next_pick_number += 1
+
+	return modified_picks

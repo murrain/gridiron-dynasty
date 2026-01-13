@@ -5,6 +5,7 @@ const TradeOffer = preload("res://scripts/core/trades/TradeOffer.gd")
 const TradeDecision = preload("res://scripts/core/trades/TradeDecision.gd")
 const TradeValueCalculator = preload("res://scripts/core/trades/TradeValueCalculator.gd")
 const PlayerValue = preload("res://scripts/core/valuation/PlayerValue.gd")
+const NflDraft = preload("res://scripts/world/NflDraft.gd")
 
 ## Generates trade offers for NFL teams based on team context and needs.
 ##
@@ -49,6 +50,7 @@ static func generate_trades(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary,
 	trade_cfg: Dictionary,
+	league_cfg: Dictionary = {},
 	options: Dictionary = {}
 ) -> Dictionary:
 	var teams: Array = world_state.get("nfl_teams", []) as Array
@@ -118,12 +120,12 @@ static func generate_trades(
 		var decision := _evaluate_offer(
 			offer, team_b,
 			player_values, team_needs,
-			trade_cfg
+			trade_cfg, world_state, league_cfg, year
 		)
 
 		if decision.get("accept", false):
 			# Execute trade
-			_execute_trade(offer, rosters)
+			_execute_trade(offer, rosters, world_state)
 			executed_trades.append({
 				"offer": offer,
 				"year": year,
@@ -448,11 +450,14 @@ static func _evaluate_offer(
 	receiving_team: Dictionary,
 	player_values: Dictionary,
 	team_needs: Dictionary,
-	trade_cfg: Dictionary
+	trade_cfg: Dictionary,
+	world_state: Dictionary = {},
+	league_cfg: Dictionary = {},
+	current_year: int = 2024
 ) -> Dictionary:
 	var receiving_team_id := String(receiving_team.get("id", ""))
 
-	# Calculate values
+	# Calculate player values
 	var incoming_player_ids: Array = offer.get("receive_player_ids", []) as Array
 	var outgoing_player_ids: Array = offer.get("send_player_ids", []) as Array
 
@@ -463,6 +468,32 @@ static func _evaluate_offer(
 	var outgoing_value := 0.0
 	for player_id in outgoing_player_ids:
 		outgoing_value += float(player_values.get(player_id, 0.0))
+
+	# Calculate pick values
+	var incoming_picks: Array = offer.get("receive_picks", []) as Array
+	var outgoing_picks: Array = offer.get("send_picks", []) as Array
+
+	for pick in incoming_picks:
+		var p: Dictionary = pick as Dictionary
+		var pick_value := NflDraft.value_draft_pick(
+			int(p.get("year", current_year)),
+			int(p.get("round", 1)),
+			int(p.get("pick_in_round", 16)),
+			current_year,
+			league_cfg
+		)
+		incoming_value += pick_value
+
+	for pick in outgoing_picks:
+		var p: Dictionary = pick as Dictionary
+		var pick_value := NflDraft.value_draft_pick(
+			int(p.get("year", current_year)),
+			int(p.get("round", 1)),
+			int(p.get("pick_in_round", 16)),
+			current_year,
+			league_cfg
+		)
+		outgoing_value += pick_value
 
 	# Use TradeDecision to evaluate
 	var decision := TradeDecision.new()
@@ -485,19 +516,22 @@ static func _evaluate_offer(
 	}
 
 
-## Execute a trade by moving players between rosters.
+## Execute a trade by moving players between rosters and transferring pick ownership.
 ##
 ## Updates:
 ##   - Removes sent players from offering team
 ##   - Adds received players to offering team
 ##   - Updates by_position indices
+##   - Transfers draft pick ownership for any picks involved
 ##
 ## Deterministic: no RNG calls.
-static func _execute_trade(offer: Dictionary, rosters: Dictionary) -> void:
+static func _execute_trade(offer: Dictionary, rosters: Dictionary, world_state: Dictionary = {}) -> void:
 	var from_team := String(offer.get("from_team", ""))
 	var to_team := String(offer.get("to_team", ""))
 	var send_player_ids: Array = offer.get("send_player_ids", []) as Array
 	var receive_player_ids: Array = offer.get("receive_player_ids", []) as Array
+	var send_picks: Array = offer.get("send_picks", []) as Array
+	var receive_picks: Array = offer.get("receive_picks", []) as Array
 
 	var from_roster: Dictionary = rosters.get(from_team, {}) as Dictionary
 	var to_roster: Dictionary = rosters.get(to_team, {}) as Dictionary
@@ -542,6 +576,29 @@ static func _execute_trade(offer: Dictionary, rosters: Dictionary) -> void:
 	rosters[from_team] = from_roster
 	rosters[to_team] = to_roster
 
+	# Transfer draft pick ownership
+	# from_team sends picks to to_team
+	for pick in send_picks:
+		var p: Dictionary = pick as Dictionary
+		NflDraft.transfer_pick_ownership(
+			world_state,
+			int(p.get("year", 0)),
+			int(p.get("round", 1)),
+			String(p.get("original_team_id", "")),
+			to_team
+		)
+
+	# from_team receives picks from to_team
+	for pick in receive_picks:
+		var p: Dictionary = pick as Dictionary
+		NflDraft.transfer_pick_ownership(
+			world_state,
+			int(p.get("year", 0)),
+			int(p.get("round", 1)),
+			String(p.get("original_team_id", "")),
+			from_team
+		)
+
 
 ## Rebuild the by_position index for a roster.
 ##
@@ -564,3 +621,226 @@ static func _rebuild_roster_by_position(roster: Dictionary) -> void:
 		(by_position[position] as Array).append(player_id)
 
 	roster["by_position"] = by_position
+
+
+# ============================================================================
+# FEATURE 5: DRAFT PICK TRADING EXTENSION
+# ============================================================================
+
+## Generates a player-for-pick trade offer.
+##
+## Strategy:
+##   - Contending teams: Trade future picks for players to win now
+##   - Rebuilding teams: Trade players for picks to build for future
+##   - Neutral teams: Opportunistic trades based on value
+##
+## This extends the existing trade generation to include draft picks.
+## Pick values are calculated using NflDraft.value_draft_pick().
+##
+## RNG consumption:
+##   - 1 call for pick round selection (if team has multiple tradeable picks)
+##   - 1 call for pick year selection (if trading future picks)
+##   Total: 0-2 RNG calls per attempt
+##
+## @param offering_team: Team offering the trade
+## @param receiving_team: Team receiving the offer
+## @param world_state: World state with draft_pick_ownership
+## @param team_needs: Position needs dictionary from _assess_team_needs
+## @param team_contexts: Team contexts from _assess_team_contexts
+## @param player_values: Player value index from _build_player_value_index
+## @param positions_cfg: Position configuration
+## @param trade_cfg: Trade configuration
+## @param league_cfg: League configuration
+## @param current_year: Current simulation year
+## @param rng: RNG instance for deterministic generation
+## @return Variant: Trade offer dictionary or null
+static func _generate_pick_trade_offer(
+	offering_team: Dictionary,
+	receiving_team: Dictionary,
+	world_state: Dictionary,
+	team_needs: Dictionary,
+	team_contexts: Dictionary,
+	player_values: Dictionary,
+	positions_cfg: Dictionary,
+	trade_cfg: Dictionary,
+	league_cfg: Dictionary,
+	current_year: int,
+	rng: RandomNumberGenerator
+) -> Variant:
+	var offering_team_id := String(offering_team.get("id", ""))
+	var receiving_team_id := String(receiving_team.get("id", ""))
+
+	var offering_context: Dictionary = team_contexts.get(offering_team_id, {}) as Dictionary
+	var receiving_context: Dictionary = team_contexts.get(receiving_team_id, {}) as Dictionary
+
+	var offering_mode := String(offering_context.get("mode", "neutral"))
+	var receiving_mode := String(receiving_context.get("mode", "neutral"))
+
+	# Check if pick trading is enabled
+	var pick_trading_cfg: Dictionary = league_cfg.get("draft_pick_trading", {}) as Dictionary
+	if not bool(pick_trading_cfg.get("enabled", true)):
+		return null
+
+	var rosters: Dictionary = world_state.get("nfl_rosters", {}) as Dictionary
+	var ownership: Dictionary = world_state.get("draft_pick_ownership", {}) as Dictionary
+
+	# Strategy 1: Contending team trades pick(s) for player
+	# Contenders want to win now, so they trade future assets for immediate help
+	if offering_mode == "contending" and receiving_mode == "rebuilding":
+		# Find a valuable player from rebuilding team
+		var receiving_roster: Dictionary = rosters.get(receiving_team_id, {}) as Dictionary
+		var receiving_players: Array = receiving_roster.get("players", []) as Array
+
+		# Find a tradeable pick owned by offering team
+		var tradeable_pick := _find_tradeable_pick(
+			offering_team_id, ownership, current_year, rng
+		)
+
+		if tradeable_pick == null or receiving_players.is_empty():
+			return null
+
+		var pick: Dictionary = tradeable_pick as Dictionary
+
+		# Select player from rebuilding team to acquire
+		# RNG: Uses existing player selection RNG from _generate_offer
+		var player_idx := rng.randi() % receiving_players.size()
+		var target_player: Dictionary = receiving_players[player_idx]
+		var target_player_id := String(target_player.get("player_id", ""))
+
+		# Calculate values for balance check
+		var pick_value := NflDraft.value_draft_pick(
+			int(pick.get("year", current_year)),
+			int(pick.get("round", 1)),
+			int(pick.get("pick_in_round", 16)),
+			current_year,
+			league_cfg
+		)
+
+		var player_value_pts := float(player_values.get(target_player_id, 0.0))
+
+		# Value tolerance: picks are less precise than player values
+		var value_tolerance := float(pick_trading_cfg.get("value_tolerance", 0.15))
+		var value_ratio := pick_value / max(player_value_pts, 1.0)
+
+		# Accept if pick value is within tolerance of player value
+		if value_ratio >= (1.0 - value_tolerance) and value_ratio <= (1.0 + value_tolerance):
+			return {
+				"send_player_ids": [],
+				"receive_player_ids": [target_player_id],
+				"send_picks": [pick],
+				"receive_picks": [],
+				"from_team": offering_team_id,
+				"to_team": receiving_team_id
+			}
+
+	# Strategy 2: Rebuilding team trades player for pick(s)
+	# Rebuilders want future assets, so they trade veterans for picks
+	elif offering_mode == "rebuilding" and receiving_mode == "contending":
+		# Find a valuable player from offering team
+		var offering_roster: Dictionary = rosters.get(offering_team_id, {}) as Dictionary
+		var offering_players: Array = offering_roster.get("players", []) as Array
+
+		# Find a tradeable pick owned by receiving team
+		var tradeable_pick := _find_tradeable_pick(
+			receiving_team_id, ownership, current_year, rng
+		)
+
+		if tradeable_pick == null or offering_players.is_empty():
+			return null
+
+		var pick: Dictionary = tradeable_pick as Dictionary
+
+		# Select player from rebuilding team to trade away
+		# RNG: Uses existing player selection RNG from _generate_offer
+		var player_idx := rng.randi() % offering_players.size()
+		var trade_player: Dictionary = offering_players[player_idx]
+		var trade_player_id := String(trade_player.get("player_id", ""))
+
+		# Calculate values for balance check
+		var pick_value := NflDraft.value_draft_pick(
+			int(pick.get("year", current_year)),
+			int(pick.get("round", 1)),
+			int(pick.get("pick_in_round", 16)),
+			current_year,
+			league_cfg
+		)
+
+		var player_value_pts := float(player_values.get(trade_player_id, 0.0))
+
+		# Value tolerance
+		var value_tolerance := float(pick_trading_cfg.get("value_tolerance", 0.15))
+		var value_ratio := pick_value / max(player_value_pts, 1.0)
+
+		# Accept if pick value is within tolerance of player value
+		if value_ratio >= (1.0 - value_tolerance) and value_ratio <= (1.0 + value_tolerance):
+			return {
+				"send_player_ids": [trade_player_id],
+				"receive_player_ids": [],
+				"send_picks": [],
+				"receive_picks": [pick],
+				"from_team": offering_team_id,
+				"to_team": receiving_team_id
+			}
+
+	return null
+
+
+## Finds a tradeable draft pick owned by a team.
+##
+## Searches through ownership ledger to find picks that:
+##   1. Are owned by the specified team
+##   2. Are for current or future years
+##   3. Are not compensatory picks (non-tradeable)
+##
+## Prefers future picks over current year picks for trading.
+##
+## RNG consumption:
+##   - 1 call to select which year to trade (if multiple years available)
+##   - 1 call to select which round to trade (if multiple rounds available)
+##
+## @param team_id: Team ID to find picks for
+## @param ownership: Draft pick ownership dictionary
+## @param current_year: Current simulation year
+## @param rng: RNG instance
+## @return Variant: Pick dictionary or null
+static func _find_tradeable_pick(
+	team_id: String,
+	ownership: Dictionary,
+	current_year: int,
+	rng: RandomNumberGenerator
+) -> Variant:
+	var tradeable_picks: Array = []
+
+	# Search through ownership for picks owned by this team
+	for year in ownership.keys():
+		var y := int(year)
+		if y < current_year:
+			continue  # Skip past years
+
+		var year_ownership: Dictionary = ownership[year] as Dictionary
+
+		for round_num in year_ownership.keys():
+			var r := int(round_num)
+			var round_ownership: Dictionary = year_ownership[round_num] as Dictionary
+
+			for original_team_id in round_ownership.keys():
+				var current_owner := String(round_ownership.get(original_team_id, ""))
+
+				# Skip compensatory picks (they have special key format)
+				if String(original_team_id).contains("_comp_"):
+					continue
+
+				if current_owner == team_id:
+					tradeable_picks.append({
+						"year": y,
+						"round": r,
+						"original_team_id": String(original_team_id),
+						"pick_in_round": 16  # Assume mid-round for value calculation
+					})
+
+	if tradeable_picks.is_empty():
+		return null
+
+	# RNG: Select random pick from tradeable picks
+	var pick_idx := rng.randi() % tradeable_picks.size()
+	return tradeable_picks[pick_idx]
