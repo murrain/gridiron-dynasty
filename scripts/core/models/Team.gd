@@ -3,6 +3,8 @@
 extends Resource
 class_name Team
 
+const SportRoster = preload("res://scripts/core/models/Roster.gd")
+
 @export var id: String = ""
 @export var name: String = ""
 
