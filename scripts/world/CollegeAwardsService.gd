@@ -198,8 +198,6 @@ static func select_heisman_trophy(
 			continue
 
 		var games_played := int(season_stats.get("games_played", 0))
-		var heisman_cfg: Dictionary = config.get("heisman", {})
-		var min_games := int(heisman_cfg.get("min_games_played", 10))
 
 		if games_played < min_games:
 			continue
@@ -231,9 +229,6 @@ static func select_heisman_trophy(
 	candidates.sort_custom(func(a, b): return a["score"] > b["score"])
 
 	# Select winner and finalists
-	var heisman_cfg: Dictionary = config.get("heisman", {})
-	var finalist_count := int(heisman_cfg.get("finalist_count", 4))
-
 	var winner: Dictionary = candidates[0]
 	var finalists := []
 
