@@ -154,6 +154,9 @@ func _connect_signals() -> void:
 	tier_filter.item_selected.connect(_on_tier_filter_changed)
 	position_filter.item_selected.connect(_on_position_filter_changed)
 	year_filter.item_selected.connect(_on_year_filter_changed)
+	content_list.item_selected.connect(_on_content_list_item_selected)
+	prev_page_button.pressed.connect(_on_prev_page_pressed)
+	next_page_button.pressed.connect(_on_next_page_pressed)
 
 ## Required by WorldExplorer: Initialize with world state
 func initialize(ws: Dictionary) -> void:
