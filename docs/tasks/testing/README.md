@@ -79,24 +79,24 @@ TestRunner automatically clears the snapshot cache between test files to ensure 
 SnapshotLoader.clear_cache()
 ```
 
-### Advanced: Generating or Advancing World State
+### Setting Up World State
 
-Use `advance_world()` to generate fresh world data or add years to an existing snapshot:
+Use `setup_world()` as the primary entry point for tests needing world state:
 
 ```gdscript
-# Option 1: Generate fresh 3-year world state
-var world_state := SnapshotLoader.advance_world({}, 3, 0xFRESH001)
+# Generate fresh 3-year world state
+var world_state := SnapshotLoader.setup_world({}, 3, 0xFRESH001)
 
-# Option 2: Load snapshot + add more years
+# Or load snapshot + add more years
 var world_state := SnapshotLoader.load_10yr_copy()
-world_state = SnapshotLoader.advance_world(world_state, 2, 0xTRADE001)
+world_state = SnapshotLoader.setup_world(world_state, 2, 0xTRADE001)
 # Now have 12 years: 10 from snapshot + 2 fresh
 ```
 
 **Parameters:**
-- `world_state`: Existing world state to advance, or `{}` to generate fresh
+- `world_state`: Existing world state to extend, or `{}` to generate fresh
 - `years`: Number of years to simulate (must be > 0)
-- `simulation_seed`: Required seed for deterministic simulation
+- `seed`: Required seed for deterministic simulation
 
 **Performance:**
 - Each year: ~10-15 seconds
