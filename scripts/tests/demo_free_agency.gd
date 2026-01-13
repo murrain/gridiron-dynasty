@@ -34,21 +34,21 @@ func demo_contract_negotiation() -> void:
 	print("Player Demands:\n")
 
 	# Elite QB demand
-	var qb_demand := ContractNegotiation.generate_player_demand(elite_qb, positions_cfg, main_cfg)
+	var qb_demand: Dictionary = ContractNegotiation.generate_player_demand(elite_qb, positions_cfg, main_cfg)
 	print("  Elite QB (age 27, rating 88):")
 	print("    AAV: $%.2fM" % qb_demand.get("minimum_annual_value", 0.0))
 	print("    Years: %d" % qb_demand.get("desired_years", 0))
 	print("    Guaranteed: $%.2fM" % qb_demand.get("guaranteed_demand", 0.0))
 
 	# Aging RB demand
-	var rb_demand := ContractNegotiation.generate_player_demand(aging_rb, positions_cfg, main_cfg)
+	var rb_demand: Dictionary = ContractNegotiation.generate_player_demand(aging_rb, positions_cfg, main_cfg)
 	print("\n  Aging RB (age 30, rating 72):")
 	print("    AAV: $%.2fM" % rb_demand.get("minimum_annual_value", 0.0))
 	print("    Years: %d" % rb_demand.get("desired_years", 0))
 	print("    Guaranteed: $%.2fM" % rb_demand.get("guaranteed_demand", 0.0))
 
 	# Depth LB demand
-	var lb_demand := ContractNegotiation.generate_player_demand(depth_lb, positions_cfg, main_cfg)
+	var lb_demand: Dictionary = ContractNegotiation.generate_player_demand(depth_lb, positions_cfg, main_cfg)
 	print("\n  Depth LB (age 24, rating 62):")
 	print("    AAV: $%.2fM" % lb_demand.get("minimum_annual_value", 0.0))
 	print("    Years: %d" % lb_demand.get("desired_years", 0))
@@ -57,8 +57,8 @@ func demo_contract_negotiation() -> void:
 	# Generate and evaluate offer
 	print("\n\nOffer Evaluation:\n")
 
-	var team := {"id": "KC", "cap_space": 50.0}
-	var fair_offer := ContractNegotiation.generate_offer(team, elite_qb, qb_demand, 1.05)
+	var team: Dictionary = {"id": "KC", "cap_space": 50.0}
+	var fair_offer: Dictionary = ContractNegotiation.generate_offer(team, elite_qb, qb_demand, 1.05)
 
 	print("  Kansas City offers Elite QB:")
 	print("    AAV: $%.2fM (105%% of demand)" % fair_offer.get("annual_value", 0.0))
@@ -66,7 +66,7 @@ func demo_contract_negotiation() -> void:
 	print("    Guaranteed: $%.2fM" % fair_offer.get("guaranteed_value", 0.0))
 	print("    Year 1 cap hit: $%.2fM" % fair_offer.get("cap_hit_year_1", 0.0))
 
-	var evaluation := ContractNegotiation.evaluate_offer(fair_offer, qb_demand)
+	var evaluation: Dictionary = ContractNegotiation.evaluate_offer(fair_offer, qb_demand)
 	print("\n  Player Decision:")
 	print("    Accept: %s" % ("YES" if evaluation.get("accept", false) else "NO"))
 	print("    Score: %.2f (threshold: 0.85)" % evaluation.get("score", 0.0))
@@ -76,30 +76,30 @@ func demo_contract_negotiation() -> void:
 func demo_franchise_tag() -> void:
 	print("\n\n[DEMO 2] Franchise Tag System\n")
 
-	var world_state := _create_demo_world()
+	var world_state: Dictionary = _create_demo_world()
 
 	# Add high-salary QBs for tag calculation
 	print("Top 5 QB Salaries in League:")
-	var qb_salaries := [28.0, 25.0, 22.0, 20.0, 18.0]
+	var qb_salaries: Array = [28.0, 25.0, 22.0, 20.0, 18.0]
 	for i in range(qb_salaries.size()):
-		var qb := {"id": "qb-top-%d" % i, "position": "QB", "age": 27, "eval_score": 85.0}
+		var qb: Dictionary = {"id": "qb-top-%d" % i, "position": "QB", "age": 27, "eval_score": 85.0}
 		qb["contract"] = {"status": "signed", "annual_value": qb_salaries[i]}
 		world_state["nfl_rosters"]["TEAM_%d" % i] = {"players": [qb]}
 		print("  %d. $%.2fM" % [i + 1, qb_salaries[i]])
 
-	var average := (28.0 + 25.0 + 22.0 + 20.0 + 18.0) / 5.0
+	var average: float = (28.0 + 25.0 + 22.0 + 20.0 + 18.0) / 5.0
 	print("\nTop 5 Average: $%.2fM" % average)
 
 	# Add player to tag
-	var target_qb := {"id": "qb-tag-target", "position": "QB", "age": 26, "eval_score": 82.0}
+	var target_qb: Dictionary = {"id": "qb-tag-target", "position": "QB", "age": 26, "eval_score": 82.0}
 	target_qb["contract"] = {"status": "expired", "years_remaining": 0}
 	world_state["nfl_rosters"]["SF"]["players"] = [target_qb]
 	world_state["nfl_teams"][0]["cap_space"] = 100.0
 
 	# Apply franchise tag
 	print("\nSan Francisco applies non-exclusive franchise tag to QB:")
-	var league_cfg := _load_league_config()
-	var tag := FreeAgency.apply_franchise_tag(
+	var league_cfg: Dictionary = _load_league_config()
+	var tag: Dictionary = FreeAgency.apply_franchise_tag(
 		world_state,
 		"SF",
 		"qb-tag-target",
@@ -125,10 +125,10 @@ func demo_franchise_tag() -> void:
 func demo_free_agency_simulation() -> void:
 	print("\n\n[DEMO 3] Free Agency Simulation\n")
 
-	var world_state := _create_demo_world()
+	var world_state: Dictionary = _create_demo_world()
 
 	# Add free agents
-	var free_agents := [
+	var free_agents: Array = [
 		{"id": "fa-wr-1", "position": "WR", "age": 26, "eval_score": 78.0},
 		{"id": "fa-edge-1", "position": "EDGE", "age": 25, "eval_score": 82.0},
 		{"id": "fa-cb-1", "position": "CB", "age": 27, "eval_score": 75.0}
@@ -136,7 +136,7 @@ func demo_free_agency_simulation() -> void:
 
 	print("Free Agents Entering Market:\n")
 	for fa in free_agents:
-		var fa_dict := fa as Dictionary
+		var fa_dict: Dictionary = fa as Dictionary
 		fa_dict["contract"] = {"status": "expired", "years_remaining": 0}
 		world_state["nfl_rosters"]["FA"]["players"].append(fa_dict)
 		print("  - %s, %s, Age %d, Rating %.1f" % [
@@ -154,12 +154,12 @@ func demo_free_agency_simulation() -> void:
 	print("\nRunning Free Agency Simulation...")
 	print("(Seed: 123456 for deterministic results)\n")
 
-	var positions_cfg := _load_positions_config()
-	var main_cfg := _load_main_config()
-	var stats_cfg := {}
-	var league_cfg := _load_league_config()
+	var positions_cfg: Dictionary = _load_positions_config()
+	var main_cfg: Dictionary = _load_main_config()
+	var stats_cfg: Dictionary = {}
+	var league_cfg: Dictionary = _load_league_config()
 
-	var result := FreeAgency.run_free_agency(
+	var result: Dictionary = FreeAgency.run_free_agency(
 		world_state,
 		2024,
 		123456,
@@ -178,8 +178,8 @@ func demo_free_agency_simulation() -> void:
 	if result["signings"].size() > 0:
 		print("\n  Signed Players:")
 		for signing in result["signings"]:
-			var signing_dict := signing as Dictionary
-			var contract := signing_dict.get("contract", {}) as Dictionary
+			var signing_dict: Dictionary = signing as Dictionary
+			var contract: Dictionary = signing_dict.get("contract", {}) as Dictionary
 			print("    - %s → %s ($%.2fM AAV, %d years)" % [
 				signing_dict.get("player_id", ""),
 				signing_dict.get("team_id", ""),
@@ -191,7 +191,7 @@ func demo_free_agency_simulation() -> void:
 	print("\n\nDeterminism Test:")
 	print("  Running simulation again with same seed...")
 
-	var world_state_2 := _create_demo_world()
+	var world_state_2: Dictionary = _create_demo_world()
 	for fa in free_agents:
 		var fa_copy: Dictionary = fa.duplicate(true)
 		fa_copy["contract"] = {"status": "expired", "years_remaining": 0}
@@ -200,7 +200,7 @@ func demo_free_agency_simulation() -> void:
 	for team in world_state_2["nfl_teams"]:
 		team["cap_space"] = 40.0
 
-	var result2 := FreeAgency.run_free_agency(
+	var result2: Dictionary = FreeAgency.run_free_agency(
 		world_state_2,
 		2024,
 		123456,  # Same seed
@@ -260,16 +260,16 @@ func _load_league_config() -> Dictionary:
 
 ## Helper: Load JSON file
 func _load_json_file(path: String) -> Dictionary:
-	var file := FileAccess.open(path, FileAccess.READ)
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		print("ERROR: Cannot load %s" % path)
 		return {}
 
-	var json_text := file.get_as_text()
+	var json_text: String = file.get_as_text()
 	file.close()
 
-	var json := JSON.new()
-	var error := json.parse(json_text)
+	var json: JSON = JSON.new()
+	var error: int = json.parse(json_text)
 	if error != OK:
 		print("ERROR: Cannot parse %s" % path)
 		return {}
