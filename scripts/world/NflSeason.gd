@@ -9,6 +9,10 @@ const TradeGenerator = preload("res://scripts/world/TradeGenerator.gd")
 const GameSimulator = preload("res://scripts/core/game_simulation/GameSimulator.gd")
 const StatGenerator = preload("res://scripts/core/game_simulation/StatGenerator.gd")
 const AwardSelector = preload("res://scripts/core/awards/AwardSelector.gd")
+const RecordBook = preload("res://scripts/core/awards/RecordBook.gd")
+const FranchiseRecords = preload("res://scripts/core/awards/FranchiseRecords.gd")
+const HallOfFame = preload("res://scripts/core/awards/HallOfFame.gd")
+const DynastyDetector = preload("res://scripts/core/awards/DynastyDetector.gd")
 
 ## Runs the NFL season simulation for a given year.
 ##
@@ -207,6 +211,11 @@ func run(
 				var players: Array = roster.get("players", []) as Array
 				roster_counts[team_id] = players.size()
 
+	# Process Hall of Fame (Feature 4: Hall of Fame System)
+	# Expected RNG consumption: None (pure calculation based on career stats and awards)
+	# Process after retirements to evaluate newly retired players
+	var hof_summary := HallOfFame.process_hall_of_fame(world_state, year, new_retirees)
+
 	return {
 		"year": year,
 		"roster_counts": roster_counts,
@@ -215,6 +224,7 @@ func run(
 		"free_agents": total_free_agents,
 		"trades": total_trades,
 		"game_simulation": game_sim_summary,
+		"hall_of_fame": hof_summary,
 		"step_seeds": {
 			"lifecycle": lifecycle_rng.seed,
 			"context": context_rng.seed,
@@ -515,6 +525,14 @@ func _update_team_history(
 
 	world_state["team_history"] = team_history
 
+	# Detect dynasty eras (Feature 5: Dynasty Era Detection)
+	# Expected RNG consumption: None (pure analysis of championship history)
+	# Process after team history update to have complete championship data
+	var dynasty_summary := DynastyDetector.detect_dynasties(world_state, year)
+
+	# Return dynasty summary for potential use by caller
+	return dynasty_summary
+
 
 ## Determines which teams make the playoff (NFL).
 ##
@@ -577,6 +595,138 @@ func _determine_nfl_playoff_teams(
 			playoff_teams.append(String(teams_in_conf[i]["team_id"]))
 
 	return playoff_teams
+
+
+## Writes awarded honors to player career_awards dictionaries.
+##
+## Implements Feature 1 (Career Awards to Players):
+##   - Increments player.career_awards counters for all award recipients
+##   - Processes individual awards (OPOY, DPOY, OROY, DROY)
+##   - Processes team selections (All-Pro First/Second, Pro Bowl)
+##   - Tracks championship wins for all players on championship team
+##
+## RNG Pattern: None (pure data writes, deterministic)
+##
+## Parameters:
+##   world_state: Dictionary containing nfl_rosters and award data
+##   year: Season year for championship tracking
+##   award_summary: Result from AwardSelector.select_all_awards()
+##
+## Side Effects:
+##   - Modifies player dictionaries in world_state["nfl_rosters"][team_id]["players"]
+##   - Updates each player's career_awards dictionary in-place
+##
+## Performance: O(n) where n = number of award recipients (typically <100 per year)
+func _write_awards_to_players(world_state: Dictionary, year: int, award_summary: Dictionary) -> void:
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var awards: Dictionary = world_state.get("awards", {})
+	var all_pro_teams: Dictionary = world_state.get("all_pro_teams", {})
+	var pro_bowl_rosters: Dictionary = world_state.get("pro_bowl_rosters", {})
+	var championships: Dictionary = world_state.get("championships", {})
+
+	# Build player_id -> player reference map for O(1) lookup
+	# This avoids nested iteration and keeps performance at O(n + m) where
+	# n = total players (~1700) and m = award recipients (~100)
+	var player_map := {}
+	for team_id in rosters.keys():
+		var roster: Dictionary = rosters[team_id]
+		var players: Array = roster.get("players", [])
+		for player in players:
+			var p: Dictionary = player
+			var player_id := String(p.get("id", ""))
+			if player_id != "":
+				player_map[player_id] = p
+
+	# Process individual awards (OPOY, DPOY, OROY, DROY)
+	var year_awards: Dictionary = awards.get(year, {})
+
+	var opoy_id := String(year_awards.get("opoy", {}).get("player_id", ""))
+	if opoy_id != "" and player_map.has(opoy_id):
+		var p: Dictionary = player_map[opoy_id]
+		var career: Dictionary = p.get("career_awards", {})
+		career["opoy"] = int(career.get("opoy", 0)) + 1
+		p["career_awards"] = career
+
+	var dpoy_id := String(year_awards.get("dpoy", {}).get("player_id", ""))
+	if dpoy_id != "" and player_map.has(dpoy_id):
+		var p: Dictionary = player_map[dpoy_id]
+		var career: Dictionary = p.get("career_awards", {})
+		career["dpoy"] = int(career.get("dpoy", 0)) + 1
+		p["career_awards"] = career
+
+	var oroy_id := String(year_awards.get("oroy", {}).get("player_id", ""))
+	if oroy_id != "" and player_map.has(oroy_id):
+		var p: Dictionary = player_map[oroy_id]
+		var career: Dictionary = p.get("career_awards", {})
+		career["rookie_of_year"] = int(career.get("rookie_of_year", 0)) + 1
+		p["career_awards"] = career
+
+	var droy_id := String(year_awards.get("droy", {}).get("player_id", ""))
+	if droy_id != "" and player_map.has(droy_id):
+		var p: Dictionary = player_map[droy_id]
+		var career: Dictionary = p.get("career_awards", {})
+		career["rookie_of_year"] = int(career.get("rookie_of_year", 0)) + 1
+		p["career_awards"] = career
+
+	# Process All-Pro selections
+	var year_all_pro: Dictionary = all_pro_teams.get(year, {})
+	var first_team: Array = year_all_pro.get("first_team", [])
+	var second_team: Array = year_all_pro.get("second_team", [])
+
+	for selection in first_team:
+		var s: Dictionary = selection
+		var player_id := String(s.get("player_id", ""))
+		if player_id != "" and player_map.has(player_id):
+			var p: Dictionary = player_map[player_id]
+			var career: Dictionary = p.get("career_awards", {})
+			career["all_pro_first"] = int(career.get("all_pro_first", 0)) + 1
+			p["career_awards"] = career
+
+	for selection in second_team:
+		var s: Dictionary = selection
+		var player_id := String(s.get("player_id", ""))
+		if player_id != "" and player_map.has(player_id):
+			var p: Dictionary = player_map[player_id]
+			var career: Dictionary = p.get("career_awards", {})
+			career["all_pro_second"] = int(career.get("all_pro_second", 0)) + 1
+			p["career_awards"] = career
+
+	# Process Pro Bowl selections
+	var year_pro_bowl: Dictionary = pro_bowl_rosters.get(year, {})
+	var afc_roster: Array = year_pro_bowl.get("afc", [])
+	var nfc_roster: Array = year_pro_bowl.get("nfc", [])
+
+	for selection in afc_roster:
+		var s: Dictionary = selection
+		var player_id := String(s.get("player_id", ""))
+		if player_id != "" and player_map.has(player_id):
+			var p: Dictionary = player_map[player_id]
+			var career: Dictionary = p.get("career_awards", {})
+			career["pro_bowl"] = int(career.get("pro_bowl", 0)) + 1
+			p["career_awards"] = career
+
+	for selection in nfc_roster:
+		var s: Dictionary = selection
+		var player_id := String(s.get("player_id", ""))
+		if player_id != "" and player_map.has(player_id):
+			var p: Dictionary = player_map[player_id]
+			var career: Dictionary = p.get("career_awards", {})
+			career["pro_bowl"] = int(career.get("pro_bowl", 0)) + 1
+			p["career_awards"] = career
+
+	# Process championship wins (all players on championship team)
+	var super_bowl_winners: Dictionary = championships.get("nfl", {}).get("super_bowl_winners", {})
+	var champion_id := String(super_bowl_winners.get(year, ""))
+
+	if champion_id != "" and rosters.has(champion_id):
+		var champion_roster: Dictionary = rosters[champion_id]
+		var champion_players: Array = champion_roster.get("players", [])
+
+		for player in champion_players:
+			var p: Dictionary = player
+			var career: Dictionary = p.get("career_awards", {})
+			career["championships"] = int(career.get("championships", 0)) + 1
+			p["career_awards"] = career
 
 
 ## Simulates NFL season games and stores results.
@@ -723,12 +873,25 @@ func _simulate_nfl_season(
 	world_state["championships"] = championships
 
 	# Update team history (H4.1-H4.6: Franchise stats, championships, streaks, droughts)
-	# Expected RNG consumption: None (pure aggregation)
-	_update_team_history(world_state, year, season_results, String(best_record["team_id"]), teams, regions)
+	# and detect dynasty eras (Feature 5: Dynasty Era Detection)
+	# Expected RNG consumption: None (pure aggregation and analysis)
+	var dynasty_summary := _update_team_history(world_state, year, season_results, String(best_record["team_id"]), teams, regions)
 
 	# Select NFL Awards (A3.2, A3.3, A3.4, A3.8)
 	# Expected RNG consumption: None (deterministic based on stats)
 	var award_summary := AwardSelector.select_all_awards(world_state, year)
+
+	# Integrate awards into player career tracking (Feature 1: Career Awards to Players)
+	# Expected RNG consumption: None (pure writes to player data)
+	_write_awards_to_players(world_state, year, award_summary)
+
+	# Update league record book (Feature 2: League Records Tracking)
+	# Expected RNG consumption: None (pure comparison and aggregation)
+	var record_summary := RecordBook.update_records(world_state, year)
+
+	# Update franchise records (Feature 3: Team Franchise Records)
+	# Expected RNG consumption: None (pure comparison and aggregation)
+	var franchise_summary := FranchiseRecords.update_all_franchise_records(world_state, year)
 
 	# Return summary
 	return {
@@ -739,5 +902,8 @@ func _simulate_nfl_season(
 		"champion_record": "%d-%d" % [int(best_record["wins"]),
 									  int(season_results[best_record["team_id"]].get("losses", 0))],
 		"sim_seed": sim_seed,
-		"awards": award_summary
+		"awards": award_summary,
+		"records": record_summary,
+		"franchise_records": franchise_summary,
+		"dynasties": dynasty_summary
 	}
