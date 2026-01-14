@@ -247,6 +247,310 @@ Add to `main.json` or new `grading.json`:
 }
 ```
 
+### 1.9 College Performance Grades
+
+College grades serve a different purpose than NFL grades - they help scouts evaluate draft prospects beyond just their composite rating and combine numbers.
+
+#### 1.9.1 Design Goals for College Grades
+
+| Goal | Description |
+|------|-------------|
+| **Draft Evaluation** | Scouts can identify players who consistently outperform their measurables |
+| **Production Trends** | Track year-over-year grade improvement/regression through college |
+| **Competition Context** | Adjust grades based on conference strength (SEC vs MAC) |
+| **Projection Tool** | Help predict which college performers will translate to NFL |
+| **Bust Detection** | Identify players whose production relies on weak competition |
+
+#### 1.9.2 College Grade Differences from NFL
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    College vs NFL Performance Grades                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ASPECT              COLLEGE                         NFL                        │
+│  ─────────────────   ─────────────────────────────   ─────────────────────────  │
+│  Visibility          Partial - requires scouting     Fully public               │
+│  Comparison Pool     Within conference tier          League-wide                │
+│  Games Sampled       May not have full game film     All games graded           │
+│  Competition Adj     Heavy (SEC vs FCS matters)      None needed                │
+│  Scheme Inflation    Accounts for system players     Less relevant              │
+│  Sample Size         12 games/year                   17 games/year              │
+│  Grade Confidence    Lower (more variance)           Higher (more data)         │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 1.9.3 College Grade Schema
+
+```gdscript
+## CollegeSeasonGrade Schema (stored per player per year)
+{
+    "player_id": String,
+    "year": int,                        # College year (freshman=1, etc.)
+    "school_id": String,
+    "conference": String,
+    "position": String,
+
+    # Raw grade (before adjustments)
+    "raw_grade": float,                 # 0-100, based on pure production
+
+    # Adjusted grade (accounts for competition)
+    "adjusted_grade": float,            # 0-100, normalized for competition level
+    "competition_adjustment": float,    # Multiplier applied (0.8 - 1.2)
+
+    # Grade components (position-specific)
+    "component_grades": {
+        # Example for WR:
+        "route_running_grade": float,
+        "catch_grade": float,
+        "yards_after_catch_grade": float,
+        "contested_catch_grade": float
+    },
+
+    # Context for scouts
+    "games_graded": int,
+    "snaps_graded": int,
+    "starter_status": bool,
+    "scheme_type": String,              # "spread", "pro_style", "run_heavy", etc.
+
+    # Trend data (valuable for projecting development)
+    "grade_trend": String,              # "improving", "steady", "declining"
+    "year_over_year_delta": float,      # Grade change from previous year
+
+    # Scouting confidence
+    "grade_confidence": float,          # 0.5-1.0 based on sample size, game quality
+    "film_reviewed_pct": float,         # How much film scouts actually watched
+
+    # Comparison rankings
+    "conference_rank": int,             # Rank within conference at position
+    "national_rank": int,               # Rank nationally at position
+    "class_percentile": float           # Percentile within draft class
+}
+```
+
+#### 1.9.4 Competition Level Adjustments
+
+```gdscript
+## Conference tier multipliers for grade adjustment
+const CONFERENCE_GRADE_ADJUSTMENTS := {
+    # Power conferences (tougher competition = grades mean more)
+    "SEC": 1.15,
+    "Big Ten": 1.12,
+    "Big 12": 1.08,
+    "ACC": 1.05,
+    "Pac-12": 1.05,
+
+    # Group of 5 (easier competition = grades discounted)
+    "AAC": 0.95,
+    "Mountain West": 0.92,
+    "Sun Belt": 0.88,
+    "MAC": 0.85,
+    "Conference USA": 0.85,
+
+    # FCS (heavily discounted)
+    "FCS": 0.70,
+    "D2": 0.55,
+    "D3": 0.45
+}
+
+## Opponent-specific adjustment (per game)
+## Playing against top-25 team = grade boost
+## Playing against FCS = grade penalty
+func _adjust_for_opponent(raw_grade: float, opponent_tier: String) -> float:
+    var multiplier := 1.0
+    match opponent_tier:
+        "top_10": multiplier = 1.20
+        "top_25": multiplier = 1.10
+        "ranked": multiplier = 1.05
+        "power_conf": multiplier = 1.00
+        "group_of_5": multiplier = 0.95
+        "fcs": multiplier = 0.80
+    return raw_grade * multiplier
+```
+
+#### 1.9.5 Draft Evaluation Integration
+
+```gdscript
+## How college grades influence draft evaluation
+func evaluate_prospect_grades(player: Dictionary) -> Dictionary:
+    var college_grades: Array = player.get("college_grades", [])
+
+    if college_grades.is_empty():
+        return {"grade_evaluation": "no_data"}
+
+    # Get trend over college career
+    var trend := _calculate_grade_trend(college_grades)
+
+    # Compare final grade to composite rating
+    var final_grade := float(college_grades[-1]["adjusted_grade"])
+    var composite := _get_composite_rating(player)
+    var production_delta := final_grade - composite
+
+    # Key insights for scouts
+    return {
+        "final_college_grade": final_grade,
+        "grade_trend": trend,  # "rising_star", "steady", "declining", "inconsistent"
+        "production_vs_rating": production_delta,
+        "overproducer": production_delta > 10.0,
+        "underproducer": production_delta < -10.0,
+        "conference_context": college_grades[-1]["conference"],
+        "competition_adjusted": true,
+
+        # Red flags
+        "red_flags": _identify_grade_red_flags(college_grades),
+
+        # Projection confidence
+        "nfl_projection_confidence": _calculate_projection_confidence(college_grades)
+    }
+
+## Identify concerning patterns in college grades
+func _identify_grade_red_flags(grades: Array) -> Array:
+    var flags := []
+
+    # Declining grades = concerning
+    if grades.size() >= 2:
+        var latest := float(grades[-1]["adjusted_grade"])
+        var previous := float(grades[-2]["adjusted_grade"])
+        if latest < previous - 5.0:
+            flags.append("declining_production")
+
+    # High raw grade but low adjusted = weak competition
+    var latest_grade := grades[-1]
+    var raw := float(latest_grade["raw_grade"])
+    var adjusted := float(latest_grade["adjusted_grade"])
+    if raw - adjusted > 10.0:
+        flags.append("inflated_by_weak_competition")
+
+    # Low game sample
+    if int(latest_grade["games_graded"]) < 8:
+        flags.append("limited_sample_size")
+
+    # Inconsistent grades across years
+    if _calculate_grade_variance(grades) > 15.0:
+        flags.append("inconsistent_performance")
+
+    return flags
+```
+
+#### 1.9.6 Grade Visibility and Scouting
+
+Unlike NFL grades which are fully public, college grades require scouting effort to reveal:
+
+```gdscript
+## College grade scouting tiers
+const COLLEGE_GRADE_SCOUTING := {
+    # Free information (public)
+    "public": [
+        "national_rank",           # Mock draft rankings
+        "conference_rank",         # All-conference teams
+        "starter_status"           # Depth chart position
+    ],
+
+    # Basic scouting (low effort)
+    "basic_scout": [
+        "raw_grade",               # Pure production numbers
+        "games_graded",
+        "grade_trend"              # General direction
+    ],
+
+    # Detailed scouting (medium effort)
+    "detailed_scout": [
+        "adjusted_grade",          # Competition-adjusted
+        "competition_adjustment",
+        "component_grades",        # Position-specific breakdowns
+        "scheme_type"
+    ],
+
+    # Deep dive (high effort, limited capacity)
+    "deep_scout": [
+        "year_over_year_delta",
+        "film_reviewed_pct",       # Your scouts' actual coverage
+        "grade_confidence",
+        "red_flags",               # Identified concerns
+        "nfl_projection_confidence"
+    ]
+}
+```
+
+#### 1.9.7 College to NFL Grade Translation
+
+Not all college production translates to the NFL. The system tracks historical translation rates:
+
+```gdscript
+## Translation factors by position
+const COLLEGE_TO_NFL_TRANSLATION := {
+    # Positions that translate well
+    "EDGE": {
+        "translation_rate": 0.85,
+        "description": "Pass rush production translates well"
+    },
+    "OL": {
+        "translation_rate": 0.80,
+        "description": "Technique matters, athleticism secondary"
+    },
+
+    # Positions with moderate translation
+    "QB": {
+        "translation_rate": 0.65,
+        "description": "System QBs often struggle, arm talent matters"
+    },
+    "WR": {
+        "translation_rate": 0.60,
+        "description": "Speed and separation translate, scheme production doesn't"
+    },
+
+    # Positions with poor translation
+    "RB": {
+        "translation_rate": 0.50,
+        "description": "College production rarely predicts NFL success"
+    },
+    "CB": {
+        "translation_rate": 0.55,
+        "description": "Competition level matters hugely"
+    }
+}
+
+## Calculate expected NFL grade based on college performance
+func project_nfl_grade(college_grade: float, position: String, conference: String) -> Dictionary:
+    var translation := COLLEGE_TO_NFL_TRANSLATION.get(position, {"translation_rate": 0.65})
+    var conf_adj := CONFERENCE_GRADE_ADJUSTMENTS.get(conference, 1.0)
+
+    # Base projection
+    var projected := college_grade * float(translation["translation_rate"]) * conf_adj
+
+    # Add uncertainty range (wider for low-translation positions)
+    var uncertainty := (1.0 - float(translation["translation_rate"])) * 15.0
+
+    return {
+        "projected_nfl_grade": projected,
+        "confidence_range": [projected - uncertainty, projected + uncertainty],
+        "translation_note": translation["description"]
+    }
+```
+
+#### 1.9.8 Integration with CollegeSeason.gd
+
+```gdscript
+## CollegeSeason.gd modification
+func run(...) -> Dictionary:
+    # ... existing season simulation ...
+
+    # After season simulation, grade all players
+    if not options.get("skip_grading", false):
+        var grading_result := PerformanceGrader.grade_college_season(
+            world_state,
+            year,
+            positions_cfg,
+            main_cfg
+        )
+
+        # Store grades
+        _store_college_grades(world_state, year, grading_result)
+
+    return result
+```
+
 ---
 
 ## Feature 2: Non-Linear Player Growth
@@ -1835,7 +2139,9 @@ func test_late_bloomer_trajectory():
 | `scripts/world/PlayerLifecycle.gd` | Apply development profile modifiers, decay temporary events |
 | `scripts/generation/PlayerGenerator.gd` | Generate development profiles and personality types |
 | `scripts/world/NflSeason.gd` | Call grading and event processing at end of season |
+| `scripts/world/CollegeSeason.gd` | Call college grading at end of season |
 | `scripts/core/contracts/ContractNegotiator.gd` | Trigger contract events (prove-it, got-paid, etc.) |
+| `scripts/core/drafting/ProspectEvaluator.gd` | Use college grades for draft evaluation |
 | `configs/sports/american_football/main.json` | Add development and career_events config |
 
 ---
@@ -1854,9 +2160,10 @@ func test_late_bloomer_trajectory():
 ## Open Questions (for discussion)
 
 ### Performance Grades
-1. **Grade visibility in College**: Should college players also get performance grades, or NFL only?
+1. ~~**Grade visibility in College**~~: *Resolved - College grades included with scouting-gated visibility*
 2. **Historical grades**: Store full grade history or just recent N years?
 3. **Grade decay**: Do old grades matter for evaluation, or just recent performance?
+4. **High School grades**: Should we track HS performance for recruiting, or is that too granular?
 
 ### Development Profiles
 4. **Scouting cost**: How much scouting effort to reveal development type predictions?
