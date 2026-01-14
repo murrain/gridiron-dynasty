@@ -243,7 +243,7 @@ func _make_player(player_id: String, pos: String, age: int, years_remaining: int
 			"years_total": 4,
 			"years_remaining": years_remaining,
 			"base_salary": 5.0,
-			"cap_hit": 5.5
+			"annual_value": 5.5
 		}
 	}
 

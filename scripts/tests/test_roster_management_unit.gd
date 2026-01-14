@@ -34,7 +34,7 @@ func test_release_candidates_identification():
 			"eval_score": 55.0,
 			"draft_year": 2010,
 			"contract": {
-				"cap_hit": 15.0,
+				"annual_value": 15.0,
 				"signed_year": 2015,
 				"years_remaining": 1
 			}
@@ -47,7 +47,7 @@ func test_release_candidates_identification():
 			"eval_score": 85.0,
 			"draft_year": 2018,
 			"contract": {
-				"cap_hit": 10.0,
+				"annual_value": 10.0,
 				"signed_year": 2022,
 				"years_remaining": 2
 			}
@@ -60,7 +60,7 @@ func test_release_candidates_identification():
 			"eval_score": 70.0,
 			"draft_year": 2023,
 			"contract": {
-				"cap_hit": 2.0,
+				"annual_value": 2.0,
 				"signed_year": 2023,
 				"years_remaining": 3
 			}
@@ -73,7 +73,7 @@ func test_release_candidates_identification():
 			"eval_score": 60.0,
 			"draft_year": 2012,
 			"contract": {
-				"cap_hit": 12.0,
+				"annual_value": 12.0,
 				"signed_year": 2018,
 				"years_remaining": 1
 			}
@@ -104,13 +104,13 @@ func test_cap_calculation():
 
 	var players := [
 		{
-			"contract": {"cap_hit": 10.0}
+			"contract": {"annual_value": 10.0}
 		},
 		{
-			"contract": {"cap_hit": 15.0}
+			"contract": {"annual_value": 15.0}
 		},
 		{
-			"contract": {"cap_hit": 5.0}
+			"contract": {"annual_value": 5.0}
 		},
 		{
 			"contract": {}  # No contract
@@ -178,7 +178,7 @@ func test_dead_cap_placeholder():
 
 	var player := {
 		"contract": {
-			"cap_hit": 10.0
+			"annual_value": 10.0
 		}
 	}
 
