@@ -287,7 +287,7 @@ static func _calculate_team_cap_usage(players: Array) -> float:
 		var contract: Dictionary = p.get("contract", {})
 		if contract.is_empty():
 			continue
-		total += float(contract.get("cap_hit", 0.0))
+		total += float(contract.get("annual_value", 0.0))
 	return total
 
 
@@ -325,7 +325,7 @@ static func _identify_release_candidates(
 		if is_rookie and years_since_draft < 3:
 			continue
 
-		var cap_hit := float(contract.get("cap_hit", 0.0))
+		var cap_hit := float(contract.get("annual_value", 0.0))
 		var eval_score := float(p.get("eval_score", 50.0))
 		var age := int(p.get("age", 22))
 
