@@ -16,6 +16,7 @@ This file defines:
 - [Director Protocols](docs/agents/DIRECTOR_PROTOCOLS.md) - Team spawning, multi-team coordination, lessons learned
 - [Architect Protocols](docs/agents/ARCHITECT_PROTOCOLS.md) - System design, work decomposition, quality gates
 - [Engineer Protocols](docs/agents/ENGINEER_PROTOCOLS.md) - Implementation, coding guidelines, RNG discipline
+- [Test Engineer Protocols](docs/agents/TEST_ENGINEER_PROTOCOLS.md) - Testing infrastructure, CI/CD, developer tooling
 - [Reviewer Protocols](docs/agents/REVIEWER_PROTOCOLS.md) - Review scoring, checklists, anti-patterns
 
 ---
@@ -31,13 +32,13 @@ This file defines:
                            │
                            │ spawns
                            │
-           ┌───────────────┼───────────────┐
-           │               │               │
-     ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
-     │ Architect │   │ Architect │   │ Architect │
-     │  (Team A) │   │  (Team B) │   │  (Team N) │
-     └─────┬─────┘   └─────┬─────┘   └─────┬─────┘
-           │               │               │
+           ┌───────────────┼───────────────┬───────────────┐
+           │               │               │               │
+     ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
+     │ Architect │   │ Architect │   │ Architect │   │   Test    │
+     │  (Team A) │   │  (Team B) │   │  (Team N) │   │ Engineer  │
+     └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   │  (Infra)  │
+           │               │               │         └───────────┘
            │ spawns        │ spawns        │ spawns
            │               │               │
     ┌──────┼──────┐ ┌──────┼──────┐        │
@@ -54,7 +55,9 @@ This file defines:
 
 **Spawning Chain:**
 - **Director** spawns **Architect(s)** with work packages
+- **Director** spawns **Test Engineer(s)** for cross-cutting infrastructure work
 - **Architect** spawns **Engineer(s)** as needed (1-5 based on work scope)
+- **Architect** spawns **Test Engineer(s)** for team-specific test work
 - **Architect** spawns **Reviewer(s)** when code is ready (to avoid bottlenecks)
 - **Reviewers** can be reused across multiple engineer submissions
 
@@ -266,7 +269,30 @@ All agents, regardless of role, must adhere to the following:
 
 ---
 
-### 4. General Purpose Agent
+### 4. Test Engineer Agent (Platform/Infrastructure)
+
+**Primary Goal:** Build and maintain testing infrastructure, CI/CD pipelines, and developer tooling.
+
+**Position in Hierarchy:**
+- **Spawned by Director** for project-wide infrastructure (test framework migrations, CI setup)
+- **Spawned by Architect** for team-specific test needs (fixture systems, integration tests)
+- Peer to Engineer within team context
+- Subject to Reviewer approval like Engineers
+
+**Key Responsibilities:**
+- Test framework setup, migration, and maintenance
+- CI/CD pipeline configuration and optimization
+- Test fixture systems and snapshot management
+- Developer tooling (hooks, scripts, automation)
+- Test coverage analysis and gap identification
+
+**Must NOT:** Implement game simulation logic, modify core models, bypass Reviewer approval.
+
+📖 **Full Protocol:** [docs/agents/TEST_ENGINEER_PROTOCOLS.md](docs/agents/TEST_ENGINEER_PROTOCOLS.md)
+
+---
+
+### 5. General Purpose Agent
 
 **Primary Goal:** Contribute across areas while respecting existing architecture.
 
@@ -496,7 +522,7 @@ If agents disagree:
 4. **Still uncertain**: Document the dispute and defer to stakeholder input
 
 **Hierarchy of authority:**
-- Director > Architect > Engineer = Reviewer > General Purpose
+- Director > Architect > Engineer = Test Engineer = Reviewer > General Purpose
 
 ---
 
@@ -576,6 +602,16 @@ Before approving or merging, verify:
 - Validating seed lineage documentation
 - Ensuring changes fit current phase scope
 - Identifying premature abstractions or feature creep
+
+**Use Test Engineer Agent when:**
+- Migrating to a new testing framework (e.g., GdUnit4)
+- Setting up or modifying CI/CD pipelines
+- Creating or updating test fixture systems
+- Building snapshot generation or management tools
+- Implementing custom test assertions or utilities
+- Optimizing test suite performance
+- Creating developer tooling (hooks, scripts, automation)
+- Debugging flaky tests or CI infrastructure issues
 
 **Use General Purpose Agent when:**
 - Making small, localized changes
