@@ -2,9 +2,10 @@
 
 ## Overview
 
-This document outlines the architectural design for two interconnected features:
+This document outlines the architectural design for three interconnected features:
 1. **PFF-Style Performance Grades** - Post-season performance evaluation system
 2. **Non-Linear Player Growth** - Variable, unpredictable player development paths
+3. **Career Life Events** - Dynamic stat changes based on contract, team, and personal events
 
 These features work together to create emergent gameplay where:
 - Players can outperform their measurable attributes due to high "football IQ"
@@ -586,6 +587,846 @@ Add to `main.json`:
 
 ---
 
+## Feature 3: Career Life Events
+
+### 3.1 Design Goals
+
+| Goal | Description |
+|------|-------------|
+| **Dynamic Psychology** | Player mentality stats change based on career circumstances |
+| **Realistic Motivation** | "Prove it" deals motivate, big paydays can create complacency |
+| **Emergent Narratives** | Creates stories: "He got hungry after being cut" |
+| **Consequences** | Contract and roster decisions have psychological ripple effects |
+| **Unpredictability** | Same event can affect different personality types differently |
+
+### 3.2 Event Categories
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        Career Life Event Categories                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  CONTRACT EVENTS          TEAM EVENTS              PERSONAL EVENTS              │
+│  ─────────────────        ───────────              ───────────────              │
+│  • Prove-it deal          • Traded                 • Marriage/Divorce           │
+│  • Got paid (big $$$)     • Released/Cut           • New child                  │
+│  • Contract year          • Benched                • Death in family            │
+│  • Franchise tagged       • Named captain          • Off-field trouble          │
+│  • Pay cut                • New coaching staff     • Financial issues           │
+│  • Restructure            • Team drafts replacement• Charity/Community work    │
+│  • Holdout                • Locker room drama      • Found religion             │
+│                           • Veteran mentor                                      │
+│                                                                                 │
+│  PERFORMANCE EVENTS       COMPETITION EVENTS       MILESTONE EVENTS             │
+│  ──────────────────       ──────────────────       ────────────────             │
+│  • Career game            • Lost starting job      • First Pro Bowl             │
+│  • Costly mistake         • Won starting job       • First All-Pro              │
+│  • Injury comeback        • Rival signed           • Won championship           │
+│  • Playoff failure        • Team signs star        • Hall of Fame eligible      │
+│  • Super Bowl loss        • Position competition   • Record broken              │
+│  • Award snub                                      • Jersey retired             │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.3 Data Model: CareerEvent
+
+```gdscript
+## CareerEvent Schema
+{
+    "event_type": String,           # Category.specific (e.g., "contract.prove_it_deal")
+    "year": int,
+    "age": int,
+    "team_id": String,
+
+    # What triggered the event
+    "trigger": {
+        "type": String,             # "contract_signed", "roster_move", "performance", etc.
+        "details": Dictionary       # Event-specific context
+    },
+
+    # Stat modifications applied
+    "stat_changes": {
+        "work_ethic": float,        # Delta (e.g., +15, -25)
+        "discipline": float,
+        "composure": float,
+        "focus": float,
+        "coachability": float,
+        "confidence": float         # New hidden stat
+    },
+
+    # Duration and decay
+    "duration": String,             # "permanent", "seasonal", "temporary"
+    "decay_rate": float,            # How fast temporary effects fade (0.0-1.0 per year)
+    "years_remaining": int,         # For non-permanent effects
+
+    # Narrative
+    "headline": String,             # "Williams signs prove-it deal, has chip on shoulder"
+    "description": String
+}
+```
+
+### 3.4 Contract Events (Detailed)
+
+#### 3.4.1 Prove-It Deal
+
+**Trigger**: Player signs 1-year contract worth less than their market value (typically after injury, poor performance, or age concerns).
+
+```gdscript
+const PROVE_IT_DEAL := {
+    "event_type": "contract.prove_it_deal",
+    "stat_changes": {
+        "work_ethic": [+10, +20],       # Range based on personality
+        "focus": [+5, +15],
+        "discipline": [+5, +10],
+        "composure": [-5, +5]           # Pressure can help or hurt
+    },
+    "duration": "seasonal",
+    "conditions": {
+        "contract_years": 1,
+        "contract_value_vs_market": "<0.7"  # Less than 70% of market value
+    },
+    "personality_modifiers": {
+        "high_work_ethic_base": 1.3,    # Already hard workers get bigger boost
+        "low_discipline_base": 0.7      # Undisciplined players less affected
+    }
+}
+```
+
+#### 3.4.2 Got Paid (Big Contract)
+
+**Trigger**: Player signs contract significantly above market value or receives massive guaranteed money.
+
+```gdscript
+const GOT_PAID := {
+    "event_type": "contract.got_paid",
+    "stat_changes": {
+        "work_ethic": [-15, -30],       # Complacency risk
+        "discipline": [-10, -20],
+        "focus": [-5, -15],
+        "hunger": [-20, -35]            # New stat: motivation to improve
+    },
+    "duration": "permanent",            # Effect persists but can be countered
+    "probability_modifiers": {
+        # Not everyone gets complacent - personality matters
+        "high_work_ethic": 0.3,         # 30% chance if already hard worker
+        "low_work_ethic": 0.8,          # 80% chance if already lazy
+        "veteran_leader_trait": 0.2,    # Leaders less likely to slack
+        "me_first_trait": 0.9           # Selfish players very likely
+    },
+    "conditions": {
+        "contract_value_vs_market": ">1.2",  # 120%+ of market value
+        "guaranteed_money": ">$30M"          # Or large guarantees
+    }
+}
+```
+
+#### 3.4.3 Contract Year
+
+**Trigger**: Player is in final year of contract (playing for next deal).
+
+```gdscript
+const CONTRACT_YEAR := {
+    "event_type": "contract.contract_year",
+    "stat_changes": {
+        "work_ethic": [+5, +15],
+        "focus": [+10, +20],
+        "effort": [+10, +15],           # In-game effort stat
+        "injury_risk": [+5, +10]        # Playing through pain = injury risk
+    },
+    "duration": "seasonal",
+    "notes": "The 'contract year phenomenon' - players often have career years when playing for next deal"
+}
+```
+
+#### 3.4.4 Franchise Tagged
+
+**Trigger**: Team applies franchise tag instead of long-term deal.
+
+```gdscript
+const FRANCHISE_TAGGED := {
+    "event_type": "contract.franchise_tag",
+    "stat_changes": {
+        # Depends heavily on player's reaction
+        "work_ethic": [-10, +10],       # Wide range
+        "discipline": [-15, +5],
+        "focus": [-10, +5],
+        "team_loyalty": [-20, -5]       # Almost always hurts loyalty
+    },
+    "duration": "seasonal",
+    "personality_splits": {
+        "team_first": {                 # Team players accept it
+            "work_ethic": [+5, +10],
+            "discipline": [0, +5]
+        },
+        "me_first": {                   # Selfish players resent it
+            "work_ethic": [-15, -5],
+            "discipline": [-20, -10],
+            "holdout_chance": 0.4
+        }
+    }
+}
+```
+
+#### 3.4.5 Took Pay Cut
+
+**Trigger**: Player restructures or signs below market to stay with contender.
+
+```gdscript
+const TOOK_PAY_CUT := {
+    "event_type": "contract.pay_cut",
+    "stat_changes": {
+        "team_loyalty": [+15, +25],
+        "focus": [+5, +15],             # Focused on winning
+        "composure": [+5, +10],         # Mature decision
+        "work_ethic": [+5, +10]
+    },
+    "duration": "permanent",
+    "triggers_trait": "team_first",     # Can earn this trait
+    "conditions": {
+        "team_playoff_contender": true,
+        "salary_reduction": ">20%"
+    }
+}
+```
+
+### 3.5 Team/Roster Events (Detailed)
+
+#### 3.5.1 Released/Cut
+
+```gdscript
+const RELEASED := {
+    "event_type": "team.released",
+    "stat_changes": {
+        # Humbling experience - usually motivates
+        "work_ethic": [+10, +25],
+        "discipline": [+5, +15],
+        "composure": [-10, +5],         # Can shake confidence or motivate
+        "confidence": [-15, +10]
+    },
+    "duration": "seasonal",             # Chip on shoulder fades over time
+    "decay_rate": 0.3,                  # Loses 30% per year
+    "personality_splits": {
+        "resilient": {
+            "work_ethic": [+15, +25],
+            "confidence": [+5, +10],
+            "triggers_trait": "chip_on_shoulder"
+        },
+        "fragile": {
+            "work_ethic": [0, +10],
+            "confidence": [-20, -10],
+            "composure": [-15, -5]
+        }
+    }
+}
+```
+
+#### 3.5.2 Named Team Captain
+
+```gdscript
+const NAMED_CAPTAIN := {
+    "event_type": "team.named_captain",
+    "stat_changes": {
+        "leadership": [+10, +20],       # New stat
+        "composure": [+5, +15],
+        "discipline": [+5, +10],
+        "work_ethic": [+5, +10],
+        "focus": [+5, +10]
+    },
+    "duration": "permanent",
+    "triggers_trait": "leader",
+    "team_effects": {
+        # Captain can influence teammates
+        "locker_room_presence": +15,
+        "young_player_development": +0.1  # 10% boost to young players' growth
+    }
+}
+```
+
+#### 3.5.3 Traded
+
+```gdscript
+const TRADED := {
+    "event_type": "team.traded",
+    "stat_changes": {
+        "focus": [-10, +10],            # Adjustment period
+        "composure": [-5, +5],
+        "discipline": [-5, +5]
+    },
+    "duration": "temporary",
+    "years_remaining": 1,               # Adjustment period
+    "context_modifiers": {
+        "traded_to_contender": {
+            "focus": [+5, +15],
+            "work_ethic": [+5, +10]
+        },
+        "traded_to_rebuilder": {
+            "focus": [-10, -5],
+            "work_ethic": [-5, +5]
+        },
+        "requested_trade": {
+            "focus": [+10, +15],        # Got what they wanted
+            "discipline": [+5, +10]
+        },
+        "surprised_by_trade": {
+            "composure": [-15, -5],
+            "focus": [-15, -5]
+        }
+    }
+}
+```
+
+#### 3.5.4 Team Drafts Replacement
+
+```gdscript
+const TEAM_DRAFTS_REPLACEMENT := {
+    "event_type": "team.drafted_replacement",
+    "stat_changes": {
+        # Competition can motivate or demoralize
+        "work_ethic": [-10, +20],
+        "focus": [-5, +15],
+        "composure": [-10, +5]
+    },
+    "duration": "seasonal",
+    "personality_splits": {
+        "competitive": {
+            "work_ethic": [+10, +20],
+            "focus": [+10, +15],
+            "triggers_event": "mentor_or_compete"  # Player choice
+        },
+        "insecure": {
+            "work_ethic": [-5, +5],
+            "composure": [-15, -5],
+            "confidence": [-20, -10]
+        }
+    },
+    "conditions": {
+        "draft_pick_round": [1, 3],     # High draft pick = bigger threat
+        "same_position": true
+    }
+}
+```
+
+#### 3.5.5 Veteran Mentor Assigned
+
+```gdscript
+const VETERAN_MENTOR := {
+    "event_type": "team.veteran_mentor",
+    "stat_changes": {
+        # Young player benefits
+        "awareness": [+3, +8],
+        "decision_making": [+3, +8],
+        "discipline": [+5, +10],
+        "coachability": [+5, +10],
+        "development_rate": [+0.1, +0.2]  # 10-20% faster development
+    },
+    "duration": "seasonal",
+    "conditions": {
+        "mentee_age": "<25",
+        "mentor_has_trait": ["leader", "veteran_presence", "high_football_iq"],
+        "mentor_years_in_league": ">=8"
+    },
+    "mentor_effects": {
+        # Mentor also benefits
+        "leadership": [+3, +5],
+        "legacy_score": [+5, +10]        # For Hall of Fame consideration
+    }
+}
+```
+
+### 3.6 Personal Life Events (Detailed)
+
+#### 3.6.1 Marriage
+
+```gdscript
+const MARRIAGE := {
+    "event_type": "personal.marriage",
+    "stat_changes": {
+        "discipline": [+5, +15],
+        "composure": [+5, +10],
+        "focus": [-5, +10],             # Honeymoon phase can distract
+        "stability": [+10, +20]         # New hidden stat
+    },
+    "duration": "permanent",
+    "first_year_modifier": {
+        "focus": -5                     # Adjustment year
+    }
+}
+```
+
+#### 3.6.2 Divorce
+
+```gdscript
+const DIVORCE := {
+    "event_type": "personal.divorce",
+    "stat_changes": {
+        "focus": [-20, -10],
+        "composure": [-15, -5],
+        "discipline": [-15, -5],
+        "stability": [-25, -15]
+    },
+    "duration": "temporary",
+    "years_remaining": 2,               # Takes time to recover
+    "decay_rate": 0.4,                  # 40% recovery per year
+    "risk_factors": {
+        "financial_distraction": 0.3,   # 30% chance of money issues
+        "off_field_trouble": 0.15       # 15% chance of incidents
+    }
+}
+```
+
+#### 3.6.3 New Child
+
+```gdscript
+const NEW_CHILD := {
+    "event_type": "personal.new_child",
+    "stat_changes": {
+        "composure": [+5, +15],         # Maturity
+        "discipline": [+5, +10],
+        "focus": [-10, +5],             # Sleep deprivation vs motivation
+        "work_ethic": [-5, +10]         # Depends on personality
+    },
+    "duration": "permanent",
+    "personality_splits": {
+        "family_first": {
+            "composure": [+10, +15],
+            "work_ethic": [+5, +10],    # Motivated to provide
+            "focus": [+5, +10]
+        },
+        "career_focused": {
+            "focus": [-10, -5],         # Distracted
+            "discipline": [-5, 0]
+        }
+    }
+}
+```
+
+#### 3.6.4 Off-Field Trouble
+
+```gdscript
+const OFF_FIELD_TROUBLE := {
+    "event_type": "personal.off_field_trouble",
+    "stat_changes": {
+        "discipline": [-20, -10],
+        "focus": [-15, -5],
+        "composure": [-10, -5],
+        "reputation": [-25, -10]        # New stat: affects contracts, endorsements
+    },
+    "duration": "permanent",            # Reputation sticks
+    "severity_levels": {
+        "minor": {                      # Bar fight, traffic incident
+            "discipline": -10,
+            "suspension_games": [0, 2]
+        },
+        "moderate": {                   # DUI, substance violation
+            "discipline": -20,
+            "suspension_games": [4, 8],
+            "triggers_trait": "character_concern"
+        },
+        "severe": {                     # Felony, assault
+            "discipline": -30,
+            "suspension_games": [8, 17],
+            "career_ending_chance": 0.1
+        }
+    },
+    "recovery_path": {
+        "community_service": {
+            "reputation": [+5, +15],
+            "discipline": [+5, +10]
+        },
+        "counseling_program": {
+            "discipline": [+10, +20],
+            "composure": [+5, +10]
+        }
+    }
+}
+```
+
+#### 3.6.5 Found Religion/Purpose
+
+```gdscript
+const FOUND_PURPOSE := {
+    "event_type": "personal.found_purpose",
+    "stat_changes": {
+        "discipline": [+10, +20],
+        "composure": [+10, +15],
+        "focus": [+5, +15],
+        "work_ethic": [+5, +15],
+        "stability": [+15, +25]
+    },
+    "duration": "permanent",
+    "triggers_trait": "high_character",
+    "conditions": {
+        "prior_off_field_trouble": true,  # Often follows rock bottom
+        "age_range": [24, 32]
+    }
+}
+```
+
+### 3.7 Performance Events (Detailed)
+
+#### 3.7.1 Costly Mistake (Game-Losing Play)
+
+```gdscript
+const COSTLY_MISTAKE := {
+    "event_type": "performance.costly_mistake",
+    "stat_changes": {
+        "composure": [-15, +5],         # Wide range - can break or build
+        "confidence": [-20, -5],
+        "focus": [-10, +10]
+    },
+    "duration": "temporary",
+    "years_remaining": 1,
+    "personality_splits": {
+        "resilient": {
+            "composure": [0, +5],
+            "focus": [+5, +10],
+            "work_ethic": [+10, +15],   # Uses it as motivation
+            "triggers_trait": "clutch"   # Can develop clutch gene
+        },
+        "fragile": {
+            "composure": [-20, -10],
+            "confidence": [-25, -15],
+            "triggers_trait": "chokes_in_big_moments"
+        }
+    },
+    "examples": [
+        "Interception in end zone with game on line",
+        "Fumble inside 5 yard line",
+        "Missed game-winning field goal",
+        "Dropped sure touchdown"
+    ]
+}
+```
+
+#### 3.7.2 Injury Comeback
+
+```gdscript
+const INJURY_COMEBACK := {
+    "event_type": "performance.injury_comeback",
+    "stat_changes": {
+        "composure": [-10, +15],
+        "confidence": [-15, +10],
+        "work_ethic": [+5, +15],        # Rehab builds discipline
+        "discipline": [+5, +10]
+    },
+    "duration": "seasonal",
+    "injury_severity_modifiers": {
+        "minor": {
+            "composure": [0, +5],
+            "confidence": [0, +5]
+        },
+        "major": {                       # ACL, Achilles, etc.
+            "composure": [-15, +10],
+            "confidence": [-20, +5],
+            "anxiety_chance": 0.25       # 25% chance of lingering doubt
+        },
+        "career_threatening": {
+            "composure": [-20, +15],
+            "confidence": [-25, +10],
+            "work_ethic": [+15, +25],   # Survivors often have renewed drive
+            "triggers_trait": "comeback_player"
+        }
+    }
+}
+```
+
+#### 3.7.3 Super Bowl Loss
+
+```gdscript
+const SUPER_BOWL_LOSS := {
+    "event_type": "performance.super_bowl_loss",
+    "stat_changes": {
+        "composure": [-10, +10],
+        "focus": [+5, +20],             # Hunger to get back
+        "work_ethic": [+5, +15],
+        "legacy_anxiety": [+10, +25]    # Pressure to win one
+    },
+    "duration": "permanent",
+    "personality_splits": {
+        "motivated": {
+            "focus": [+15, +20],
+            "work_ethic": [+10, +15],
+            "next_season_performance": +0.05  # 5% boost
+        },
+        "haunted": {
+            "composure": [-15, -5],
+            "focus": [-5, +5],
+            "playoff_composure": -0.1   # 10% penalty in playoffs
+        }
+    }
+}
+```
+
+### 3.8 Milestone Events (Detailed)
+
+#### 3.8.1 First Pro Bowl Selection
+
+```gdscript
+const FIRST_PRO_BOWL := {
+    "event_type": "milestone.first_pro_bowl",
+    "stat_changes": {
+        "confidence": [+10, +20],
+        "composure": [+5, +10],
+        "work_ethic": [-5, +10]         # Can motivate or satisfy
+    },
+    "duration": "permanent",
+    "personality_splits": {
+        "hungry": {
+            "work_ethic": [+5, +10],    # Wants more
+            "focus": [+5, +10]
+        },
+        "satisfied": {
+            "work_ethic": [-10, -5],    # Got what they wanted
+            "focus": [-5, 0]
+        }
+    }
+}
+```
+
+#### 3.8.2 Won Championship
+
+```gdscript
+const WON_CHAMPIONSHIP := {
+    "event_type": "milestone.championship",
+    "stat_changes": {
+        "composure": [+10, +20],
+        "confidence": [+15, +25],
+        "legacy_score": [+30, +50]
+    },
+    "duration": "permanent",
+    "subsequent_effects": {
+        "first_ring": {
+            "work_ethic": [-10, +15],   # Wide range
+            "hunger": [-20, +10]        # Some get complacent
+        },
+        "multiple_rings": {
+            "work_ethic": [+5, +15],    # Dynasty mindset
+            "focus": [+10, +15],
+            "triggers_trait": "winner"
+        }
+    },
+    "role_modifiers": {
+        "key_contributor": {
+            "confidence": [+20, +25],
+            "legacy_score": [+40, +50]
+        },
+        "role_player": {
+            "confidence": [+10, +15],
+            "legacy_score": [+20, +30]
+        }
+    }
+}
+```
+
+### 3.9 Event Processing System
+
+```gdscript
+## CareerEventProcessor.gd
+class_name CareerEventProcessor
+
+## Process all potential events for a player after a season
+##
+## RNG Consumption: Variable (1-5 calls depending on events triggered)
+##
+## Algorithm:
+##   1. Check contract triggers (new deal, contract year, etc.)
+##   2. Check roster triggers (traded, cut, captain, etc.)
+##   3. Check performance triggers (awards, mistakes, comebacks)
+##   4. Check personal triggers (based on personality + random chance)
+##   5. Apply stat modifications
+##   6. Store events in player history
+##
+## Returns: Array of CareerEvent dictionaries
+static func process_season_events(
+    player: Dictionary,
+    season_context: Dictionary,  # Team results, player stats, contract changes
+    rng: RandomNumberGenerator
+) -> Array:
+    var events := []
+
+    # Contract events
+    events.append_array(_check_contract_events(player, season_context, rng))
+
+    # Team/roster events
+    events.append_array(_check_team_events(player, season_context, rng))
+
+    # Performance events
+    events.append_array(_check_performance_events(player, season_context, rng))
+
+    # Personal events (probabilistic based on personality)
+    events.append_array(_check_personal_events(player, rng))
+
+    # Milestone events
+    events.append_array(_check_milestone_events(player, season_context))
+
+    # Apply all stat changes
+    for event in events:
+        _apply_event_stat_changes(player, event, rng)
+
+    # Store in player history
+    var history: Array = player.get("career_events", [])
+    history.append_array(events)
+    player["career_events"] = history
+
+    return events
+
+
+## Apply stat changes from an event, respecting personality modifiers
+static func _apply_event_stat_changes(
+    player: Dictionary,
+    event: Dictionary,
+    rng: RandomNumberGenerator
+) -> void:
+    var stats: Dictionary = player.get("stats", {})
+    var changes: Dictionary = event.get("stat_changes", {})
+    var personality := _get_personality_type(player)
+
+    for stat_name in changes.keys():
+        var change_range = changes[stat_name]
+        if change_range is Array and change_range.size() == 2:
+            # Roll within range, modified by personality
+            var base_change := rng.randf_range(
+                float(change_range[0]),
+                float(change_range[1])
+            )
+
+            # Personality modifiers
+            base_change *= _get_personality_modifier(personality, stat_name, event)
+
+            # Apply change
+            if stats.has(stat_name):
+                stats[stat_name] = clamp(
+                    float(stats[stat_name]) + base_change,
+                    0.0,
+                    100.0
+                )
+
+    player["stats"] = stats
+```
+
+### 3.10 Personality System Integration
+
+Events interact with a player's personality to determine outcomes:
+
+```gdscript
+## Personality archetypes that affect event responses
+const PERSONALITY_TYPES := {
+    "competitor": {
+        "description": "Thrives on competition, uses adversity as fuel",
+        "event_modifiers": {
+            "contract.prove_it_deal": {"work_ethic": 1.5, "focus": 1.3},
+            "team.drafted_replacement": {"work_ethic": 1.4},
+            "performance.costly_mistake": {"work_ethic": 1.5, "composure": 1.2}
+        },
+        "base_traits": ["competitive", "resilient"]
+    },
+    "front_runner": {
+        "description": "Performs when things are going well, struggles with adversity",
+        "event_modifiers": {
+            "contract.got_paid": {"work_ethic": 0.7},  # More likely to slack
+            "team.released": {"composure": 0.6, "confidence": 0.5},
+            "milestone.championship": {"work_ethic": 0.6}  # Gets complacent
+        },
+        "base_traits": ["confidence_dependent", "needs_validation"]
+    },
+    "steady_eddie": {
+        "description": "Consistent, unaffected by external circumstances",
+        "event_modifiers": {
+            # All modifiers closer to 1.0 - less affected by events
+            "contract.prove_it_deal": {"work_ethic": 0.8},
+            "contract.got_paid": {"work_ethic": 0.8},
+            "team.released": {"composure": 0.9}
+        },
+        "base_traits": ["consistent", "professional"]
+    },
+    "volatile": {
+        "description": "Extreme reactions to events, unpredictable",
+        "event_modifiers": {
+            # Higher variance in both directions
+            "contract.prove_it_deal": {"work_ethic": 1.8, "variance": 2.0},
+            "contract.got_paid": {"work_ethic": 1.5, "variance": 2.0},
+            "performance.costly_mistake": {"composure": 0.5, "variance": 2.0}
+        },
+        "base_traits": ["emotional", "unpredictable"]
+    }
+}
+```
+
+### 3.11 Configuration
+
+Add to `main.json`:
+
+```json
+{
+    "career_events": {
+        "enabled": true,
+        "event_probabilities": {
+            "personal_events_per_year": 0.15,
+            "off_field_trouble_base": 0.03,
+            "found_purpose_after_trouble": 0.25
+        },
+        "stat_change_caps": {
+            "single_event_max": 25,
+            "cumulative_year_max": 40
+        },
+        "personality_distribution": {
+            "competitor": 0.25,
+            "front_runner": 0.20,
+            "steady_eddie": 0.40,
+            "volatile": 0.15
+        },
+        "contract_thresholds": {
+            "prove_it_deal_market_ratio": 0.7,
+            "got_paid_market_ratio": 1.2,
+            "big_guaranteed_money": 30000000
+        },
+        "decay_rates": {
+            "temporary_event_default": 0.4,
+            "chip_on_shoulder": 0.3,
+            "personal_crisis": 0.5
+        }
+    }
+}
+```
+
+### 3.12 Event History Storage
+
+```gdscript
+## Player career_events array
+player["career_events"] = [
+    {
+        "event_type": "contract.prove_it_deal",
+        "year": 2025,
+        "age": 28,
+        "team_id": "DET",
+        "stat_changes": {"work_ethic": +18, "focus": +12},
+        "duration": "seasonal",
+        "headline": "Jones signs one-year deal to prove doubters wrong"
+    },
+    {
+        "event_type": "performance.career_game",
+        "year": 2025,
+        "age": 28,
+        "team_id": "DET",
+        "stat_changes": {"confidence": +15, "composure": +8},
+        "headline": "Jones posts career-high 156 yards, 2 TDs"
+    },
+    {
+        "event_type": "contract.got_paid",
+        "year": 2026,
+        "age": 29,
+        "team_id": "DET",
+        "stat_changes": {"work_ethic": -22, "discipline": -15},
+        "duration": "permanent",
+        "headline": "Jones signs 4-year, $72M extension"
+    }
+    # ... his work_ethic drops, becomes cautionary tale
+]
+```
+
+---
+
 ## Integration: How Features Work Together
 
 ### Scenario: The "Hidden Gem" CB
@@ -666,6 +1507,187 @@ Add to `main.json`:
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Scenario: The "Prove-It to Got Paid" Arc (All Three Features)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│               Career Timeline: DeAndre Thompson (WR)                            │
+│               Showing: Grades + Development + Career Events                     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  DRAFT (Age 22):                                                                │
+│    Composite: 72 (2nd round pick)                                               │
+│    Development Type: "late_bloomer" (hidden)                                    │
+│    Personality Type: "competitor" (hidden)                                      │
+│    Work Ethic: 75, Discipline: 70, Focus: 68                                    │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 1-3 (Rookie Contract):                                                    │
+│    Slow development (late bloomer college penalty)                              │
+│    Composite: 72 → 73 → 75 (underwhelming)                                      │
+│    Performance Grades: 62, 65, 68 (slightly overperforming)                     │
+│    No major career events                                                       │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 4 (Age 25) - Contract Year:                                               │
+│    EVENT: "contract.contract_year" triggered                                    │
+│      → Work Ethic: 75 → 85 (+10)                                                │
+│      → Focus: 68 → 80 (+12)                                                     │
+│    Composite: 75 → 79 (late bloomer pro boost kicking in)                       │
+│    Performance Grade: 78.5 (career high)                                        │
+│    → Hits free agency with momentum                                             │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 5 (Age 26) - Prove-It Deal:                                               │
+│    Signs 1-year, $8M deal (market value was $12M)                               │
+│    EVENT: "contract.prove_it_deal" triggered                                    │
+│      → Work Ethic: 85 → 98 (+13) [competitor personality = 1.5x boost]          │
+│      → Focus: 80 → 92 (+12)                                                     │
+│      → Discipline: 70 → 78 (+8)                                                 │
+│    DEVELOPMENT EVENT: BREAKTHROUGH triggered! (late bloomer + age 26)           │
+│    Composite: 79 → 88 (+9! Breakthrough year)                                   │
+│    Performance Grade: 91.2 (Elite - #4 WR in league)                            │
+│    Season Stats: 98 catches, 1,456 yards, 12 TDs                                │
+│    EVENT: "milestone.first_pro_bowl" triggered                                  │
+│      → Confidence: +15                                                          │
+│      → (Personality: "competitor" → stays hungry, no work_ethic drop)           │
+│    → Teams bidding war in free agency                                           │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 6 (Age 27) - Got Paid:                                                    │
+│    Signs 4-year, $92M contract ($65M guaranteed)                                │
+│    EVENT: "contract.got_paid" triggered                                         │
+│      → Personality check: "competitor" = only 30% chance of complacency         │
+│      → RNG roll: 0.45 > 0.30 → COMPLACENCY TRIGGERS                             │
+│      → Work Ethic: 98 → 78 (-20)                                                │
+│      → Discipline: 78 → 65 (-13)                                                │
+│      → Focus: 92 → 82 (-10)                                                     │
+│    Composite: 88 → 87 (slight regression, still in prime)                       │
+│    Performance Grade: 72.4 (significant drop - underperforming rating)          │
+│    Season Stats: 71 catches, 987 yards, 6 TDs                                   │
+│    → Front office concerned, but locked into contract                           │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 7 (Age 28) - Wake-Up Call:                                                │
+│    Team drafts WR in 1st round                                                  │
+│    EVENT: "team.drafted_replacement" triggered                                  │
+│      → Personality: "competitor" = motivated by competition                     │
+│      → Work Ethic: 78 → 92 (+14) [competitor modifier]                          │
+│      → Focus: 82 → 90 (+8)                                                      │
+│    Composite: 87 → 89 (bounce back, still in prime window)                      │
+│    Performance Grade: 85.1 (back to elite)                                      │
+│    EVENT: "team.veteran_mentor" - mentors rookie                                │
+│      → Leadership: +12                                                          │
+│      → Legacy Score: +8                                                         │
+│    → Proves he can coexist, earns captain nomination                            │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  SUMMARY:                                                                       │
+│    - Late bloomer development → breakthrough at 26                              │
+│    - Prove-it deal + competitor personality → career year                       │
+│    - Got paid → even competitors can get complacent (30% chance hit)            │
+│    - Competition from rookie → competitor personality saves career              │
+│    - All three systems interacting to create realistic career arc               │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Scenario: The "Got His Bag" Cautionary Tale
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│               Career Timeline: Marcus Bell (CB)                                 │
+│               Showing: How "Got Paid" Can Derail a Career                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  DRAFT (Age 22):                                                                │
+│    Composite: 78 (1st round pick, 18th overall)                                 │
+│    Development Type: "early_peak"                                               │
+│    Personality Type: "front_runner"                                             │
+│    Work Ethic: 62, Discipline: 55 (red flags scouts missed)                     │
+│                                                                                 │
+│  YEARS 1-4 (Rookie Contract):                                                   │
+│    Strong early development (early_peak type)                                   │
+│    Composite: 78 → 82 → 85 → 86                                                 │
+│    Performance Grades: 75, 80, 84, 86 (living up to rating)                     │
+│    All-Pro Second Team in Year 4                                                │
+│    → Hits free agency as top CB on market                                       │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 5 (Age 26) - The Big Payday:                                              │
+│    Signs 5-year, $110M contract ($78M guaranteed)                               │
+│    EVENT: "contract.got_paid" triggered                                         │
+│      → Personality check: "front_runner" + low work_ethic = 85% chance          │
+│      → RNG roll: 0.32 < 0.85 → SEVERE COMPLACENCY                               │
+│      → Work Ethic: 62 → 28 (-34) [front_runner amplifies drop]                  │
+│      → Discipline: 55 → 25 (-30)                                                │
+│      → Focus: 70 → 45 (-25)                                                     │
+│    EVENT: "personal.off_field_trouble" (minor) - partying incident              │
+│      → Discipline: 25 → 15 (-10)                                                │
+│      → Reputation: -15                                                          │
+│    DEVELOPMENT: Plateau triggered (early_peak + low work_ethic)                 │
+│    Composite: 86 → 84 (regression despite being in "prime")                     │
+│    Performance Grade: 58.2 (major underperformance)                             │
+│    → "What happened to Marcus Bell?" headlines                                  │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 6 (Age 27):                                                               │
+│    EVENT: "personal.off_field_trouble" (moderate) - DUI                         │
+│      → Discipline: 15 → 0 (floored)                                             │
+│      → 4-game suspension                                                        │
+│      → Trait added: "character_concern"                                         │
+│    Composite: 84 → 80 (rapid decline, early_peak + zero work_ethic)             │
+│    Performance Grade: 45.1 (poor)                                               │
+│    → Team tries to trade him, no takers at his salary                           │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 7 (Age 28) - Rock Bottom:                                                 │
+│    EVENT: "team.released" - cut with dead cap hit                               │
+│      → Personality: "front_runner" = fragile response                           │
+│      → Confidence: -25                                                          │
+│      → Work Ethic: 0 → 8 (+8) [small humility boost]                            │
+│    Signs veteran minimum with new team                                          │
+│    EVENT: "contract.prove_it_deal" triggered                                    │
+│      → Work Ethic: 8 → 18 (+10)                                                 │
+│      → Focus: 45 → 55 (+10)                                                     │
+│      [front_runner personality = reduced prove-it boost]                        │
+│    Composite: 80 → 76 (still declining, damage done)                            │
+│    Performance Grade: 52.4                                                      │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  YEAR 8 (Age 29) - Possible Redemption?:                                        │
+│    EVENT: "personal.found_purpose" triggered (rock bottom → change)             │
+│      → Discipline: 0 → 18 (+18)                                                 │
+│      → Work Ethic: 18 → 35 (+17)                                                │
+│      → Stability: +20                                                           │
+│      → Trait added: "high_character" (redemption arc)                           │
+│    Composite: 76 → 74 (still declining, but slower)                             │
+│    Performance Grade: 61.2 (respectable for diminished player)                  │
+│    → Becomes valuable veteran mentor despite reduced ability                    │
+│                                                                                 │
+│  ════════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  SUMMARY:                                                                       │
+│    - Early peak development = front-loaded career                               │
+│    - Front_runner personality + low base work_ethic = high complacency risk     │
+│    - $110M contract triggered catastrophic motivation collapse                  │
+│    - Cascading events: got_paid → off_field_trouble → released                  │
+│    - Partial redemption through found_purpose event                             │
+│    - Cautionary tale: scouting personality matters as much as measurables       │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Implementation Phases
@@ -693,12 +1715,29 @@ Add to `main.json`:
    - Grade all players post-simulation
    - Store grades in world_state
 
-### Phase 3: Downstream Systems
+### Phase 3: Career Events
+
+1. **CareerEventProcessor.gd** - Event detection and processing
+   - Contract event triggers (prove-it, got-paid, contract year)
+   - Team event triggers (traded, released, captain)
+   - Performance event triggers (costly mistakes, comebacks)
+   - Personal event probabilities
+
+2. **CareerEventDefinitions.gd** - Event configuration
+   - Stat change ranges per event type
+   - Personality modifiers
+   - Duration and decay settings
+
+3. **Personality system** - At player creation
+   - Assign personality type (competitor, front_runner, steady_eddie, volatile)
+   - Store on player for event processing
+
+### Phase 4: Downstream Systems
 
 1. **PlayerValue.gd** - Factor grades into valuation
-2. **Scouting** - Reveal partial development profile info
-3. **Contract negotiation** - Use grades for restructuring logic
-4. **UI** - Display grades alongside ratings
+2. **Scouting** - Reveal partial development profile and personality info
+3. **Contract negotiation** - Use grades for restructuring, trigger contract events
+4. **UI** - Display grades, career events timeline, personality indicators
 
 ---
 
@@ -778,20 +1817,26 @@ func test_late_bloomer_trajectory():
 | File | Purpose |
 |------|---------|
 | `scripts/core/grading/PerformanceGrader.gd` | Grade calculation engine |
+| `scripts/core/events/CareerEventProcessor.gd` | Career event detection and processing |
+| `scripts/core/events/CareerEventDefinitions.gd` | Event type definitions and stat changes |
 | `scripts/support/config/GradingConfig.gd` | Config helper for grading |
+| `scripts/support/config/CareerEventConfig.gd` | Config helper for career events |
 | `configs/sports/american_football/grading.json` | Grading configuration |
+| `configs/sports/american_football/career_events.json` | Career event configuration |
 | `scripts/tests/test_performance_grading.gd` | Grading tests |
 | `scripts/tests/test_development_profiles.gd` | Development profile tests |
+| `scripts/tests/test_career_events.gd` | Career event tests |
 
 ### Modified Files
 
 | File | Changes |
 |------|---------|
-| `scripts/core/models/Player.gd` | Add `development_profile` and `career_grades` |
-| `scripts/world/PlayerLifecycle.gd` | Apply development profile modifiers |
-| `scripts/generation/PlayerGenerator.gd` | Generate development profiles |
-| `scripts/world/NflSeason.gd` | Call grading at end of season |
-| `configs/sports/american_football/main.json` | Add development config |
+| `scripts/core/models/Player.gd` | Add `development_profile`, `career_grades`, `career_events`, `personality_type` |
+| `scripts/world/PlayerLifecycle.gd` | Apply development profile modifiers, decay temporary events |
+| `scripts/generation/PlayerGenerator.gd` | Generate development profiles and personality types |
+| `scripts/world/NflSeason.gd` | Call grading and event processing at end of season |
+| `scripts/core/contracts/ContractNegotiator.gd` | Trigger contract events (prove-it, got-paid, etc.) |
+| `configs/sports/american_football/main.json` | Add development and career_events config |
 
 ---
 
@@ -808,8 +1853,21 @@ func test_late_bloomer_trajectory():
 
 ## Open Questions (for discussion)
 
+### Performance Grades
 1. **Grade visibility in College**: Should college players also get performance grades, or NFL only?
 2. **Historical grades**: Store full grade history or just recent N years?
 3. **Grade decay**: Do old grades matter for evaluation, or just recent performance?
+
+### Development Profiles
 4. **Scouting cost**: How much scouting effort to reveal development type predictions?
 5. **Breakthrough frequency**: Is 2-15% per year the right range, or should it be rarer?
+
+### Career Events
+6. **Event frequency cap**: Should there be a maximum number of events per season per player?
+7. **Cascading events**: Can one event trigger another (e.g., divorce → off-field trouble)?
+8. **Event visibility**: Which events are public vs private (team-only knowledge)?
+9. **Recovery mechanics**: How do players recover from negative events over time?
+10. **Personality stability**: Can personality type change over career, or is it fixed?
+11. **Contract event thresholds**: What dollar amounts define "prove-it" vs "got paid"?
+12. **Team-wide events**: Should events like "locker room drama" affect multiple players?
+13. **Agent influence**: Should player agents affect contract event outcomes?
