@@ -2,10 +2,12 @@ extends RefCounted
 class_name NflDraft
 
 const Rand = preload("res://autoloads/Rand.gd")
+const SimLogger = preload("res://autoloads/SimLogger.gd")
 const ScoutFactory = preload("res://scripts/generation/ScoutFactory.gd")
 const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
 const RecruitingScoreCache = preload("res://scripts/core/scouting/RecruitingScoreCache.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
+const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
 
 const ELITE_RESCUE_SCORE := 999.0  # Guaranteed top pick priority for elite prospects
 
@@ -88,6 +90,13 @@ func run(
 	var picks: Array = []
 	var remaining_pool := draft_pool.duplicate()
 	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
+
+	# Normalize field names early: draft uses "player_id", FA expects "id"
+	# This ensures UDFAs are compatible with FreeAgency system from the start
+	for player in remaining_pool:
+		var p: Dictionary = player
+		if p.has("player_id") and not p.has("id"):
+			p["id"] = p["player_id"]
 
 	# OPTIMIZATION: Pre-sort entire draft pool by talent ("the big board")
 	# Sort once at start, then players are removed as drafted
@@ -187,6 +196,16 @@ func run(
 			_update_roster_by_position(roster, player)
 			rosters[team_id] = roster
 
+			# Check if position is overstocked and release weakest player if needed
+			_handle_post_draft_roster_cuts(
+				world_state,
+				roster,
+				team_id,
+				String(player.get("position", "")),
+				year,
+				positions_cfg
+			)
+
 			# Record pick
 			var pick_record := {
 				"round": round_num,
@@ -224,10 +243,7 @@ func run(
 						String(third.get("name", "Unknown"))
 					]
 
-				var timestamp := _get_timestamp()
-				print("%s %d nfl_draft: Pick %d (%s): %s %s%s" % [
-					timestamp,
-					year,
+				SimLogger.info("Pick %d (%s): %s %s%s" % [
 					overall_pick,
 					team_id,
 					String(player.get("position", "?")),
@@ -239,13 +255,6 @@ func run(
 			remaining_pool = remaining_pool.filter(func(p):
 				return String((p as Dictionary).get("player_id", "")) != player_id
 			)
-
-	# Normalize field names: draft uses "player_id", FA expects "id"
-	# This ensures UDFAs are compatible with FreeAgency system
-	for player in remaining_pool:
-		var p: Dictionary = player
-		if p.has("player_id") and not p.has("id"):
-			p["id"] = p["player_id"]
 
 	# Store undrafted players
 	var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {}) as Dictionary
@@ -731,9 +740,8 @@ func _score_draft_pool(
 				if rating >= 78.0 and p not in candidates:
 					var player_name := String(p.get("name", "Unknown"))
 					var player_position := String(p.get("position", "?"))
-					var timestamp := _get_timestamp()
-					print("%s %d nfl_draft: RARE EVENT: Elite slip - %s %s fell to round %d" % [
-						timestamp, year, player_position, player_name, round_num
+					SimLogger.info("RARE EVENT: Elite slip - %s %s fell to round %d" % [
+						player_position, player_name, round_num
 					])
 					candidates.insert(0, p)
 					break
@@ -806,10 +814,19 @@ func _score_draft_pool(
 			elif qb_urgency.get("level") == "moderate":
 				qb_urgency_boost = float(qb_cfg.get("moderate_multiplier", 1.6))
 
+		# Calculate roster move net value
+		# If drafting this player requires cutting someone, factor that into the evaluation
+		var roster_move_penalty := _calculate_roster_move_penalty(
+			roster,
+			p,
+			position,
+			overall_rating
+		)
+
 		# Final weighted score: position tier is primary, position value is secondary, need is tertiary, QB urgency is final
-		# Order: tier > market value > need > QB urgency
-		# This ensures premium positions (QB, EDGE, OL, CB) dominate round 1, but desperate teams prioritize elite QBs
-		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment * qb_urgency_boost
+		# Order: tier > market value > need > QB urgency > roster move net value
+		# Roster move penalty reduces score if we'd have to cut a valuable player
+		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment * qb_urgency_boost * roster_move_penalty
 
 		scored.append({
 			"player": p,
@@ -1137,25 +1154,9 @@ func _calculate_position_needs(
 	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
 	var needs := {}
 
-	# Define ideal roster composition per position
-	var ideal_counts := {
-		"QB": 3,
-		"RB": 4,
-		"WR": 6,
-		"TE": 3,
-		"OL": 9,
-		"DL": 6,
-		"EDGE": 4,
-		"LB": 6,
-		"CB": 5,
-		"S": 4,
-		"K": 1,
-		"P": 1
-	}
-
 	for pos in positions_cfg.keys():
 		var current_count := (by_position.get(pos, []) as Array).size()
-		var ideal := int(ideal_counts.get(pos, 2))
+		var ideal := RosterComposition.get_ideal_depth(pos)
 
 		# More need = higher multiplier
 		if current_count == 0:
@@ -1287,6 +1288,217 @@ func _update_roster_by_position(roster: Dictionary, player: Dictionary) -> void:
 
 	(by_position[position] as Array).append(player_id)
 	roster["by_position"] = by_position
+
+
+## Calculate roster move penalty for draft evaluation
+##
+## When drafting a player to an overstocked position, calculate the penalty
+## based on the value of the player who would need to be cut.
+##
+## Returns a multiplier (0.5-1.0):
+##   - 1.0 = no cut needed (full value)
+##   - 0.7 = cutting a decent backup (moderate penalty)
+##   - 0.5 = cutting a valuable player (heavy penalty)
+##
+## This makes teams think about roster moves as packages:
+## "Draft RB X + Cut RB#3 = net value of Y"
+##
+## TODO: Future enhancement - Complex multi-step roster moves
+## Teams could plan contingent multi-action moves:
+##   {draft: RB X, cut: RB#4, move: RB#3 to special teams} = net +12
+##   {trade: CB#2 for pick, draft: CB Y, cut: CB#4} = net +8
+## This would require a planning/optimization system to explore the solution space.
+func _calculate_roster_move_penalty(
+	roster: Dictionary,
+	prospect: Dictionary,
+	position: String,
+	prospect_rating: float
+) -> float:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var position_ids := by_position.get(position, []) as Array
+	var ideal := RosterComposition.get_ideal_depth(position)
+
+	# If not overstocked, no penalty (full value = 1.0)
+	if position_ids.size() < ideal:
+		return 1.0
+
+	# Position is at or over ideal - find who would be cut
+	var cut_player_rating := _find_cut_candidate_rating(roster, position)
+
+	if cut_player_rating <= 0.0:
+		return 1.0  # No one to cut, no penalty
+
+	# Calculate penalty based on cut player value vs prospect value
+	# If cutting someone nearly as good, heavy penalty
+	# If cutting someone much weaker, light penalty
+	var value_ratio := cut_player_rating / prospect_rating
+	var penalty_factor := 0.5  # How much to penalize (50% max)
+
+	# Apply penalty: score *= (1.0 - ratio * penalty_factor)
+	# Examples:
+	#   - Cut 65, draft 75 → ratio=0.867 → penalty=43% → multiplier=0.57
+	#   - Cut 50, draft 75 → ratio=0.667 → penalty=33% → multiplier=0.67
+	#   - Cut 75, draft 75 → ratio=1.0   → penalty=50% → multiplier=0.50 (don't do it!)
+	var multiplier := 1.0 - (value_ratio * penalty_factor)
+
+	# Clamp to reasonable range
+	return clampf(multiplier, 0.3, 1.0)
+
+
+## Find the rating of the player who would be cut at this position
+##
+## Returns the composite_score/overall rating of the weakest non-starter
+## at the specified position, or 0.0 if no cut candidate exists.
+func _find_cut_candidate_rating(
+	roster: Dictionary,
+	position: String
+) -> float:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var position_ids := by_position.get(position, []) as Array
+
+	if position_ids.size() <= 1:
+		return 0.0  # Only have starter, can't cut
+
+	var players: Array = roster.get("players", []) as Array
+	var worst_rating := 9999.0
+
+	# Find weakest player (skip index 0 = starter)
+	for i in range(1, position_ids.size()):
+		var pid := String(position_ids[i])
+		for p in players:
+			var player := p as Dictionary
+			if String(player.get("player_id", "")) == pid:
+				var rating := float(player.get("composite_score",
+					player.get("overall", 50.0)))
+				worst_rating = minf(worst_rating, rating)
+				break
+
+	return worst_rating if worst_rating < 9999.0 else 0.0
+
+
+## Handle post-draft roster cuts when position is overstocked
+##
+## After drafting a player, if the position group exceeds ideal depth,
+## release the weakest player at that position (excluding clear starter).
+##
+## This prevents roster composition issues like 5 RBs, 5 TEs when ideal is 4/3.
+func _handle_post_draft_roster_cuts(
+	world_state: Dictionary,
+	roster: Dictionary,
+	team_id: String,
+	drafted_position: String,
+	year: int,
+	positions_cfg: Dictionary
+) -> void:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var position_ids := by_position.get(drafted_position, []) as Array
+	var ideal := RosterComposition.get_ideal_depth(drafted_position)
+
+	# Only cut if we're overstocked (current > ideal)
+	if position_ids.size() <= ideal:
+		return
+
+	# Find weakest player at this position (skip index 0 = starter)
+	var worst_player_id: String = ""
+	var worst_rating := 9999.0
+	var players: Array = roster.get("players", []) as Array
+
+	for i in range(1, position_ids.size()):  # Start at 1 to skip starter
+		var pid := String(position_ids[i])
+		for p in players:
+			var player := p as Dictionary
+			if String(player.get("player_id", "")) == pid:
+				# Use composite_score or overall rating
+				var rating := float(player.get("composite_score",
+					player.get("overall", 50.0)))
+				if rating < worst_rating:
+					worst_rating = rating
+					worst_player_id = pid
+				break
+
+	if worst_player_id.is_empty():
+		return  # No suitable player to cut
+
+	# Release player to undrafted pool
+	var success := _release_player_to_undrafted_pool(
+		world_state,
+		roster,
+		team_id,
+		worst_player_id,
+		year
+	)
+
+	if not success:
+		SimLogger.warn("Post-draft roster cut failed for %s at position %s" % [
+			team_id, drafted_position
+		])
+
+
+## Release a player from roster to undrafted pool
+##
+## Removes player from roster and adds them to the undrafted pool for the current year.
+## This allows them to be signed during UDFA free agency phase.
+##
+## @return bool: True if player was found and released, false otherwise
+func _release_player_to_undrafted_pool(
+	world_state: Dictionary,
+	roster: Dictionary,
+	team_id: String,
+	player_id: String,
+	year: int
+) -> bool:
+	# Remove from roster players array
+	var players: Array = roster.get("players", []) as Array
+	var player_found := false
+
+	for i in range(players.size() - 1, -1, -1):  # Loop backwards
+		var p := players[i] as Dictionary
+		if String(p.get("player_id", "")) == player_id:
+			# Add to undrafted pool
+			var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {})
+			if not undrafted_pool.has(year):
+				undrafted_pool[year] = []
+
+			# Clear contract/team info
+			p["contract"] = {}
+			p["team_id"] = ""
+
+			(undrafted_pool[year] as Array).append(p)
+			world_state["undrafted_pool"] = undrafted_pool
+
+			# Remove from roster
+			players.remove_at(i)
+
+			# Log the cut
+			SimLogger.info("Released %s (%s) from %s (roster cut after draft)" % [
+				String(p.get("name", "Unknown")),
+				String(p.get("position", "?")),
+				team_id
+			])
+			player_found = true
+			break
+
+	if not player_found:
+		SimLogger.error("Failed to release player %s from %s: player not found in roster" % [
+			player_id, team_id
+		])
+		return false
+
+	roster["players"] = players
+
+	# Update by_position mapping
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	for pos in by_position.keys():
+		var pos_ids := by_position[pos] as Array
+		var updated_ids: Array = []
+		for pid in pos_ids:
+			if String(pid) != player_id:
+				updated_ids.append(pid)
+		by_position[pos] = updated_ids
+
+	roster["by_position"] = by_position
+
+	return true
 
 
 func _create_rookie_contract(

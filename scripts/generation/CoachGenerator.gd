@@ -73,6 +73,8 @@ const SPECIALTY_POSITIONS := [
 	"DB"
 ]
 
+const NamesHelper = preload("res://scripts/generation/helpers/NamesHelper.gd")
+
 ## Weighted distributions for tolerances
 ## Higher weight = more likely
 const CHARACTER_TOLERANCE_WEIGHTS := {
@@ -94,11 +96,13 @@ const MEDICAL_TOLERANCE_WEIGHTS := {
 ##
 ## @param rng: RandomNumberGenerator for determinism
 ## @param coach_id: Unique identifier for the coach
+## @param names_cfg: Names configuration (from names.json)
 ## @param config: Optional configuration overrides
 ## @return Dictionary: Coach data ready for assignment to team
 static func generate_coach(
 	rng: RandomNumberGenerator,
 	coach_id: String,
+	names_cfg: Dictionary = {},
 	config: Dictionary = {}
 ) -> Dictionary:
 	# Get config parameters with defaults
@@ -134,10 +138,20 @@ static func generate_coach(
 	# RNG Call 10: Specialty position
 	var specialty_position: String = SPECIALTY_POSITIONS[rng.randi() % SPECIALTY_POSITIONS.size()]
 
+	# RNG Call 11-12: Generate name
+	var full_name := ""
+	var first_name := ""
+	var last_name := ""
+	if not names_cfg.is_empty():
+		full_name = NamesHelper.random_full(names_cfg, rng)
+		var parts := full_name.split(" ", false, 1)
+		first_name = parts[0] if parts.size() > 0 else ""
+		last_name = parts[1] if parts.size() > 1 else ""
+
 	return {
 		"id": coach_id,
-		"first_name": "",  # To be filled by name generator
-		"last_name": "",   # To be filled by name generator
+		"first_name": first_name,
+		"last_name": last_name,
 		"role": "Head Coach",
 		"coaching_ability": coaching_ability,
 		"recruiting_skill": recruiting_skill,
@@ -159,12 +173,14 @@ static func generate_coach(
 ## @param rng: RandomNumberGenerator for determinism
 ## @param coach_id: Unique identifier for the coach
 ## @param eliteness: Team eliteness (0-100), affects coach quality
+## @param names_cfg: Names configuration (from names.json)
 ## @param config: Optional configuration overrides
 ## @return Dictionary: Coach data
 static func generate_coach_for_team(
 	rng: RandomNumberGenerator,
 	coach_id: String,
 	eliteness: float,
+	names_cfg: Dictionary = {},
 	config: Dictionary = {}
 ) -> Dictionary:
 	# Scale ability ranges based on eliteness
@@ -178,7 +194,7 @@ static func generate_coach_for_team(
 	adjusted_config["ability_min"] = clampf(base_ability_min + eliteness_bonus, 25.0, 75.0)
 	adjusted_config["ability_max"] = clampf(base_ability_max + eliteness_bonus * 0.5, 60.0, 99.0)
 
-	return generate_coach(rng, coach_id, adjusted_config)
+	return generate_coach(rng, coach_id, names_cfg, adjusted_config)
 
 
 ## Generate coaching staff for a team (head coach + coordinators)

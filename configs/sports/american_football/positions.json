@@ -15,6 +15,7 @@
       "throw_accuracy": {
         "mu": 78,
         "sigma": 9,
+        "viability_min": 45,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -30,6 +31,7 @@
       "awareness": {
         "mu": 73,
         "sigma": 7,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -54,6 +56,7 @@
       "throw_power": {
         "mu": 79,
         "sigma": 9,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "secondary",
         "visibility": "public"
@@ -316,6 +319,7 @@
       "speed": {
         "mu": 78,
         "sigma": 7,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -323,6 +327,7 @@
       "agility": {
         "mu": 76,
         "sigma": 8,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -531,6 +536,7 @@
       "speed": {
         "mu": 84,
         "sigma": 6,
+        "viability_min": 45,
         "cap_pct": 1.0,
         "role": "core",
         "visibility": "public"
@@ -538,6 +544,7 @@
       "agility": {
         "mu": 80,
         "sigma": 7,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -553,6 +560,7 @@
       "catching": {
         "mu": 74,
         "sigma": 8,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -739,6 +747,7 @@
       "strength": {
         "mu": 74,
         "sigma": 8,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -746,6 +755,7 @@
       "blocking": {
         "mu": 70,
         "sigma": 8,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -754,6 +764,7 @@
       "catching": {
         "mu": 68,
         "sigma": 8,
+        "viability_min": 30,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -923,6 +934,7 @@
       "strength": {
         "mu": 88,
         "sigma": 5,
+        "viability_min": 50,
         "cap_pct": 1.0,
         "role": "core",
         "visibility": "public"
@@ -930,6 +942,7 @@
       "blocking": {
         "mu": 82,
         "sigma": 6,
+        "viability_min": 45,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -1103,6 +1116,7 @@
       "strength": {
         "mu": 86,
         "sigma": 8,
+        "viability_min": 45,
         "cap_pct": 1.0,
         "role": "core",
         "visibility": "public"
@@ -1110,6 +1124,7 @@
       "tackling": {
         "mu": 77,
         "sigma": 9,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -1303,6 +1318,7 @@
       "acceleration": {
         "mu": 78,
         "sigma": 7,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -1310,6 +1326,7 @@
       "agility": {
         "mu": 74,
         "sigma": 7,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -1317,6 +1334,7 @@
       "tackling": {
         "mu": 75,
         "sigma": 7,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -1497,6 +1515,7 @@
       "tackling": {
         "mu": 78,
         "sigma": 7,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -1513,6 +1532,7 @@
       "strength": {
         "mu": 72,
         "sigma": 7,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -1528,6 +1548,7 @@
       "speed": {
         "mu": 62,
         "sigma": 8,
+        "viability_min": 35,
         "cap_pct": 0.98,
         "role": "secondary",
         "visibility": "public"
@@ -1685,6 +1706,7 @@
       "speed": {
         "mu": 86,
         "sigma": 6,
+        "viability_min": 50,
         "cap_pct": 1.0,
         "role": "core",
         "visibility": "public"
@@ -1692,6 +1714,7 @@
       "agility": {
         "mu": 82,
         "sigma": 6,
+        "viability_min": 45,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -1699,6 +1722,7 @@
       "coverage": {
         "mu": 76,
         "sigma": 7,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -1855,6 +1879,7 @@
       "speed": {
         "mu": 78,
         "sigma": 7,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -1862,6 +1887,7 @@
       "tackling": {
         "mu": 74,
         "sigma": 7,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -1870,6 +1896,7 @@
       "coverage": {
         "mu": 72,
         "sigma": 7,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
@@ -2017,6 +2044,7 @@
       "kick_power": {
         "mu": 78,
         "sigma": 8,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -2024,6 +2052,7 @@
       "kick_accuracy": {
         "mu": 76,
         "sigma": 8,
+        "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -2153,6 +2182,7 @@
       "kick_power": {
         "mu": 80,
         "sigma": 7,
+        "viability_min": 45,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"
@@ -2160,6 +2190,7 @@
       "kick_accuracy": {
         "mu": 74,
         "sigma": 8,
+        "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "public"

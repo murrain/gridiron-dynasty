@@ -47,8 +47,10 @@ extends RefCounted
 class_name FreeAgency
 
 const Rand = preload("res://autoloads/Rand.gd")
+const SimLogger = preload("res://autoloads/SimLogger.gd")
 const ContractNegotiation = preload("res://scripts/world/ContractNegotiation.gd")
 const ContractLifecycle = preload("res://scripts/world/ContractLifecycle.gd")
+const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
 
 
 ## Run complete free agency simulation for a given year.
@@ -103,8 +105,7 @@ static func run_free_agency(
 	stats_cfg: Dictionary,
 	league_cfg: Dictionary
 ) -> Dictionary:
-	var timestamp := _get_timestamp()
-	print("%s %d nfl_free_agency: Starting (seed: %d)" % [timestamp, year, seed])
+	SimLogger.info("Starting free agency (seed: %d)" % seed)
 
 	# Initialize RNG with FA-specific seed
 	# RNG PATTERN: Derive FA seed from master seed using XOR and splitmix64
@@ -113,18 +114,15 @@ static func run_free_agency(
 
 	# 1. Collect free agents
 	var free_agents := collect_free_agents(world_state, year, positions_cfg, main_cfg)
-	timestamp = _get_timestamp()
-	print("%s %d nfl_free_agency: Found %d free agents" % [timestamp, year, free_agents.size()])
+	SimLogger.info("Found %d free agents" % free_agents.size())
 
 	# 2. Apply franchise tags (before FA market opens)
 	var franchise_tagged := _apply_franchise_tags(world_state, year, free_agents, league_cfg)
-	timestamp = _get_timestamp()
-	print("%s %d nfl_free_agency: Applied %d franchise tags" % [timestamp, year, franchise_tagged.size()])
+	SimLogger.info("Applied %d franchise tags" % franchise_tagged.size())
 
 	# Remove franchise-tagged players from FA pool
 	free_agents = _remove_franchise_tagged(free_agents, franchise_tagged)
-	timestamp = _get_timestamp()
-	print("%s %d nfl_free_agency: %d players entering free agency" % [timestamp, year, free_agents.size()])
+	SimLogger.info("%d players entering free agency" % free_agents.size())
 
 	# 3. Generate team interest for all FA/team pairs
 	# RNG: 1 randf_range() call per team-player pair
@@ -137,8 +135,7 @@ static func run_free_agency(
 
 	for tier in tiers:
 		var tier_players := _filter_by_tier(free_agents, tier)
-		timestamp = _get_timestamp()
-		print("%s %d nfl_free_agency: Processing %d %s players" % [timestamp, year, tier_players.size(), tier])
+		SimLogger.info("Processing %d %s players" % [tier_players.size(), tier])
 
 		for fa_profile in tier_players:
 			var player_id: String = fa_profile.get("player_id", "")
@@ -184,16 +181,25 @@ static func run_free_agency(
 	# 5. Track unsigned players
 	var unsigned := _collect_unsigned(free_agents, signings)
 
-	# 6. Store results in world state
+	# 6. Fill rosters to minimum size (53 players) with UDFAs
+	var roster_filler_signings := _fill_rosters_to_minimum(
+		world_state,
+		year,
+		positions_cfg,
+		main_cfg,
+		league_cfg,
+		fa_rng,
+		team_spending
+	)
+	signings.append_array(roster_filler_signings)
+
+	# 7. Store results in world state
 	_store_fa_results(world_state, year, free_agents, signings, unsigned, franchise_tagged)
 
-	# 7. Return summary
+	# 8. Return summary
 	var total_spent := _calculate_total_spent(signings)
 
-	timestamp = _get_timestamp()
-	print("%s %d nfl_free_agency: Completed: %d signings, %d unsigned, %.2fM spent" % [
-		timestamp,
-		year,
+	SimLogger.info("Completed: %d signings, %d unsigned, %.2fM spent" % [
 		signings.size(),
 		unsigned.size(),
 		total_spent
@@ -201,8 +207,7 @@ static func run_free_agency(
 
 	# Log cap space impact summary
 	if not team_spending.is_empty():
-		timestamp = _get_timestamp()
-		print("%s %d nfl_free_agency: Cap space impact:" % [timestamp, year])
+		SimLogger.info("Cap space impact:")
 		var teams_by_spending: Array = []
 		for tid in team_spending.keys():
 			var spent: float = float(team_spending[tid])
@@ -221,7 +226,7 @@ static func run_free_agency(
 		# Log top 5 spenders to avoid excessive output
 		for i in range(mini(5, teams_by_spending.size())):
 			var entry: Dictionary = teams_by_spending[i]
-			print("  %s: $%.2fM spent, $%.2fM remaining" % [
+			SimLogger.info("  %s: $%.2fM spent, $%.2fM remaining" % [
 				String(entry["team"]),
 				float(entry["spent"]),
 				float(entry["remaining"])
@@ -447,13 +452,13 @@ static func apply_franchise_tag(
 
 	var year_tags := world_state["franchise_tags"].get(year, {}) as Dictionary
 	if year_tags.has(team_id):
-		print("[FreeAgency] ERROR: Team %s already used franchise tag in %d" % [team_id, year])
+		SimLogger.error("Team %s already used franchise tag in %d" % [team_id, year])
 		return {}
 
 	# Get player information
 	var player := _find_player_in_rosters(world_state, player_id)
 	if player.is_empty():
-		print("[FreeAgency] ERROR: Player %s not found" % player_id)
+		SimLogger.error("Player %s not found" % player_id)
 		return {}
 
 	var position := String(player.get("position", ""))
@@ -470,7 +475,7 @@ static func apply_franchise_tag(
 	var team := _find_team(world_state, team_id)
 	var cap_space := float(team.get("cap_space", 0.0))
 	if tag_salary > cap_space:
-		print("[FreeAgency] ERROR: Team %s cannot afford tag (%.2fM > %.2fM cap)" % [
+		SimLogger.error("Team %s cannot afford tag (%.2fM > %.2fM cap)" % [
 			team_id, tag_salary, cap_space
 		])
 		return {}
@@ -506,11 +511,52 @@ static func apply_franchise_tag(
 
 	player["contract"] = contract
 
-	print("[FreeAgency] Applied %s franchise tag to %s: %.2fM" % [
+	SimLogger.info("Applied %s franchise tag to %s: %.2fM" % [
 		tag_type, player_id, tag_salary
 	])
 
 	return franchise_tag
+
+
+## INTERNAL: Extract common profile fields from player data.
+##
+## Shared logic between veteran FA and UDFA profile creation:
+## - Extracts player ID (handles both "id" and "player_id" fields)
+## - Extracts position and age
+## - Calculates contract demand
+## - Determines priority tier
+##
+## @param player: Player dictionary
+## @param rating_score: Overall rating (eval_score for veterans, composite_score for UDFAs)
+## @param positions_cfg: Positions configuration
+## @param main_cfg: Main configuration
+## @return: Dictionary with common profile fields
+static func _extract_profile_common_fields(
+	player: Dictionary,
+	rating_score: float,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary
+) -> Dictionary:
+	var player_id := String(player.get("id", ""))
+	var position := String(player.get("position", ""))
+	var age := int(player.get("age", 22))
+
+	# Calculate market value and demand
+	var demand := ContractNegotiation.generate_player_demand(player, positions_cfg, main_cfg)
+	var minimum_demand := float(demand.get("minimum_annual_value", 1.0))
+
+	# Determine priority tier
+	var priority_tier := _determine_priority_tier(rating_score)
+
+	return {
+		"player_id": player_id,
+		"position": position,
+		"age": age,
+		"overall_rating": rating_score,
+		"minimum_demand": minimum_demand,
+		"priority_tier": priority_tier,
+		"demand": demand
+	}
 
 
 ## INTERNAL: Create free agent profile from player data.
@@ -520,29 +566,14 @@ static func _create_fa_profile(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary
 ) -> Dictionary:
-	var player_id := String(player.get("id", ""))
-	var position := String(player.get("position", ""))
-	var age := int(player.get("age", 22))
 	var eval_score := float(player.get("eval_score", 50.0))
+	var profile := _extract_profile_common_fields(player, eval_score, positions_cfg, main_cfg)
 
-	# Calculate market value and demand
-	var demand := ContractNegotiation.generate_player_demand(player, positions_cfg, main_cfg)
-	var minimum_demand := float(demand.get("minimum_annual_value", 1.0))
+	# Add veteran-specific fields
+	profile["previous_team_id"] = previous_team_id
+	profile["contract_expired"] = true
 
-	# Determine priority tier
-	var priority_tier := _determine_priority_tier(eval_score)
-
-	return {
-		"player_id": player_id,
-		"position": position,
-		"age": age,
-		"overall_rating": eval_score,
-		"previous_team_id": previous_team_id,
-		"contract_expired": true,
-		"minimum_demand": minimum_demand,
-		"priority_tier": priority_tier,
-		"demand": demand  # Store full demand for later use
-	}
+	return profile
 
 
 ## INTERNAL: Create FA profile for undrafted player.
@@ -563,33 +594,14 @@ static func _create_udfa_fa_profile(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary
 ) -> Dictionary:
-	# NflDraft normalizes: adds "id" field while keeping "player_id"
-	# Prefer "id" for consistency with roster players, fallback to "player_id"
-	var player_id := String(player.get("id", player.get("player_id", "")))
-	var position := String(player.get("position", "?"))
-	var age := int(player.get("age", 22))
 	var composite_score := float(player.get("composite_score", 50.0))
+	var profile := _extract_profile_common_fields(player, composite_score, positions_cfg, main_cfg)
 
-	# Calculate market value and demand for UDFA
-	# UDFAs typically get rookie minimum contracts
-	var demand := ContractNegotiation.generate_player_demand(player, positions_cfg, main_cfg)
-	var minimum_demand := float(demand.get("minimum_annual_value", 1.0))
+	# Add UDFA-specific fields
+	profile["previous_team_id"] = "UDFA"  # Mark as undrafted
+	profile["contract_expired"] = false  # Never had a contract
 
-	# Determine priority tier based on composite_score
-	# Most UDFAs will be depth or camp_body tier
-	var priority_tier := _determine_priority_tier(composite_score)
-
-	return {
-		"player_id": player_id,
-		"position": position,
-		"age": age,
-		"overall_rating": composite_score,
-		"previous_team_id": "UDFA",  # Mark as undrafted
-		"contract_expired": false,  # Never had a contract
-		"minimum_demand": minimum_demand,
-		"priority_tier": priority_tier,
-		"demand": demand  # Store full demand for later use
-	}
+	return profile
 
 
 ## INTERNAL: Determine free agent priority tier from evaluation score.
@@ -619,16 +631,9 @@ static func _assess_team_needs_stub(roster: Dictionary) -> Array:
 	var needs: Array = []
 	var by_position := roster.get("by_position", {}) as Dictionary
 
-	# Ideal depth by position
-	var ideal_depth := {
-		"QB": 3, "RB": 4, "WR": 6, "TE": 3,
-		"OL": 8, "DL": 6, "EDGE": 4, "LB": 6,
-		"CB": 5, "S": 4, "K": 1, "P": 1
-	}
-
-	for position in ideal_depth.keys():
+	for position in RosterComposition.IDEAL_DEPTH.keys():
 		var current: int = by_position.get(position, []).size()
-		var target: int = ideal_depth[position]
+		var target: int = RosterComposition.get_ideal_depth(position)
 
 		if current < target * 0.7:  # 70% threshold
 			needs.append({
@@ -800,8 +805,7 @@ static func _execute_signing(
 	# Find player object (checks rosters first, then undrafted pool)
 	var player := _find_player_object(world_state, player_id, year)
 	if player.is_empty():
-		var timestamp := _get_timestamp()
-		print("%s %d nfl_free_agency: ERROR: Cannot find player %s for signing" % [timestamp, year, player_id])
+		SimLogger.error("Cannot find player %s for signing" % player_id)
 		return {}
 
 	# Determine previous team (empty for UDFAs)
@@ -845,10 +849,9 @@ static func _execute_signing(
 	team_spending[team_id] = float(team_spending[team_id]) + aav
 
 	# Log signing with UDFA indicator
-	var timestamp := _get_timestamp()
 	var udfa_marker := " (UDFA)" if previous_team_id.is_empty() else ""
-	print("%s %d nfl_free_agency: Signed %s to %s for %.2fM AAV%s" % [
-		timestamp, year, player_id, team_id, aav, udfa_marker
+	SimLogger.info("Signed %s to %s for %.2fM AAV%s" % [
+		player_id, team_id, aav, udfa_marker
 	])
 
 	return {
@@ -1046,8 +1049,7 @@ static func _find_player_in_undrafted_pool(
 
 	for player in year_pool:
 		var p: Dictionary = player
-		# NflDraft normalizes: check "id" first, fallback to "player_id"
-		var pid := String(p.get("id", p.get("player_id", "")))
+		var pid := String(p.get("id", ""))
 		if pid == player_id:
 			return p
 
@@ -1140,8 +1142,7 @@ static func _move_player_to_team(
 	# Find player object (checks rosters first, then undrafted pool)
 	var player := _find_player_object(world_state, player_id, year)
 	if player.is_empty():
-		var timestamp := _get_timestamp()
-		print("%s %d nfl_free_agency: ERROR: Cannot find player %s" % [timestamp, year, player_id])
+		SimLogger.error("Cannot find player %s" % player_id)
 		return
 
 	# Remove from old team (if from a team roster)
@@ -1162,8 +1163,7 @@ static func _move_player_to_team(
 			var year_pool: Array = undrafted_pool[year]
 			for i in range(year_pool.size()):
 				var p: Dictionary = year_pool[i]
-				# NflDraft normalizes: check "id" first, fallback to "player_id"
-				var pid := String(p.get("id", p.get("player_id", "")))
+				var pid := String(p.get("id", ""))
 				if pid == player_id:
 					year_pool.remove_at(i)
 					break
@@ -1179,6 +1179,231 @@ static func _move_player_to_team(
 
 		var to_players := to_roster.get("players", []) as Array
 		to_players.append(player)
+
+## Fill team rosters to minimum size (53 players) with UDFAs using market dynamics
+##
+## After regular free agency, teams may still be below the 53-player minimum.
+## This runs a competitive UDFA market where:
+## 1. Teams generate interest in UDFAs based on positional needs
+## 2. Teams make offers to players they want
+## 3. Players choose best offer (considering money, playing time, team quality)
+## 4. Market runs in rounds until teams reach 53 or UDFA pool exhausted
+##
+## RNG: 1 randf_range() call per team-player interest evaluation
+##      + 1 randf_range() per player offer evaluation
+##
+## @param world_state: World state dictionary
+## @param year: Current year
+## @param positions_cfg: Positions configuration
+## @param main_cfg: Main configuration
+## @param league_cfg: League configuration (for roster limits)
+## @param rng: RandomNumberGenerator for market dynamics
+## @param team_spending: Dictionary tracking team spending (updated in place)
+## @return: Array of signing dictionaries
+static func _fill_rosters_to_minimum(
+	world_state: Dictionary,
+	year: int,
+	positions_cfg: Dictionary,
+	main_cfg: Dictionary,
+	league_cfg: Dictionary,
+	rng: RandomNumberGenerator,
+	team_spending: Dictionary
+) -> Array:
+	var roster_limits := league_cfg.get("roster_limits", {}) as Dictionary
+	var min_roster_size := int(roster_limits.get("active", 53))
+	var rosters := world_state.get("nfl_rosters", {}) as Dictionary
+	var teams := world_state.get("nfl_teams", []) as Array
+	var undrafted_pool := world_state.get("undrafted_pool", {}) as Dictionary
+	var year_udfas: Array = undrafted_pool.get(year, []) as Array
+
+	if year_udfas.is_empty():
+		return []  # No UDFAs available
+
+	# Create FA profiles for all UDFAs
+	var udfa_profiles: Array = []
+	for udfa in year_udfas:
+		var profile := _create_udfa_fa_profile(udfa, year, positions_cfg, main_cfg)
+		udfa_profiles.append(profile)
+
+	var all_signings: Array = []
+	var max_rounds := 10  # Prevent infinite loops
+	var round_num := 0
+
+	# Run market rounds until all teams have 53 players or no more UDFAs
+	while round_num < max_rounds:
+		round_num += 1
+
+		# Check if any team still needs players
+		var teams_needing_players := _get_teams_below_minimum(teams, rosters, min_roster_size)
+		if teams_needing_players.is_empty():
+			break  # All teams full
+
+		if udfa_profiles.is_empty():
+			break  # No more UDFAs available
+
+		# Generate team interest for remaining UDFAs
+		# CRITICAL: Weight heavily by positional need for roster-filling
+		var team_interest := _generate_udfa_team_interest(
+			world_state,
+			udfa_profiles,
+			teams_needing_players,
+			rosters,
+			min_roster_size,
+			rng
+		)
+
+		# Process signings for this round
+		var round_signings: Array = []
+		var signed_this_round := {}
+
+		for fa_profile in udfa_profiles:
+			var player_id := String(fa_profile.get("player_id", ""))
+
+			# Generate offers from interested teams
+			var offers := _generate_offers_for_player(
+				fa_profile,
+				team_interest,
+				world_state,
+				positions_cfg,
+				main_cfg
+			)
+
+			if offers.is_empty():
+				continue  # No teams interested
+
+			# Player chooses best offer
+			var chosen_team_id := player_chooses_team(
+				player_id,
+				team_interest,
+				offers,
+				rng
+			)
+
+			if chosen_team_id.is_empty():
+				continue  # Player declined all offers (shouldn't happen for UDFAs)
+
+			# Execute signing
+			var chosen_offer := _find_offer(offers, chosen_team_id)
+			var signing := _execute_signing(
+				world_state,
+				player_id,
+				chosen_team_id,
+				chosen_offer,
+				year,
+				team_spending
+			)
+
+			if not signing.is_empty():
+				round_signings.append(signing)
+				signed_this_round[player_id] = true
+
+		# Remove signed players from UDFA pool
+		udfa_profiles = udfa_profiles.filter(func(profile):
+			var pid := String(profile.get("player_id", ""))
+			return not signed_this_round.has(pid)
+		)
+
+		all_signings.append_array(round_signings)
+
+		if round_signings.is_empty():
+			break  # No signings this round, market has cleared
+
+	if all_signings.size() > 0:
+		SimLogger.info("UDFA market completed in %d rounds: %d signings" % [
+			round_num, all_signings.size()
+		])
+
+		# Log final roster sizes
+		var teams_still_short := _get_teams_below_minimum(teams, rosters, min_roster_size)
+		if teams_still_short.size() > 0:
+			SimLogger.warn("%d teams still below 53 players" % teams_still_short.size())
+
+	return all_signings
+
+
+## INTERNAL: Get list of teams below minimum roster size
+static func _get_teams_below_minimum(
+	teams: Array,
+	rosters: Dictionary,
+	min_size: int
+) -> Array:
+	var teams_below: Array = []
+	for team in teams:
+		var team_id := String(team.get("id", ""))
+		var roster := rosters.get(team_id, {}) as Dictionary
+		var players := roster.get("players", []) as Array
+		if players.size() < min_size:
+			teams_below.append(team_id)
+	return teams_below
+
+
+## INTERNAL: Generate team interest for UDFAs with heavy positional need weighting
+##
+## Similar to regular generate_team_interest() but with critical differences:
+## - Only evaluates teams that need players
+## - Heavily weights positional need (3x multiplier for critical needs)
+## - Lower interest threshold (teams more willing to sign UDFAs to fill rosters)
+##
+## RNG: 1 randf_range() call per team-player evaluation
+static func _generate_udfa_team_interest(
+	world_state: Dictionary,
+	udfa_profiles: Array,
+	teams_needing_players: Array,
+	rosters: Dictionary,
+	min_roster_size: int,
+	rng: RandomNumberGenerator
+) -> Dictionary:
+	var team_interest := {}
+	var nfl_teams := world_state.get("nfl_teams", []) as Array
+
+	# Filter to only teams that need players
+	var active_teams: Array = []
+	for team in nfl_teams:
+		var team_id := String(team.get("id", ""))
+		if teams_needing_players.has(team_id):
+			active_teams.append(team)
+
+	for team in active_teams:
+		var team_id := String(team.get("id", ""))
+		team_interest[team_id] = {}
+
+		var roster := rosters.get(team_id, {}) as Dictionary
+		var players := roster.get("players", []) as Array
+		var cap_space := float(team.get("cap_space", 0.0))
+
+		# Calculate positional deficits for heavy need weighting
+		var position_deficits := _calculate_position_deficits(roster)
+
+		for fa_profile in udfa_profiles:
+			var player_id := String(fa_profile.get("player_id", ""))
+			var position := String(fa_profile.get("position", ""))
+			var minimum_demand := float(fa_profile.get("minimum_demand", 0.9))
+
+			# Base interest from positional need
+			var deficit := int(position_deficits.get(position, 0))
+			var need_score := 1.0
+			if deficit > 0:
+				need_score = 3.0  # Critical need (position below minimum)
+			elif players.size() < min_roster_size - 5:
+				need_score = 2.0  # Any position helps when significantly short
+
+			# Affordability (UDFAs are cheap, so usually 1.0)
+			var affordability := 1.0 if cap_space >= minimum_demand else 0.3
+
+			# RNG CALL: Add variance
+			var variance := rng.randf_range(0.85, 1.15)
+
+			# Final interest score (need-driven)
+			var interest_score := need_score * affordability * variance
+
+			team_interest[team_id][player_id] = interest_score
+
+	return team_interest
+
+
+## INTERNAL: Calculate positional deficits vs minimum requirements
+static func _calculate_position_deficits(roster: Dictionary) -> Dictionary:
+	return RosterComposition.calculate_minimum_deficits(roster)
 
 ## Returns current timestamp in HH:MM:SS format
 static func _get_timestamp() -> String:
