@@ -274,9 +274,296 @@ static func select_freak_candidates(
 
 ---
 
-## 3. Configuration
+## 3. Stat Inheritance System
 
-### 3.1 main.json Updates
+### 3.1 Problem: Repeated Definitions
+
+Currently, stats like `work_ethic`, `discipline`, `maturity` would need to be defined for every position. This is:
+- Redundant (same mu/sigma for most positions)
+- Error-prone (easy to forget a stat)
+- Unrealistic (a 10 work_ethic player wouldn't survive college, let alone make the NFL)
+
+### 3.2 Solution: Base Template + Position Overrides
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Stat Inheritance Hierarchy                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  BASE_PLAYER_TEMPLATE                                                            │
+│  ───────────────────                                                             │
+│  Common stats ALL players have, regardless of position.                          │
+│  These reflect the baseline of "NFL-caliber human being":                        │
+│                                                                                  │
+│    work_ethic:     mu: 65, sigma: 12    (NFL players work hard)                  │
+│    discipline:     mu: 60, sigma: 14    (Had to be disciplined to get here)      │
+│    maturity:       mu: 55, sigma: 15    (Varies more, young players)             │
+│    composure:      mu: 55, sigma: 14    (Pressure handling varies)               │
+│    ambition:       mu: 60, sigma: 15    (Driven to succeed)                      │
+│    competitiveness: mu: 65, sigma: 12   (NFL is competitive by nature)           │
+│    confidence:     mu: 60, sigma: 16    (Wide range)                             │
+│    coachability:   mu: 58, sigma: 14                                             │
+│    adaptability:   mu: 55, sigma: 13                                             │
+│    focus:          mu: 58, sigma: 14                                             │
+│    stamina:        mu: 60, sigma: 12    (Athletes, but position varies)          │
+│                                                                                  │
+│         ↓ INHERITED BY ↓                                                         │
+│                                                                                  │
+│  POSITION TEMPLATES (QB, WR, TE, etc.)                                           │
+│  ─────────────────────────────────────                                           │
+│  Inherit base stats, then ADD position-specific stats:                           │
+│                                                                                  │
+│    QB adds:  throw_accuracy, throw_power, decision_making, awareness...          │
+│    WR adds:  speed, agility, route_running, catching...                          │
+│    OL adds:  strength, blocking, anchor...                                       │
+│                                                                                  │
+│  Can OVERRIDE base stats if position warrants:                                   │
+│                                                                                  │
+│    QB.composure:  mu: 65, sigma: 10  (QBs need higher composure on avg)          │
+│    OL.discipline: mu: 68, sigma: 10  (OL requires discipline)                    │
+│    WR.confidence: mu: 70, sigma: 14  (WRs tend to be confident)                  │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.3 Base Player Template
+
+```json
+{
+    "base_player": {
+        "description": "Common stats for all NFL-caliber players",
+        "note": "These players survived HS → College → NFL pipeline. They're not random people.",
+
+        "mental_stats": {
+            "work_ethic": {
+                "mu": 65, "sigma": 12,
+                "floor": 35,
+                "description": "NFL players generally work hard - low floor because slackers get cut"
+            },
+            "discipline": {
+                "mu": 60, "sigma": 14,
+                "floor": 30,
+                "description": "Had to maintain discipline through college to get here"
+            },
+            "maturity": {
+                "mu": 55, "sigma": 15,
+                "description": "Varies widely - rookies can be immature"
+            },
+            "composure": {
+                "mu": 55, "sigma": 14,
+                "description": "Ability to perform under pressure"
+            },
+            "ambition": {
+                "mu": 60, "sigma": 15,
+                "description": "Drive to achieve greatness"
+            },
+            "competitiveness": {
+                "mu": 65, "sigma": 12,
+                "floor": 40,
+                "description": "NFL is intensely competitive - low floor"
+            },
+            "confidence": {
+                "mu": 60, "sigma": 16,
+                "description": "Self-belief varies widely"
+            },
+            "coachability": {
+                "mu": 58, "sigma": 14,
+                "description": "Willingness to take instruction"
+            },
+            "adaptability": {
+                "mu": 55, "sigma": 13,
+                "description": "Ability to adjust to new situations"
+            },
+            "focus": {
+                "mu": 58, "sigma": 14,
+                "description": "Mental concentration"
+            }
+        },
+
+        "physical_baseline": {
+            "stamina": {
+                "mu": 60, "sigma": 12,
+                "description": "Base conditioning - positions override significantly"
+            },
+            "injury_resistance": {
+                "mu": 50, "sigma": 15,
+                "description": "Durability varies widely"
+            }
+        }
+    }
+}
+```
+
+### 3.4 Position Template Structure
+
+Positions inherit from base and add/override:
+
+```json
+{
+    "QB": {
+        "inherits": "base_player",
+
+        "overrides": {
+            "composure": { "mu": 68, "sigma": 10 },
+            "decision_making_baseline": { "mu": 60, "sigma": 12 }
+        },
+
+        "core_stats": ["throw_accuracy", "decision_making", "awareness", "anticipation", "composure"],
+
+        "position_specific": {
+            "throw_accuracy": { "mu": 78, "sigma": 9, "viability_min": 45 },
+            "throw_power": { "mu": 79, "sigma": 9, "viability_min": 40 },
+            "decision_making": { "mu": 73, "sigma": 7 },
+            "awareness": { "mu": 73, "sigma": 7, "viability_min": 35 },
+            "anticipation": { "mu": 70, "sigma": 8 }
+        }
+    },
+
+    "WR": {
+        "inherits": "base_player",
+
+        "overrides": {
+            "confidence": { "mu": 70, "sigma": 14 },
+            "stamina": { "mu": 72, "sigma": 10 }
+        },
+
+        "core_stats": ["speed", "agility", "route_running", "catching"],
+
+        "position_specific": {
+            "speed": { "mu": 84, "sigma": 6, "viability_min": 45 },
+            "agility": { "mu": 80, "sigma": 7, "viability_min": 40 },
+            "route_running": { "mu": 74, "sigma": 8 },
+            "catching": { "mu": 74, "sigma": 8, "viability_min": 35 }
+        }
+    },
+
+    "OL": {
+        "inherits": "base_player",
+
+        "overrides": {
+            "discipline": { "mu": 68, "sigma": 10 },
+            "work_ethic": { "mu": 70, "sigma": 10 },
+            "stamina": { "mu": 75, "sigma": 8 }
+        },
+
+        "core_stats": ["strength", "blocking", "anchor"],
+
+        "position_specific": {
+            "strength": { "mu": 82, "sigma": 7, "viability_min": 50 },
+            "blocking": { "mu": 75, "sigma": 8, "viability_min": 45 },
+            "anchor": { "mu": 72, "sigma": 9 }
+        }
+    }
+}
+```
+
+### 3.5 Stat Resolution Algorithm
+
+```gdscript
+## Resolve final stat distributions for a position
+static func resolve_position_stats(
+    position: String,
+    base_template: Dictionary,
+    positions_cfg: Dictionary
+) -> Dictionary:
+    var pos_config := positions_cfg[position]
+    var resolved := {}
+
+    # Start with all base stats
+    for category in base_template.keys():
+        for stat_name in base_template[category].keys():
+            resolved[stat_name] = base_template[category][stat_name].duplicate()
+
+    # Apply position overrides
+    var overrides: Dictionary = pos_config.get("overrides", {})
+    for stat_name in overrides.keys():
+        if resolved.has(stat_name):
+            # Merge override into existing stat
+            for key in overrides[stat_name].keys():
+                resolved[stat_name][key] = overrides[stat_name][key]
+        else:
+            resolved[stat_name] = overrides[stat_name].duplicate()
+
+    # Add position-specific stats
+    var pos_specific: Dictionary = pos_config.get("position_specific", {})
+    for stat_name in pos_specific.keys():
+        resolved[stat_name] = pos_specific[stat_name].duplicate()
+
+    return resolved
+```
+
+### 3.6 Why Floors Matter
+
+Some stats have minimum floors because the NFL selection process filters out extremes:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Stat Floors (NFL Selection Filter)                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  STAT              FLOOR    REASONING                                            │
+│  ────              ─────    ─────────                                            │
+│  work_ethic        35       Lazy players get cut in college                      │
+│  discipline        30       Undisciplined players never make it                  │
+│  competitiveness   40       Non-competitive players don't pursue NFL             │
+│                                                                                  │
+│  NO FLOOR (can be very low):                                                     │
+│  ───────────────────────────                                                     │
+│  maturity          --       Young players can be very immature                   │
+│  composure         --       Some players crumble under pressure                  │
+│  coachability      --       Some talented players are uncoachable                │
+│  confidence        --       Can be very low (imposter syndrome)                  │
+│                                                                                  │
+│  The NFL has lazy-ish players (work_ethic 40), but not work_ethic 10.            │
+│  It has immature players (maturity 20), because talent can overcome it.          │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.7 Chaos Generation with Inheritance
+
+For chaos players, base stats still use the base template (not random 0-100):
+
+```gdscript
+## Chaos generation respects base template for mental stats
+static func generate_chaos_player(
+    all_physical_stats: Array,
+    base_template: Dictionary,
+    positions_cfg: Dictionary,
+    rng: RandomNumberGenerator
+) -> Dictionary:
+    var stats := {}
+
+    # Mental stats: Use base template distributions (NOT random)
+    # These represent "NFL-caliber human being" regardless of position
+    for stat_name in base_template["mental_stats"].keys():
+        var dist := base_template["mental_stats"][stat_name]
+        var floor_val := float(dist.get("floor", 0.0))
+        stats[stat_name] = max(
+            floor_val,
+            _sample_gauss(float(dist["mu"]), float(dist["sigma"]), 0.0, 100.0, rng)
+        )
+
+    # Physical/skill stats: Random uniform (the chaos part)
+    for stat_name in all_physical_stats:
+        if not stats.has(stat_name):
+            stats[stat_name] = rng.randf_range(25.0, 95.0)
+
+    # Find best-fit position
+    var best_position := _find_best_fit_position(stats, positions_cfg)
+
+    return {
+        "position": best_position,
+        "stats": stats,
+        "generation_mode": "chaos"
+    }
+```
+
+---
+
+## 4. Configuration
+
+### 4.1 main.json Updates
 
 ```json
 {
@@ -300,15 +587,15 @@ static func select_freak_candidates(
 }
 ```
 
-### 3.2 positions.json Updates
+### 4.2 positions.json Updates
 
-No changes needed for freak system - freaks are position-agnostic. The existing `core_stats` and `distributions` are sufficient.
+Rework to use inheritance system. See Section 3 for new structure.
 
 ---
 
-## 4. Integration Points
+## 5. Integration Points
 
-### 4.1 PlayerGenerator.gd Changes
+### 5.1 PlayerGenerator.gd Changes
 
 ```gdscript
 ## Main generation entry point
@@ -348,7 +635,7 @@ func generate_player_class(
     return players
 ```
 
-### 4.2 Scouting Integration
+### 5.2 Scouting Integration
 
 Freak stats should be **hidden by default** and require scouting to discover:
 
@@ -369,9 +656,9 @@ const FREAK_STAT_SCOUTING := {
 
 ---
 
-## 5. Example Scenarios
+## 6. Example Scenarios
 
-### 5.1 The Kicking TE
+### 6.1 The Kicking TE
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -396,7 +683,7 @@ const FREAK_STAT_SCOUTING := {
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 The Coverage DL
+### 6.2 The Coverage DL
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -420,7 +707,7 @@ const FREAK_STAT_SCOUTING := {
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.3 The Chaos Player
+### 6.3 The Chaos Player
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -447,7 +734,7 @@ const FREAK_STAT_SCOUTING := {
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.4 The Chaos Freak (Double Weird)
+### 6.4 The Chaos Freak (Double Weird)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -475,7 +762,7 @@ const FREAK_STAT_SCOUTING := {
 
 ---
 
-## 6. Implementation Phases
+## 7. Implementation Phases
 
 ### Phase 1: Core Generation Split
 1. Add `templated_share` / `chaos_share` config to main.json
@@ -502,18 +789,20 @@ const FREAK_STAT_SCOUTING := {
 
 ---
 
-## 7. Files to Modify
+## 8. Files to Modify
 
 | File | Changes |
 |------|---------|
-| `scripts/generation/PlayerGenerator.gd` | New generation modes, random freak system |
-| `scripts/generation/StatsHelper.gd` | Separate templated vs chaos sampling |
+| `scripts/generation/PlayerGenerator.gd` | New generation modes, random freak system, stat inheritance |
+| `scripts/generation/StatsHelper.gd` | Separate templated vs chaos sampling, resolve inheritance |
 | `configs/sports/american_football/main.json` | Add `player_generation` config block |
+| `configs/sports/american_football/base_player.json` | **NEW** - Base template for common stats |
+| `configs/sports/american_football/positions.json` | Rework to use `inherits` + `overrides` structure |
 | `scripts/core/models/Player.gd` | Add `freak_data`, `generation_mode` fields |
 
 ---
 
-## 8. Open Questions
+## 9. Open Questions
 
 1. **Chaos stat range**: Should chaos players use full 0-100 range or constrained 25-95?
 2. **Freak visibility**: Should freak stats be visible at combine, or require deep scouting/game film?
