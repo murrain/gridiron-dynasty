@@ -141,146 +141,97 @@ static func _find_best_fit_position(
 
 ---
 
-## 2. Positional Freaks System
+## 2. Random Freaks System
 
 ### 2.1 Design Philosophy
 
-Instead of just boosting athletic stats, freaks have **unusual stat combinations** that are outside their positional norm but could be exploited by creative coaches.
+Freaks get a **completely random stat** boosted to ~90, regardless of whether it makes any positional sense. This creates truly weird, unpredictable players that clever coaches might find uses for.
+
+**No position-specific rules** - the freak stat is pure chaos.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    Positional Freak Examples                                     │
+│                    Random Freak Examples (Actual Possibilities)                  │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│  POSITION    FREAK STAT              USE CASE                                    │
-│  ────────    ──────────              ────────                                    │
-│  TE          throw_accuracy: 90      Trick plays, Philly Special                 │
-│  WR          blocking: 90            Elite run-game receiver, jet sweeps         │
-│  RB          throw_accuracy: 85      Halfback pass plays                         │
-│  CB          catching: 88            Ball hawk, pick-six threat                  │
-│  OL          agility: 85             Pull blocks, screen plays                   │
-│  LB          coverage: 88            Hybrid safety/LB, modern defense            │
-│  DL          speed: 88               Edge rusher flexibility                     │
-│  QB          blocking: 80            Actually helps in run game (lol)            │
-│  K/P         tackling: 85            Last line of defense on returns             │
+│  PLAYER           FREAK STAT              WHAT COULD YOU DO WITH THIS?           │
+│  ──────           ──────────              ────────────────────────────           │
+│  TE               kick_power: 92          Emergency kicker? Onside kicks?        │
+│  WR               pass_rush: 88           Blitz package from slot?               │
+│  QB               run_stuffing: 91        Goal line QB sneak defense? lol        │
+│  K                catching: 90            Fake field goal receiver               │
+│  CB               throw_accuracy: 89      Trick play corner pass                 │
+│  OL               coverage: 87            Tackle-eligible coverage LB?           │
+│  RB               kick_accuracy: 93       Drop kick specialist                   │
+│  DL               route_running: 86       Fat guy touchdown package              │
+│  P                blocking: 91            Punt protection becomes punt offense   │
+│  LB               throw_power: 88         Wildcat linebacker                     │
 │                                                                                  │
-│  These players look "normal" at their position but have hidden utility          │
+│  These are WEIRD. Most coaches will ignore them. Creative coaches find gold.    │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Freak Stat Configuration
-
-Define which stats are "unusual" for each position:
+### 2.2 Freak Generation Algorithm
 
 ```gdscript
-## Stats that are unusual/valuable outliers for each position
-## These are stats with low mu (<50) for the position but high utility if boosted
-const POSITIONAL_FREAK_STATS := {
-    "QB": {
-        "unusual_stats": ["blocking", "tackling", "speed"],
-        "description": "Mobile QB who can block on designed runs or make tackles"
-    },
-    "RB": {
-        "unusual_stats": ["throw_accuracy", "throw_power", "route_running"],
-        "description": "Versatile back who can throw or line up as receiver"
-    },
-    "WR": {
-        "unusual_stats": ["blocking", "throw_accuracy", "tackling"],
-        "description": "Physical receiver for run support or trick plays"
-    },
-    "TE": {
-        "unusual_stats": ["throw_accuracy", "throw_power", "speed"],
-        "description": "Athletic TE for trick plays or mismatch creation"
-    },
-    "OL": {
-        "unusual_stats": ["speed", "agility", "catching"],
-        "description": "Athletic lineman for screens or tackle-eligible plays"
-    },
-    "DL": {
-        "unusual_stats": ["speed", "coverage", "catching"],
-        "description": "Versatile lineman who can drop into coverage or tip passes"
-    },
-    "LB": {
-        "unusual_stats": ["coverage", "catching", "speed"],
-        "description": "Modern hybrid LB who can cover TEs and RBs"
-    },
-    "CB": {
-        "unusual_stats": ["catching", "return_ability", "tackling"],
-        "description": "Ball-hawk corner or physical run-support DB"
-    },
-    "S": {
-        "unusual_stats": ["pass_rush", "run_stuffing", "catching"],
-        "description": "Versatile safety who can blitz or play center field"
-    },
-    "K": {
-        "unusual_stats": ["tackling", "speed"],
-        "description": "Kicker who won't get trucked on returns"
-    },
-    "P": {
-        "unusual_stats": ["tackling", "throw_accuracy", "speed"],
-        "description": "Punter who can make plays on fakes or tackles"
-    }
-}
-```
-
-### 2.3 Freak Generation Algorithm
-
-```gdscript
-## Generate positional freak by boosting unusual stats
+## Generate freak by boosting a RANDOM low stat to elite level
+## No position-specific logic - pure chaos
 static func apply_freak_boost(
     player: Dictionary,
-    positions_cfg: Dictionary,
+    all_stats: Array,
     rng: RandomNumberGenerator
 ) -> Dictionary:
-    var position: String = player["position"]
     var stats: Dictionary = player["stats"]
-    var freak_config := POSITIONAL_FREAK_STATS.get(position, {})
 
-    if freak_config.is_empty():
-        return player  # No freak stats defined for this position
+    # Find all stats that are currently LOW for this player (below 50)
+    # These are candidates for the freak boost
+    var low_stats := []
+    for stat_name in all_stats:
+        if stats.has(stat_name):
+            var value := float(stats[stat_name])
+            if value < 50.0:
+                low_stats.append(stat_name)
 
-    var unusual_stats: Array = freak_config.get("unusual_stats", [])
-    if unusual_stats.is_empty():
-        return player
+    if low_stats.is_empty():
+        return player  # No low stats to boost (rare)
 
-    # Pick 1-2 unusual stats to boost
-    var num_boosts := rng.randi_range(1, 2)
-    unusual_stats.shuffle()  # Randomize which stats get boosted
+    # Randomly pick 1 low stat to boost to elite level
+    var stat_to_boost: String = low_stats[rng.randi() % low_stats.size()]
+    var current_value := float(stats[stat_to_boost])
 
-    var boosted_stats := []
-    for i in range(min(num_boosts, unusual_stats.size())):
-        var stat_to_boost: String = unusual_stats[i]
+    # Boost to elite level (88-95 range)
+    var boost_target := rng.randf_range(88.0, 95.0)
+    stats[stat_to_boost] = boost_target
 
-        if stats.has(stat_to_boost):
-            # Boost to elite level (85-95 range)
-            var boost_target := rng.randf_range(85.0, 95.0)
-            var current_value := float(stats[stat_to_boost])
+    # Tag the player as a freak
+    var tags: Array = player.get("tags", [])
+    tags.append("Freak")
+    player["tags"] = tags
 
-            # Only boost if it's actually unusual (below 60 normally)
-            if current_value < 60.0:
-                stats[stat_to_boost] = boost_target
-                boosted_stats.append({
-                    "stat": stat_to_boost,
-                    "from": current_value,
-                    "to": boost_target
-                })
-
-    # Tag the player as a freak with details
-    if boosted_stats.size() > 0:
-        var tags: Array = player.get("tags", [])
-        tags.append("PositionalFreak")
-        player["tags"] = tags
-
-        player["freak_data"] = {
-            "boosted_stats": boosted_stats,
-            "description": freak_config.get("description", ""),
-            "discovery_difficulty": "hard"  # These are hidden gems
-        }
+    player["freak_data"] = {
+        "boosted_stat": stat_to_boost,
+        "from": current_value,
+        "to": boost_target,
+        "discovery_difficulty": "hard"
+    }
 
     player["stats"] = stats
     return player
 ```
+
+### 2.3 Why Pure Randomness?
+
+Position-specific "unusual stats" are predictable:
+- Scout sees TE → checks throw_accuracy for trick play potential
+- Scout sees WR → checks blocking for run support
+
+**Pure randomness creates genuine surprises:**
+- Scout sees TE → has to check ALL stats to find the hidden gem
+- Maybe this TE has 92 kick_power and your kicker just got hurt
+- Maybe this CB has 89 throw_accuracy and you're playing for a trick play
+
+The value is in the **discovery** - coaches who invest in deep scouting find weird tools. Coaches who don't will never know what they're missing.
 
 ### 2.4 Freak Selection Criteria
 
@@ -296,19 +247,23 @@ static func select_freak_candidates(
     var candidates := []
 
     for player in players:
-        # Must be a templated player (chaos players are already unusual)
-        if player.get("generation_mode") != "templated":
-            continue
+        # Can be either templated OR chaos player
+        # Chaos players with a freak stat are extra weird
 
         # Must have solid core stats (not a bust with a gimmick)
         var position: String = player["position"]
         var core_stat_avg := _get_core_stat_average(player, position)
-        if core_stat_avg < 65.0:
+        if core_stat_avg < 60.0:
             continue  # Below average players don't become freaks
 
-        # Must not already be exceptional (leave room for the unusual stat)
-        if core_stat_avg > 85.0:
-            continue  # Already elite, doesn't need gimmick
+        # Must have at least one low stat to boost
+        var has_low_stat := false
+        for stat_name in player["stats"].keys():
+            if float(player["stats"][stat_name]) < 50.0:
+                has_low_stat = true
+                break
+        if not has_low_stat:
+            continue
 
         candidates.append(player)
 
@@ -331,10 +286,10 @@ static func select_freak_candidates(
 
         "freaks": {
             "max_per_class": 5,
-            "min_core_stat_avg": 65.0,
-            "max_core_stat_avg": 85.0,
-            "boost_range": [85.0, 95.0],
-            "max_boosts_per_player": 2
+            "min_core_stat_avg": 60.0,
+            "boost_range": [88.0, 95.0],
+            "low_stat_threshold": 50.0,
+            "note": "Freak stat is chosen randomly from any stat below threshold"
         },
 
         "chaos_stat_range": {
@@ -347,18 +302,7 @@ static func select_freak_candidates(
 
 ### 3.2 positions.json Updates
 
-Add `unusual_stats` to each position definition:
-
-```json
-{
-    "TE": {
-        "core_stats": ["strength", "blocking", "catching"],
-        "unusual_stats": ["throw_accuracy", "throw_power", "speed"],
-        "unusual_stat_description": "Athletic TE for trick plays or mismatch creation",
-        "distributions": { ... }
-    }
-}
-```
+No changes needed for freak system - freaks are position-agnostic. The existing `core_stats` and `distributions` are sufficient.
 
 ---
 
@@ -427,47 +371,51 @@ const FREAK_STAT_SCOUTING := {
 
 ## 5. Example Scenarios
 
-### 5.1 The Trick Play TE
+### 5.1 The Kicking TE
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    Marcus Johnson - TE (Positional Freak)                        │
+│                    Marcus Johnson - TE (Random Freak)                            │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
 │  CORE STATS (Normal TE)           FREAK STAT (Hidden)                            │
 │  ─────────────────────            ───────────────────                            │
-│  Strength: 72                     Throw Accuracy: 91  ← Was 32, boosted          │
+│  Strength: 72                     Kick Power: 92  ← Was 28, randomly boosted     │
 │  Blocking: 68                                                                    │
-│  Catching: 71                     This TE played QB in high school.              │
-│                                   Can run Philly Special or trick passes.        │
+│  Catching: 71                     Nobody knows why this TE can kick 60-yarders.  │
+│                                   Maybe he played soccer? Who cares.             │
 │  Generation: Templated (80%)                                                     │
-│  Freak Selection: Core avg 70.3   Scouting Required: Yes (hidden by default)     │
+│  Freak Selection: Random stat     USAGE: Emergency kicker, surprise onside kicks │
 │                                                                                  │
-│  COACH VALUE: High for creative offensive coordinators                           │
-│               Worthless for traditional coaches who won't use it                 │
+│  COACH VALUE: Your kicker gets hurt in the playoffs? This guy saves you.         │
+│               99% of the time this stat is worthless. 1% it wins a game.         │
+│                                                                                  │
+│  SCOUTING: Most scouts will NEVER check a TE's kick_power.                       │
+│            Only obsessive deep-divers find this.                                 │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 The Blocking WR
+### 5.2 The Coverage DL
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    DeShawn Williams - WR (Positional Freak)                      │
+│                    DeShawn Williams - DL (Random Freak)                          │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│  CORE STATS (Normal WR)           FREAK STAT (Hidden)                            │
+│  CORE STATS (Normal DL)           FREAK STAT (Hidden)                            │
 │  ─────────────────────            ───────────────────                            │
-│  Speed: 82                        Blocking: 89  ← Was 35, boosted                │
-│  Agility: 78                                                                     │
-│  Route Running: 74                This WR was an OL in high school.              │
-│  Catching: 75                     Elite run-game receiver, jet sweep blocks.     │
+│  Strength: 85                     Coverage: 89  ← Was 31, randomly boosted       │
+│  Pass Rush: 74                                                                   │
+│  Run Stuffing: 78                 A 290lb DL who can cover tight ends???         │
+│  Speed: 62                        Sounds insane. Might be a secret weapon.       │
 │                                                                                  │
-│  Generation: Templated (80%)      Perfect for run-heavy offenses.                │
-│  Freak Selection: Core avg 77.3   Teams like SF/BAL would love this player.      │
+│  Generation: Templated (80%)      Drop him into zone on obvious passing downs.   │
+│  Freak Selection: Random stat     Confuse the hell out of opposing QBs.          │
 │                                                                                  │
-│  SCOUTING NOTE: "Showed surprising physicality in run game during                │
-│                  senior bowl. Worth a deeper look at blocking film."             │
+│  SCOUT TAKE: "I was reviewing film and saw him drop into coverage once.          │
+│               Thought it was a mistake. Checked his workout... he can move.      │
+│               This is either genius or insanity."                                │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -495,6 +443,32 @@ const FREAK_STAT_SCOUTING := {
 │                                                                                  │
 │  SCOUT TAKE: "Developmental prospect. Unusual athlete who could carve            │
 │               out a role in the right system. High-floor, low-ceiling."          │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.4 The Chaos Freak (Double Weird)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Jerome Patterson - S (Chaos + Freak)                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  CHAOS GENERATED STATS            FREAK BOOST APPLIED                            │
+│  ────────────────────             ───────────────────                            │
+│  Speed: 78                        Throw Power: 91  ← Was 34, randomly boosted    │
+│  Tackling: 71                                                                    │
+│  Coverage: 68                     A safety who can throw the ball 60 yards???    │
+│  Awareness: 74                    This is a chaos player who ALSO got freaked.   │
+│  Catching: 65                                                                    │
+│  Strength: 55                     Double weird. Wildcat safety package?          │
+│  Throw Power: 91 (FREAK!)         Fake punt return throw? Who knows.             │
+│                                                                                  │
+│  Generation: Chaos (20%)          This player is a statistical anomaly.          │
+│  Also: Freak boosted              Best fit said Safety, but he's got an arm.     │
+│                                                                                  │
+│  COACH TAKE: "I have no idea what to do with this guy, but I'm not cutting       │
+│               him until I figure it out."                                        │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -532,10 +506,9 @@ const FREAK_STAT_SCOUTING := {
 
 | File | Changes |
 |------|---------|
-| `scripts/generation/PlayerGenerator.gd` | New generation modes, freak system |
+| `scripts/generation/PlayerGenerator.gd` | New generation modes, random freak system |
 | `scripts/generation/StatsHelper.gd` | Separate templated vs chaos sampling |
 | `configs/sports/american_football/main.json` | Add `player_generation` config block |
-| `configs/sports/american_football/positions.json` | Add `unusual_stats` per position |
 | `scripts/core/models/Player.gd` | Add `freak_data`, `generation_mode` fields |
 
 ---
@@ -543,7 +516,8 @@ const FREAK_STAT_SCOUTING := {
 ## 8. Open Questions
 
 1. **Chaos stat range**: Should chaos players use full 0-100 range or constrained 25-95?
-2. **Freak visibility**: Should freak stats be visible at combine, or require game film?
+2. **Freak visibility**: Should freak stats be visible at combine, or require deep scouting/game film?
 3. **Chaos position weights**: Should chaos best-fit favor certain positions?
-4. **Freak trait interaction**: Should freaks also get the new personality stats from the grades system?
+4. **Freak + Chaos combo**: Can chaos-generated players also become freaks? (Currently: yes)
 5. **Historical players**: Should we retroactively assign freak traits to existing players?
+6. **Freak stat pool**: Should ALL stats be eligible for freak boost, or exclude some (like kick stats for non-special teams)?
