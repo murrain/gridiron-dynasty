@@ -600,7 +600,7 @@ The existing `PlayerLifecycle` already provides:
     "football_iq_hidden": float,       # 0.7 - 1.3 (affects learning rate)
 
     # Event probabilities (per-year chances)
-    "breakthrough_chance": float,      # 0.02 - 0.15 (chance of sudden improvement)
+    "breakthrough_chance": float,      # 0.03 - 0.10 (chance of sudden improvement, ~5% base)
     "plateau_chance": float,           # 0.05 - 0.20 (chance of stagnation)
 
     # State tracking
@@ -651,7 +651,7 @@ const DEVELOPMENT_TYPES := {
     "steady": {
         "description": "Consistent, predictable growth",
         "growth_variance": 0.1,        # Low variance year-to-year
-        "breakthrough_chance": 0.03,   # Low breakthrough chance
+        "breakthrough_chance": 0.04,   # Below average breakthrough chance
         "plateau_chance": 0.08,        # Low plateau chance
         "college_growth_mult": 1.0,
         "pro_growth_mult": 1.0
@@ -659,7 +659,7 @@ const DEVELOPMENT_TYPES := {
     "late_bloomer": {
         "description": "Slow early development, rapid improvement in prime years",
         "growth_variance": 0.2,
-        "breakthrough_chance": 0.12,   # High breakthrough chance
+        "breakthrough_chance": 0.10,   # Higher breakthrough chance (the whole point)
         "plateau_chance": 0.05,        # Low plateau (they just haven't peaked)
         "college_growth_mult": 0.7,    # Grows slowly in college
         "pro_growth_mult": 1.4,        # Flourishes in pros
@@ -668,7 +668,7 @@ const DEVELOPMENT_TYPES := {
     "early_peak": {
         "description": "Reaches ceiling quickly, minimal improvement after",
         "growth_variance": 0.15,
-        "breakthrough_chance": 0.02,   # Already peaked
+        "breakthrough_chance": 0.02,   # Very low - already peaked
         "plateau_chance": 0.25,        # High plateau chance
         "college_growth_mult": 1.3,    # Grows fast in college
         "pro_growth_mult": 0.6,        # Slows down in pros
@@ -677,7 +677,7 @@ const DEVELOPMENT_TYPES := {
     "erratic": {
         "description": "Unpredictable swings in performance and development",
         "growth_variance": 0.4,        # High variance
-        "breakthrough_chance": 0.10,
+        "breakthrough_chance": 0.07,   # Moderate - could go either way
         "plateau_chance": 0.15,
         "regression_chance": 0.08,     # Can actually lose rating
         "college_growth_mult": 1.0,
@@ -2161,20 +2161,20 @@ func test_late_bloomer_trajectory():
 
 ### Performance Grades
 1. ~~**Grade visibility in College**~~: *Resolved - College grades included with scouting-gated visibility*
-2. **Historical grades**: Store full grade history or just recent N years?
-3. **Grade decay**: Do old grades matter for evaluation, or just recent performance?
-4. **High School grades**: Should we track HS performance for recruiting, or is that too granular?
+2. ~~**Historical grades**~~: *Resolved - Store full grade history. Useful for tracking career arcs and identifying patterns.*
+3. ~~**Grade decay**~~: *Resolved - Coach personality affects this. Some coaches enjoy the challenge of rehabilitating "washed" players back to former glory. Grade history matters for these coaches when evaluating reclamation projects.*
+4. ~~**High School grades**~~: *Resolved - Rather than HS grades, use college grade trends to identify players who "flash" elite potential but don't sustain it. Scouts look for consistency vs one-off performances.*
 
 ### Development Profiles
-4. **Scouting cost**: How much scouting effort to reveal development type predictions?
-5. **Breakthrough frequency**: Is 2-15% per year the right range, or should it be rarer?
+5. **Scouting cost**: How much scouting effort to reveal development type predictions?
+6. ~~**Breakthrough frequency**~~: *Resolved - Start at ~5% base chance. Should be uncommon enough to feel special when it happens.*
 
 ### Career Events
-6. **Event frequency cap**: Should there be a maximum number of events per season per player?
-7. **Cascading events**: Can one event trigger another (e.g., divorce → off-field trouble)?
-8. **Event visibility**: Which events are public vs private (team-only knowledge)?
-9. **Recovery mechanics**: How do players recover from negative events over time?
-10. **Personality stability**: Can personality type change over career, or is it fixed?
-11. **Contract event thresholds**: What dollar amounts define "prove-it" vs "got paid"?
-12. **Team-wide events**: Should events like "locker room drama" affect multiple players?
-13. **Agent influence**: Should player agents affect contract event outcomes?
+7. ~~**Event frequency cap**~~: *Resolved - No maximum. Events happen as the dice roll. Some seasons will be eventful, others quiet.*
+8. ~~**Cascading events**~~: *Resolved - Yes, one event can lead to another (e.g., divorce → increased off_field_trouble chance). Creates realistic downward spirals and comeback arcs.*
+9. ~~**Event visibility**~~: *Resolved - Context-dependent. Public events: DUI, arrests, suspensions, awards, contract signings. Private events: locker room incidents, family issues, internal team matters. Teams only learn about other teams' private events through scouting/intel.*
+10. **Recovery mechanics**: How do players recover from negative events over time?
+11. **Personality stability**: Can personality type change over career, or is it fixed?
+12. **Contract event thresholds**: What dollar amounts define "prove-it" vs "got paid"?
+13. **Team-wide events**: Should events like "locker room drama" affect multiple players?
+14. **Agent influence**: Should player agents affect contract event outcomes?
