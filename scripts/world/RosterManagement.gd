@@ -33,7 +33,7 @@ const SimLogger = preload("res://autoloads/SimLogger.gd")
 ## This orchestrates the roster management process:
 ## 1. Calculate current cap space for each team
 ## 2. Determine target free agency budget from config
-## 3. Evaluate each player's cap efficiency (cap_hit vs value)
+## 3. Evaluate each player's cap efficiency (annual_value vs player value)
 ## 4. Release players until target budget is reached
 ## 5. Move released players to free agent pool
 ## 6. Track releases for historical record
@@ -293,7 +293,7 @@ static func _calculate_team_cap_usage(players: Array) -> float:
 
 ## Identify release candidates based on cap inefficiency.
 ##
-## Cap inefficiency = cap_hit / (eval_score * threshold * age_factor)
+## Cap inefficiency = annual_value / (eval_score * threshold * age_factor)
 ## Higher values = worse value for money = higher priority for release
 ##
 ## @param players: Array of player dictionaries

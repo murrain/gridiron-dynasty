@@ -1529,7 +1529,6 @@ func _create_rookie_contract(
 		"years_remaining": years,
 		"base_salary": base_salary,
 		"signing_bonus": signing_bonus,
-		"cap_hit": base_salary + (signing_bonus / float(years)),
 		"annual_value": annual_value,
 		"fifth_year_option": has_fifth_year_option,
 		"gtd_remaining": signing_bonus
