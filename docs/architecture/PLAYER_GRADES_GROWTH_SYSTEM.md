@@ -974,7 +974,13 @@ Add to `main.json`:
 
 #### 3.4.1 Prove-It Deal
 
-**Trigger**: Player signs 1-year contract worth less than their market value (typically after injury, poor performance, or age concerns).
+**Trigger**: Team believes player COULD be great, but instead of committing to a long-term deal at that projected value, offers ~90% of value for 1 year with incentives. The player gets the opportunity to prove they can hit that performance level.
+
+**Key distinction**: This is NOT about a player being "washed" or below market - it's about a team seeing upside but wanting proof before committing long-term. Common scenarios:
+- Young player with flashes of brilliance but inconsistency
+- Player changing teams/schemes who needs to show he fits
+- Coming off injury but expected to return to form
+- Breakout candidate the team believes in
 
 ```gdscript
 const PROVE_IT_DEAL := {
@@ -988,7 +994,9 @@ const PROVE_IT_DEAL := {
     "duration": "seasonal",
     "conditions": {
         "contract_years": 1,
-        "contract_value_vs_market": "<0.7"  # Less than 70% of market value
+        "contract_value_vs_projected": "~0.90",  # ~90% of projected value
+        "has_incentives": true,                   # Performance bonuses included
+        "team_believes_upside": true              # Team sees potential
     },
     "personality_modifiers": {
         "high_work_ethic_base": 1.3,    # Already hard workers get bigger boost
@@ -1609,7 +1617,346 @@ static func _apply_event_stat_changes(
     player["stats"] = stats
 ```
 
-### 3.10 Personality System Integration
+### 3.10 Recovery Mechanics
+
+Negative events don't have to be permanent. Players can recover from setbacks, and their recovery speed is influenced by their stats and circumstances.
+
+#### 3.10.1 Recovery Speed Factors
+
+```gdscript
+## RecoveryCalculator - determines how quickly a player bounces back from negative events
+const RECOVERY_STAT_INFLUENCES := {
+    # High work_ethic = faster recovery (putting in the work to improve)
+    "work_ethic": {
+        "weight": 0.35,
+        "description": "Hard workers grind their way back faster",
+        "recovery_bonus_per_10_points": 0.08  # 8% faster recovery per 10 work_ethic points
+    },
+
+    # High discipline = more structured recovery
+    "discipline": {
+        "weight": 0.25,
+        "description": "Disciplined players follow recovery programs better",
+        "recovery_bonus_per_10_points": 0.06
+    },
+
+    # High composure = doesn't let setbacks snowball
+    "composure": {
+        "weight": 0.20,
+        "description": "Mentally tough players don't spiral after bad events",
+        "recovery_bonus_per_10_points": 0.05
+    },
+
+    # High coachability = responds well to help
+    "coachability": {
+        "weight": 0.20,
+        "description": "Coachable players accept help and guidance",
+        "recovery_bonus_per_10_points": 0.05
+    }
+}
+
+## Calculate recovery multiplier for a player
+## Returns: multiplier where 1.0 = normal, >1.0 = faster recovery, <1.0 = slower
+static func calculate_recovery_multiplier(player: Dictionary) -> float:
+    var stats: Dictionary = player.get("stats", {})
+    var multiplier := 1.0
+
+    for stat_name in RECOVERY_STAT_INFLUENCES.keys():
+        var influence := RECOVERY_STAT_INFLUENCES[stat_name]
+        var stat_value := float(stats.get(stat_name, 50.0))
+        var stat_delta := stat_value - 50.0  # Deviation from average
+        var bonus := (stat_delta / 10.0) * float(influence["recovery_bonus_per_10_points"])
+        multiplier += bonus * float(influence["weight"])
+
+    return clamp(multiplier, 0.5, 2.0)  # 0.5x to 2.0x recovery speed
+```
+
+#### 3.10.2 Recovery Application
+
+```gdscript
+## Apply recovery to temporary events during offseason
+static func process_event_recovery(
+    player: Dictionary,
+    event: Dictionary,
+    rng: RandomNumberGenerator
+) -> Dictionary:
+    if event.get("duration") == "permanent":
+        return event  # Permanent events don't decay
+
+    var recovery_mult := calculate_recovery_multiplier(player)
+    var base_decay := float(event.get("decay_rate", 0.4))
+    var effective_decay := base_decay * recovery_mult
+
+    # Apply recovery to each affected stat
+    var original_changes: Dictionary = event.get("stat_changes", {})
+    var recovered_changes := {}
+
+    for stat_name in original_changes.keys():
+        var original_change := float(original_changes[stat_name])
+        if original_change < 0:  # Only recover from negative changes
+            var recovery_amount := abs(original_change) * effective_decay
+            recovered_changes[stat_name] = original_change + recovery_amount
+
+            # Apply the recovery to player stats
+            var stats: Dictionary = player.get("stats", {})
+            if stats.has(stat_name):
+                stats[stat_name] = clamp(
+                    float(stats[stat_name]) + recovery_amount,
+                    0.0,
+                    100.0
+                )
+            player["stats"] = stats
+
+    # Update event with remaining impact
+    event["stat_changes"] = recovered_changes
+    event["years_remaining"] = max(0, int(event.get("years_remaining", 1)) - 1)
+
+    return event
+```
+
+#### 3.10.3 Recovery Examples
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│              Recovery Speed by Player Type                                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  PLAYER TYPE               STATS                          RECOVERY MULT          │
+│  ─────────────────────     ─────────────────────────      ──────────────         │
+│  Hard Worker               work_ethic: 85, discipline: 75  1.42x (fast)          │
+│  Average Player            work_ethic: 50, discipline: 50  1.00x (normal)        │
+│  Lazy Talent               work_ethic: 30, discipline: 35  0.72x (slow)          │
+│  Mental Fortress           composure: 90, coachability: 80 1.28x (fast)          │
+│  Fragile Star              composure: 30, work_ethic: 40   0.65x (very slow)     │
+│                                                                                  │
+│  Example: "Divorce" event with -20 focus, -15 composure                          │
+│  ─────────────────────────────────────────────────────────                       │
+│  Hard Worker (1.42x):     Recovers in ~1.5 years                                 │
+│  Average Player (1.0x):   Recovers in ~2 years                                   │
+│  Fragile Star (0.65x):    Recovers in ~3+ years (may never fully recover)        │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 3.10.4 Support System Bonuses
+
+External factors can also accelerate recovery:
+
+```gdscript
+const RECOVERY_SUPPORT_BONUSES := {
+    # Team environment
+    "veteran_mentor_present": {
+        "bonus": 0.15,
+        "description": "Veteran helps player through tough times"
+    },
+    "strong_coaching_staff": {
+        "bonus": 0.10,
+        "description": "Good coaches provide structure"
+    },
+    "team_culture_high": {
+        "bonus": 0.12,
+        "description": "Supportive team environment"
+    },
+
+    # Personal support
+    "married": {
+        "bonus": 0.08,
+        "description": "Stable home life aids recovery"
+    },
+    "faith_community": {
+        "bonus": 0.10,
+        "description": "Spiritual support network"
+    },
+
+    # Professional help
+    "in_counseling_program": {
+        "bonus": 0.20,
+        "description": "Professional mental health support"
+    },
+    "sports_psychologist": {
+        "bonus": 0.15,
+        "description": "Performance-focused mental training"
+    }
+}
+```
+
+### 3.11 Personality Evolution
+
+Personality types are not fixed for life. People can change, and significant events can reshape a player's core personality over their career.
+
+#### 3.11.1 Personality Change Triggers
+
+```gdscript
+const PERSONALITY_CHANGE_TRIGGERS := {
+    # Major life events can shift personality
+    "found_purpose": {
+        "from": ["volatile", "front_runner"],
+        "to": "steady_eddie",
+        "chance": 0.40,
+        "description": "Finding meaning brings stability"
+    },
+
+    "championship_win": {
+        "from": ["front_runner"],
+        "to": "competitor",
+        "chance": 0.25,
+        "description": "Winning can build lasting confidence"
+    },
+
+    "career_threatening_injury_comeback": {
+        "from": ["front_runner", "volatile"],
+        "to": "competitor",
+        "chance": 0.35,
+        "description": "Surviving adversity builds resilience"
+    },
+
+    "multiple_releases": {
+        "from": ["competitor", "steady_eddie"],
+        "to": "front_runner",
+        "chance": 0.20,
+        "description": "Repeated rejection can damage confidence"
+    },
+
+    "massive_contract_complacency": {
+        "from": ["competitor"],
+        "to": "front_runner",
+        "chance": 0.15,
+        "description": "Success can breed complacency even in competitors"
+    },
+
+    "veteran_mentor_influence": {
+        "from": ["volatile", "front_runner"],
+        "to": "steady_eddie",
+        "chance": 0.20,
+        "description": "Great mentors can stabilize young players"
+    },
+
+    "captain_responsibility": {
+        "from": ["volatile"],
+        "to": "competitor",
+        "chance": 0.30,
+        "description": "Leadership responsibility can focus a player"
+    },
+
+    "repeated_clutch_performances": {
+        "from": ["front_runner", "steady_eddie"],
+        "to": "competitor",
+        "chance": 0.25,
+        "description": "Proving yourself in big moments builds competitor mentality"
+    },
+
+    "repeated_playoff_failures": {
+        "from": ["competitor"],
+        "to": "front_runner",
+        "chance": 0.15,
+        "description": "Repeated failures can erode confidence"
+    }
+}
+```
+
+#### 3.11.2 Gradual Personality Drift
+
+Beyond triggered changes, personality can drift gradually based on sustained patterns:
+
+```gdscript
+## Check for gradual personality evolution during offseason
+static func check_personality_evolution(
+    player: Dictionary,
+    season_context: Dictionary,
+    rng: RandomNumberGenerator
+) -> Dictionary:
+    var current_personality: String = player.get("personality_type", "steady_eddie")
+    var career_events: Array = player.get("career_events", [])
+    var new_personality := current_personality
+
+    # Count recent positive vs negative outcomes (last 3 years)
+    var recent_events := _get_recent_events(career_events, 3)
+    var adversity_count := _count_adversity_events(recent_events)
+    var success_count := _count_success_events(recent_events)
+
+    # Gradual drift based on sustained patterns
+    if adversity_count >= 3 and success_count == 0:
+        # Lots of adversity, no success
+        match current_personality:
+            "competitor":
+                # Even competitors can be worn down
+                if rng.randf() < 0.10:  # 10% chance per year of sustained adversity
+                    new_personality = "front_runner"
+            "steady_eddie":
+                # Steady players can become fragile
+                if rng.randf() < 0.08:
+                    new_personality = "front_runner"
+
+    elif success_count >= 3 and adversity_count == 0:
+        # Sustained success
+        match current_personality:
+            "front_runner":
+                # Success can build genuine confidence
+                if rng.randf() < 0.12:
+                    new_personality = "steady_eddie"
+            "volatile":
+                # Success can stabilize volatile players
+                if rng.randf() < 0.10:
+                    new_personality = "competitor"
+
+    # Check for age-related maturation (players often mellow with age)
+    var age := int(player.get("age", 22))
+    if age >= 30 and current_personality == "volatile":
+        if rng.randf() < 0.15:  # 15% chance per year after 30
+            new_personality = "steady_eddie"
+
+    if new_personality != current_personality:
+        return {
+            "changed": true,
+            "from": current_personality,
+            "to": new_personality,
+            "reason": _determine_change_reason(adversity_count, success_count, age)
+        }
+
+    return {"changed": false}
+```
+
+#### 3.11.3 Personality Evolution Tracking
+
+```gdscript
+## Store personality changes in player history
+player["personality_history"] = [
+    {
+        "type": "volatile",
+        "from_age": 22,
+        "to_age": 25
+    },
+    {
+        "type": "competitor",
+        "from_age": 25,
+        "to_age": null,  # Current
+        "trigger": "career_threatening_injury_comeback",
+        "description": "ACL comeback built mental toughness"
+    }
+]
+```
+
+#### 3.11.4 Personality Change Visibility
+
+```gdscript
+const PERSONALITY_CHANGE_VISIBILITY := {
+    # Some changes are publicly observable
+    "public": [
+        "found_purpose",           # Often discussed in media
+        "captain_responsibility",  # Public announcement
+        "repeated_playoff_failures"  # Performance is public
+    ],
+
+    # Some require scouting/intel to detect
+    "requires_scouting": [
+        "gradual_drift",           # Subtle changes
+        "veteran_mentor_influence",  # Internal team dynamics
+        "locker_room_evolution"    # Behind closed doors
+    ]
+}
+```
+
+### 3.12 Personality System Integration
 
 Events interact with a player's personality to determine outcomes:
 
@@ -1657,7 +2004,7 @@ const PERSONALITY_TYPES := {
 }
 ```
 
-### 3.11 Configuration
+### 3.13 Configuration
 
 Add to `main.json`:
 
@@ -1694,7 +2041,7 @@ Add to `main.json`:
 }
 ```
 
-### 3.12 Event History Storage
+### 3.14 Event History Storage
 
 ```gdscript
 ## Player career_events array
@@ -2173,8 +2520,8 @@ func test_late_bloomer_trajectory():
 7. ~~**Event frequency cap**~~: *Resolved - No maximum. Events happen as the dice roll. Some seasons will be eventful, others quiet.*
 8. ~~**Cascading events**~~: *Resolved - Yes, one event can lead to another (e.g., divorce → increased off_field_trouble chance). Creates realistic downward spirals and comeback arcs.*
 9. ~~**Event visibility**~~: *Resolved - Context-dependent. Public events: DUI, arrests, suspensions, awards, contract signings. Private events: locker room incidents, family issues, internal team matters. Teams only learn about other teams' private events through scouting/intel.*
-10. **Recovery mechanics**: How do players recover from negative events over time?
-11. **Personality stability**: Can personality type change over career, or is it fixed?
+10. ~~**Recovery mechanics**~~: *Resolved - Recovery speed is linked to player stats. High work_ethic players grind their way back faster (~1.4x recovery rate). Discipline, composure, and coachability also contribute. External factors like veteran mentors, team culture, and counseling programs provide additional recovery bonuses. See Section 3.10.*
+11. ~~**Personality stability**~~: *Resolved - Personality CAN change over career. Major events (championship wins, career-threatening injury comebacks, repeated failures) can trigger personality shifts. Gradual drift also occurs based on sustained patterns of adversity or success. Players often mellow with age. See Section 3.11.*
 12. **Contract event thresholds**: What dollar amounts define "prove-it" vs "got paid"?
 13. **Team-wide events**: Should events like "locker room drama" affect multiple players?
 14. **Agent influence**: Should player agents affect contract event outcomes?
