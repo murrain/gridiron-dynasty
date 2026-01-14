@@ -903,7 +903,131 @@ Add to `main.json`:
 | **Consequences** | Contract and roster decisions have psychological ripple effects |
 | **Unpredictability** | Same event can affect different personality types differently |
 
-### 3.2 Event Categories
+### 3.2 New Personality Stats (Non-Measurables)
+
+The stat-driven event system requires additional non-measurable stats that define a player's psychological makeup. These are hidden by default and revealed through scouting.
+
+```gdscript
+## New personality-related stats for the event system
+const PERSONALITY_STATS := {
+    # Core mental stats (may already exist)
+    "composure": {
+        "range": [0, 100],
+        "description": "Ability to stay calm under pressure, handle adversity",
+        "affects": ["response to negative events", "clutch performance", "recovery speed"]
+    },
+    "discipline": {
+        "range": [0, 100],
+        "description": "Self-control, adherence to routines, avoiding temptation",
+        "affects": ["response to money/success", "off-field behavior", "training consistency"]
+    },
+    "work_ethic": {
+        "range": [0, 100],
+        "description": "Effort put into improvement, practice habits",
+        "affects": ["development rate", "recovery speed", "response to competition"]
+    },
+
+    # New stats for event system
+    "competitiveness": {
+        "range": [0, 100],
+        "description": "Drive to win, response to competition and challenges",
+        "affects": ["response to prove-it deals", "response to being replaced", "clutch moments"],
+        "examples": {
+            "high": "Michael Jordan - used any slight as motivation",
+            "low": "Coasts when comfortable, satisfied with 'good enough'"
+        }
+    },
+    "maturity": {
+        "range": [0, 100],
+        "description": "Emotional intelligence, perspective, handling of life events",
+        "affects": ["response to personal events", "locker room presence", "decision making"],
+        "growth": "Tends to increase with age and experience"
+    },
+    "ambition": {
+        "range": [0, 100],
+        "description": "Drive for greatness, desire for legacy/achievements",
+        "affects": ["response to success/milestones", "hunger after winning"],
+        "examples": {
+            "high": "Tom Brady - 7 rings not enough, still hungry",
+            "low": "Happy with one Pro Bowl, doesn't push for more"
+        }
+    },
+    "confidence": {
+        "range": [0, 100],
+        "description": "Self-belief, how they view their own abilities",
+        "affects": ["response to failure", "recovery from mistakes", "handling criticism"],
+        "volatility": "Can swing based on recent performance"
+    },
+    "adaptability": {
+        "range": [0, 100],
+        "description": "Ability to adjust to new situations, schemes, teammates",
+        "affects": ["response to trades", "new coaching staff", "scheme changes"]
+    },
+    "responsibility": {
+        "range": [0, 100],
+        "description": "Sense of duty, reliability, handling of obligations",
+        "affects": ["response to family events", "team leadership", "off-field decisions"]
+    },
+    "team_loyalty": {
+        "range": [0, 100],
+        "description": "Attachment to current team, willingness to sacrifice for team",
+        "affects": ["response to franchise tag", "pay cut willingness", "trade requests"]
+    }
+}
+```
+
+#### 3.2.1 Stat Interactions
+
+These stats often work together to determine outcomes:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Stat Clusters for Common Scenarios                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  "Handles Money Well"          "Responds to Adversity"    "Clutch Performer"     │
+│  ───────────────────           ──────────────────────     ─────────────────      │
+│  discipline (primary)          composure (primary)        composure (primary)    │
+│  work_ethic                    work_ethic                 confidence             │
+│  maturity                      competitiveness            competitiveness        │
+│  ambition                      confidence                                        │
+│                                                                                  │
+│  "Good Teammate"               "Self-Motivated"           "Coachable"            │
+│  ──────────────                ───────────────            ───────────            │
+│  team_loyalty (primary)        ambition (primary)         coachability           │
+│  maturity                      competitiveness            discipline             │
+│  responsibility                work_ethic                 maturity               │
+│  discipline                    discipline                                        │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 3.2.2 Stat Generation
+
+New personality stats should be generated at player creation with realistic distributions and correlations:
+
+```gdscript
+## Personality stats have correlations (not fully independent)
+const STAT_CORRELATIONS := {
+    # High work_ethic tends to correlate with discipline
+    ["work_ethic", "discipline"]: 0.6,
+
+    # High competitiveness correlates with ambition
+    ["competitiveness", "ambition"]: 0.5,
+
+    # Maturity correlates with composure
+    ["maturity", "composure"]: 0.4,
+
+    # Responsibility correlates with discipline
+    ["responsibility", "discipline"]: 0.5,
+
+    # These are more independent
+    ["confidence", "work_ethic"]: 0.1,  # Can be confident but lazy
+    ["team_loyalty", "ambition"]: -0.2  # Ambitious players may want to leave
+}
+```
+
+### 3.3 Event Categories
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -933,7 +1057,7 @@ Add to `main.json`:
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 Data Model: CareerEvent
+### 3.4 Data Model: CareerEvent
 
 ```gdscript
 ## CareerEvent Schema
@@ -970,7 +1094,7 @@ Add to `main.json`:
 }
 ```
 
-### 3.4 Generalized Event Response System
+### 3.5 Generalized Event Response System
 
 Rather than hardcoding probability modifiers per event, player reactions are driven by their stats. Events define a range of possible outcomes, and the player's current stats determine where they land in that range.
 
@@ -1058,7 +1182,7 @@ const EVENT_SCHEMA := {
 }
 ```
 
-### 3.5 Contract Events
+### 3.6 Contract Events
 
 #### 3.5.1 Prove-It Deal
 
@@ -1233,7 +1357,7 @@ const TOOK_PAY_CUT := {
 }
 ```
 
-### 3.5 Team/Roster Events (Detailed)
+### 3.7 Team/Roster Events
 
 #### 3.6.1 Released/Cut
 
@@ -1395,7 +1519,7 @@ const VETERAN_MENTOR := {
 }
 ```
 
-### 3.6 Personal Life Events (Detailed)
+### 3.8 Personal Life Events
 
 #### 3.6.1 Marriage
 
@@ -1532,7 +1656,7 @@ const FOUND_PURPOSE := {
 }
 ```
 
-### 3.7 Performance Events (Detailed)
+### 3.9 Performance Events
 
 #### 3.8.1 Costly Mistake (Game-Losing Play)
 
@@ -1641,7 +1765,7 @@ const SUPER_BOWL_LOSS := {
 ## Low composure + low confidence: haunted by the loss, struggles in big games
 ```
 
-### 3.8 Milestone Events (Detailed)
+### 3.10 Milestone Events
 
 #### 3.9.1 First Pro Bowl Selection
 
@@ -1717,7 +1841,7 @@ const WON_CHAMPIONSHIP := {
 ## Low competitiveness: "got my ring", coasts
 ```
 
-### 3.9 Event Processing System
+### 3.11 Event Processing System
 
 ```gdscript
 ## CareerEventProcessor.gd
@@ -1803,7 +1927,7 @@ static func _apply_event_stat_changes(
     player["stats"] = stats
 ```
 
-### 3.10 Recovery Mechanics
+### 3.12 Recovery Mechanics
 
 Negative events don't have to be permanent. Players can recover from setbacks, and their recovery speed is influenced by their stats and circumstances.
 
@@ -1966,7 +2090,7 @@ const RECOVERY_SUPPORT_BONUSES := {
 }
 ```
 
-### 3.11 Personality Evolution
+### 3.13 Personality Evolution
 
 Personality types are not fixed for life. People can change, and significant events can reshape a player's core personality over their career.
 
@@ -2142,7 +2266,7 @@ const PERSONALITY_CHANGE_VISIBILITY := {
 }
 ```
 
-### 3.12 Personality as Emergent from Stats
+### 3.14 Personality as Emergent from Stats
 
 Rather than hardcoding personality types with special event modifiers, personality emerges naturally from a player's stat combination. The same stats that determine event outcomes also define who the player "is".
 
@@ -2210,7 +2334,7 @@ This approach means:
 - **Personality labels are descriptive, not mechanical**
 - **Players can "change personality" by changing their stats over time**
 
-### 3.13 Configuration
+### 3.15 Configuration
 
 Add to `main.json`:
 
@@ -2247,7 +2371,7 @@ Add to `main.json`:
 }
 ```
 
-### 3.14 Event History Storage
+### 3.16 Event History Storage
 
 ```gdscript
 ## Player career_events array
