@@ -785,6 +785,72 @@ const TRADE_SEED = 0x7RADE001
 const TRADE_SEED = 0x7ADE0001  # Trade RNG seed
 ```
 
+*Variable Redeclaration (PR #122):*
+```gdscript
+# WRONG - GDScript forbids redeclaring variables in the same scope
+func process_awards():
+    var cfg = config["heisman"]
+    # ... later in same function ...
+    var cfg = config["finalist"]  # PARSE ERROR!
+
+# CORRECT - Use different variable names
+func process_awards():
+    var heisman_cfg = config["heisman"]
+    var finalist_cfg = config["finalist"]
+```
+
+*Reserved Keywords (PR #112):*
+```gdscript
+# WRONG - 'pass' is a reserved keyword
+var pass = player.get("passing_yards")  # PARSE ERROR!
+
+# CORRECT - Use descriptive alternatives
+var passing = player.get("passing_yards")
+```
+
+*String Repetition (PR #114):*
+```gdscript
+# WRONG - String multiplication removed in Godot 4.x
+var separator = "=" * 80  # ERROR!
+
+# CORRECT - Use .repeat() method
+var separator = "=".repeat(80)
+```
+
+*Float Type Consistency (PR #114):*
+```gdscript
+# WRONG - Type mismatch in ternary expression
+var value: float = some_float if condition else 0  # Warning/Error
+
+# CORRECT - Maintain float type throughout
+var value: float = some_float if condition else 0.0
+```
+
+*Circular Reference Resolution (PR #112):*
+```gdscript
+# WRONG - Circular preload causes compilation error
+const ClassA = preload("res://ClassA.gd")  # Fails if ClassA preloads this file
+
+# CORRECT - Dynamic loading breaks circular reference
+var ClassA = load("res://ClassA.gd")
+```
+
+*Array.shuffle() Breaks Determinism (PR #122):*
+```gdscript
+# WRONG - Array.shuffle() uses Godot's global RNG
+players.shuffle()  # Non-deterministic!
+
+# CORRECT - Explicit Fisher-Yates with passed RNG
+func _shuffle_with_rng(arr: Array, rng: RandomNumberGenerator) -> Array:
+    var shuffled = arr.duplicate()
+    for i in range(shuffled.size() - 1, 0, -1):
+        var j = rng.randi() % (i + 1)
+        var tmp = shuffled[i]
+        shuffled[i] = shuffled[j]
+        shuffled[j] = tmp
+    return shuffled
+```
+
 **Determinism Conventions:**
 - RNG must be passed explicitly as `RandomNumberGenerator` instances
 - Seeds must be logged or persisted at simulation boundaries
@@ -926,8 +992,8 @@ Contribute across areas while respecting current phase focus and existing archit
 - Defer architectural decisions to the Architect Agent
 - Preserve determinism conventions when touching simulation logic
 - Keep changes small, reviewable, and well-documented
-- Consult `docs/planning/ACTIVE_TASKS.md` to understand current phase scope
-- Check docs/tasks for active task guidance and context
+- Consult `docs/architecture/IMPLEMENTATION_TICKETS.md` to understand current planned work
+- Check `docs/contributing/` for style guides and testing documentation
 - Read existing code patterns before implementing new features
 - Use config files for tunable parameters (no hardcoded distributions)
 - Add deterministic tests for new simulation behavior
@@ -1108,14 +1174,14 @@ godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.g
 4. Document expected behavior in test names
 5. Cover edge cases: empty pools, ties, boundaries
 
-See `docs/tasks/testing/README.md` for detailed testing infrastructure documentation.
+See `docs/contributing/TESTING.md` for detailed testing infrastructure documentation.
 
 ---
 
 ## Phased Development Awareness
 
 All agents must respect the current development phase.
-The authoritative, up-to-date status lives in `docs/tasks` and should be
+The authoritative, up-to-date status lives in `docs/architecture/IMPLEMENTATION_TICKETS.md` and should be
 consulted before starting work.
 
 ---
