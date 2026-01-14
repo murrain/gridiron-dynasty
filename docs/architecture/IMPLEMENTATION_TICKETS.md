@@ -2078,11 +2078,16 @@ ARCH-025 (Persistence) <── Phase 3
 | Phase 1: Foundation | ARCH-001 to ARCH-007 | 18-25 hours | LOW |
 | Phase 2: Decomposition | ARCH-008 to ARCH-016 | 24-32 hours | MEDIUM |
 | Phase 3: Persistence | ARCH-017 to ARCH-022 | 28-38 hours | MEDIUM |
+<<<<<<< HEAD
 | Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
 | **Total** | **27 tickets** | **173-218 hours** | - |
 
 > **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
+=======
+| Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
+| **Total** | **25 tickets** | **76-104 hours** | - |
+>>>>>>> origin/main
 
 ### Recommended Execution Order
 
@@ -2095,6 +2100,7 @@ ARCH-025 (Persistence) <── Phase 3
 
 ### Success Metrics
 
+<<<<<<< HEAD
 **Model Architecture:**
 - [ ] Player.gd reduced from 296 lines to <200 lines
 - [ ] All Dictionary schemas replaced with typed Resources
@@ -2111,3 +2117,11 @@ ARCH-025 (Persistence) <── Phase 3
 - [ ] All existing tests continue to pass
 - [ ] No regression in simulation determinism
 - [ ] CI pipeline runs on every PR with clear pass/fail
+=======
+- [ ] Player.gd reduced from 296 lines to <100 lines
+- [ ] All Dictionary schemas replaced with typed Resources
+- [ ] Zero ID normalization code remaining
+- [ ] Save/load times reduced by 5x+ with database backend
+- [ ] All existing tests continue to pass
+- [ ] No regression in simulation determinism
+>>>>>>> origin/main
