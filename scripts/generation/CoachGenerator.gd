@@ -121,18 +121,18 @@ static func generate_coach(
 	var experience_years := clampi(exp_base + exp_bonus, exp_min, exp_max)
 
 	# RNG Call 5-6: Schemes (uniform random)
-	var offensive_scheme := OFFENSIVE_SCHEMES[rng.randi() % OFFENSIVE_SCHEMES.size()]
-	var defensive_scheme := DEFENSIVE_SCHEMES[rng.randi() % DEFENSIVE_SCHEMES.size()]
+	var offensive_scheme: String = OFFENSIVE_SCHEMES[rng.randi() % OFFENSIVE_SCHEMES.size()]
+	var defensive_scheme: String = DEFENSIVE_SCHEMES[rng.randi() % DEFENSIVE_SCHEMES.size()]
 
 	# RNG Call 7-8: Tolerances (weighted random)
-	var character_tolerance := _weighted_pick(CHARACTER_TOLERANCES, CHARACTER_TOLERANCE_WEIGHTS, rng)
-	var medical_tolerance := _weighted_pick(MEDICAL_TOLERANCES, MEDICAL_TOLERANCE_WEIGHTS, rng)
+	var character_tolerance: String = _weighted_pick(CHARACTER_TOLERANCES, CHARACTER_TOLERANCE_WEIGHTS, rng)
+	var medical_tolerance: String = _weighted_pick(MEDICAL_TOLERANCES, MEDICAL_TOLERANCE_WEIGHTS, rng)
 
 	# RNG Call 9: Scheme rigidity
 	var scheme_rigidity := rng.randf_range(rigidity_min, rigidity_max)
 
 	# RNG Call 10: Specialty position
-	var specialty_position := SPECIALTY_POSITIONS[rng.randi() % SPECIALTY_POSITIONS.size()]
+	var specialty_position: String = SPECIALTY_POSITIONS[rng.randi() % SPECIALTY_POSITIONS.size()]
 
 	return {
 		"id": coach_id,

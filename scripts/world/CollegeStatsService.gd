@@ -615,6 +615,6 @@ static func _calculate_consistency(scores: Array) -> float:
 	var cv := std_dev / mean
 
 	# Convert to 0-1 scale (0.5 CV = 0.0 consistency, 0.0 CV = 1.0 consistency)
-	var consistency := 1.0 - clamp(cv / 0.5, 0.0, 1.0)
+	var consistency: float = 1.0 - clamp(cv / 0.5, 0.0, 1.0)
 
 	return consistency

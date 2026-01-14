@@ -19,6 +19,19 @@ func assert_ne(actual: Variant, expected: Variant, message: String) -> void:
 	if actual == expected:
 		failures.append("%s (unexpected %s)" % [message, str(actual)])
 
+## Alias for assert_true - some tests use this name
+func assert_false(condition: bool, message: String) -> void:
+	if condition:
+		failures.append(message)
+
+## Alias for assert_eq - some tests use this name
+func assert_equal(actual: Variant, expected: Variant, message: String) -> void:
+	assert_eq(actual, expected, message)
+
+## Alias for assert_ne - some tests use this name
+func assert_not_equal(actual: Variant, expected: Variant, message: String) -> void:
+	assert_ne(actual, expected, message)
+
 func assert_approx(actual: float, expected: float, epsilon: float, message: String) -> void:
 	if abs(actual - expected) > epsilon:
 		failures.append("%s (expected %.4f±%.4f, got %.4f)" % [message, expected, epsilon, actual])

@@ -378,7 +378,7 @@ static func _calculate_development_upside(player: Dictionary) -> float:
 	var college_year := int(player.get("college_year", 3))
 
 	# Younger players have more upside
-	var age_factor := 1.0 - clamp((float(age) - 20.0) / 5.0, 0.0, 1.0)
+	var age_factor: float = 1.0 - clamp((float(age) - 20.0) / 5.0, 0.0, 1.0)
 
 	# Check attribute potential (difference between current and potential)
 	# Simplified: Assume players can grow ~10 points in attributes
