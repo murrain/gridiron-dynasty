@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")
+const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
 
 const TEST_SCRIPTS := [
 	"res://scripts/tests/test_rand.gd",
@@ -66,12 +67,17 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_a3_2_player_of_year_awards.gd",
 	"res://scripts/tests/test_a3_3_all_pro_selections.gd",
 	"res://scripts/tests/test_a3_4_pro_bowl_rosters.gd",
-	"res://scripts/tests/test_a3_8_rookie_of_year.gd"
+	"res://scripts/tests/test_a3_8_rookie_of_year.gd",
+	"res://scripts/tests/test_snapshot_loader.gd"
 ]
 
 func _init() -> void:
 	var total_failures: Array = []
 	for path in TEST_SCRIPTS:
+		# Clear snapshot cache before each test file for isolation
+		# This ensures tests don't pollute each other's cached data
+		SnapshotLoader.clear_cache()
+
 		var script = load(path)
 		if script == null:
 			total_failures.append("Failed to load %s" % path)

@@ -1029,6 +1029,89 @@ CP6 ─► PR ready, CI passing
 
 ---
 
+## Testing Procedures for Agents
+
+All agents must follow these testing procedures to ensure code quality and test reliability.
+
+### Mandatory Testing Layers
+
+Before submitting code for review, run ALL layers in order:
+
+1. **Syntax Check** (BLOCKING):
+   ```bash
+   godot --headless --check-only --script path/to/modified/file.gd
+   ```
+
+2. **Unit Tests** (if applicable):
+   ```bash
+   godot --headless -s scripts/tests/run_[feature]_test.gd
+   ```
+
+3. **Runtime Integration**:
+   ```bash
+   godot --headless -s scripts/pipelines/BootstrapPreview.gd
+   ```
+
+4. **Full Test Suite** (for major changes):
+   ```bash
+   godot --headless -s scripts/tests/TestRunner.gd
+   ```
+
+### Using World State Snapshots
+
+For tests requiring mature simulation data (contracts, trades, career progression), use pre-generated snapshots via the unified `setup_world()` API:
+
+```gdscript
+const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
+
+# Load 10-year snapshot (no additional simulation)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
+
+# Load 5-year snapshot + simulate 2 more years
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+
+# Generate fresh 3-year world (no snapshot)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xFRESH001)
+```
+
+**Available Base States:**
+- `FRESH` - Generate from scratch
+- `YEAR_5` - Basic rosters, recruiting data
+- `YEAR_10` - Trade tests, contract history
+- `YEAR_20` - Hall of Fame, dynasty detection
+
+**API**: `setup_world(base, years, seed)` always returns an isolated deep copy safe to mutate. No need for separate read-only vs copy methods.
+
+### Regenerating Test Snapshots
+
+Regenerate snapshots after changes to:
+- Config schemas
+- Player/team model structures
+- World state format
+- Significant simulation logic
+
+```bash
+godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd
+```
+
+### Test Isolation
+
+- TestRunner automatically clears snapshot cache between test files
+- For manual cache clearing: `SnapshotLoader.clear_cache()`
+- Each test should be independent - no shared mutable state
+
+### Writing New Tests
+
+1. Use existing test patterns in `scripts/tests/`
+2. Prefer snapshot data over full generation for speed
+3. Use deterministic seeds for reproducibility
+4. Document expected behavior in test names
+5. Cover edge cases: empty pools, ties, boundaries
+
+See `docs/tasks/testing/README.md` for detailed testing infrastructure documentation.
+
+---
+
 ## Phased Development Awareness
 
 All agents must respect the current development phase.

@@ -4,125 +4,183 @@
 
 Testing infrastructure tasks focus on improving test suite performance and developer experience. Current test suite runs in ~2 minutes, which is acceptable but could be improved for faster iteration.
 
+## World State Snapshots (IMPLEMENTED)
+
+The snapshot system provides instant loading of pre-generated world state data for testing features that require mature simulation data (contracts, trades, career progression).
+
+### Quick Start
+
+```gdscript
+const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
+
+# Load 10-year snapshot (no additional simulation)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
+
+# Load 5-year snapshot + simulate 2 more years
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+
+# Generate fresh 3-year world (no snapshot)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xFRESH001)
+```
+
+### Available Snapshots
+
+| Constant | Years | Use Cases | Time Saved |
+|----------|-------|-----------|------------|
+| `FRESH` | 0 | Generate from scratch | None |
+| `YEAR_5` | 5 | Basic rosters, recruiting data | ~60-90s |
+| `YEAR_10` | 10 | Trade tests, contract history | ~120-180s |
+| `YEAR_20` | 20 | Hall of Fame, dynasty detection | ~240-360s |
+
+### Unified API: setup_world()
+
+All world state setup uses a single function:
+
+```gdscript
+static func setup_world(base: int, years: int, seed: int) -> Dictionary
+```
+
+**Parameters:**
+- `base`: Which snapshot to start from (FRESH, YEAR_5, YEAR_10, YEAR_20)
+- `years`: Additional years to simulate (0 = just load snapshot)
+- `seed`: Required seed for deterministic simulation (cannot be 0)
+
+**Returns:**
+- A world state dictionary (always an isolated copy, safe to mutate)
+
+**Examples:**
+```gdscript
+# Generate fresh 3-year world
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xSEED001)
+
+# Load 10yr snapshot, no additional simulation
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xSEED001)
+
+# Load 5yr snapshot + 2 more years
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+```
+
+### Always Safe to Mutate
+
+`setup_world()` always returns an isolated deep copy. You can safely mutate the returned world state without affecting the cache or other tests.
+
+```gdscript
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
+world_state["nfl_teams"].append(new_team)  # Safe - isolated copy
+```
+
+### Config-Driven Snapshots
+
+Snapshots are defined in `snapshot_config.json`, making it easy to add new snapshot years:
+
+```json
+{
+  "schema_version": 1,
+  "deterministic_seed": 2120392742,
+  "snapshots": {
+    "5": {
+      "filename": "snapshot_5yr.json",
+      "description": "Basic rosters, recruiting data"
+    },
+    "10": {
+      "filename": "snapshot_10yr.json",
+      "description": "Trade tests, contract history"
+    },
+    "20": {
+      "filename": "snapshot_20yr.json",
+      "description": "Hall of Fame, dynasty, long-term trends"
+    }
+  }
+}
+```
+
+**To add a new snapshot (e.g., 30 years):**
+1. Add entry to `snapshot_config.json`:
+   ```json
+   "30": {
+     "filename": "snapshot_30yr.json",
+     "description": "Very long-term trends"
+   }
+   ```
+2. Add constant to SnapshotLoader.gd: `const YEAR_30 := 30`
+3. Run `godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd`
+
+### Regenerating Snapshots
+
+When to regenerate:
+- Config schema changes
+- Player model changes
+- World state schema changes
+- Simulation logic changes materially
+
+To regenerate:
+```bash
+godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd
+```
+
+### Schema Versioning
+
+Snapshots include schema versioning for evolution tracking. If schema mismatch detected:
+
+1. SnapshotLoader will log an error with regeneration instructions
+2. Tests using snapshots will fail with empty world_state
+3. Regenerate snapshots using the command above
+
+Current schema version: 1 (see `SNAPSHOT_SCHEMA_VERSION` in SnapshotGenerator.gd)
+
+### Test Isolation
+
+TestRunner automatically clears the snapshot cache between test files to ensure isolation. For manual cache clearing:
+
+```gdscript
+SnapshotLoader.clear_cache()
+```
+
+### Files
+
+- Config: `scripts/tests/fixtures/world_state/snapshot_config.json`
+- Generator: `scripts/tests/fixtures/world_state/SnapshotGenerator.gd`
+- Loader: `scripts/tests/fixtures/world_state/SnapshotLoader.gd`
+- Tests: `scripts/tests/test_snapshot_loader.gd`
+- Data: `scripts/tests/fixtures/world_state/snapshot_*.json`
+
+---
+
 ## Active Tasks
 
-### TEST_FIXTURES: Test Fixtures Implementation (READY)
-**Status**: 🟢 Ready to start
+### TEST_FIXTURES: Test Fixtures Implementation (PARTIALLY COMPLETE)
+**Status**: World State Snapshots Implemented
 **Priority**: Medium
-**Effort**: 3-4 days
-**Expected Impact**: Reduce test suite time from ~2 minutes to 30-45 seconds
+**Remaining Effort**: 1-2 days (player/team fixtures)
+**Expected Impact**: Additional 30-40% reduction in test suite time
 
-#### Problem
-Tests repeatedly generate expensive test data:
-- Player generation: ~2000 players per class (~10+ seconds)
-- Multi-year simulations: 2-3 years of world advancement (~60-90 seconds)
-- College/team generation: Regenerated for each test
+#### Completed
+- World state snapshots (5yr, 10yr, 20yr)
+- SnapshotLoader with config-driven snapshot definitions
+- Unified setup_world() API
+- Schema versioning for snapshot evolution
+- Comprehensive test suite for snapshot loader
 
-This creates a slow feedback loop where developers wait 2+ minutes per test run.
+#### Remaining (Optional)
+Player and team fixtures for tests that need specific entity data without full world state:
 
-#### Proposed Solution
-Implement a fixture system that pre-generates expensive test data once and loads it from JSON files.
-
-#### Implementation Plan
-
-**Step 1: Create Fixture Directory Structure**
 ```
 scripts/tests/fixtures/
   players/
     hs_class_100.json         # 100 HS players (seed: 42)
     draft_class_200.json      # 200 draft-ready players (seed: 43)
-    college_recruits_50.json  # 50 recruits with ratings (seed: 44)
   teams/
     colleges_10.json          # 10 colleges (seed: 45)
-    hs_schools_20.json        # 20 high schools (seed: 46)
     nfl_teams_4.json          # 4 NFL teams (seed: 47)
-  world_states/
-    year_1_populated.json     # World after 1 year (seed: 100)
-    year_3_populated.json     # World after 3 years (seed: 100)
 ```
 
-**Step 2: Create FixtureLoader Helper**
-
-```gdscript
-# scripts/tests/FixtureLoader.gd
-class_name FixtureLoader
-
-const FIXTURE_DIR := "res://scripts/tests/fixtures/"
-
-static func load_players(fixture_name: String) -> Array:
-    var path := FIXTURE_DIR + "players/" + fixture_name + ".json"
-    return _load_json(path)
-
-static func load_teams(fixture_name: String) -> Array:
-    var path := FIXTURE_DIR + "teams/" + fixture_name + ".json"
-    return _load_json(path)
-
-static func load_world_state(fixture_name: String) -> Dictionary:
-    var path := FIXTURE_DIR + "world_states/" + fixture_name + ".json"
-    return _load_json(path)
-```
-
-**Step 3: Create Fixture Generator**
-
-```gdscript
-# scripts/tests/generate_fixtures.gd
-# Run once to create fixtures, commit to repo
-
-extends SceneTree
-
-func _init():
-    generate_player_fixtures()
-    generate_team_fixtures()
-    generate_world_state_fixtures()
-    quit()
-```
-
-**Step 4: Update Existing Tests**
-
-Before:
-```gdscript
-func test_player_lifecycle():
-    var players := DraftClassGenerator.generate(100, 2020, rng, cfg)
-    # ... rest of test
-```
-
-After:
-```gdscript
-func test_player_lifecycle():
-    var players := FixtureLoader.load_players("hs_class_100")
-    # ... rest of test (much faster!)
-```
-
-#### Benefits
-1. **Faster test runs**: 60-75% reduction in test suite time
-2. **Deterministic data**: Same fixtures across runs
-3. **Better debugging**: Can inspect fixture files directly
-4. **Parallel-friendly**: No generation contention
-
-#### Trade-offs
-**Pros**:
-- Significant time savings
-- Better developer experience
-- Easier to debug (inspect JSON files)
-- Enables parallel test execution (TEST_PARALLEL)
-
-**Cons**:
-- Adds fixture files to repo (~5-10 MB)
-- Fixtures can become stale if generation changes
-- Need to regenerate fixtures when code changes
-- Fixture generation script needs maintenance
-
-#### Testing Strategy
-1. Generate fixtures with known seeds
-2. Verify fixtures load correctly
-3. Run existing tests with fixtures, verify same results
-4. Benchmark test suite before/after
+These are optional since world state snapshots cover most use cases.
 
 ### TEST_PARALLEL: Parallel Test Execution (BLOCKED)
-**Status**: 🟡 Blocked by TEST_FIXTURES
+**Status**: Blocked by TEST_FIXTURES
 **Priority**: Low
 **Effort**: 5-7 days
-**Expected Impact**: Additional 40-50% time reduction (30-45s → 15-30s)
+**Expected Impact**: Additional 40-50% time reduction (30-45s -> 15-30s)
 
 #### Problem
 Tests run sequentially on a single core, wasting available CPU resources.
@@ -134,7 +192,7 @@ Tests must be:
 3. **RNG-isolated**: Each test uses own RNG instance
 4. **File-isolated**: No shared file writes
 
-**Current status**: ✅ Most tests already follow these patterns
+**Current status**: Most tests already follow these patterns
 
 #### Proposed Solution
 Use Godot's ThreadPool to run tests in parallel.
@@ -190,7 +248,7 @@ func test_parallel_isolation():
 #### Benefits
 1. **Faster CI**: Parallel execution on multi-core CI runners
 2. **Better CPU utilization**: Use all available cores
-3. **Scalable**: More tests ≠ proportionally longer runtime
+3. **Scalable**: More tests != proportionally longer runtime
 
 #### Trade-offs
 **Pros**:
