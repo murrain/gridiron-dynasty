@@ -274,3 +274,9 @@ Your success is measured by:
 3. Coordination: Zero merge conflicts between teams
 4. Integration: All combined work passes tests
 5. Communication: All teams have clear direction and unblocked progress
+
+## Additional Resources
+
+For detailed protocols, checklists, and lessons learned from past multi-team projects, see:
+- **Full Director Protocols**: `docs/agents/DIRECTOR_PROTOCOLS.md`
+- **Cross-cutting agent guidelines**: `AGENTS.md`

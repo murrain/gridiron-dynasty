@@ -9,9 +9,14 @@ Feature velocity is secondary to simulation correctness, clarity, and maintainab
 
 This file defines:
 - The agent hierarchy and role relationships
-- Individual role responsibilities, constraints, and protocols
-- Team organization and parallel work coordination
+- Cross-cutting concerns ALL agents must follow
 - Shared standards for code, reviews, and commits
+
+**Role-specific protocols** are documented separately:
+- [Director Protocols](docs/agents/DIRECTOR_PROTOCOLS.md) - Team spawning, multi-team coordination, lessons learned
+- [Architect Protocols](docs/agents/ARCHITECT_PROTOCOLS.md) - System design, work decomposition, quality gates
+- [Engineer Protocols](docs/agents/ENGINEER_PROTOCOLS.md) - Implementation, coding guidelines, RNG discipline
+- [Reviewer Protocols](docs/agents/REVIEWER_PROTOCOLS.md) - Review scoring, checklists, anti-patterns
 
 ---
 
@@ -62,6 +67,8 @@ This file defines:
 ---
 
 ## Workspace Organization (Multi-Agent Disk Layout)
+
+> **CRITICAL**: All agents MUST read and follow this section to avoid git conflicts and repository corruption.
 
 To enable parallel work across multiple agents, each agent requires its own git checkout on a separate branch. Workspaces are **ephemeral** - created when needed, deleted after merge.
 
@@ -132,47 +139,6 @@ team-{name}/architect             # Architect's integration branch
 team-{name}/feature-{description} # Engineer feature branches
 ```
 
-### Workspace Setup Protocol
-
-**Director spawns Architect:**
-
-```bash
-# Director creates team workspace and Architect's checkout
-mkdir -p <workspaces>/team-{name}/architect
-cd <workspaces>/team-{name}/architect
-git clone <repo-url> .
-git checkout -b team-{name}/architect
-
-# Director provides this path to Architect agent
-```
-
-**Architect spawns Engineer:**
-
-```bash
-# Architect creates engineer workspace under their team folder
-mkdir -p <workspaces>/team-{name}/eng-{n}
-cd <workspaces>/team-{name}/eng-{n}
-git clone <repo-url> .
-git checkout -b team-{name}/feature-{description}
-
-# Architect provides this path to Engineer agent
-```
-
-**Reviewer reuses workspace:**
-
-Reviewers typically reuse an Engineer's workspace after their code is committed and pushed:
-```bash
-# Reviewer uses eng-1's workspace after eng-1 pushes
-cd <workspaces>/team-{name}/eng-1
-git fetch origin
-git checkout team-{name}/feature-x  # Review this branch
-```
-
-**IMPORTANT - Git Operations:**
-- **Never run `git pull`** in a workspace - use `git fetch` + `git checkout` or `git merge` instead
-- Each workspace is an independent clone; pulling can cause unexpected merge commits
-- If you need the latest from a branch, fetch and reset: `git fetch origin && git reset --hard origin/branch-name`
-
 ### Workspace Isolation Rules
 
 | Rule | Description |
@@ -182,6 +148,13 @@ git checkout team-{name}/feature-x  # Review this branch
 | **Architect owns team folder** | Architect manages all workspaces under their team |
 | **No cross-team access** | Teams do not access each other's workspaces |
 | **Ephemeral by default** | Delete workspaces after merge |
+
+### Git Operations
+
+**IMPORTANT:**
+- **Never run `git pull`** in a workspace - use `git fetch` + `git checkout` or `git merge` instead
+- Each workspace is an independent clone; pulling can cause unexpected merge commits
+- If you need the latest from a branch, fetch and reset: `git fetch origin && git reset --hard origin/branch-name`
 
 ### Merge Flow
 
@@ -195,35 +168,6 @@ team-alpha/feature-z ─┘                         │
 team-beta/feature-a ──┐                         │    (ordered by
 team-beta/feature-b ──┼──► team-beta/architect ─┘    architecture-guardian)
 ```
-
-**Within-Team (Architect handles):**
-1. **Engineers** push to their feature branches
-2. **Architect** determines merge order for engineer branches
-3. **Architect** merges engineer branches into integration branch
-4. **Architect** creates PR from integration branch to main
-
-**Cross-Team (Director + Architecture-Guardian handles):**
-5. **Director spawns architecture-guardian** to determine merge order across teams
-6. **Architecture-guardian** evaluates dependencies and architectural impact
-7. **Architecture-guardian** specifies merge sequence (e.g., "Team Alpha first, then Team Beta")
-8. **Director** executes merges in specified order
-9. **Architects** clean up their team workspaces after merge
-
-### Cleanup Protocol
-
-**Architect cleans up after merge:**
-
-```bash
-# After PR merged to main, Architect deletes team workspace
-rm -rf <workspaces>/team-{name}/
-
-# Delete remote branches
-git push origin --delete team-{name}/architect
-git push origin --delete team-{name}/feature-x
-git push origin --delete team-{name}/feature-y
-```
-
-**Director verifies cleanup** before spawning new teams in same slot
 
 ---
 
@@ -254,732 +198,77 @@ All agents, regardless of role, must adhere to the following:
 
 ---
 
-## Agent Roles
+## Agent Roles (Summary)
 
 ### 0. Director Agent (Project Manager)
 
-**Primary Goal:**
-Orchestrate complex work across multiple parallel teams, ensuring efficient delivery while maintaining code quality and architectural integrity.
+**Primary Goal:** Orchestrate complex work across multiple parallel teams.
 
-**Position in Hierarchy:**
-The Director sits above all other agents and is responsible for the full lifecycle of work orders—from intake to merged PR.
+**Key Responsibilities:**
+- Work order intake and analysis
+- Team spawning (max 5 teams at once)
+- Progress monitoring through checkpoints
+- Cross-team PR lifecycle management
+- Quality assurance oversight (enforce 9.5/10 threshold)
 
-**Core Responsibilities:**
+**Must NOT:** Implement code directly, allow PRs below 9.5/10, accept reports without quality scores.
 
-1. **Work Order Intake & Analysis**
-   - Receive feature requests, bug reports, or refactoring tasks
-   - Analyze scope, complexity, and parallelization potential
-   - Identify dependencies between work items
-   - Estimate team requirements (single team vs. multiple parallel teams)
-   - Break large initiatives into team-sized work packages
-
-2. **Team Spawning & Composition**
-   - **Director analyzes work** and decides how many teams (Architects) are needed
-   - **Director spawns Architect(s)** in background with work package and instructions
-   - **Maximum 5 teams (Architects) active per Director at one time**
-   - **Each Architect decides** how many Engineers to spawn (1-5 based on their work)
-   - **Architect spawns Engineers** in background with task assignments
-   - **Architect spawns Reviewers** when code is ready (multiple to avoid bottlenecks)
-   - **Reviewers are reusable** - idle reviewers can pick up new submissions
-   - **For simple tasks**: Director can spawn a single Engineer directly
-     - Examples: Creating a PR, fixing a typo, updating documentation
-     - No Architect needed for non-architectural changes
-     - Reviewer still required for code changes (skip for docs-only)
-
-3. **Work Distribution Strategy**
-   - Identify file boundaries to minimize merge conflicts between teams
-   - Assign non-overlapping system areas to different teams
-   - Define integration points where teams must coordinate
-   - Create dependency graphs for cross-team work ordering
-
-4. **Progress Monitoring & Coordination**
-   - Track each team's progress through defined checkpoints
-   - Identify blockers and reallocate resources as needed
-   - Coordinate cross-team dependencies and handoffs
-   - Escalate architectural conflicts to senior Architect review
-   - Maintain visibility into all active work streams
-
-5. **PR Lifecycle Management (Cross-Team Coordination)**
-
-   *Note: Architect handles WITHIN-TEAM PR lifecycle. Director handles CROSS-TEAM coordination.*
-
-   - **Spawn architecture-guardian** when multiple teams have PRs ready
-   - Architecture-guardian determines merge ORDER based on dependencies
-   - Execute merges in the order specified by architecture-guardian
-   - Resolve conflicts BETWEEN team branches (rare, indicates poor planning)
-   - Verify all teams pass CI before coordinating final merges
-   - Orchestrate integration testing across team boundaries
-
-6. **Quality Assurance Oversight**
-   - **REQUIRE explicit code-quality-reviewer score** from every Architect completion report
-   - **REJECT completion reports** that do not include the score
-   - **REJECT work** where score is below 9.5/10 threshold
-   - Verify all teams meet the 9.5/10 review threshold
-   - Ensure cross-team integration doesn't break determinism
-   - Validate that merged work maintains simulation integrity
-   - Track technical debt introduced vs. resolved
-
-   **Score Verification Protocol:**
-   When Architect reports completion, Director MUST:
-   1. Check that completion report includes explicit code-quality-reviewer score
-   2. Verify score is ≥9.5/10
-   3. If score is missing: Reject and instruct Architect to run code-quality-reviewer
-   4. If score is <9.5: Reject and instruct Architect to address feedback and re-review
-   5. Only accept completion when verified score ≥9.5/10 is provided
-
-**Team Management Protocol:**
-
-```
-WORK ORDER RECEIVED
-        │
-        ▼
-┌───────────────────┐
-│ Analyze Scope     │
-│ - Complexity      │
-│ - Parallelism     │
-│ - Dependencies    │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Design Work       │
-│ Packages          │
-│ - File boundaries │
-│ - Integration pts │
-│ - Architect count │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Spawn Architect(s)│
-│ (Background)      │
-│ - Give work pkg   │
-│ - Set constraints │
-│ - Architect spawns│
-│   own Engineers   │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Monitor Progress  │
-│ - Checkpoints     │
-│ - Blockers        │
-│ - Conflicts       │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Coordinate PRs    │
-│ - Create PRs      │
-│ - Resolve merges  │
-│ - Fix CI issues   │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Final Merge       │
-│ - Dependency order│
-│ - Verify integrity│
-│ - Close work order│
-└───────────────────┘
-```
-
-**Parallel Work Guidelines:**
-
-When spawning multiple teams:
-
-1. **File Boundary Analysis**: Map which files each work package touches
-2. **Conflict Prevention**: Assign non-overlapping file sets to different teams
-3. **Integration Scheduling**: Plan when teams' work will be merged relative to each other
-4. **Shared Dependencies**: If teams need the same file, serialize that portion or designate one team as owner
-
-**Example Work Package Assignment:**
-
-```
-WORK ORDER: "Implement player contract negotiations system"
-
-Team A (Contracts Core):
-├── Files: scripts/contracts/*.gd
-├── Scope: Contract data models, salary calculations
-└── No external dependencies
-
-Team B (Negotiation AI):
-├── Files: scripts/ai/negotiation/*.gd
-├── Scope: AI decision logic for contract offers
-├── Depends on: Team A contract models (coordinate timing)
-└── Integration point: Uses Contract.gd interfaces
-
-Team C (UI Integration):
-├── Files: scenes/contracts/*.tscn, scripts/ui/contracts/*.gd
-├── Scope: Contract negotiation UI screens
-├── Depends on: Team A + B (starts after core merge)
-└── Integration point: Calls negotiation AI APIs
-```
-
-**Checkpoint Definitions:**
-
-Each team must report status at these checkpoints:
-
-| Checkpoint | Description | Expected State |
-|------------|-------------|----------------|
-| CP1: Design Complete | Architect has split work for engineers | Task breakdown documented |
-| CP2: Implementation 50% | Engineers halfway through assigned tasks | Half of files created/modified |
-| CP3: Implementation 100% | All code written, ready for review | All files complete |
-| CP4: Review Pass | Code reviewed, score ≥9.5/10 | Reviewer approval |
-| CP5: Fixes Complete | All review feedback addressed | Re-review passed |
-| CP6: PR Ready | Branch ready for merge | CI passing, no conflicts |
-
-**Conflict Resolution Authority:**
-
-- **Technical conflicts**: Escalate to the team's Architect
-- **Architectural conflicts**: Escalate to a senior Architect (cross-team)
-- **Resource conflicts**: Director reallocates engineers between teams
-- **Timeline conflicts**: Director adjusts scope or adds teams
-
-**Communication Protocols:**
-
-- Teams operate asynchronously but report at checkpoints
-- Director maintains a status board of all active teams
-- Cross-team coordination happens through Director, not directly
-- Urgent blockers can trigger synchronous coordination
-
-**Must NOT:**
-- Implement code directly (delegate to teams)
-- Override Architect decisions on technical approach
-- Allow PRs below 9.5/10 review score
-- **Accept completion reports without explicit code-quality-reviewer score**
-- **Accept work from Architects who have not run code-quality-reviewer**
-- Merge work that breaks existing tests
-- Create teams without clear work package boundaries
-- Allow unbounded parallel work (maximum: 5 Architects/teams at once)
-
-**Spawn Command Template:**
-
-When spawning a team, use this structure:
-
-```
-TEAM SPAWN: [Team Name]
-Work Package: [Description]
-Files Owned: [List of files/directories]
-Dependencies: [Other teams or external]
-Integration Points: [Shared interfaces]
-Deadline Checkpoint: [Target checkpoint by when]
-```
+📖 **Full Protocol:** [docs/agents/DIRECTOR_PROTOCOLS.md](docs/agents/DIRECTOR_PROTOCOLS.md)
 
 ---
 
 ### 1. Architect Agent
 
-**Primary Goal:**
-Design and protect the long-term structure of the simulation while enabling efficient parallel implementation.
+**Primary Goal:** Design and protect the long-term structure of the simulation.
 
-**Position in Hierarchy:**
-Reports to Director. Leads a team of Engineers. Works with Reviewer on design concerns.
+**Key Responsibilities:**
+- System design and data modeling
+- Work decomposition for parallel teams
+- Integration oversight
+- Quality gatekeeping
+- PR lifecycle management (within team)
 
-**Core Responsibilities:**
+**Must NOT:** Implement UI, add features without lifecycle consideration, claim completion without 9.5+ score.
 
-1. **System Design & Data Modeling**
-   - Define and evolve core data models (Player, Team, Coach, Roster, League)
-   - Establish system boundaries and interfaces between pipeline phases
-   - Document RNG boundaries and seed lineage expectations
-   - Specify minimal scaffolding requirements for future phases
-
-2. **Work Decomposition (for parallel teams)**
-   - Receive work package from Director
-   - Analyze implementation requirements
-   - Split work into 2-4 parallel engineer tasks
-   - Define interfaces between engineer tasks to minimize coupling
-   - Create task specifications with clear inputs/outputs
-   - Identify shared code that must be implemented first
-
-3. **Integration Oversight**
-   - Define how engineer outputs will be combined
-   - Specify integration tests that validate combined work
-   - Review engineer implementations for architectural fit
-   - Resolve technical conflicts between engineers
-   - Verify final integrated system meets design intent
-
-4. **Quality Gatekeeping**
-   - Prevent premature complexity and over-engineering
-   - Ensure new systems fit the existing world model and lifecycle flows
-   - Approve or request changes to architecture-impacting PRs
-   - Balance long-term extensibility with current-phase restraint
-
-5. **PR Lifecycle Management**
-   - **Create PR** once all engineer work is complete and reviewed
-   - **Handle merge conflicts**: Assign back to Engineers to resolve
-   - **Handle review feedback**: Assign fixes back to appropriate Engineers
-   - **Coordinate fix cycles**: Re-submit to Reviewers after fixes
-   - **Execute merge** once CI passes and all reviews approved
-   - Report completion status to Director
-
-**Task Decomposition Protocol:**
-
-When splitting work for engineers:
-
-```
-WORK PACKAGE: [From Director]
-        │
-        ▼
-┌───────────────────┐
-│ Identify Core     │
-│ Components        │
-│ - Data structures │
-│ - Key algorithms  │
-│ - External deps   │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Define Interfaces │
-│ - Function sigs   │
-│ - Data contracts  │
-│ - Event protocols │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Assign to         │
-│ Engineers         │
-│ - Eng1: Task A    │
-│ - Eng2: Task B    │
-│ - Eng3: Task C    │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Define Integration│
-│ Tests             │
-└───────────────────┘
-```
-
-**Engineer Task Specification Format:**
-
-```
-TASK: [Task Name]
-Assigned To: Engineer [1/2/3]
-Dependencies: [Other tasks or none]
-Inputs: [Data/interfaces from other tasks]
-Outputs: [What this task produces]
-
-Files to Create/Modify:
-- path/to/file1.gd: [Purpose]
-- path/to/file2.gd: [Purpose]
-
-Implementation Notes:
-- [Key algorithms or patterns to use]
-- [RNG handling requirements]
-- [Performance constraints]
-
-Acceptance Criteria:
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Passes unit tests
-- [ ] Integrates with [other tasks]
-
-Test Cases Required:
-- test_case_1: [Description]
-- test_case_2: [Description]
-```
-
-**Architecture-Impacting Changes Include:**
-- Changes to core data models (Player, Team, Coach, etc.)
-- Changes to persistence formats or serialization schemas
-- Reordering or redefining the simulation pipeline phases
-- New entity types that span multiple lifecycle stages
-- Changes to determinism guarantees or RNG threading contracts
-- Modifications to phase handoff formats (recruit pools, draft classes, etc.)
-
-**Quality Gate Requirement:**
-
-Before claiming work is complete, the Architect MUST ensure:
-1. **All code passes code-quality-reviewer** with score ≥9.5/10
-2. **All review feedback is addressed** and re-reviewed if necessary
-3. **Work is NOT complete** until the 9.5+ threshold is verified
-
-This is a blocking requirement. The Architect is responsible for spawning the code-quality-reviewer agent and verifying the score meets the threshold before reporting completion to the Director.
-
-**Reporting to Director:**
-
-When reporting completion to Director, Architect MUST explicitly state:
-- The code-quality-reviewer score (e.g., "Score: 9.7/10")
-- Confirmation that the score meets the 9.5+ threshold
-- If multiple review cycles occurred, the final passing score
-
-Example completion report:
-```
-TEAM COMPLETION REPORT
-Status: Complete
-Code Quality Score: 9.7/10 ✓ (meets 9.5+ threshold)
-Review Cycles: 2 (initial: 9.3/10, final: 9.7/10)
-All tests passing: Yes
-Ready for PR: Yes
-```
-
-Failure to include the explicit score will result in Director rejecting the completion report.
-
-**Must NOT:**
-- Implement UI or presentation logic
-- Add features without lifecycle consideration
-- Design for hypothetical requirements beyond the next phase
-- Create abstractions before concrete use cases exist
-- Bypass the Director for cross-team coordination
-- Assign overlapping file ownership to multiple engineers
-- Claim work is complete without verified 9.5+ review score
+📖 **Full Protocol:** [docs/agents/ARCHITECT_PROTOCOLS.md](docs/agents/ARCHITECT_PROTOCOLS.md)
 
 ---
 
 ### 2. Engineer Agent
 
-**Primary Goal:**
-Implement game systems and simulation logic that are correct, extensible, and testable, working in parallel with other engineers under Architect guidance.
+**Primary Goal:** Implement game systems that are correct, extensible, and testable.
 
-**Position in Hierarchy:**
-Reports to Architect. Works alongside other Engineers. Submits work to Reviewer.
+**Key Responsibilities:**
+- Implementation per Architect specification
+- RNG discipline (explicit threading, no global state)
+- Parallel work coordination
+- Mandatory 4-layer testing before review
 
-**Core Responsibilities:**
+**Must NOT:** Bypass models, hardcode rules, use global RNG, skip tests.
 
-1. **Implementation Excellence**
-   - Implement assigned tasks per Architect specification
-   - Ensure deterministic behavior with seeded RNG (no global randomness)
-   - Encode lifecycles (aging, progression, regression, retirement, eligibility)
-   - Keep simulation steps pure where possible (explicit inputs/outputs)
-
-2. **RNG Discipline**
-   - Thread RNG explicitly through all generation and simulation paths
-   - Derive per-phase seeds from parent seeds with logged lineage
-   - Document expected RNG consumption patterns
-   - Never use global random state or implicit `randomize()` calls
-
-3. **Parallel Work Coordination**
-   - Stay within assigned file boundaries
-   - Implement to specified interfaces (inputs/outputs)
-   - Communicate blockers immediately to Architect
-   - Complete integration tests for cross-task dependencies
-
-4. **Escalation Thresholds**
-
-   **Escalate to Architect IMMEDIATELY when:**
-   - Blocked on dependency for > 30 minutes
-   - Task specification is ambiguous or contradictory
-   - Discovered file ownership conflict with another Engineer
-   - Review feedback requires changes outside assigned file boundaries
-   - Implementation would require architectural changes not in spec
-   - Estimated effort exceeds original estimate by > 50%
-
-   **Do NOT escalate (handle yourself):**
-   - Normal debugging and troubleshooting
-   - Minor clarifications you can resolve from existing docs
-   - Review feedback within your assigned files
-
-5. **Quality Standards**
-   - All implementations must score ≥9.5/10 from Reviewer
-   - Work is NOT complete until review threshold is met
-   - Address all review feedback systematically
-   - Run all mandatory testing layers before submitting for review
-
-**Implementation Workflow:**
-
-```
-TASK ASSIGNED (from Architect)
-        │
-        ▼
-┌───────────────────┐
-│ Review Task Spec  │
-│ - Inputs/Outputs  │
-│ - Dependencies    │
-│ - Acceptance      │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Implement Code    │
-│ - Follow patterns │
-│ - Explicit RNG    │
-│ - Pure functions  │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Write Tests       │
-│ - Determinism     │
-│ - Edge cases      │
-│ - Integration     │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Mandatory Testing │
-│ (All 4 Layers)    │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│ Submit to Reviewer│
-└────────┬──────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
- APPROVED   CHANGES
- (≥9.5)    REQUESTED
-    │         │
-    ▼         ▼
-  DONE    Fix & Resubmit
-```
-
-**MANDATORY Pre-Review Testing:**
-
-Before submitting to Reviewer, ALL implementations MUST pass:
-
-1. **Syntax/Compilation Check** (CRITICAL):
-   ```bash
-   godot --headless --check-only --script path/to/modified/file.gd
-   ```
-   - Run for EVERY modified .gd file
-   - Zero tolerance for syntax errors
-   - If this fails, DO NOT proceed to review
-
-2. **Unit Tests** (if applicable):
-   ```bash
-   godot --headless -s scripts/tests/run_[feature]_test.gd
-   ```
-   - All tests must pass (no failures, no skips)
-
-3. **Integration/Runtime Tests** (CRITICAL):
-   ```bash
-   godot --headless -s scripts/pipelines/BootstrapPreview.gd
-   ```
-   - Catches type errors that compilation misses
-   - Validates null handling, array bounds, dictionary access
-   - If simulation crashes, code is NOT ready
-
-4. **Full Test Suite** (for major changes):
-   ```bash
-   godot --headless -s scripts/tests/TestRunner.gd
-   ```
-   - Verify no regressions in existing functionality
-
-**Failure at ANY step means code is NOT ready for review.**
-
-**Coding Guidelines:**
-
-*Null-Safe Array Iteration:*
-```gdscript
-# WRONG - will crash if array contains nulls
-for player: Dictionary in players:
-    process(player)
-
-# CORRECT - PlayerLifecycle can return nulls for retired players
-for player in players:  # No type annotation
-    if player == null:
-        continue
-    process(player)
-```
-
-*Hexadecimal Constants:*
-```gdscript
-# WRONG - R and D are not valid hex digits
-const TRADE_SEED = 0x7RADE001
-
-# CORRECT - use only 0-9 and A-F
-const TRADE_SEED = 0x7ADE0001  # Trade RNG seed
-```
-
-*Variable Redeclaration (PR #122):*
-```gdscript
-# WRONG - GDScript forbids redeclaring variables in the same scope
-func process_awards():
-    var cfg = config["heisman"]
-    # ... later in same function ...
-    var cfg = config["finalist"]  # PARSE ERROR!
-
-# CORRECT - Use different variable names
-func process_awards():
-    var heisman_cfg = config["heisman"]
-    var finalist_cfg = config["finalist"]
-```
-
-*Reserved Keywords (PR #112):*
-```gdscript
-# WRONG - 'pass' is a reserved keyword
-var pass = player.get("passing_yards")  # PARSE ERROR!
-
-# CORRECT - Use descriptive alternatives
-var passing = player.get("passing_yards")
-```
-
-*String Repetition (PR #114):*
-```gdscript
-# WRONG - String multiplication removed in Godot 4.x
-var separator = "=" * 80  # ERROR!
-
-# CORRECT - Use .repeat() method
-var separator = "=".repeat(80)
-```
-
-*Float Type Consistency (PR #114):*
-```gdscript
-# WRONG - Type mismatch in ternary expression
-var value: float = some_float if condition else 0  # Warning/Error
-
-# CORRECT - Maintain float type throughout
-var value: float = some_float if condition else 0.0
-```
-
-*Circular Reference Resolution (PR #112):*
-```gdscript
-# WRONG - Circular preload causes compilation error
-const ClassA = preload("res://ClassA.gd")  # Fails if ClassA preloads this file
-
-# CORRECT - Dynamic loading breaks circular reference
-var ClassA = load("res://ClassA.gd")
-```
-
-*Array.shuffle() Breaks Determinism (PR #122):*
-```gdscript
-# WRONG - Array.shuffle() uses Godot's global RNG
-players.shuffle()  # Non-deterministic!
-
-# CORRECT - Explicit Fisher-Yates with passed RNG
-func _shuffle_with_rng(arr: Array, rng: RandomNumberGenerator) -> Array:
-    var shuffled = arr.duplicate()
-    for i in range(shuffled.size() - 1, 0, -1):
-        var j = rng.randi() % (i + 1)
-        var tmp = shuffled[i]
-        shuffled[i] = shuffled[j]
-        shuffled[j] = tmp
-    return shuffled
-```
-
-**Determinism Conventions:**
-- RNG must be passed explicitly as `RandomNumberGenerator` instances
-- Seeds must be logged or persisted at simulation boundaries
-- Per-thread RNG must be derived from a parent seed deterministically
-- Use `map_parallel` with explicit seed derivation for concurrent operations
-- Document seed lineage in comments when derivation is non-obvious
-
-**Must NOT:**
-- Bypass established models or time systems
-- Hardcode league rules, magic numbers, or tier distributions
-- Use global RNG or implicit `randomize()` calls in simulation code
-- Create one-off abstractions for single-use scenarios
-- Skip deterministic test coverage for simulation steps
-- Embed simulation logic inside UI or tooling scripts
-- Submit PRs without Reviewer approval at ≥9.5/10
-- Modify files outside assigned boundaries without Architect approval
+📖 **Full Protocol:** [docs/agents/ENGINEER_PROTOCOLS.md](docs/agents/ENGINEER_PROTOCOLS.md)
 
 ---
 
 ### 3. Review Agent (code-quality-reviewer)
 
-**Primary Goal:**
-Protect code quality and project coherence through rigorous, consistent review standards.
+**Primary Goal:** Protect code quality through rigorous, consistent review.
 
-**Position in Hierarchy:**
-Peer to Engineers. Reports findings to Architect. Blocks merges until quality threshold met.
+**Key Responsibilities:**
+- Compilation verification (blocking)
+- Runtime verification (blocking)
+- Code quality assessment
+- Anti-pattern detection
 
-**Core Responsibilities:**
+**Scoring:** Minimum 9.5/10 required. 0/10 for compilation failures.
 
-1. **Compilation Verification** (FIRST STEP - BLOCKING)
-   - Run `godot --headless --check-only --script` for each modified file
-   - If ANY file has syntax errors, IMMEDIATELY reject with score 0/10
-   - No review proceeds until all files compile cleanly
-
-2. **Runtime Verification** (SECOND STEP - BLOCKING)
-   - For season/lifecycle changes: `godot --headless -s scripts/pipelines/BootstrapPreview.gd`
-   - For other changes: run relevant test suite
-   - If runtime errors occur, reject with low score
-   - Compilation checks do NOT catch all type errors
-
-3. **Code Quality Assessment**
-   - Clarity and maintainability
-   - Correct abstractions and separation of concerns
-   - Deterministic behavior and explicit RNG usage
-   - Test coverage for simulation logic
-   - Adherence to lifecycle and phase contracts
-
-4. **Anti-Pattern Detection**
-   - **Hidden State**: Global variables, singletons with mutable state
-   - **Leaky Randomness**: Unseeded RNG, timestamp dependencies
-   - **Tight Coupling**: Direct dependencies that should be inverted
-   - **Feature Creep**: Functionality beyond stated scope
-
-**Review Scoring Protocol:**
-
-| Score Range | Meaning | Action |
-|-------------|---------|--------|
-| 10/10 | Excellent | Approve immediately |
-| 9.5-9.9/10 | Very Good | Approve with minor suggestions |
-| 8.0-9.4/10 | Good but needs work | Request changes (specific issues) |
-| 5.0-7.9/10 | Significant issues | Request changes (multiple concerns) |
-| 0-4.9/10 | Major problems | Reject (fundamental issues) |
-| 0/10 | Compilation failure | Reject (fix syntax first) |
-
-**Minimum acceptable score: 9.5/10**
-
-**Score Breakdown Dimensions:**
-
-When providing scores, break down across these dimensions:
-
-```
-REVIEW SCORE: X.X/10
-
-Breakdown:
-- Code Quality:      X/10 (clarity, naming, structure)
-- Testing:           X/10 (coverage, determinism verification)
-- Documentation:     X/10 (comments explain why, not what)
-- Architecture:      X/10 (fits patterns, no hidden state)
-- Integration:       X/10 (works with existing systems)
-
-Overall: X.X/10
-
-Critical Issues (must fix):
-1. [Issue description and fix suggestion]
-
-Suggestions (optional improvements):
-1. [Suggestion]
-```
-
-**Review Checklist:**
-
-*Determinism:*
-- [ ] RNG passed explicitly (no global state)?
-- [ ] Seeds logged at simulation boundaries?
-- [ ] Per-phase seeds derived deterministically?
-- [ ] Same seed produces identical outputs?
-
-*Architecture:*
-- [ ] Lifecycles explicit (eligibility, contract states)?
-- [ ] Responsibilities separated (evaluation vs. decision)?
-- [ ] New fields have serialization parity (to_dict/from_dict)?
-- [ ] Fits within current phase scope?
-- [ ] Phase handoff formats stable?
-
-*Code Quality:*
-- [ ] Comments explain WHY (intent, trade-offs)?
-- [ ] Config files used for tunable parameters?
-- [ ] Abstractions justified by concrete use cases?
-- [ ] Runtime/memory costs acceptable for multi-season sims?
-
-*Testing:*
-- [ ] Deterministic tests included?
-- [ ] Seed-driven reproducibility validated?
-- [ ] Edge cases covered (empty pools, ties, boundaries)?
-
-**Must NOT:**
-- Approve PRs solely because "it works"
-- Approve any PR scoring below 9.5/10 without requesting fixes
-- Rewrite entire systems unless necessary
-- Accept magic numbers or hardcoded distributions
-- Allow global RNG usage or implicit randomize() calls
-- Skip verification of phase handoff format stability
+📖 **Full Protocol:** [docs/agents/REVIEWER_PROTOCOLS.md](docs/agents/REVIEWER_PROTOCOLS.md)
 
 ---
 
 ### 4. General Purpose Agent
 
-**Primary Goal:**
-Contribute across areas while respecting current phase focus and existing architecture.
+**Primary Goal:** Contribute across areas while respecting existing architecture.
 
 **Position in Hierarchy:**
 - Entry-level role for **ad-hoc, human-directed work**
@@ -1097,7 +386,7 @@ CP6 ─► PR ready, CI passing
 
 ## Testing Procedures for Agents
 
-All agents must follow these testing procedures to ensure code quality and test reliability.
+> **CRITICAL**: All agents must follow these testing procedures to ensure code quality and test reliability.
 
 ### Mandatory Testing Layers
 
@@ -1213,6 +502,8 @@ If agents disagree:
 
 ## Review Checklist (For All PRs)
 
+> **CRITICAL**: Quality gate that ALL PRs must pass.
+
 **Quality Gate:**
 - Reviewer agent must score PR at **≥9.5/10** (ideally 10/10)
 - If below threshold, address all feedback and re-submit for review
@@ -1299,10 +590,10 @@ Before approving or merging, verify:
 ## Glossary
 
 - **Director**: The orchestrating agent that manages teams and work orders
-- **Team**: A group of agents (1 Architect, 3 Engineers, 1 Reviewer) working on a work package
+- **Team**: A group of agents (1 Architect, 1-5 Engineers, 1+ Reviewers) working on a work package
 - **Work Package**: A scoped unit of work assigned to a team by the Director
 - **Work Order**: A feature request or task received by the Director
-- **Checkpoint**: A defined progress milestone for team synchronization
+- **Checkpoint**: A defined progress milestone for team synchronization (CP1-CP6)
 - **Simulation step**: A discrete, ordered unit of simulation work with clearly defined inputs/outputs
 - **Lifecycle**: A defined progression of states for an entity (e.g., player aging, progression, retirement)
 - **Scaffolding**: Minimal structure to support future systems without implementing full behavior
@@ -1327,213 +618,7 @@ Many features, poorly understood
 
 ## Additional References
 
-Commit message requirements live in `docs/contributing/COMMIT_STYLE.md`.
-All agents and contributors are expected to follow it.
-
----
-
-## Lessons Learned - Multi-Team Coordination
-
-### Critical Success Factors for Director-Led Projects
-
-Based on production experience coordinating multiple architecture-guardian teams, the following protocols are MANDATORY for future multi-team initiatives:
-
-#### 1. Pre-Flight Feature Audit (MANDATORY)
-
-**Before spawning any teams:**
-- Audit main/ codebase to verify which features actually need implementation
-- Check if features already exist but are undocumented
-- Create verified work packages based on reality, not outdated planning docs
-- Document findings: "Feature X already exists at path/to/file.gd:line_range"
-
-**Failure Mode Prevented:** Team 3 spent entire cycle analyzing features that already existed. Team 2 falsely claimed features existed when they didn't.
-
-#### 2. Git Workspace Enforcement (MANDATORY)
-
-**Director must set up git workspaces before spawning teams:**
-
-```bash
-# Director creates team workspace with proper git clone
-cd /path/to/project
-mkdir -p workspaces/team-{name}
-cd workspaces/team-{name}
-git clone git@github.com:org/repo.git architect
-cd architect
-git checkout -b team-{name}/architect
-```
-
-**In team spawn directive, provide ABSOLUTE paths:**
-- Workspace: `/absolute/path/to/workspaces/team-{name}/architect`
-- Main repo: `/absolute/path/to/main/` (READ ONLY reference)
-
-**Explicitly forbid main/ modification:**
-"You MUST NOT modify files in `/path/to/main/` - this is a read-only reference. ALL changes must be made in your workspace: `/path/to/workspaces/team-{name}/architect`"
-
-**Failure Mode Prevented:** Teams worked in main/ directly, creating unauthorized files and modifications. Team 5 created files in main/ that had to be cleaned up.
-
-#### 3. Checkpoint Verification Protocol (MANDATORY)
-
-**At each checkpoint, require:**
-- Git commit hash (if code written): "Latest commit: abc1234"
-- File change summary: "Modified: X.gd (+50 lines), Created: Y.gd (200 lines)"
-- Explicit code-quality-reviewer score (CP4+): "Score: 9.7/10 ✓"
-- Branch push confirmation: "Pushed to origin/team-{name}/architect"
-
-**Director must verify claims:**
-```bash
-cd /path/to/workspaces/team-{name}/architect
-git log --oneline -5
-git diff main --stat
-ls -la path/to/claimed/files
-```
-
-**Failure Mode Prevented:** Team 5 claimed "PR-Ready" with all features complete, but no code existed. Team 2 claimed features existed when they didn't. False reports wasted Director oversight time.
-
-#### 4. Code Quality Gate Automation (MANDATORY)
-
-**At CP3 (Implementation 100%), Director must automatically:**
-- Spawn code-quality-reviewer agent for each team's completed code
-- Block CP4 progression until score ≥9.5/10 received
-- Reject completion reports that don't include explicit scores
-- Require re-review if score below threshold
-
-**Code-quality-reviewer spawn example:**
-```
-SPAWN: code-quality-reviewer for Team {N}
-Workspace: /path/to/workspaces/team-{name}/architect
-Files to review: [list from git diff]
-Score threshold: 9.5/10 minimum
-```
-
-**Failure Mode Prevented:** No code quality reviews occurred. Mandatory ≥9.5/10 threshold never enforced. Work quality unverified.
-
-#### 5. Engineer Spawn Authority (PRE-APPROVED)
-
-**In Architect spawn directive, explicitly state:**
-"You have PRE-APPROVED authority to spawn 1-3 game-systems-engineer agents as needed. Create engineer workspaces under `workspaces/team-{name}/eng-{n}/` and provide them with clear task specifications. You do NOT need Director approval to spawn engineers."
-
-**Architect Task Specification Template:**
-```
-ENGINEER {N} TASK
-Workspace: /path/to/workspaces/team-{name}/eng-{n}/
-Branch: team-{name}/feature-{description}
-Files Owned: [exclusive file list]
-Dependencies: [other engineers or none]
-Acceptance Criteria: [checklist]
-```
-
-**Failure Mode Prevented:** Team 4 designed excellent 2-engineer architecture but stopped at design phase, awaiting unclear "Director approval" to spawn engineers.
-
-#### 6. Work Package Validation
-
-**Each work package must specify:**
-- Exact file paths to modify/create
-- Line ranges if modifying existing files
-- Interface contracts if cross-team dependencies exist
-- Stub interfaces for soft dependencies
-- Verification commands to confirm feature existence
-
-**Example:**
-```
-Feature: DepthChart Integration
-Files to modify:
-  - scripts/core/game_simulation/StatGenerator.gd (add depth chart lookup in get_starter_at_position())
-  - scripts/core/models/Roster.gd (add depth_chart: DepthChart field)
-Verification:
-  - grep "depth_chart" scripts/core/models/Roster.gd
-  - grep "get_starter.*depth" scripts/core/game_simulation/StatGenerator.gd
-```
-
-**Failure Mode Prevented:** Vague work packages led to confusion about what needed implementation vs. what existed.
-
-#### 7. Main Branch Protection
-
-**Git repository configuration:**
-- Set main/ repo to read-only for all agents
-- Use git hooks to prevent accidental commits to main
-- Require all work to happen in workspaces/
-- Enforce PR-only merges to main
-
-**Directory access control:**
-- Main repo: Read-only reference
-- Workspaces: Full read-write access
-- Each team isolated to their workspace
-
-**Failure Mode Prevented:** Teams modified main/ directly instead of working in isolated branches. Cleanup required.
-
-#### 8. Completion Report Template (MANDATORY)
-
-**All teams must report using this exact format:**
-
-```
-CHECKPOINT {N} REPORT - TEAM {Name}
-Status: [Complete/Blocked/In Progress]
-Current Checkpoint: CP{N}
-Next Checkpoint: CP{N+1}
-
-Implementation Status:
-- Feature 1: [Complete/In Progress/Not Started] - [file paths modified]
-- Feature 2: [Complete/In Progress/Not Started] - [file paths modified]
-- Feature 3: [Complete/In Progress/Not Started] - [file paths modified]
-...
-
-Git Status:
-- Branch: team-{name}/architect
-- Latest Commit: [commit hash]
-- Files Modified: [count]
-- Files Created: [count]
-- Pushed to Remote: [Yes/No]
-
-Code Quality (if CP4+):
-- Review Score: [X.X/10] [✓ meets threshold / ✗ below threshold]
-- Review Cycle: [1st review / 2nd review after fixes]
-
-Blockers: [None / Description with specific issue]
-
-ETA to Next Checkpoint: [Realistic estimate]
-
-Verification Commands:
-[Commands Director can run to verify claims]
-```
-
-**Director rejection criteria:**
-- Missing commit hash when code written
-- Missing code quality score at CP4+
-- Claims without verification commands
-- "Complete" status with no git changes
-
-#### 9. Post-Mortem Analysis
-
-**When a team fails or produces false reports:**
-- Document the failure mode
-- Identify the missing protocol that would have prevented it
-- Update this section with the new protocol
-- Brief all subsequent teams on the lessons
-
-**Continuous improvement:** This section should grow as we learn from each multi-team project.
-
----
-
-### Quick Reference: Director's Pre-Spawn Checklist
-
-Before spawning any architecture-guardian:
-
-- [ ] Pre-flight feature audit completed (verified what needs implementation)
-- [ ] Git workspaces created with proper clones and branches
-- [ ] Work packages validated with exact file paths
-- [ ] Stub interfaces created for cross-team dependencies
-- [ ] Engineer spawn authority explicitly granted
-- [ ] Completion report template provided
-- [ ] Verification commands prepared
-- [ ] Code-quality-reviewer spawn planned for CP3
-
-During team execution:
-
-- [ ] Checkpoint reports received using mandatory template
-- [ ] Git changes verified (commit hashes, file existence)
-- [ ] Code-quality-reviewer spawned at CP3
-- [ ] Scores verified ≥9.5/10 before CP4 approval
-- [ ] Cross-team conflicts resolved before merge
-- [ ] PR creation coordinated in dependency order
-
----
+- Commit message requirements: `docs/contributing/COMMIT_STYLE.md`
+- Testing infrastructure: `docs/contributing/TESTING.md`
+- Current planned work: `docs/architecture/IMPLEMENTATION_TICKETS.md`
+- Role-specific protocols: `docs/agents/`
