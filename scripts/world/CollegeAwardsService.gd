@@ -640,7 +640,7 @@ static func calculate_hype_vs_talent_gap(
 	# If mock_rank < talent_rank, player is overhyped (positive gap)
 	# If mock_rank > talent_rank, player is underhyped (negative gap)
 	var raw_gap := float(talent_rank - mock_rank)
-	var normalized_gap := clamp(raw_gap / 50.0, -1.0, 1.0)
+	var normalized_gap: float = clamp(raw_gap / 50.0, -1.0, 1.0)
 
 	return normalized_gap
 
@@ -1004,7 +1004,7 @@ static func _update_player_award_references(
 	var aa_buzz_halflife := {"first_team": 1.5, "second_team": 0.0, "third_team": 0.0}
 	for team_name in ["first_team", "second_team", "third_team"]:
 		var team: Array = all_americans.get(team_name, [])
-		var team_label := team_name.replace("_", " ").capitalize()
+		var team_label: String = team_name.replace("_", " ").capitalize()
 		var legacy_boost := float(aa_legacy_hype.get(team_name, 2.0))
 		var buzz_boost := float(aa_buzz_hype.get(team_name, 0.0))
 		var buzz_halflife := float(aa_buzz_halflife.get(team_name, 0.0))

@@ -625,7 +625,7 @@ static func _calculate_combine_percentiles(
 	for test_name in results.keys():
 		var value := float(results[test_name])
 		# Simple heuristic: normalize to 0-100 scale
-		var percentile := clamp((value / 100.0) * 100.0, 0.0, 100.0)
+		var percentile: float = clamp((value / 100.0) * 100.0, 0.0, 100.0)
 		percentiles[test_name] = percentile
 
 	return percentiles

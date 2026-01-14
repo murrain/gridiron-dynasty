@@ -200,7 +200,7 @@ static func finalize_draft_stock(draft_pool: Array) -> void:
 		var timeline: Dictionary = p.get("draft_stock_timeline", {})
 		var pre_rank := int(timeline.get("pre_season_rank", 999))
 		var movement := int(timeline.get("total_movement", 0))
-		var final_rank := max(1, pre_rank - movement)
+		var final_rank: int = max(1, pre_rank - movement)
 
 		ranked_players.append({
 			"player": p,
@@ -308,7 +308,7 @@ static func _calculate_event_impact(
 
 			# Scale grade (0.0-0.1) to impact range
 			if grade > 0.0:
-				var ratio := clamp(grade / 0.10, 0.0, 1.0)
+				var ratio: float = clamp(grade / 0.10, 0.0, 1.0)
 				return int(min_impact + ratio * (max_impact - min_impact))
 
 		"combine_disappointment":
@@ -319,7 +319,7 @@ static func _calculate_event_impact(
 
 			# Scale grade (-0.1-0.0) to impact range
 			if grade < 0.0:
-				var ratio := clamp(abs(grade) / 0.10, 0.0, 1.0)
+				var ratio: float = clamp(abs(grade) / 0.10, 0.0, 1.0)
 				return int(min_impact + ratio * (max_impact - min_impact))
 
 		"senior_bowl_star":
@@ -331,7 +331,7 @@ static func _calculate_event_impact(
 
 			# Scale boost (0.02-0.06) to impact range
 			if boost > 0.0:
-				var ratio := clamp((boost - 0.02) / 0.04, 0.0, 1.0)
+				var ratio: float = clamp((boost - 0.02) / 0.04, 0.0, 1.0)
 				return int(min_impact + ratio * (max_impact - min_impact))
 
 		"medical_concern_revealed":

@@ -14,13 +14,13 @@ The snapshot system provides instant loading of pre-generated world state data f
 const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
 
 # Load 10-year snapshot (no additional simulation)
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x7E57001)
 
 # Load 5-year snapshot + simulate 2 more years
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0x72ADE01)
 
 # Generate fresh 3-year world (no snapshot)
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xFRESH001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xF2E5401)
 ```
 
 ### Available Snapshots
@@ -51,13 +51,13 @@ static func setup_world(base: int, years: int, seed: int) -> Dictionary
 **Examples:**
 ```gdscript
 # Generate fresh 3-year world
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xSEED001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0x5EED001)
 
 # Load 10yr snapshot, no additional simulation
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xSEED001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x5EED001)
 
 # Load 5yr snapshot + 2 more years
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0x72ADE01)
 ```
 
 ### Always Safe to Mutate
@@ -65,7 +65,7 @@ var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE0
 `setup_world()` always returns an isolated deep copy. You can safely mutate the returned world state without affecting the cache or other tests.
 
 ```gdscript
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x7E57001)
 world_state["nfl_teams"].append(new_team)  # Safe - isolated copy
 ```
 

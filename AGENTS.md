@@ -1065,13 +1065,13 @@ For tests requiring mature simulation data (contracts, trades, career progressio
 const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
 
 # Load 10-year snapshot (no additional simulation)
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x7E57001)
 
 # Load 5-year snapshot + simulate 2 more years
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0x72ADE01)
 
 # Generate fresh 3-year world (no snapshot)
-var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xFRESH001)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xF2E5401)
 ```
 
 **Available Base States:**
