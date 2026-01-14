@@ -146,7 +146,7 @@ func test_release_execution():
 			"team_id": "team_001",
 			"year": 2025,
 			"reason": "cap_efficiency",
-			"cap_hit": 10.0,
+			"annual_value": 10.0,
 			"dead_cap": 0.0,
 			"net_savings": 10.0
 		}

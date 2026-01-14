@@ -241,11 +241,11 @@ static func _process_team_roster(
 		# Release this player
 		var player_id := String(candidate.get("player_id", ""))
 		var player: Dictionary = candidate.get("player", {})
-		var cap_hit := float(candidate.get("cap_hit", 0.0))
+		var annual_value := float(candidate.get("annual_value", 0.0))
 
 		# Calculate dead cap (placeholder for now - full implementation later)
 		var dead_cap := _calculate_dead_cap(player)
-		var net_cap_saved := cap_hit - dead_cap
+		var net_cap_saved := annual_value - dead_cap
 
 		# Only release if it saves cap space
 		if net_cap_saved > 0.0:
@@ -254,7 +254,7 @@ static func _process_team_roster(
 				"team_id": team_id,
 				"year": year,
 				"reason": "cap_efficiency",
-				"cap_hit": cap_hit,
+				"annual_value": annual_value,
 				"dead_cap": dead_cap,
 				"net_savings": net_cap_saved,
 				"eval_score": float(candidate.get("eval_score", 50.0)),
@@ -325,7 +325,7 @@ static func _identify_release_candidates(
 		if is_rookie and years_since_draft < 3:
 			continue
 
-		var cap_hit := float(contract.get("annual_value", 0.0))
+		var annual_value := float(contract.get("annual_value", 0.0))
 		var eval_score := float(p.get("eval_score", 50.0))
 		var age := int(p.get("age", 22))
 
@@ -340,14 +340,14 @@ static func _identify_release_candidates(
 		# Calculate cap inefficiency
 		var cap_inefficiency := 0.0
 		if expected_value > 0.0:
-			cap_inefficiency = (cap_hit / expected_value) * age_penalty
+			cap_inefficiency = (annual_value / expected_value) * age_penalty
 
 		# Only consider players with poor value (inefficiency > 1.0)
 		if cap_inefficiency > 1.0:
 			candidates.append({
 				"player": p,
 				"player_id": String(p.get("id", p.get("player_id", ""))),
-				"cap_hit": cap_hit,
+				"annual_value": annual_value,
 				"eval_score": eval_score,
 				"age": age,
 				"position": String(p.get("position", "")),
