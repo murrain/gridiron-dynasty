@@ -82,10 +82,11 @@ func rate_and_rank(
 		var p: Dictionary = players[i] as Dictionary
 		var ag: Dictionary = aggregated[i] as Dictionary
 
-		p["core_avg"]      = _round2(float(ag.get("core_avg", 0.0)))
-		p["secondary_avg"] = _round2(float(ag.get("secondary_avg", 0.0)))
-		p["mentals_avg"]   = _round2(float(ag.get("mentals_avg", 0.0)))
-		p["athletic_avg"]  = _round2(float(ag.get("athletic_avg", 0.0)))
+		# Keep full precision for ranking; round only for display
+		p["core_avg"]      = float(ag.get("core_avg", 0.0))
+		p["secondary_avg"] = float(ag.get("secondary_avg", 0.0))
+		p["mentals_avg"]   = float(ag.get("mentals_avg", 0.0))
+		p["athletic_avg"]  = float(ag.get("athletic_avg", 0.0))
 		p["__risk"]        = float(ag.get("__risk", 0.0))
 
 		# elite core tag
@@ -164,12 +165,12 @@ func rate_and_rank(
 					d2, positions_data, {}, class_rules, percentiles
 				) as Dictionary
 
-				d2["composite_score"] = _round2(float(res.get("composite", 0.0)))
+				d2["composite_score"] = float(res.get("composite", 0.0))  # Keep full precision for ranking
 				var star_score: float = (
 					float(d2.get("core_avg",0.0)) * star_core_w
 					+ float(d2["composite_score"]) * star_comp_w
 				) / star_wsum
-				d2["star_score"] = _round2(star_score)
+				d2["star_score"] = star_score  # Keep full precision for ranking
 				return null,
 			threads)
 		else:
@@ -201,12 +202,12 @@ func rate_and_rank(
 					d2, positions_data, {}, class_rules, percentiles
 				) as Dictionary
 
-				d2["composite_score"] = _round2(float(res.get("composite", 0.0)))
+				d2["composite_score"] = float(res.get("composite", 0.0))  # Keep full precision for ranking
 				var star_score: float = (
 					float(d2.get("core_avg",0.0)) * star_core_w
 					+ float(d2["composite_score"]) * star_comp_w
 				) / star_wsum
-				d2["star_score"] = _round2(star_score)
+				d2["star_score"] = star_score  # Keep full precision for ranking
 
 	# ---------- PASS 3: stars & ranks ----------
 	for pos3 in by_pos.keys():

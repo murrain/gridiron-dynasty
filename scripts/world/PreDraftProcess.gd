@@ -33,6 +33,7 @@ class_name PreDraftProcess
 ##   - NflDraft: Use pre_draft_process data in scout evaluation
 
 const Rand = preload("res://autoloads/Rand.gd")
+const SimLogger = preload("res://autoloads/SimLogger.gd")
 const CombineCalculator = preload("res://scripts/core/rating/CombineCalculator.gd")
 
 ## Main entry point for pre-draft process simulation.
@@ -240,11 +241,10 @@ static func _simulate_combine(
 
 		# Log standout performances
 		if overall_grade >= elite_boost * 0.75:
-			var timestamp := _get_timestamp()
 			var name := String(p.get("name", "Unknown"))
 			var position := String(p.get("position", "?"))
-			print("%s Pre-Draft: %s %s - Combine Standout (grade: +%.2f)" % [
-				timestamp, position, name, overall_grade
+			SimLogger.info("%s %s - Combine Standout (grade: +%.2f)" % [
+				position, name, overall_grade
 			])
 
 
@@ -380,11 +380,10 @@ static func _simulate_all_star_games(
 
 		# Log standouts (top 10% boost)
 		if boost >= (float(senior_bowl_boost_range[1]) * 0.8):
-			var timestamp := _get_timestamp()
 			var name := String(p.get("name", "Unknown"))
 			var position := String(p.get("position", "?"))
-			print("%s Pre-Draft: %s %s - Senior Bowl Standout (boost: +%.2f%%)" % [
-				timestamp, position, name, boost * 100.0
+			SimLogger.info("%s %s - Senior Bowl Standout (boost: +%.2f%%)" % [
+				position, name, boost * 100.0
 			])
 
 		all_participants.append(p)
@@ -577,7 +576,7 @@ static func _simulate_interview_scores(
 
 		for team_id in team_visits:
 			# Generate base interview score
-			var score := base_score + _gaussian(0.0, score_sigma, rng)
+			var score := base_score + rng.randfn(0.0, score_sigma)
 
 			# Adjust for character profile
 			var character_profile: Dictionary = p.get("character_profile", {})
@@ -698,22 +697,6 @@ static func _get_player_rating(player: Dictionary) -> float:
 		count += 1
 
 	return sum / float(count) if count > 0 else 50.0
-
-
-## Generates Gaussian random number.
-##
-## RNG: 2 randf() calls (Box-Muller transform)
-##
-## @param mean: Mean of distribution
-## @param sigma: Standard deviation
-## @param rng: RNG instance
-## @return float: Random value from Gaussian distribution
-static func _gaussian(mean: float, sigma: float, rng: RandomNumberGenerator) -> float:
-	# Box-Muller transform
-	var u1 := rng.randf()
-	var u2 := rng.randf()
-	var z0 := sqrt(-2.0 * log(u1)) * cos(2.0 * PI * u2)
-	return mean + z0 * sigma
 
 
 ## Shuffles an array in place using explicit RNG (Fisher-Yates algorithm).
