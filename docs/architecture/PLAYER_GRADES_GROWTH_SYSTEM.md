@@ -970,9 +970,97 @@ Add to `main.json`:
 }
 ```
 
-### 3.4 Contract Events (Detailed)
+### 3.4 Generalized Event Response System
 
-#### 3.4.1 Prove-It Deal
+Rather than hardcoding probability modifiers per event, player reactions are driven by their stats. Events define a range of possible outcomes, and the player's current stats determine where they land in that range.
+
+#### 3.4.1 Core Philosophy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Stat-Driven Event Response                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  EVENT: "Got Paid" (big contract)                                                │
+│                                                                                  │
+│  Potential work_ethic change: [-35 ←────────────────────────────────→ +5]        │
+│                                                                                  │
+│  Where you land depends on YOUR stats:                                           │
+│                                                                                  │
+│    Low discipline (30)  ────→  lands around -25 to -35                           │
+│    Average (50)         ────→  lands around -10 to -20                           │
+│    High discipline (80) ────→  lands around -5 to +5                             │
+│                                                                                  │
+│  Same event, different outcomes based on who the player IS                       │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 3.4.2 Event Response Calculation
+
+```gdscript
+## Calculate where a player lands in an event's outcome range
+## based on their current stats
+static func calculate_event_outcome(
+    player: Dictionary,
+    event: Dictionary,
+    stat_name: String,
+    rng: RandomNumberGenerator
+) -> float:
+    var stats: Dictionary = player.get("stats", {})
+    var change_config: Dictionary = event["stat_changes"][stat_name]
+
+    var range_min: float = change_config["range"][0]
+    var range_max: float = change_config["range"][1]
+    var range_size: float = range_max - range_min
+
+    # Calculate player's "resistance" to negative outcomes
+    # based on relevant stats for this type of change
+    var relevant_stats: Array = change_config.get("relevant_stats", ["discipline", "composure", "maturity"])
+    var resistance := 0.0
+
+    for relevant_stat in relevant_stats:
+        var stat_value := float(stats.get(relevant_stat, 50.0))
+        resistance += (stat_value - 50.0) / 50.0  # -1.0 to +1.0 per stat
+
+    resistance = resistance / relevant_stats.size()  # Average
+
+    # Map resistance to position in range
+    # resistance of -1.0 → bottom of range (worst outcome)
+    # resistance of +1.0 → top of range (best outcome)
+    var base_position := (resistance + 1.0) / 2.0  # 0.0 to 1.0
+
+    # Add randomness (±20% variance)
+    var variance := rng.randf_range(-0.2, 0.2)
+    var final_position := clamp(base_position + variance, 0.0, 1.0)
+
+    # Calculate actual change
+    return range_min + (range_size * final_position)
+```
+
+#### 3.4.3 Event Definition Format
+
+Events now define outcome ranges and which stats influence the response:
+
+```gdscript
+## Simplified event schema - stats drive outcomes
+const EVENT_SCHEMA := {
+    "event_type": String,
+    "stat_changes": {
+        "stat_name": {
+            "range": [min_change, max_change],
+            "relevant_stats": Array,  # Stats that determine where in range player lands
+            "direction": String       # "positive" events vs "negative" events
+        }
+    },
+    "duration": String,
+    "conditions": Dictionary
+}
+```
+
+### 3.5 Contract Events
+
+#### 3.5.1 Prove-It Deal
 
 **Trigger**: Team believes player COULD be great, but instead of committing to a long-term deal at that projected value, offers ~90% of value for 1 year with incentives. The player gets the opportunity to prove they can hit that performance level.
 
@@ -986,26 +1074,42 @@ Add to `main.json`:
 const PROVE_IT_DEAL := {
     "event_type": "contract.prove_it_deal",
     "stat_changes": {
-        "work_ethic": [+10, +20],       # Range based on personality
-        "focus": [+5, +15],
-        "discipline": [+5, +10],
-        "composure": [-5, +5]           # Pressure can help or hurt
+        "work_ethic": {
+            "range": [+5, +25],         # Positive event - but how much depends on player
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
+            "direction": "positive"
+        },
+        "focus": {
+            "range": [0, +20],
+            "relevant_stats": ["focus", "discipline"],
+            "direction": "positive"
+        },
+        "discipline": {
+            "range": [0, +15],
+            "relevant_stats": ["discipline", "maturity"],
+            "direction": "positive"
+        },
+        "composure": {
+            "range": [-10, +10],        # Pressure affects people differently
+            "relevant_stats": ["composure", "confidence"],
+            "direction": "neutral"
+        }
     },
     "duration": "seasonal",
     "conditions": {
         "contract_years": 1,
-        "contract_value_vs_projected": "~0.90",  # ~90% of projected value
-        "has_incentives": true,                   # Performance bonuses included
-        "team_believes_upside": true              # Team sees potential
-    },
-    "personality_modifiers": {
-        "high_work_ethic_base": 1.3,    # Already hard workers get bigger boost
-        "low_discipline_base": 0.7      # Undisciplined players less affected
+        "contract_value_vs_projected": "~0.90",
+        "has_incentives": true,
+        "team_believes_upside": true
     }
 }
+
+## Example: A player with high competitiveness (85) and work_ethic (75)
+## gets a bigger boost from prove-it deal than someone with low stats
+## because they're wired to respond to the challenge
 ```
 
-#### 3.4.2 Got Paid (Big Contract)
+#### 3.5.2 Got Paid (Big Contract)
 
 **Trigger**: Player signs contract significantly above market value or receives massive guaranteed money.
 
@@ -1013,24 +1117,47 @@ const PROVE_IT_DEAL := {
 const GOT_PAID := {
     "event_type": "contract.got_paid",
     "stat_changes": {
-        "work_ethic": [-15, -30],       # Complacency risk
-        "discipline": [-10, -20],
-        "focus": [-5, -15],
-        "hunger": [-20, -35]            # New stat: motivation to improve
+        "work_ethic": {
+            "range": [-35, +5],         # Wide range - most negative, but disciplined players resist
+            "relevant_stats": ["discipline", "work_ethic", "maturity"],
+            "direction": "negative"
+        },
+        "discipline": {
+            "range": [-25, +5],
+            "relevant_stats": ["discipline", "composure"],
+            "direction": "negative"
+        },
+        "focus": {
+            "range": [-20, +5],
+            "relevant_stats": ["focus", "discipline", "work_ethic"],
+            "direction": "negative"
+        },
+        "hunger": {
+            "range": [-40, 0],          # Always decreases somewhat, question is how much
+            "relevant_stats": ["work_ethic", "competitiveness"],
+            "direction": "negative"
+        }
     },
-    "duration": "permanent",            # Effect persists but can be countered
-    "probability_modifiers": {
-        # Not everyone gets complacent - personality matters
-        "high_work_ethic": 0.3,         # 30% chance if already hard worker
-        "low_work_ethic": 0.8,          # 80% chance if already lazy
-        "veteran_leader_trait": 0.2,    # Leaders less likely to slack
-        "me_first_trait": 0.9           # Selfish players very likely
-    },
+    "duration": "permanent",
     "conditions": {
-        "contract_value_vs_market": ">1.2",  # 120%+ of market value
-        "guaranteed_money": ">$30M"          # Or large guarantees
+        "contract_value_vs_market": ">1.2",
+        "guaranteed_money": ">$30M"
     }
 }
+
+## Example outcomes for different players:
+##
+## Nick Bosa (discipline: 85, work_ethic: 90, maturity: 80):
+##   - Resistance: high (~0.7)
+##   - work_ethic change: likely +0 to -5 (barely affected)
+##   - Stays elite
+##
+## Brandon Aiyuk (discipline: 55, work_ethic: 65, maturity: 50):
+##   - Resistance: low (~0.1)
+##   - work_ethic change: likely -20 to -30
+##   - Falls off significantly
+##
+## Same event, stats determine outcome
 ```
 
 #### 3.4.3 Contract Year
@@ -1051,7 +1178,7 @@ const CONTRACT_YEAR := {
 }
 ```
 
-#### 3.4.4 Franchise Tagged
+#### 3.5.4 Franchise Tagged
 
 **Trigger**: Team applies franchise tag instead of long-term deal.
 
@@ -1059,24 +1186,28 @@ const CONTRACT_YEAR := {
 const FRANCHISE_TAGGED := {
     "event_type": "contract.franchise_tag",
     "stat_changes": {
-        # Depends heavily on player's reaction
-        "work_ethic": [-10, +10],       # Wide range
-        "discipline": [-15, +5],
-        "focus": [-10, +5],
-        "team_loyalty": [-20, -5]       # Almost always hurts loyalty
-    },
-    "duration": "seasonal",
-    "personality_splits": {
-        "team_first": {                 # Team players accept it
-            "work_ethic": [+5, +10],
-            "discipline": [0, +5]
+        "work_ethic": {
+            "range": [-15, +15],        # Wide range - team players accept, selfish resent
+            "relevant_stats": ["team_loyalty", "maturity", "discipline"],
+            "direction": "neutral"
         },
-        "me_first": {                   # Selfish players resent it
-            "work_ethic": [-15, -5],
-            "discipline": [-20, -10],
-            "holdout_chance": 0.4
+        "discipline": {
+            "range": [-20, +10],
+            "relevant_stats": ["discipline", "composure", "maturity"],
+            "direction": "neutral"
+        },
+        "focus": {
+            "range": [-15, +10],
+            "relevant_stats": ["focus", "professionalism"],
+            "direction": "neutral"
+        },
+        "team_loyalty": {
+            "range": [-25, -5],         # Almost always hurts loyalty
+            "relevant_stats": ["team_loyalty", "maturity"],
+            "direction": "negative"
         }
-    }
+    },
+    "duration": "seasonal"
 }
 ```
 
@@ -1104,33 +1235,41 @@ const TOOK_PAY_CUT := {
 
 ### 3.5 Team/Roster Events (Detailed)
 
-#### 3.5.1 Released/Cut
+#### 3.6.1 Released/Cut
 
 ```gdscript
 const RELEASED := {
     "event_type": "team.released",
     "stat_changes": {
-        # Humbling experience - usually motivates
-        "work_ethic": [+10, +25],
-        "discipline": [+5, +15],
-        "composure": [-10, +5],         # Can shake confidence or motivate
-        "confidence": [-15, +10]
-    },
-    "duration": "seasonal",             # Chip on shoulder fades over time
-    "decay_rate": 0.3,                  # Loses 30% per year
-    "personality_splits": {
-        "resilient": {
-            "work_ethic": [+15, +25],
-            "confidence": [+5, +10],
-            "triggers_trait": "chip_on_shoulder"
+        "work_ethic": {
+            "range": [-5, +30],         # Most get motivated, fragile players may crumble
+            "relevant_stats": ["composure", "work_ethic", "confidence"],
+            "direction": "positive"     # Generally a motivating event
         },
-        "fragile": {
-            "work_ethic": [0, +10],
-            "confidence": [-20, -10],
-            "composure": [-15, -5]
+        "discipline": {
+            "range": [0, +20],
+            "relevant_stats": ["discipline", "maturity"],
+            "direction": "positive"
+        },
+        "composure": {
+            "range": [-20, +10],        # Wide range - tests mental fortitude
+            "relevant_stats": ["composure", "confidence", "maturity"],
+            "direction": "neutral"
+        },
+        "confidence": {
+            "range": [-25, +15],        # Can break you or fuel you
+            "relevant_stats": ["confidence", "composure", "work_ethic"],
+            "direction": "neutral"
         }
-    }
+    },
+    "duration": "seasonal",
+    "decay_rate": 0.3
 }
+
+## Low composure + low confidence player: lands at bottom of ranges
+##   → confidence tanks, composure drops, minimal work_ethic boost
+## High composure + high work_ethic player: lands at top of ranges
+##   → confidence boost, composure maintained, big chip on shoulder
 ```
 
 #### 3.5.2 Named Team Captain
@@ -1155,68 +1294,78 @@ const NAMED_CAPTAIN := {
 }
 ```
 
-#### 3.5.3 Traded
+#### 3.6.3 Traded
 
 ```gdscript
 const TRADED := {
     "event_type": "team.traded",
     "stat_changes": {
-        "focus": [-10, +10],            # Adjustment period
-        "composure": [-5, +5],
-        "discipline": [-5, +5]
+        "focus": {
+            "range": [-15, +15],
+            "relevant_stats": ["adaptability", "composure", "maturity"],
+            "direction": "neutral"
+        },
+        "composure": {
+            "range": [-15, +10],
+            "relevant_stats": ["composure", "confidence"],
+            "direction": "neutral"
+        },
+        "discipline": {
+            "range": [-10, +10],
+            "relevant_stats": ["discipline", "professionalism"],
+            "direction": "neutral"
+        }
     },
     "duration": "temporary",
-    "years_remaining": 1,               # Adjustment period
-    "context_modifiers": {
-        "traded_to_contender": {
-            "focus": [+5, +15],
-            "work_ethic": [+5, +10]
-        },
-        "traded_to_rebuilder": {
-            "focus": [-10, -5],
-            "work_ethic": [-5, +5]
-        },
-        "requested_trade": {
-            "focus": [+10, +15],        # Got what they wanted
-            "discipline": [+5, +10]
-        },
-        "surprised_by_trade": {
-            "composure": [-15, -5],
-            "focus": [-15, -5]
-        }
+    "years_remaining": 1,
+    # Context still matters - applied as range modifiers
+    "context_range_shifts": {
+        "traded_to_contender": {"focus": +10, "work_ethic": +5},
+        "traded_to_rebuilder": {"focus": -10},
+        "requested_trade": {"focus": +15, "discipline": +5},
+        "surprised_by_trade": {"composure": -10, "focus": -10}
     }
 }
+
+## Context shifts the range, stats determine where in shifted range you land
 ```
 
-#### 3.5.4 Team Drafts Replacement
+#### 3.6.4 Team Drafts Replacement
 
 ```gdscript
 const TEAM_DRAFTS_REPLACEMENT := {
     "event_type": "team.drafted_replacement",
     "stat_changes": {
-        # Competition can motivate or demoralize
-        "work_ethic": [-10, +20],
-        "focus": [-5, +15],
-        "composure": [-10, +5]
-    },
-    "duration": "seasonal",
-    "personality_splits": {
-        "competitive": {
-            "work_ethic": [+10, +20],
-            "focus": [+10, +15],
-            "triggers_event": "mentor_or_compete"  # Player choice
+        "work_ethic": {
+            "range": [-10, +25],        # Competition motivates or demoralizes
+            "relevant_stats": ["competitiveness", "confidence", "work_ethic"],
+            "direction": "positive"     # Generally should motivate
         },
-        "insecure": {
-            "work_ethic": [-5, +5],
-            "composure": [-15, -5],
-            "confidence": [-20, -10]
+        "focus": {
+            "range": [-10, +20],
+            "relevant_stats": ["focus", "competitiveness"],
+            "direction": "positive"
+        },
+        "composure": {
+            "range": [-20, +10],
+            "relevant_stats": ["composure", "confidence", "maturity"],
+            "direction": "neutral"
+        },
+        "confidence": {
+            "range": [-25, +10],
+            "relevant_stats": ["confidence", "competitiveness"],
+            "direction": "neutral"
         }
     },
+    "duration": "seasonal",
     "conditions": {
-        "draft_pick_round": [1, 3],     # High draft pick = bigger threat
+        "draft_pick_round": [1, 3],
         "same_position": true
     }
 }
+
+## High competitiveness player: sees it as a challenge, gets fired up
+## Low confidence player: feels threatened, composure/confidence tank
 ```
 
 #### 3.5.5 Veteran Mentor Assigned
@@ -1287,30 +1436,38 @@ const DIVORCE := {
 }
 ```
 
-#### 3.6.3 New Child
+#### 3.7.3 New Child
 
 ```gdscript
 const NEW_CHILD := {
     "event_type": "personal.new_child",
     "stat_changes": {
-        "composure": [+5, +15],         # Maturity
-        "discipline": [+5, +10],
-        "focus": [-10, +5],             # Sleep deprivation vs motivation
-        "work_ethic": [-5, +10]         # Depends on personality
-    },
-    "duration": "permanent",
-    "personality_splits": {
-        "family_first": {
-            "composure": [+10, +15],
-            "work_ethic": [+5, +10],    # Motivated to provide
-            "focus": [+5, +10]
+        "composure": {
+            "range": [0, +20],
+            "relevant_stats": ["maturity", "composure"],
+            "direction": "positive"
         },
-        "career_focused": {
-            "focus": [-10, -5],         # Distracted
-            "discipline": [-5, 0]
+        "discipline": {
+            "range": [-5, +15],
+            "relevant_stats": ["discipline", "maturity", "responsibility"],
+            "direction": "positive"
+        },
+        "focus": {
+            "range": [-15, +10],        # Sleep deprivation vs motivation
+            "relevant_stats": ["focus", "discipline", "work_ethic"],
+            "direction": "neutral"
+        },
+        "work_ethic": {
+            "range": [-10, +15],        # Motivated to provide vs distracted
+            "relevant_stats": ["work_ethic", "maturity", "responsibility"],
+            "direction": "positive"
         }
-    }
+    },
+    "duration": "permanent"
 }
+
+## Mature, responsible player: new child motivates them, grows up
+## Immature, unfocused player: struggles with new responsibility
 ```
 
 #### 3.6.4 Off-Field Trouble
@@ -1377,31 +1534,35 @@ const FOUND_PURPOSE := {
 
 ### 3.7 Performance Events (Detailed)
 
-#### 3.7.1 Costly Mistake (Game-Losing Play)
+#### 3.8.1 Costly Mistake (Game-Losing Play)
 
 ```gdscript
 const COSTLY_MISTAKE := {
     "event_type": "performance.costly_mistake",
     "stat_changes": {
-        "composure": [-15, +5],         # Wide range - can break or build
-        "confidence": [-20, -5],
-        "focus": [-10, +10]
+        "composure": {
+            "range": [-25, +10],        # Wide range - breaks some, builds others
+            "relevant_stats": ["composure", "confidence", "maturity"],
+            "direction": "neutral"
+        },
+        "confidence": {
+            "range": [-30, +5],
+            "relevant_stats": ["confidence", "composure", "work_ethic"],
+            "direction": "negative"
+        },
+        "focus": {
+            "range": [-15, +15],
+            "relevant_stats": ["focus", "work_ethic", "competitiveness"],
+            "direction": "neutral"
+        },
+        "work_ethic": {
+            "range": [-5, +20],         # Can motivate to never let it happen again
+            "relevant_stats": ["work_ethic", "competitiveness", "composure"],
+            "direction": "positive"
+        }
     },
     "duration": "temporary",
     "years_remaining": 1,
-    "personality_splits": {
-        "resilient": {
-            "composure": [0, +5],
-            "focus": [+5, +10],
-            "work_ethic": [+10, +15],   # Uses it as motivation
-            "triggers_trait": "clutch"   # Can develop clutch gene
-        },
-        "fragile": {
-            "composure": [-20, -10],
-            "confidence": [-25, -15],
-            "triggers_trait": "chokes_in_big_moments"
-        }
-    },
     "examples": [
         "Interception in end zone with game on line",
         "Fumble inside 5 yard line",
@@ -1409,6 +1570,9 @@ const COSTLY_MISTAKE := {
         "Dropped sure touchdown"
     ]
 }
+
+## High composure + high work_ethic: uses it as fuel, comes back stronger
+## Low confidence + low composure: can develop "yips", confidence craters
 ```
 
 #### 3.7.2 Injury Comeback
@@ -1443,92 +1607,114 @@ const INJURY_COMEBACK := {
 }
 ```
 
-#### 3.7.3 Super Bowl Loss
+#### 3.8.3 Super Bowl Loss
 
 ```gdscript
 const SUPER_BOWL_LOSS := {
     "event_type": "performance.super_bowl_loss",
     "stat_changes": {
-        "composure": [-10, +10],
-        "focus": [+5, +20],             # Hunger to get back
-        "work_ethic": [+5, +15],
-        "legacy_anxiety": [+10, +25]    # Pressure to win one
-    },
-    "duration": "permanent",
-    "personality_splits": {
-        "motivated": {
-            "focus": [+15, +20],
-            "work_ethic": [+10, +15],
-            "next_season_performance": +0.05  # 5% boost
+        "composure": {
+            "range": [-20, +15],
+            "relevant_stats": ["composure", "confidence", "maturity"],
+            "direction": "neutral"
         },
-        "haunted": {
-            "composure": [-15, -5],
-            "focus": [-5, +5],
-            "playoff_composure": -0.1   # 10% penalty in playoffs
+        "focus": {
+            "range": [-5, +25],         # Most get hungry to get back
+            "relevant_stats": ["competitiveness", "work_ethic", "focus"],
+            "direction": "positive"
+        },
+        "work_ethic": {
+            "range": [0, +20],
+            "relevant_stats": ["work_ethic", "competitiveness"],
+            "direction": "positive"
+        },
+        "clutch_factor": {
+            "range": [-15, +10],        # Can be haunted or learn from it
+            "relevant_stats": ["composure", "confidence", "maturity"],
+            "direction": "neutral"
         }
-    }
+    },
+    "duration": "permanent"
 }
+
+## High competitiveness + high composure: gets hungry, comes back stronger
+## Low composure + low confidence: haunted by the loss, struggles in big games
 ```
 
 ### 3.8 Milestone Events (Detailed)
 
-#### 3.8.1 First Pro Bowl Selection
+#### 3.9.1 First Pro Bowl Selection
 
 ```gdscript
 const FIRST_PRO_BOWL := {
     "event_type": "milestone.first_pro_bowl",
     "stat_changes": {
-        "confidence": [+10, +20],
-        "composure": [+5, +10],
-        "work_ethic": [-5, +10]         # Can motivate or satisfy
-    },
-    "duration": "permanent",
-    "personality_splits": {
-        "hungry": {
-            "work_ethic": [+5, +10],    # Wants more
-            "focus": [+5, +10]
+        "confidence": {
+            "range": [+5, +25],
+            "relevant_stats": ["confidence", "composure"],
+            "direction": "positive"
         },
-        "satisfied": {
-            "work_ethic": [-10, -5],    # Got what they wanted
-            "focus": [-5, 0]
+        "composure": {
+            "range": [0, +15],
+            "relevant_stats": ["composure", "maturity"],
+            "direction": "positive"
+        },
+        "work_ethic": {
+            "range": [-15, +15],        # Can motivate or satisfy
+            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "direction": "neutral"
+        },
+        "focus": {
+            "range": [-10, +15],
+            "relevant_stats": ["focus", "competitiveness", "ambition"],
+            "direction": "neutral"
         }
-    }
+    },
+    "duration": "permanent"
 }
+
+## High competitiveness + high ambition: wants more, stays hungry
+## Low competitiveness: "made it", coasts on reputation
 ```
 
-#### 3.8.2 Won Championship
+#### 3.9.2 Won Championship
 
 ```gdscript
 const WON_CHAMPIONSHIP := {
     "event_type": "milestone.championship",
     "stat_changes": {
-        "composure": [+10, +20],
-        "confidence": [+15, +25],
-        "legacy_score": [+30, +50]
+        "composure": {
+            "range": [+5, +25],
+            "relevant_stats": ["composure", "maturity"],
+            "direction": "positive"
+        },
+        "confidence": {
+            "range": [+10, +30],
+            "relevant_stats": ["confidence"],
+            "direction": "positive"
+        },
+        "work_ethic": {
+            "range": [-20, +20],        # Big range - dynasty mindset vs complacency
+            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "direction": "neutral"
+        },
+        "hunger": {
+            "range": [-25, +15],
+            "relevant_stats": ["competitiveness", "ambition", "work_ethic"],
+            "direction": "neutral"
+        }
     },
     "duration": "permanent",
-    "subsequent_effects": {
-        "first_ring": {
-            "work_ethic": [-10, +15],   # Wide range
-            "hunger": [-20, +10]        # Some get complacent
-        },
-        "multiple_rings": {
-            "work_ethic": [+5, +15],    # Dynasty mindset
-            "focus": [+10, +15],
-            "triggers_trait": "winner"
-        }
-    },
-    "role_modifiers": {
-        "key_contributor": {
-            "confidence": [+20, +25],
-            "legacy_score": [+40, +50]
-        },
-        "role_player": {
-            "confidence": [+10, +15],
-            "legacy_score": [+20, +30]
-        }
+    "context_range_shifts": {
+        "first_ring": {},               # No shift, base ranges
+        "multiple_rings": {"work_ethic": +10, "focus": +10},  # Dynasty mindset
+        "key_contributor": {"confidence": +10},
+        "role_player": {"confidence": -5}
     }
 }
+
+## High competitiveness + high ambition: wants more rings, stays hungry
+## Low competitiveness: "got my ring", coasts
 ```
 
 ### 3.9 Event Processing System
@@ -1956,53 +2142,73 @@ const PERSONALITY_CHANGE_VISIBILITY := {
 }
 ```
 
-### 3.12 Personality System Integration
+### 3.12 Personality as Emergent from Stats
 
-Events interact with a player's personality to determine outcomes:
+Rather than hardcoding personality types with special event modifiers, personality emerges naturally from a player's stat combination. The same stats that determine event outcomes also define who the player "is".
 
 ```gdscript
-## Personality archetypes that affect event responses
-const PERSONALITY_TYPES := {
-    "competitor": {
-        "description": "Thrives on competition, uses adversity as fuel",
-        "event_modifiers": {
-            "contract.prove_it_deal": {"work_ethic": 1.5, "focus": 1.3},
-            "team.drafted_replacement": {"work_ethic": 1.4},
-            "performance.costly_mistake": {"work_ethic": 1.5, "composure": 1.2}
-        },
-        "base_traits": ["competitive", "resilient"]
-    },
-    "front_runner": {
-        "description": "Performs when things are going well, struggles with adversity",
-        "event_modifiers": {
-            "contract.got_paid": {"work_ethic": 0.7},  # More likely to slack
-            "team.released": {"composure": 0.6, "confidence": 0.5},
-            "milestone.championship": {"work_ethic": 0.6}  # Gets complacent
-        },
-        "base_traits": ["confidence_dependent", "needs_validation"]
-    },
-    "steady_eddie": {
-        "description": "Consistent, unaffected by external circumstances",
-        "event_modifiers": {
-            # All modifiers closer to 1.0 - less affected by events
-            "contract.prove_it_deal": {"work_ethic": 0.8},
-            "contract.got_paid": {"work_ethic": 0.8},
-            "team.released": {"composure": 0.9}
-        },
-        "base_traits": ["consistent", "professional"]
-    },
-    "volatile": {
-        "description": "Extreme reactions to events, unpredictable",
-        "event_modifiers": {
-            # Higher variance in both directions
-            "contract.prove_it_deal": {"work_ethic": 1.8, "variance": 2.0},
-            "contract.got_paid": {"work_ethic": 1.5, "variance": 2.0},
-            "performance.costly_mistake": {"composure": 0.5, "variance": 2.0}
-        },
-        "base_traits": ["emotional", "unpredictable"]
-    }
-}
+## Personality is DESCRIPTIVE, not prescriptive
+## It's a label we apply based on stats, not a separate system
+##
+## The stats ARE the personality:
+##
+## "Competitor" profile:
+##   - High competitiveness (75+)
+##   - High work_ethic (70+)
+##   - High composure (65+)
+##   → These stats naturally cause positive event responses
+##
+## "Front Runner" profile:
+##   - Low composure (40-)
+##   - Low work_ethic (45-)
+##   - Average/high confidence (60+)
+##   → These stats naturally cause negative event responses
+##
+## "Steady Eddie" profile:
+##   - High discipline (70+)
+##   - High maturity (70+)
+##   - Average everything else
+##   → These stats naturally dampen event swings
+##
+## "Volatile" profile:
+##   - Low composure (35-)
+##   - Low discipline (40-)
+##   - High variance in other stats
+##   → These stats naturally cause extreme swings
+
+## We can still LABEL players for UI/scouting purposes:
+static func get_personality_label(player: Dictionary) -> String:
+    var stats: Dictionary = player.get("stats", {})
+    var competitiveness := float(stats.get("competitiveness", 50))
+    var work_ethic := float(stats.get("work_ethic", 50))
+    var composure := float(stats.get("composure", 50))
+    var discipline := float(stats.get("discipline", 50))
+    var maturity := float(stats.get("maturity", 50))
+
+    # High competitiveness + high work_ethic + decent composure = competitor
+    if competitiveness >= 75 and work_ethic >= 70 and composure >= 60:
+        return "competitor"
+
+    # Low composure + low discipline = volatile
+    if composure < 40 and discipline < 45:
+        return "volatile"
+
+    # High discipline + high maturity = steady
+    if discipline >= 70 and maturity >= 70:
+        return "steady_eddie"
+
+    # Low work_ethic + low composure = front_runner
+    if work_ethic < 50 and composure < 50:
+        return "front_runner"
+
+    return "balanced"  # No strong archetype
 ```
+
+This approach means:
+- **No special event modifiers per personality type**
+- **Stats directly determine outcomes**
+- **Personality labels are descriptive, not mechanical**
+- **Players can "change personality" by changing their stats over time**
 
 ### 3.13 Configuration
 
