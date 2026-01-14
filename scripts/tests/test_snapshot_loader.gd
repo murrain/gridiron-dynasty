@@ -15,7 +15,7 @@ extends RefCounted
 const TestHelpers = preload("res://scripts/tests/TestHelpers.gd")
 const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
 
-const TEST_SEED := 0xTEST001
+const TEST_SEED := 0x7E57001
 
 func run(t: TestHelpers) -> void:
 	# Clear cache between tests for isolation
