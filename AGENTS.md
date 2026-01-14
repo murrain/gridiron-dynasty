@@ -1059,24 +1059,28 @@ Before submitting code for review, run ALL layers in order:
 
 ### Using World State Snapshots
 
-For tests requiring mature simulation data (contracts, trades, career progression), use pre-generated snapshots instead of running full simulation:
+For tests requiring mature simulation data (contracts, trades, career progression), use pre-generated snapshots via the unified `setup_world()` API:
 
 ```gdscript
 const SnapshotLoader = preload("res://scripts/tests/fixtures/world_state/SnapshotLoader.gd")
 
-# READ-ONLY tests (fast - uses cached data)
-var world_state := SnapshotLoader.load_10yr()
+# Load 10-year snapshot (no additional simulation)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)
 
-# MUTATION tests (creates isolated copy)
-var world_state := SnapshotLoader.load_10yr_copy()
+# Load 5-year snapshot + simulate 2 more years
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+
+# Generate fresh 3-year world (no snapshot)
+var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xFRESH001)
 ```
 
-**Available Snapshots:**
-- `load_5yr()` / `load_5yr_copy()` - Basic rosters, recruiting data
-- `load_10yr()` / `load_10yr_copy()` - Trade tests, contract history
-- `load_20yr()` / `load_20yr_copy()` - Hall of Fame, dynasty detection
+**Available Base States:**
+- `FRESH` - Generate from scratch
+- `YEAR_5` - Basic rosters, recruiting data
+- `YEAR_10` - Trade tests, contract history
+- `YEAR_20` - Hall of Fame, dynasty detection
 
-**CRITICAL**: Use `load_*yr()` for read-only access, `load_*yr_copy()` when mutating data. Never mutate shared references.
+**API**: `setup_world(base, years, seed)` always returns an isolated deep copy safe to mutate. No need for separate read-only vs copy methods.
 
 ### Regenerating Test Snapshots
 

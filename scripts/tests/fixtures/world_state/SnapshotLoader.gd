@@ -1,112 +1,128 @@
 ## World State Snapshot Loader
 ##
-## Provides instant loading of pre-generated world state snapshots for testing.
-## Use this instead of running BootstrapGameWorld in tests that need mature data.
+## Provides world state setup for testing via setup_world().
 ##
-## IMPORTANT - SHARED REFERENCE WARNING:
-##   load_*yr() methods return a SHARED REFERENCE from cache for performance.
-##   If your test mutates the world_state, you MUST use load_*yr_copy() instead!
+## USAGE:
+##   # Generate fresh 3-year world
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xSEED001)
 ##
-##   ✅ READ-ONLY TEST (use load_*yr - fast, cached):
-##      var world_state := SnapshotLoader.load_10yr()
-##      var teams := world_state.get("nfl_teams", [])  # Read only
+##   # Load 10yr snapshot as-is (0 additional years)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xSEED001)
 ##
-##   ✅ MUTATION TEST (use load_*yr_copy - creates isolated copy):
-##      var world_state := SnapshotLoader.load_10yr_copy()
-##      world_state["nfl_teams"].append(new_team)  # Safe to mutate
+##   # Load 10yr snapshot + simulate 2 more years
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 2, 0xSEED001)
 ##
-##   ❌ INCORRECT (will pollute cache for other tests):
-##      var world_state := SnapshotLoader.load_10yr()
-##      world_state["nfl_teams"].append(new_team)  # BAD! Mutates shared cache
-##
-## TEST ISOLATION:
-##   Call SnapshotLoader.clear_cache() in test teardown if test execution order
-##   might affect results. TestHelpers should call this automatically between tests.
-##
-## Available snapshots:
-##   - load_5yr()  - Basic rosters, recruiting data (~60-90s generation saved)
-##   - load_10yr() - Trade tests, contract history (~120-180s saved)
-##   - load_20yr() - HoF, dynasty, long-term trends (~240-360s saved)
-##
-## SETUP: Creating or extending a world state:
-##   Generate fresh:
-##     var world_state := SnapshotLoader.setup_world({}, 3, 0xFRESH001)
-##   Add years to snapshot:
-##     var world_state := SnapshotLoader.load_10yr_copy()
-##     world_state = SnapshotLoader.setup_world(world_state, 2, 0xTRADE001)
-##   Performance: ~10-15s per year simulated.
+## Performance:
+##   - Loading snapshot: instant (cached)
+##   - Each additional year: ~10-15 seconds
 ##
 ## Regenerate snapshots by running:
 ##   godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd
 ##
-## Seed: 0x7E572026 (deterministic - same seed as BootstrapGameWorld for consistency)
+## Adding new snapshots:
+##   1. Add entry to snapshot_config.json with year key and filename
+##   2. Add constant below (e.g., const YEAR_30 := 30)
+##   3. Regenerate snapshots with SnapshotGenerator.gd
 class_name SnapshotLoader
 extends RefCounted
 
 const FIXTURE_PATH := "res://scripts/tests/fixtures/world_state/"
+const CONFIG_FILE := "res://scripts/tests/fixtures/world_state/snapshot_config.json"
 
-## Deterministic seed matching SnapshotGenerator for consistency
-const SNAPSHOT_SEED := 0x7E572026
+## Base world state constants for setup_world()
+## Add new constants here when adding snapshots to snapshot_config.json
+const FRESH := 0       ## Generate from scratch
+const YEAR_5 := 5      ## Load 5-year snapshot
+const YEAR_10 := 10    ## Load 10-year snapshot
+const YEAR_20 := 20    ## Load 20-year snapshot
 
 ## Schema version - MUST match SnapshotGenerator.SNAPSHOT_SCHEMA_VERSION
 ## If mismatch detected, snapshots must be regenerated
 const SNAPSHOT_SCHEMA_VERSION := 1
 
 ## Cache loaded snapshots to avoid re-parsing JSON.
-## WARNING: This is shared state. Tests that mutate data MUST use load_*yr_copy().
-## Cache is cleared by clear_cache() - call in test teardown for isolation.
 static var _cache: Dictionary = {}
 
-## Load 5-year world state snapshot
-## Best for: Basic roster tests, recruiting pipeline tests
-## Saves: ~60-90 seconds of generation time
-static func load_5yr() -> Dictionary:
-	return _load_snapshot("snapshot_5yr.json")
+## Loaded config from snapshot_config.json
+static var _config: Dictionary = {}
 
-## Load 10-year world state snapshot
-## Best for: Trade tests, contract history, career progression
-## Saves: ~120-180 seconds of generation time
-static func load_10yr() -> Dictionary:
-	return _load_snapshot("snapshot_10yr.json")
+## Get the deterministic seed from config (for verification)
+static func get_snapshot_seed() -> int:
+	_ensure_config_loaded()
+	return int(_config.get("deterministic_seed", 0x7E572026))
 
-## Load 20-year world state snapshot
-## Best for: Hall of Fame, dynasty detection, long-term trend analysis
-## Saves: ~240-360 seconds of generation time
-static func load_20yr() -> Dictionary:
-	return _load_snapshot("snapshot_20yr.json")
+## Set up a world state for testing.
+##
+## This is the primary entry point for tests that need world state data.
+##
+## Parameters:
+##   base: Which snapshot to start from (FRESH, YEAR_5, YEAR_10, YEAR_20)
+##   years: Additional years to simulate (0 = just load snapshot)
+##   seed: Seed for deterministic simulation
+##
+## Returns:
+##   A world state dictionary (always an isolated copy, safe to mutate).
+##
+## Examples:
+##   # Generate fresh 3-year world
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xSEED001)
+##
+##   # Load 10yr snapshot, no additional simulation
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xSEED001)
+##
+##   # Load 5yr snapshot + 2 more years
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+static func setup_world(base: int, years: int, seed: int) -> Dictionary:
+	if seed == 0:
+		push_error("SnapshotLoader: seed required (cannot be 0)")
+		return {}
 
-## Get metadata from a loaded snapshot (full snapshot, not just world_state)
-## Returns generator info, seed, summary statistics
-static func get_metadata(snapshot: Dictionary) -> Dictionary:
-	return snapshot.get("_metadata", {})
+	var world_state: Dictionary = {}
 
-## Get the full snapshot including metadata (for verification)
-## Returns the complete snapshot dictionary with _metadata and world_state keys
-static func get_full_snapshot_5yr() -> Dictionary:
-	_ensure_loaded("snapshot_5yr.json")
-	return _cache.get("snapshot_5yr.json", {})
+	# Load base snapshot if specified
+	if base == FRESH:
+		if years <= 0:
+			push_error("SnapshotLoader: years must be > 0 when generating fresh")
+			return {}
+		# Generate fresh using BootstrapGameWorld
+		const BootstrapGameWorld = preload("res://scripts/pipelines/BootstrapGameWorld.gd")
+		var bootstrap := BootstrapGameWorld.new()
+		bootstrap.years_to_simulate = years
+		var result := bootstrap.run(seed, false)
+		return result.get("world_state", {})
+	else:
+		# Load snapshot from config
+		var filename := _get_snapshot_filename(base)
+		if filename.is_empty():
+			push_error("SnapshotLoader: Invalid base %d. Use FRESH or a year defined in snapshot_config.json." % base)
+			return {}
+		world_state = _deep_copy(_load_snapshot(filename))
 
-static func get_full_snapshot_10yr() -> Dictionary:
-	_ensure_loaded("snapshot_10yr.json")
-	return _cache.get("snapshot_10yr.json", {})
+	if world_state.is_empty():
+		return {}
 
-static func get_full_snapshot_20yr() -> Dictionary:
-	_ensure_loaded("snapshot_20yr.json")
-	return _cache.get("snapshot_20yr.json", {})
+	# If no additional years, return the snapshot copy
+	if years <= 0:
+		return world_state
 
-## Helper to ensure a snapshot is loaded into cache
-static func _ensure_loaded(filename: String) -> void:
-	if not _cache.has(filename):
-		_load_snapshot(filename)
+	# Simulate additional years
+	const AdvanceWorldYear = preload("res://scripts/pipelines/AdvanceWorldYear.gd")
+	var advancer := AdvanceWorldYear.new()
+	advancer.set_bootstrap_mode(true)  # Skip reports for test performance
 
-## Verify snapshot integrity (seed matches expected)
-## Use get_full_snapshot_*yr() to get the full snapshot for verification
-static func verify_snapshot(snapshot: Dictionary, expected_seed: int = 0x7E572026) -> bool:
-	var metadata := get_metadata(snapshot)
-	var actual_seed := int(metadata.get("seed", 0))
-	return actual_seed == expected_seed
+	var current_year: int = int(world_state.get("current_year", 2020))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
 
-## Clear the snapshot cache (useful for memory-sensitive tests)
+	for i in range(years):
+		var year_seed := rng.randi()
+		var result := advancer.run(world_state, current_year, year_seed)
+		world_state = result.get("world_state", world_state)
+		current_year += 1
+
+	return world_state
+
+## Clear the snapshot cache
 static func clear_cache() -> void:
 	_cache.clear()
 
@@ -117,18 +133,21 @@ static func snapshot_exists(filename: String) -> bool:
 
 ## Get available snapshots with their metadata
 static func list_available() -> Array:
+	_ensure_config_loaded()
 	var available: Array = []
-	var filenames := ["snapshot_5yr.json", "snapshot_10yr.json", "snapshot_20yr.json"]
+	var snapshots: Dictionary = _config.get("snapshots", {})
 
-	for filename in filenames:
+	for year_key in snapshots.keys():
+		var snapshot_info: Dictionary = snapshots[year_key]
+		var filename: String = snapshot_info.get("filename", "")
 		if snapshot_exists(filename):
-			# Load to populate cache
 			_load_snapshot(filename)
-			# Get full snapshot from cache to access metadata
 			var full_snapshot: Dictionary = _cache.get(filename, {})
-			var metadata := get_metadata(full_snapshot)
+			var metadata: Dictionary = full_snapshot.get("_metadata", {})
 			available.append({
+				"year": int(year_key),
 				"filename": filename,
+				"description": snapshot_info.get("description", ""),
 				"years": metadata.get("years_simulated", 0),
 				"generated_at": metadata.get("generated_at", "unknown"),
 				"seed": metadata.get("seed", 0),
@@ -137,21 +156,64 @@ static func list_available() -> Array:
 
 	return available
 
+## Get list of available snapshot years from config
+static func get_available_years() -> Array:
+	_ensure_config_loaded()
+	var snapshots: Dictionary = _config.get("snapshots", {})
+	var years: Array = []
+	for year_key in snapshots.keys():
+		years.append(int(year_key))
+	years.sort()
+	return years
+
+## Internal: Ensure config is loaded
+static func _ensure_config_loaded() -> void:
+	if not _config.is_empty():
+		return
+
+	if not FileAccess.file_exists(CONFIG_FILE):
+		push_error("SnapshotLoader: Config file not found: %s" % CONFIG_FILE)
+		return
+
+	var file := FileAccess.open(CONFIG_FILE, FileAccess.READ)
+	if file == null:
+		push_error("SnapshotLoader: Failed to open config: %s" % CONFIG_FILE)
+		return
+
+	var json_string := file.get_as_text()
+	file.close()
+
+	var parsed = JSON.parse_string(json_string)
+	if parsed == null or not parsed is Dictionary:
+		push_error("SnapshotLoader: Failed to parse config JSON")
+		return
+
+	_config = parsed
+
+## Internal: Get snapshot filename for a given year
+static func _get_snapshot_filename(years: int) -> String:
+	_ensure_config_loaded()
+	var snapshots: Dictionary = _config.get("snapshots", {})
+	var year_key := str(years)
+
+	if not snapshots.has(year_key):
+		return ""
+
+	var snapshot_info: Dictionary = snapshots[year_key]
+	return snapshot_info.get("filename", "")
+
 ## Internal: Load and cache a snapshot file
 static func _load_snapshot(filename: String) -> Dictionary:
-	# Check cache first
 	if _cache.has(filename):
 		return _cache[filename].get("world_state", {})
 
 	var path := FIXTURE_PATH + filename
 
-	# Check if file exists
 	if not FileAccess.file_exists(path):
 		push_error("SnapshotLoader: Snapshot not found: %s" % path)
 		push_error("Run: godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd")
 		return {}
 
-	# Load and parse JSON
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		push_error("SnapshotLoader: Failed to open: %s" % path)
@@ -165,7 +227,6 @@ static func _load_snapshot(filename: String) -> Dictionary:
 		push_error("SnapshotLoader: Failed to parse JSON: %s" % path)
 		return {}
 
-	# Validate structure
 	if not snapshot is Dictionary:
 		push_error("SnapshotLoader: Invalid snapshot structure: %s" % path)
 		return {}
@@ -175,95 +236,17 @@ static func _load_snapshot(filename: String) -> Dictionary:
 		push_error("SnapshotLoader: Snapshot missing world_state: %s" % path)
 		return {}
 
-	# Validate schema version to detect stale snapshots
 	if not _validate_schema_version(snapshot_dict, path):
-		# Error already logged by _validate_schema_version
 		return {}
 
-	# Cache the full snapshot (with metadata)
 	_cache[filename] = snapshot_dict
-
-	# Return just the world_state for convenience
 	return snapshot_dict.get("world_state", {})
 
-## Create a deep copy of a world state (for tests that mutate state)
-static func load_5yr_copy() -> Dictionary:
-	var original := load_5yr()
-	return _deep_copy(original)
-
-static func load_10yr_copy() -> Dictionary:
-	var original := load_10yr()
-	return _deep_copy(original)
-
-static func load_20yr_copy() -> Dictionary:
-	var original := load_20yr()
-	return _deep_copy(original)
-
-## Set up a world state for testing by generating or extending simulation years.
-##
-## This is the primary entry point for tests that need world state data.
-## Use this instead of manually calling BootstrapGameWorld or AdvanceWorldYear.
-##
-## Parameters:
-##   world_state: Existing world state to extend, or empty {} to generate fresh
-##   years: Number of years to simulate (must be > 0)
-##   seed: Seed for deterministic simulation
-##
-## Returns:
-##   The generated/extended world state.
-##
-## Performance:
-##   Each year: ~10-15 seconds
-##
-## Examples:
-##   # Generate fresh 3-year world state
-##   var world_state := SnapshotLoader.setup_world({}, 3, 0xFRESH001)
-##
-##   # Load 10yr snapshot + simulate 2 more years
-##   var world_state := SnapshotLoader.load_10yr_copy()
-##   world_state = SnapshotLoader.setup_world(world_state, 2, 0xTRADE001)
-static func setup_world(world_state: Dictionary, years: int, seed: int) -> Dictionary:
-	if years <= 0:
-		push_error("SnapshotLoader: years must be > 0")
-		return world_state if not world_state.is_empty() else {}
-
-	if seed == 0:
-		push_error("SnapshotLoader: seed required (cannot be 0)")
-		return {}
-
-	# If world_state is empty, generate fresh using BootstrapGameWorld
-	if world_state.is_empty():
-		const BootstrapGameWorld = preload("res://scripts/pipelines/BootstrapGameWorld.gd")
-		var bootstrap := BootstrapGameWorld.new()
-		bootstrap.years_to_simulate = years
-		var result := bootstrap.run(seed, false)
-		return result.get("world_state", {})
-
-	# Otherwise, extend existing world state
-	const AdvanceWorldYear = preload("res://scripts/pipelines/AdvanceWorldYear.gd")
-	var advancer := AdvanceWorldYear.new()
-	advancer.set_bootstrap_mode(true)  # Skip reports for test performance
-
-	# Get current year from world state, default to 2020 if not found
-	var current_year: int = int(world_state.get("current_year", 2020))
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-
-	for i in range(years):
-		var year_seed := rng.randi()
-		var result := advancer.run(world_state, current_year, year_seed)
-		world_state = result.get("world_state", world_state)
-		current_year += 1
-
-	return world_state
-
-## Internal: Validate snapshot schema version matches current code
-## Returns false and logs error if mismatch detected
+## Internal: Validate snapshot schema version
 static func _validate_schema_version(snapshot: Dictionary, path: String) -> bool:
 	var metadata: Dictionary = snapshot.get("_metadata", {})
 	var snapshot_version: int = int(metadata.get("schema_version", 0))
 
-	# Schema version 0 means old snapshot without versioning - require regeneration
 	if snapshot_version == 0:
 		push_error("SnapshotLoader: Snapshot has no schema_version: %s" % path)
 		push_error("Regenerate: godot --headless -s res://scripts/tests/fixtures/world_state/SnapshotGenerator.gd")
@@ -277,14 +260,6 @@ static func _validate_schema_version(snapshot: Dictionary, path: String) -> bool
 
 	return true
 
-## Internal: Deep copy a dictionary (for mutation-safe test data)
-##
-## Uses Godot 4.x's duplicate(true) which performs recursive deep copy of all
-## nested Arrays and Dictionaries. This is fast (~10-50ms for typical snapshots)
-## compared to JSON round-trip (~200-500ms).
-##
-## Use load_*yr() for read-only tests to avoid any copy overhead.
+## Internal: Deep copy a dictionary
 static func _deep_copy(source: Dictionary) -> Dictionary:
-	# Godot 4.x duplicate(true) performs recursive deep copy of nested structures
-	# This is well-documented and reliable behavior in Godot 4.x
 	return source.duplicate(true)
