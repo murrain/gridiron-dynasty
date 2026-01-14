@@ -9,8 +9,10 @@
 
 This document contains detailed implementation tickets for the architectural improvements identified by the architecture-guardian review. Work is organized into three phases with dependencies clearly marked.
 
-**Total Estimated Effort:** 27-37 hours across 4-6 weeks
+**Total Estimated Effort:** 173-218 hours across 10-14 weeks
 **Risk Level:** Low to Medium (phased approach minimizes disruption)
+
+> **Note:** Phase 4 (Testing Infrastructure) can run in parallel with Phases 1-3, potentially reducing calendar time.
 
 ---
 
@@ -1724,6 +1726,308 @@ Document the persistence layer architecture and usage.
 
 ---
 
+## Phase 4: Testing Infrastructure
+
+### ARCH-026: Migrate to GdUnit4 Testing Framework
+
+**Priority:** HIGH
+**Estimated Effort:** 94-110 hours (2.5-3 weeks)
+**Risk:** MEDIUM
+**Dependencies:** None (can run in parallel with other phases)
+
+#### Description
+
+Migrate from the custom homegrown testing framework to GdUnit4 v6.0+ to gain:
+- **Native test retry** on failure (per-test, not all-or-nothing)
+- **Flaky test detection** with automatic reporting
+- **Official GitHub Action** (`gdunit4-action`) with built-in CI features
+- **HTML reports** in addition to JUnit XML
+- **25 feature advantages** over alternatives (fluent assertions, scene runner, fuzzing, etc.)
+
+#### Current State
+
+```gdscript
+# Current pattern: Custom framework
+extends RefCounted
+
+func run(t: TestHelpers) -> void:
+    _test_something(t)
+
+func _test_something(t: TestHelpers) -> void:
+    t.assert_eq(actual, expected, "message")
+```
+
+#### Target State
+
+```gdscript
+# GdUnit4 pattern
+extends GdUnitTestSuite
+
+func test_something() -> void:
+    assert_that(actual).is_equal(expected)
+```
+
+#### Custom Assertions Migration
+
+Port `TestHelpers.gd` custom assertions to GdUnit4-compatible utility class:
+
+```gdscript
+# scripts/tests/TestHelpersGdUnit4.gd
+extends RefCounted
+class_name TestHelpersGdUnit4
+
+## Verify a function is deterministic with a given seed.
+## Uses GdUnit4's deep equality instead of JSON stringification (which has key ordering issues).
+static func assert_deterministic(suite: GdUnitTestSuite, callable: Callable, seed: int, msg: String) -> void:
+    var rng1 := RandomNumberGenerator.new()
+    rng1.seed = seed
+    var result1 = callable.call(rng1)
+
+    var rng2 := RandomNumberGenerator.new()
+    rng2.seed = seed
+    var result2 = callable.call(rng2)
+
+    # Use GdUnit4's deep equality - handles dictionaries, arrays, nested structures
+    suite.assert_that(result1).is_equal(result2)
+
+## Assert dictionary has required fields
+static func assert_schema(suite: GdUnitTestSuite, obj: Dictionary, required_fields: Array, msg: String) -> void:
+    for field in required_fields:
+        suite.assert_bool(obj.has(field))\
+            .override_failure_message("%s: missing field '%s'" % [msg, field])\
+            .is_true()
+
+## Assert operation completes within time limit
+static func assert_max_time(suite: GdUnitTestSuite, callable: Callable, max_ms: float, msg: String) -> void:
+    var start_usec := Time.get_ticks_usec()
+    callable.call()
+    var elapsed_usec := Time.get_ticks_usec() - start_usec
+    var elapsed_ms := elapsed_usec / 1000.0
+
+    suite.assert_float(elapsed_ms)\
+        .override_failure_message("%s (took %.2fms, max %.2fms)" % [msg, elapsed_ms, max_ms])\
+        .is_less_equal(max_ms)
+```
+
+#### CI Configuration
+
+```yaml
+# .github/workflows/test.yml
+name: Run Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run GdUnit4 Tests
+        uses: MikeSchulze/gdUnit4-action@v1
+        with:
+          godot-version: '4.5.0'  # Pin exact version
+          version: 'v6.0.0'       # Pin GdUnit4 version
+          paths: 'res://scripts/tests'
+          retries: 3              # Per-test retry for flaky tests
+          timeout: 10             # 10 minute timeout (in minutes)
+
+      - name: Upload HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gdunit4-report
+          path: reports/
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: '**/*.xml'
+```
+
+#### SnapshotLoader Integration with GdUnit4
+
+The existing SnapshotLoader fixture system must integrate with GdUnit4's lifecycle hooks:
+
+```gdscript
+extends GdUnitTestSuite
+
+var world_state: Dictionary
+
+# Runs once before all tests in this suite
+func before() -> void:
+    world_state = SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x5EED)
+
+# Runs after all tests complete
+func after() -> void:
+    SnapshotLoader.clear_cache()  # Clean up static cache
+
+func test_player_lifecycle() -> void:
+    assert_that(world_state["current_year"]).is_equal(2035)
+    # Test using world_state...
+```
+
+**Important Considerations:**
+- **Static Cache**: SnapshotLoader uses static caching. Verify GdUnit4 test isolation model in POC.
+- **Different Snapshots**: Tests requiring different base snapshots must use **separate test suites**.
+- **Cache Cleanup**: Call `SnapshotLoader.clear_cache()` in `after()` to prevent cross-suite pollution.
+
+#### Implementation Phases
+
+**Phase 4.1: Proof of Concept (1 week, 28 hours)**
+- [ ] Install GdUnit4 v6.0+ via Godot Asset Library
+- [ ] Migrate 5 representative test files:
+  - 1 simple unit test (test_rand.gd)
+  - 1 determinism test (test_g1_1_game_simulation_determinism.gd)
+  - 1 performance test (test_scout_runtime.gd)
+  - 1 schema validation test
+  - 1 integration test (test_g1_integration_season_simulation.gd)
+- [ ] Implement TestHelpersGdUnit4 custom assertions
+- [ ] Set up GitHub Action with retries
+- [ ] Measure execution time vs current framework
+- [ ] Get team feedback on fluent API syntax
+- [ ] Audit all `test_*.gd` files for unintentional discovery
+- [ ] Verify SnapshotLoader static cache behavior with GdUnit4
+- [ ] **Decision gate**: Proceed or fall back to GUT
+
+**POC Success Criteria (Decision Gate):**
+- [ ] All 5 test types migrate successfully without blocking issues
+- [ ] SnapshotLoader integration working with lifecycle hooks
+- [ ] Static cache behavior verified safe (no cross-test pollution)
+- [ ] Test runtime ≤ 154s (within 25% of 120s baseline)
+- [ ] Team confirms fluent API readability acceptable (80%+ approval)
+- [ ] GitHub Action retry demonstrated working per-test
+
+**Fallback Plan (If POC Fails):**
+If POC fails to meet success criteria, execute **ARCH-026-ALT: Migrate to GUT**:
+- **Estimated Effort:** 61-73 hours (25% less than GdUnit4)
+- **Trade-offs:** Lose native test retry, flaky detection, official GitHub Action
+- **Decision:** Defer final decision until POC results available in Week 1
+
+**Phase 4.2: Bulk Migration (2 weeks, 50 hours)**
+- [ ] Create migration checklist/script
+- [ ] Convert assertion patterns:
+  - `t.assert_eq(a, b, "msg")` → `assert_that(a).is_equal(b)`
+  - `t.assert_true(x, "msg")` → `assert_bool(x).is_true()`
+  - `t.assert_gt(a, b, "msg")` → `assert_int(a).is_greater(b)`
+  - `t.assert_between(x, lo, hi, "msg")` → `assert_float(x).is_between(lo, hi)`
+  - `t.assert_approx(a, b, eps, "msg")` → `assert_float(a).is_equal_approx(b, eps)`
+- [ ] Migrate remaining ~127 test files
+- [ ] Update SnapshotLoader integration with GdUnit4 lifecycle hooks
+- [ ] Remove old TestHelpers.gd and TestRunner.gd
+
+**Phase 4.3: Optimization (1 week, 16 hours)**
+- [ ] Identify flaky tests using retry reports
+- [ ] Add test fuzzing for simulation edge cases
+- [ ] Configure HTML report dashboard
+- [ ] Add performance regression detection
+- [ ] Document GdUnit4 patterns for team
+
+#### Acceptance Criteria
+
+- [ ] All 132 test files migrated to GdUnit4
+- [ ] Custom assertions (deterministic, schema, max_time) working
+- [ ] CI pipeline running with test retry enabled
+- [ ] HTML and JUnit XML reports generated
+- [ ] Test runtime within 10% of current (120-140s baseline)
+- [ ] No regression in test coverage
+- [ ] SnapshotLoader fixtures integrated
+- [ ] Team documentation complete
+
+#### Assertion Conversion Reference
+
+| Current (TestHelpers) | GdUnit4 Equivalent |
+|-----------------------|-------------------|
+| `t.assert_eq(a, b, msg)` | `assert_that(a).is_equal(b)` |
+| `t.assert_ne(a, b, msg)` | `assert_that(a).is_not_equal(b)` |
+| `t.assert_true(x, msg)` | `assert_bool(x).is_true()` |
+| `t.assert_false(x, msg)` | `assert_bool(x).is_false()` |
+| `t.assert_gt(a, b, msg)` | `assert_int(a).is_greater(b)` |
+| `t.assert_gte(a, b, msg)` | `assert_int(a).is_greater_equal(b)` |
+| `t.assert_lt(a, b, msg)` | `assert_int(a).is_less(b)` |
+| `t.assert_lte(a, b, msg)` | `assert_int(a).is_less_equal(b)` |
+| `t.assert_between(x, lo, hi, msg)` | `assert_float(x).is_between(lo, hi)` |
+| `t.assert_approx(a, b, eps, msg)` | `assert_float(a).is_equal_approx(b, eps)` |
+| `t.assert_schema(obj, fields, msg)` | `TestHelpersGdUnit4.assert_schema(self, obj, fields, msg)` |
+| `t.assert_deterministic(c, s, msg)` | `TestHelpersGdUnit4.assert_deterministic(self, c, s, msg)` |
+| `t.assert_max_time(c, ms, msg)` | `TestHelpersGdUnit4.assert_max_time(self, c, ms, msg)` |
+
+#### Why GdUnit4 Over GUT
+
+| Criterion | GUT | GdUnit4 | Decision Factor |
+|-----------|-----|---------|-----------------|
+| Test retry | ❌ Manual scripting | ✅ Native | **Critical for PR workflow** |
+| Flaky detection | ❌ None | ✅ Built-in | **Critical for CI stability** |
+| GitHub Action | Third-party | ✅ Official | **Better support** |
+| HTML reports | ❌ None | ✅ Built-in | **Better visibility** |
+| Feature advantages | 1 | 25 | **Long-term value** |
+| Godot 4.5 compat | ✅ Stable | ✅ Stable (v6.0+) | Tie |
+| Migration effort | 61 hours | 86 hours | **+25h justified by features** |
+
+#### Risk Mitigation
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| Fluent API learning curve | MEDIUM | Phase 4.1 POC validates team comfort |
+| Performance regression | LOW | Benchmark in POC before committing |
+| Custom assertion complexity | MEDIUM | Static utility pattern documented above |
+| GdUnit4 breaking changes | LOW | Already on Godot 4.5, using v6.0+ |
+
+#### Files to Create
+
+- `addons/gdUnit4/` (installed via Asset Library)
+- `scripts/tests/TestHelpersGdUnit4.gd`
+- `.github/workflows/test.yml` (update existing)
+
+#### Files to Remove (After Migration)
+
+- `scripts/tests/TestHelpers.gd`
+- `scripts/tests/TestRunner.gd`
+- `scripts/tests/TestRunnerFast.gd`
+
+---
+
+### ARCH-027: Document Testing Patterns
+
+**Priority:** LOW
+**Estimated Effort:** 3-4 hours
+**Risk:** NONE
+**Dependencies:** ARCH-026
+
+#### Description
+
+Document GdUnit4 testing patterns and conventions for the team.
+
+#### Content
+
+- GdUnit4 setup and configuration
+- Custom assertion usage (TestHelpersGdUnit4)
+- SnapshotLoader integration patterns
+- CI/CD workflow explanation
+- Debugging tests in editor
+- Writing deterministic tests
+- Performance testing patterns
+
+#### Acceptance Criteria
+
+- [ ] Create `docs/testing/TESTING_GUIDE.md` with all sections
+- [ ] Document GdUnit4 setup and installation process
+- [ ] Include TestHelpersGdUnit4 usage examples with code samples
+- [ ] Document SnapshotLoader integration with before/after patterns
+- [ ] Include CI/CD workflow diagram and explanation
+- [ ] Add debugging guide for both editor and command-line
+- [ ] Include deterministic testing pattern examples
+- [ ] Document performance testing patterns with assert_max_time usage
+- [ ] Add troubleshooting section for common issues
+- [ ] Peer review by 2+ team members completed
+
+#### Deliverable
+
+`docs/testing/TESTING_GUIDE.md`
+
+---
+
 ## Dependency Graph
 
 ```
@@ -1755,6 +2059,10 @@ ARCH-020 (Team DAO) <─────── ARCH-017, ARCH-018, ARCH-019
 ARCH-021 (Migration) <────── ARCH-019, ARCH-020
 ARCH-022 (Indexes) <──────── ARCH-018
 
+Phase 4 (Testing Infrastructure):    [CAN RUN IN PARALLEL]
+ARCH-026 (GdUnit4 Migration) ─────> Independent (no dependencies)
+ARCH-027 (Testing Docs) <───────── ARCH-026
+
 Documentation:
 ARCH-023 (Naming) <── ARCH-001, ARCH-002, ARCH-007
 ARCH-024 (Models) <── Phase 2
@@ -1770,8 +2078,11 @@ ARCH-025 (Persistence) <── Phase 3
 | Phase 1: Foundation | ARCH-001 to ARCH-007 | 18-25 hours | LOW |
 | Phase 2: Decomposition | ARCH-008 to ARCH-016 | 24-32 hours | MEDIUM |
 | Phase 3: Persistence | ARCH-017 to ARCH-022 | 28-38 hours | MEDIUM |
+| Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
-| **Total** | **25 tickets** | **76-104 hours** | - |
+| **Total** | **27 tickets** | **173-218 hours** | - |
+
+> **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
 
 ### Recommended Execution Order
 
@@ -1784,9 +2095,19 @@ ARCH-025 (Persistence) <── Phase 3
 
 ### Success Metrics
 
-- [ ] Player.gd reduced from 296 lines to <100 lines
+**Model Architecture:**
+- [ ] Player.gd reduced from 296 lines to <200 lines
 - [ ] All Dictionary schemas replaced with typed Resources
 - [ ] Zero ID normalization code remaining
 - [ ] Save/load times reduced by 5x+ with database backend
+
+**Testing Infrastructure:**
+- [ ] All 132 test files migrated to GdUnit4
+- [ ] Test retry enabled in CI (flaky tests auto-detected)
+- [ ] HTML reports generated on every PR
+- [ ] Test runtime within 10% of baseline (120-140s)
+
+**Quality Gates:**
 - [ ] All existing tests continue to pass
 - [ ] No regression in simulation determinism
+- [ ] CI pipeline runs on every PR with clear pass/fail
