@@ -293,101 +293,99 @@ Currently, stats like `work_ethic`, `discipline`, `maturity` would need to be de
 │  BASE_PLAYER_TEMPLATE                                                            │
 │  ───────────────────                                                             │
 │  Common stats ALL players have, regardless of position.                          │
-│  These reflect the baseline of "NFL-caliber human being":                        │
+│  mu: 50 = average NFL player (not average human - average among NFL players)     │
+│  Floors prevent unrealistic extremes (lazy players get cut before NFL)           │
 │                                                                                  │
-│    work_ethic:     mu: 65, sigma: 12    (NFL players work hard)                  │
-│    discipline:     mu: 60, sigma: 14    (Had to be disciplined to get here)      │
-│    maturity:       mu: 55, sigma: 15    (Varies more, young players)             │
-│    composure:      mu: 55, sigma: 14    (Pressure handling varies)               │
-│    ambition:       mu: 60, sigma: 15    (Driven to succeed)                      │
-│    competitiveness: mu: 65, sigma: 12   (NFL is competitive by nature)           │
-│    confidence:     mu: 60, sigma: 16    (Wide range)                             │
-│    coachability:   mu: 58, sigma: 14                                             │
-│    adaptability:   mu: 55, sigma: 13                                             │
-│    focus:          mu: 58, sigma: 14                                             │
-│    stamina:        mu: 60, sigma: 12    (Athletes, but position varies)          │
+│    work_ethic:      mu: 50, sigma: 12, floor: 35                                 │
+│    discipline:      mu: 50, sigma: 14, floor: 30                                 │
+│    maturity:        mu: 50, sigma: 15  (no floor - young players can be immature)│
+│    composure:       mu: 50, sigma: 14  (no floor - some crumble under pressure)  │
+│    ambition:        mu: 50, sigma: 15                                            │
+│    competitiveness: mu: 50, sigma: 12, floor: 35                                 │
+│    confidence:      mu: 50, sigma: 16  (wide variance)                           │
+│    coachability:    mu: 50, sigma: 14                                            │
+│    adaptability:    mu: 50, sigma: 13                                            │
+│    focus:           mu: 50, sigma: 14                                            │
+│    stamina:         mu: 50, sigma: 12  (positions override)                      │
 │                                                                                  │
 │         ↓ INHERITED BY ↓                                                         │
 │                                                                                  │
 │  POSITION TEMPLATES (QB, WR, TE, etc.)                                           │
 │  ─────────────────────────────────────                                           │
-│  Inherit base stats, then ADD position-specific stats:                           │
+│  Inherit base stats, then ADD position-specific stats.                           │
+│  Can OVERRIDE base stats if position selects for different averages:             │
 │                                                                                  │
-│    QB adds:  throw_accuracy, throw_power, decision_making, awareness...          │
-│    WR adds:  speed, agility, route_running, catching...                          │
-│    OL adds:  strength, blocking, anchor...                                       │
-│                                                                                  │
-│  Can OVERRIDE base stats if position warrants:                                   │
-│                                                                                  │
-│    QB.composure:  mu: 65, sigma: 10  (QBs need higher composure on avg)          │
-│    OL.discipline: mu: 68, sigma: 10  (OL requires discipline)                    │
-│    WR.confidence: mu: 70, sigma: 14  (WRs tend to be confident)                  │
+│    QB.composure:    mu: 58  (QBs who can't handle pressure don't make it)        │
+│    OL.discipline:   mu: 55  (OL is a disciplined position)                       │
+│    WR.confidence:   mu: 55  (WRs tend to be confident divas)                     │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 3.3 Base Player Template
 
+**Key principle**: `mu: 50` = average NFL player. Not average human, average among the NFL population. Floors prevent unrealistic extremes.
+
 ```json
 {
     "base_player": {
         "description": "Common stats for all NFL-caliber players",
-        "note": "These players survived HS → College → NFL pipeline. They're not random people.",
+        "note": "50 = average NFL player. Floors filter out extremes that wouldn't survive to the NFL.",
 
         "mental_stats": {
             "work_ethic": {
-                "mu": 65, "sigma": 12,
+                "mu": 50, "sigma": 12,
                 "floor": 35,
-                "description": "NFL players generally work hard - low floor because slackers get cut"
+                "description": "50 = average NFL work ethic. Floor 35 = lazy players get cut in college."
             },
             "discipline": {
-                "mu": 60, "sigma": 14,
+                "mu": 50, "sigma": 14,
                 "floor": 30,
-                "description": "Had to maintain discipline through college to get here"
+                "description": "50 = average discipline. Floor 30 = undisciplined players don't make it."
             },
             "maturity": {
-                "mu": 55, "sigma": 15,
-                "description": "Varies widely - rookies can be immature"
+                "mu": 50, "sigma": 15,
+                "description": "No floor - young players can be very immature, talent overcomes it."
             },
             "composure": {
-                "mu": 55, "sigma": 14,
-                "description": "Ability to perform under pressure"
+                "mu": 50, "sigma": 14,
+                "description": "No floor - some NFL players crumble under pressure."
             },
             "ambition": {
-                "mu": 60, "sigma": 15,
-                "description": "Drive to achieve greatness"
+                "mu": 50, "sigma": 15,
+                "description": "Drive to achieve greatness. Some are content, some want rings."
             },
             "competitiveness": {
-                "mu": 65, "sigma": 12,
-                "floor": 40,
-                "description": "NFL is intensely competitive - low floor"
+                "mu": 50, "sigma": 12,
+                "floor": 35,
+                "description": "Floor 35 = non-competitive people don't pursue NFL careers."
             },
             "confidence": {
-                "mu": 60, "sigma": 16,
-                "description": "Self-belief varies widely"
+                "mu": 50, "sigma": 16,
+                "description": "Wide variance - imposter syndrome to extreme cockiness."
             },
             "coachability": {
-                "mu": 58, "sigma": 14,
-                "description": "Willingness to take instruction"
+                "mu": 50, "sigma": 14,
+                "description": "Some players are uncoachable but talented enough to stick."
             },
             "adaptability": {
-                "mu": 55, "sigma": 13,
-                "description": "Ability to adjust to new situations"
+                "mu": 50, "sigma": 13,
+                "description": "Ability to adjust to new schemes, teams, situations."
             },
             "focus": {
-                "mu": 58, "sigma": 14,
-                "description": "Mental concentration"
+                "mu": 50, "sigma": 14,
+                "description": "Mental concentration ability."
             }
         },
 
         "physical_baseline": {
             "stamina": {
-                "mu": 60, "sigma": 12,
-                "description": "Base conditioning - positions override significantly"
+                "mu": 50, "sigma": 12,
+                "description": "Positions override significantly (WR higher, OL higher, etc.)"
             },
             "injury_resistance": {
                 "mu": 50, "sigma": 15,
-                "description": "Durability varies widely"
+                "description": "Durability varies widely, no selection pressure."
             }
         }
     }
@@ -396,7 +394,7 @@ Currently, stats like `work_ethic`, `discipline`, `maturity` would need to be de
 
 ### 3.4 Position Template Structure
 
-Positions inherit from base and add/override:
+Positions inherit from base and can override **only if the position genuinely selects for different averages**. Most positions use base mu: 50.
 
 ```json
 {
@@ -404,18 +402,18 @@ Positions inherit from base and add/override:
         "inherits": "base_player",
 
         "overrides": {
-            "composure": { "mu": 68, "sigma": 10 },
-            "decision_making_baseline": { "mu": 60, "sigma": 12 }
+            "composure": { "mu": 58, "sigma": 12 },
+            "note": "QBs who can't handle pressure get filtered out - slightly higher avg"
         },
 
         "core_stats": ["throw_accuracy", "decision_making", "awareness", "anticipation", "composure"],
 
         "position_specific": {
-            "throw_accuracy": { "mu": 78, "sigma": 9, "viability_min": 45 },
-            "throw_power": { "mu": 79, "sigma": 9, "viability_min": 40 },
-            "decision_making": { "mu": 73, "sigma": 7 },
-            "awareness": { "mu": 73, "sigma": 7, "viability_min": 35 },
-            "anticipation": { "mu": 70, "sigma": 8 }
+            "throw_accuracy": { "mu": 50, "sigma": 12, "viability_min": 45 },
+            "throw_power": { "mu": 50, "sigma": 12, "viability_min": 40 },
+            "decision_making": { "mu": 50, "sigma": 10 },
+            "awareness": { "mu": 50, "sigma": 10, "viability_min": 35 },
+            "anticipation": { "mu": 50, "sigma": 10 }
         }
     },
 
@@ -423,17 +421,17 @@ Positions inherit from base and add/override:
         "inherits": "base_player",
 
         "overrides": {
-            "confidence": { "mu": 70, "sigma": 14 },
-            "stamina": { "mu": 72, "sigma": 10 }
+            "confidence": { "mu": 55, "sigma": 14 },
+            "note": "WRs tend to be confident - diva stereotype has some truth"
         },
 
         "core_stats": ["speed", "agility", "route_running", "catching"],
 
         "position_specific": {
-            "speed": { "mu": 84, "sigma": 6, "viability_min": 45 },
-            "agility": { "mu": 80, "sigma": 7, "viability_min": 40 },
-            "route_running": { "mu": 74, "sigma": 8 },
-            "catching": { "mu": 74, "sigma": 8, "viability_min": 35 }
+            "speed": { "mu": 50, "sigma": 10, "viability_min": 45 },
+            "agility": { "mu": 50, "sigma": 10, "viability_min": 40 },
+            "route_running": { "mu": 50, "sigma": 12 },
+            "catching": { "mu": 50, "sigma": 12, "viability_min": 35 }
         }
     },
 
@@ -441,17 +439,16 @@ Positions inherit from base and add/override:
         "inherits": "base_player",
 
         "overrides": {
-            "discipline": { "mu": 68, "sigma": 10 },
-            "work_ethic": { "mu": 70, "sigma": 10 },
-            "stamina": { "mu": 75, "sigma": 8 }
+            "discipline": { "mu": 55, "sigma": 10 },
+            "note": "OL is a disciplined, team-first position - slightly higher avg"
         },
 
         "core_stats": ["strength", "blocking", "anchor"],
 
         "position_specific": {
-            "strength": { "mu": 82, "sigma": 7, "viability_min": 50 },
-            "blocking": { "mu": 75, "sigma": 8, "viability_min": 45 },
-            "anchor": { "mu": 72, "sigma": 9 }
+            "strength": { "mu": 50, "sigma": 10, "viability_min": 50 },
+            "blocking": { "mu": 50, "sigma": 12, "viability_min": 45 },
+            "anchor": { "mu": 50, "sigma": 12 }
         }
     }
 }
@@ -494,28 +491,29 @@ static func resolve_position_stats(
 
 ### 3.6 Why Floors Matter
 
-Some stats have minimum floors because the NFL selection process filters out extremes:
+With mu: 50 as average, the distribution naturally produces players from ~20 to ~80. Floors cut off the unrealistic bottom end for stats where the NFL selection process filters out extremes:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                    Stat Floors (NFL Selection Filter)                            │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                  │
-│  STAT              FLOOR    REASONING                                            │
-│  ────              ─────    ─────────                                            │
-│  work_ethic        35       Lazy players get cut in college                      │
-│  discipline        30       Undisciplined players never make it                  │
-│  competitiveness   40       Non-competitive players don't pursue NFL             │
+│  STAT              MU    FLOOR    EFFECT                                         │
+│  ────              ──    ─────    ──────                                         │
+│  work_ethic        50    35       Range: 35-80ish. No truly lazy NFL players.    │
+│  discipline        50    30       Range: 30-80ish. Undisciplined get cut early.  │
+│  competitiveness   50    35       Range: 35-80ish. Non-competitive don't try.    │
 │                                                                                  │
 │  NO FLOOR (can be very low):                                                     │
 │  ───────────────────────────                                                     │
-│  maturity          --       Young players can be very immature                   │
-│  composure         --       Some players crumble under pressure                  │
-│  coachability      --       Some talented players are uncoachable                │
-│  confidence        --       Can be very low (imposter syndrome)                  │
+│  maturity          50    --       Range: 15-85. Young players can be very dumb.  │
+│  composure         50    --       Range: 15-85. Some crumble under pressure.     │
+│  coachability      50    --       Range: 15-85. Talent overcomes being stubborn. │
+│  confidence        50    --       Range: 15-85. Imposter syndrome to delusional. │
+│  ambition          50    --       Range: 15-85. Some just want a paycheck.       │
 │                                                                                  │
-│  The NFL has lazy-ish players (work_ethic 40), but not work_ethic 10.            │
-│  It has immature players (maturity 20), because talent can overcome it.          │
+│  50 = average NFL player. Below 50 = below average. Above 50 = above average.    │
+│  Simple, intuitive, consistent.                                                  │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
