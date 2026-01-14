@@ -4,13 +4,13 @@
 ##
 ## USAGE:
 ##   # Generate fresh 3-year world
-##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xSEED001)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0x5EED001)
 ##
 ##   # Load 10yr snapshot as-is (0 additional years)
-##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xSEED001)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x5EED001)
 ##
 ##   # Load 10yr snapshot + simulate 2 more years
-##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 2, 0xSEED001)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 2, 0x5EED001)
 ##
 ## Performance:
 ##   - Loading snapshot: instant (cached)
@@ -65,13 +65,13 @@ static func get_snapshot_seed() -> int:
 ##
 ## Examples:
 ##   # Generate fresh 3-year world
-##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0xSEED001)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.FRESH, 3, 0x5EED001)
 ##
 ##   # Load 10yr snapshot, no additional simulation
-##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xSEED001)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x5EED001)
 ##
 ##   # Load 5yr snapshot + 2 more years
-##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0xTRADE001)
+##   var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 2, 0x72ADE01)
 static func setup_world(base: int, years: int, seed: int) -> Dictionary:
 	if seed == 0:
 		push_error("SnapshotLoader: seed required (cannot be 0)")

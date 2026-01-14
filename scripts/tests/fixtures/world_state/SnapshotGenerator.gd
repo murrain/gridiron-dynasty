@@ -84,7 +84,7 @@ func _init() -> void:
 		])
 	print("")
 	print("Use SnapshotLoader.setup_world() to load these in tests:")
-	print("  var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0xTEST001)")
+	print("  var world_state := SnapshotLoader.setup_world(SnapshotLoader.YEAR_10, 0, 0x7E57001)")
 	print("=" .repeat(80))
 
 	quit(0)
