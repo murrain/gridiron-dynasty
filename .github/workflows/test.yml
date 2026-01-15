@@ -36,7 +36,7 @@ jobs:
       - name: Run GdUnit4 Tests
         uses: MikeSchulze/gdUnit4-action@v1
         with:
-          godot-version: '4.5'
+          godot-version: '4.5.0'
           version: 'v6.0.1'
           paths: 'res://scripts/tests/gdunit4'
           retries: 3
