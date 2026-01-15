@@ -20,6 +20,7 @@ const CapValidationFlow = preload("res://scripts/world/CapValidationFlow.gd")
 const SimLogger = preload("res://autoloads/SimLogger.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const FreeAgency = preload("res://scripts/world/FreeAgency.gd")
+const RosterManagement = preload("res://scripts/world/RosterManagement.gd")
 
 ## Cached config instance for performance optimization.
 ## The Config object is read-only during simulation and contains no mutable state
@@ -153,6 +154,7 @@ func _phase_handlers() -> Dictionary:
 		"college_season": Callable(self, "_handle_college_season"),
 		"draft_prep": Callable(self, "_handle_draft_prep"),
 		"nfl_draft": Callable(self, "_handle_nfl_draft"),
+		"roster_management": Callable(self, "_handle_roster_management"),
 		"nfl_free_agency": Callable(self, "_handle_nfl_free_agency"),
 		"cap_validation": Callable(self, "_handle_cap_validation"),
 		"nfl_season": Callable(self, "_handle_nfl_season")
@@ -465,6 +467,37 @@ func _handle_nfl_draft(
 	var draft := NflDraft.new()
 	return draft.run(world_state, year, step_seed, league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg)
 
+func _handle_roster_management(
+	world_state: Dictionary,
+	year: int,
+	_seed: int,
+	phase: Dictionary,
+	year_seed: int
+) -> Dictionary:
+	var phase_id := String(phase.get("phase_id", ""))
+	var step_seed := _derive_seed(year_seed, phase_id, "roster_management")
+	_log_step_seed(year, phase_id, "roster_management", step_seed)
+
+	var main_cfg: Dictionary = _get_config().get_config("main")
+
+	# Run roster management
+	# RNG PATTERN: RosterManagement.run() uses step_seed for FA budget randomization
+	# Expected RNG calls: ~32 (one per team for budget target)
+	var output := RosterManagement.run(
+		world_state,
+		year,
+		step_seed,
+		main_cfg
+	)
+
+	return {
+		"year": year,
+		"teams_processed": int(output.get("teams_processed", 0)),
+		"releases": int(output.get("total_releases", 0)),
+		"cap_saved": float(output.get("total_cap_saved", 0.0)),
+		"step_seeds": {"roster_management": step_seed}
+	}
+
 func _handle_nfl_free_agency(
 	world_state: Dictionary,
 	year: int,
@@ -580,6 +613,10 @@ func _log_phase_summary(phase_id: String, year: int, output: Dictionary, elapsed
 		metrics["offers"] = output["offers"]
 	if output.has("commitments"):
 		metrics["commits"] = output["commitments"] if output["commitments"] is int else len(output["commitments"])
+	if output.has("releases"):
+		metrics["releases"] = output["releases"]
+	if output.has("cap_saved"):
+		metrics["cap_saved"] = output["cap_saved"]
 
 	SimLogger.phase_summary(phase_id, year, metrics, elapsed_ms)
 

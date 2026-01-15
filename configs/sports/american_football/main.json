@@ -502,5 +502,14 @@
         "acceptance_threshold": 1.05,
         "min_roster_size_after_trade": 45,
         "max_trades_per_team": 3
+    },
+    "roster_management": {
+        "enabled": true,
+        "target_fa_budget_min": 30.0,
+        "target_fa_budget_max": 50.0,
+        "market_value_multiplier": 0.15,
+        "value_threshold": 1.5,
+        "age_decline_factor": 0.02,
+        "min_roster_size": 45
     }
 }
