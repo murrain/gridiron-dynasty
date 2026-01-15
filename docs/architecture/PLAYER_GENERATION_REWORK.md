@@ -85,9 +85,9 @@ static func generate_templated_player(
         var sigma := float(dist.get("sigma", DEFAULT_SIGMA))
         var floor_val := float(dist.get("floor", STAT_MIN))
 
-        # Sample and apply floor
+        # Sample and apply floor, ensuring stat ceiling is respected
         var value := _sample_gauss(mu, sigma, STAT_MIN, STAT_MAX, rng)
-        stats[stat_name] = max(floor_val, value)
+        stats[stat_name] = clamp(max(floor_val, value), STAT_MIN, STAT_MAX)
 
     return {
         "position": position,
@@ -142,7 +142,7 @@ static func generate_chaos_player(
 
     # Generate ALL stats using uniform distribution across full range
     for stat_name in all_stats:
-        stats[stat_name] = rng.randf_range(stat_min, stat_max)
+        stats[stat_name] = clamp(rng.randf_range(stat_min, stat_max), STAT_MIN, STAT_MAX)
 
     # Find best-fit position based on generated stats
     var best_position := _find_best_fit_position(stats, positions_cfg)
@@ -341,7 +341,7 @@ static func apply_freak_boost(
         push_warning("Invalid boost_range config, using defaults")
         boost_range = [DEFAULT_BOOST_MIN, DEFAULT_BOOST_MAX]
     var boost_target := rng.randf_range(float(boost_range[0]), float(boost_range[1]))
-    stats[stat_to_boost] = boost_target
+    stats[stat_to_boost] = clamp(boost_target, STAT_MIN, STAT_MAX)
 
     # Tag the player as a freak
     var tags: Array = player.get("tags", [])
@@ -682,11 +682,22 @@ static func resolve_position_stats(
     var pos_config: Dictionary = positions_cfg[position]
     var resolved := {}
 
+    # Validate base_template is not empty
+    if base_template.is_empty():
+        push_error("base_template is empty - cannot resolve stats")
+        return {}
+
     # Start with all base stats (use deep copy to avoid reference bugs)
+    # Note: base_template is expected to have categories like "mental_stats", "physical_baseline"
     for category in base_template.keys():
-        var category_stats: Dictionary = base_template.get(category, {})
+        # Skip non-dictionary values (like "description" or "note" fields)
+        var category_stats = base_template.get(category)
+        if not category_stats is Dictionary:
+            continue
         for stat_name in category_stats.keys():
-            resolved[stat_name] = category_stats[stat_name].duplicate(true)  # Deep copy
+            var stat_def = category_stats[stat_name]
+            if stat_def is Dictionary:
+                resolved[stat_name] = stat_def.duplicate(true)  # Deep copy
 
     # Apply position overrides
     var overrides: Dictionary = pos_config.get("overrides", {})
@@ -766,16 +777,14 @@ static func generate_chaos_player_with_inheritance(
         var dist: Dictionary = mental_stats[stat_name]
         var mu := float(dist.get("mu", DEFAULT_MU))
         var sigma := float(dist.get("sigma", DEFAULT_SIGMA))
-        var floor_val := float(dist.get("floor", 0.0))
-        stats[stat_name] = max(
-            floor_val,
-            _sample_gauss(mu, sigma, 0.0, 100.0, rng)
-        )
+        var floor_val := float(dist.get("floor", STAT_MIN))
+        var sampled_value := _sample_gauss(mu, sigma, STAT_MIN, STAT_MAX, rng)
+        stats[stat_name] = clamp(max(floor_val, sampled_value), STAT_MIN, STAT_MAX)
 
     # Physical/skill stats: Random uniform (the chaos part)
     for stat_name in all_physical_stats:
         if not stats.has(stat_name):
-            stats[stat_name] = rng.randf_range(stat_min, stat_max)
+            stats[stat_name] = clamp(rng.randf_range(stat_min, stat_max), STAT_MIN, STAT_MAX)
 
     # Find best-fit position
     var best_position := _find_best_fit_position(stats, positions_cfg)
@@ -861,8 +870,12 @@ func generate_player_class(
 
     # Generate chaos players (20%)
     var all_stats := _get_all_stat_names(positions_cfg)
+    var chaos_cfg: Dictionary = main_cfg.get("generation", {}).get("chaos", {})
     for i in range(chaos_count):
-        var player := generate_chaos_player(all_stats, positions_cfg, rng)
+        var player := generate_chaos_player(all_stats, positions_cfg, chaos_cfg, rng)
+        if player.is_empty():
+            push_warning("Chaos player generation failed, skipping")
+            continue
         players.append(player)
 
     # Apply freak boosts to selected candidates

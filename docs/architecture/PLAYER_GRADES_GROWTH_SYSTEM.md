@@ -408,22 +408,26 @@ func evaluate_prospect_grades(player: Dictionary) -> Dictionary:
 func _identify_grade_red_flags(grades: Array) -> Array:
     var flags := []
 
+    # Early return for empty array
+    if grades.is_empty():
+        return flags
+
     # Declining grades = concerning
     if grades.size() >= 2:
-        var latest := float(grades[-1]["adjusted_grade"])
-        var previous := float(grades[-2]["adjusted_grade"])
+        var latest := float(grades[-1].get("adjusted_grade", 0.0))
+        var previous := float(grades[-2].get("adjusted_grade", 0.0))
         if latest < previous - 5.0:
             flags.append("declining_production")
 
     # High raw grade but low adjusted = weak competition
-    var latest_grade := grades[-1]
-    var raw := float(latest_grade["raw_grade"])
-    var adjusted := float(latest_grade["adjusted_grade"])
+    var latest_grade: Dictionary = grades[-1]
+    var raw := float(latest_grade.get("raw_grade", 0.0))
+    var adjusted := float(latest_grade.get("adjusted_grade", 0.0))
     if raw - adjusted > 10.0:
         flags.append("inflated_by_weak_competition")
 
     # Low game sample
-    if int(latest_grade["games_graded"]) < 8:
+    if int(latest_grade.get("games_graded", 0)) < 8:
         flags.append("limited_sample_size")
 
     # Inconsistent grades across years
@@ -1106,6 +1110,11 @@ Rather than hardcoding probability modifiers per event, player reactions are dri
 #### 3.5.2 Event Response Calculation
 
 ```gdscript
+## Constants for event outcome calculation
+const DEFAULT_RELEVANT_STATS := ["discipline", "composure", "maturity"]
+const STAT_AVERAGE := 50.0
+const OUTCOME_VARIANCE := 0.2
+
 ## Calculate where a player lands in an event's outcome range
 ## based on their current stats
 static func calculate_event_outcome(
@@ -1115,20 +1124,43 @@ static func calculate_event_outcome(
     rng: RandomNumberGenerator
 ) -> float:
     var stats: Dictionary = player.get("stats", {})
-    var change_config: Dictionary = event["stat_changes"][stat_name]
 
-    var range_min: float = change_config["range"][0]
-    var range_max: float = change_config["range"][1]
+    # Defensive: validate event has stat_changes
+    if not event.has("stat_changes"):
+        push_error("Event missing stat_changes")
+        return 0.0
+
+    var stat_changes: Dictionary = event["stat_changes"]
+    if not stat_changes.has(stat_name):
+        push_warning("Stat '%s' not in event stat_changes" % stat_name)
+        return 0.0
+
+    var change_config: Dictionary = stat_changes[stat_name]
+
+    # Defensive: validate range exists and has 2 elements
+    if not change_config.has("range"):
+        push_error("Change config missing 'range' for stat: %s" % stat_name)
+        return 0.0
+
+    var range_array = change_config["range"]
+    if not (range_array is Array and range_array.size() >= 2):
+        push_error("Invalid range format for stat: %s" % stat_name)
+        return 0.0
+
+    var range_min: float = float(range_array[0])
+    var range_max: float = float(range_array[1])
     var range_size: float = range_max - range_min
 
     # Calculate player's "resistance" to negative outcomes
     # based on relevant stats for this type of change
-    var relevant_stats: Array = change_config.get("relevant_stats", ["discipline", "composure", "maturity"])
-    var resistance := 0.0
+    var relevant_stats: Array = change_config.get("relevant_stats", DEFAULT_RELEVANT_STATS)
+    if relevant_stats.is_empty():
+        relevant_stats = DEFAULT_RELEVANT_STATS
 
+    var resistance := 0.0
     for relevant_stat in relevant_stats:
-        var stat_value := float(stats.get(relevant_stat, 50.0))
-        resistance += (stat_value - 50.0) / 50.0  # -1.0 to +1.0 per stat
+        var stat_value := float(stats.get(relevant_stat, STAT_AVERAGE))
+        resistance += (stat_value - STAT_AVERAGE) / STAT_AVERAGE  # -1.0 to +1.0 per stat
 
     resistance = resistance / relevant_stats.size()  # Average
 
@@ -1138,7 +1170,7 @@ static func calculate_event_outcome(
     var base_position := (resistance + 1.0) / 2.0  # 0.0 to 1.0
 
     # Add randomness (±20% variance)
-    var variance := rng.randf_range(-0.2, 0.2)
+    var variance := rng.randf_range(-OUTCOME_VARIANCE, OUTCOME_VARIANCE)
     var final_position := clamp(base_position + variance, 0.0, 1.0)
 
     # Calculate actual change
@@ -1241,7 +1273,7 @@ const GOT_PAID := {
         },
         "competitiveness": {
             "range": [-30, -5],         # Big paydays can reduce competitive drive
-            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
             "direction": "negative"
         }
     },
@@ -1275,10 +1307,26 @@ const GOT_PAID := {
 const CONTRACT_YEAR := {
     "event_type": "contract.contract_year",
     "stat_changes": {
-        "work_ethic": [+5, +15],
-        "focus": [+10, +20],
-        "competitiveness": [+5, +15],   # Extra motivated to perform
-        "discipline": [+5, +10]         # Staying focused on the prize
+        "work_ethic": {
+            "range": [+5, +15],
+            "relevant_stats": ["work_ethic", "competitiveness"],
+            "direction": "positive"
+        },
+        "focus": {
+            "range": [+10, +20],
+            "relevant_stats": ["focus", "discipline"],
+            "direction": "positive"
+        },
+        "competitiveness": {
+            "range": [+5, +15],
+            "relevant_stats": ["competitiveness", "confidence"],
+            "direction": "positive"
+        },
+        "discipline": {
+            "range": [+5, +10],
+            "relevant_stats": ["discipline", "maturity"],
+            "direction": "positive"
+        }
     },
     "duration": "seasonal",
     "notes": "The 'contract year phenomenon' - players often have career years when playing for next deal"
@@ -1386,11 +1434,31 @@ const RELEASED := {
 const NAMED_CAPTAIN := {
     "event_type": "team.named_captain",
     "stat_changes": {
-        "composure": [+5, +15],         # Leadership responsibility builds poise
-        "discipline": [+5, +10],
-        "work_ethic": [+5, +10],
-        "focus": [+5, +10],
-        "maturity": [+5, +10]           # Leadership role matures players
+        "composure": {
+            "range": [+5, +15],
+            "relevant_stats": ["composure", "maturity"],
+            "direction": "positive"
+        },
+        "discipline": {
+            "range": [+5, +10],
+            "relevant_stats": ["discipline", "work_ethic"],
+            "direction": "positive"
+        },
+        "work_ethic": {
+            "range": [+5, +10],
+            "relevant_stats": ["work_ethic", "discipline"],
+            "direction": "positive"
+        },
+        "focus": {
+            "range": [+5, +10],
+            "relevant_stats": ["focus", "discipline"],
+            "direction": "positive"
+        },
+        "maturity": {
+            "range": [+5, +10],
+            "relevant_stats": ["maturity", "composure"],
+            "direction": "positive"
+        }
     },
     "duration": "permanent",
     "triggers_trait": "leader",
@@ -1768,20 +1836,20 @@ const FIRST_PRO_BOWL := {
         },
         "work_ethic": {
             "range": [-15, +15],        # Can motivate or satisfy
-            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
             "direction": "neutral"
         },
         "focus": {
             "range": [-10, +15],
-            "relevant_stats": ["focus", "competitiveness", "ambition"],
+            "relevant_stats": ["focus", "competitiveness", "discipline"],
             "direction": "neutral"
         }
     },
     "duration": "permanent"
 }
 
-## High competitiveness + high ambition: wants more, stays hungry
-## Low competitiveness: "made it", coasts on reputation
+## High competitiveness + high discipline: wants more, stays hungry
+## Low competitiveness: "made it", coasts
 ```
 
 #### 3.10.2 Won Championship
@@ -1802,12 +1870,12 @@ const WON_CHAMPIONSHIP := {
         },
         "work_ethic": {
             "range": [-20, +20],        # Big range - dynasty mindset vs complacency
-            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
             "direction": "neutral"
         },
         "competitiveness": {
             "range": [-20, +15],        # Some get satisfied, others want more rings
-            "relevant_stats": ["competitiveness", "ambition", "work_ethic"],
+            "relevant_stats": ["competitiveness", "work_ethic", "discipline"],
             "direction": "neutral"
         }
     },
@@ -1820,7 +1888,7 @@ const WON_CHAMPIONSHIP := {
     }
 }
 
-## High competitiveness + high ambition: wants more rings, stays hungry
+## High competitiveness + high discipline: wants more rings, stays hungry
 ## Low competitiveness: "got my ring", coasts
 ```
 
@@ -2674,8 +2742,8 @@ player["career_events"] = [
 │    Composite: 87 → 89 (bounce back, still in prime window)                      │
 │    Performance Grade: 85.1 (back to elite)                                      │
 │    EVENT: "team.veteran_mentor" - mentors rookie                                │
-│      → Leadership: +12                                                          │
-│      → Legacy Score: +8                                                         │
+│      → Maturity: +5                                                             │
+│      → Composure: +5                                                            │
 │    → Proves he can coexist, earns captain nomination                            │
 │                                                                                 │
 │  ════════════════════════════════════════════════════════════════════════════   │
