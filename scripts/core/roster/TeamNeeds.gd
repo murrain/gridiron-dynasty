@@ -40,7 +40,7 @@ const AGE_THRESHOLD_OLD := 33     # Age at which players are considered old
 ##   4. Return dictionary mapping position -> priority
 ##
 ## Parameters:
-##   roster: SportRoster resource with entries and depth_chart
+##   roster: Roster resource with entries and depth_chart
 ##   positions_cfg: Position configuration
 ##   main_cfg: Main configuration
 ##
@@ -48,7 +48,7 @@ const AGE_THRESHOLD_OLD := 33     # Age at which players are considered old
 ##   Dictionary: { position: String -> priority: float }
 ##   Priority ranges: 0.0 (no need) to 1.0 (critical need)
 static func assess_team_needs(
-	roster: SportRoster,
+	roster: Roster,
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary
 ) -> Dictionary:
@@ -58,7 +58,7 @@ static func assess_team_needs(
 	var positions := StatGenerator.STARTER_POSITION_THRESHOLDS.keys()
 
 	# Get active players only (exclude practice squad, IR, suspended)
-	var active_players := roster.get_players_by_status(SportRoster.RosterStatus.ACTIVE)
+	var active_players := roster.get_players_by_status(Roster.RosterStatus.ACTIVE)
 
 	# Build position -> players mapping
 	var players_by_position := _group_by_position(active_players)

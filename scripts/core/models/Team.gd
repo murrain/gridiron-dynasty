@@ -3,7 +3,7 @@
 extends Resource
 class_name Team
 
-const SportRoster = preload("res://scripts/core/models/Roster.gd")
+const Roster = preload("res://scripts/core/models/Roster.gd")
 
 @export var id: String = ""
 @export var name: String = ""
@@ -18,7 +18,7 @@ const SportRoster = preload("res://scripts/core/models/Roster.gd")
 @export var cap_limit: float = 0.0
 @export var is_over_cap: bool = false
 @export var league_cap: float = 0.0
-@export var roster: SportRoster = SportRoster.new()
+@export var roster: Roster = Roster.new()
 
 # Derived cap values (do not persist; compute from roster + league config).
 # cap_used = sum of cap-relevant contract fields for non-exempt roster entries.
@@ -65,7 +65,7 @@ func from_dict(d: Dictionary) -> void:
 
 	var roster_payload: Dictionary = d.get("roster", {})
 	if roster == null:
-		roster = SportRoster.new()
+		roster = Roster.new()
 	roster.from_dict(roster_payload)
 
 	player_ids = (d.get("player_ids", player_ids) as Array).duplicate()

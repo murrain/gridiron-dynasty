@@ -1,6 +1,6 @@
 extends RefCounted
 
-const SportPlayer = preload("res://scripts/core/models/Player.gd")
+const Player = preload("res://scripts/core/models/Player.gd")
 
 func run(t) -> void:
 	test_basic_serialization(t)
@@ -9,7 +9,7 @@ func run(t) -> void:
 	test_default_values(t)
 
 func test_basic_serialization(t) -> void:
-	var player: SportPlayer = SportPlayer.new()
+	var player: Player = Player.new()
 	player.id = "p-1"
 	player.first_name = "Jamie"
 	player.last_name = "Taylor"
@@ -34,19 +34,17 @@ func test_basic_serialization(t) -> void:
 		"rookie_of_year": 1,
 		"championships": 2
 	}
-	player.contract = {
-		"current_year": 1,
-		"total_years": 4,
-		"annual_value": 2.5,
-		"guaranteed": 1.0,
-		"range_min": 2.0,
-		"range_max": 3.0,
-		"valuation_source": "v1",
-		"valuation_seed": 999
-	}
+	player.contract.current_year = 1
+	player.contract.total_years = 4
+	player.contract.annual_value = 2.5
+	player.contract.guaranteed = 1.0
+	player.contract.range_min = 2.0
+	player.contract.range_max = 3.0
+	player.contract.valuation_source = "v1"
+	player.contract.valuation_seed = 999
 
 	var serialized: Dictionary = player.to_dict()
-	var clone: SportPlayer = SportPlayer.new()
+	var clone: Player = Player.new()
 	clone.from_dict(serialized)
 	var round_trip: Dictionary = clone.to_dict()
 
@@ -82,34 +80,34 @@ func test_basic_serialization(t) -> void:
 
 func test_jersey_number_serialization(t) -> void:
 	# Test valid jersey numbers
-	var player: SportPlayer = SportPlayer.new()
+	var player: Player = Player.new()
 	player.jersey_number = 99
 	var serialized = player.to_dict()
-	var clone = SportPlayer.new()
+	var clone = Player.new()
 	clone.from_dict(serialized)
 	t.assert_eq(clone.jersey_number, 99, "jersey_number 99 round-trips")
 
 	# Test 0 (unassigned)
 	player.jersey_number = 0
 	serialized = player.to_dict()
-	clone = SportPlayer.new()
+	clone = Player.new()
 	clone.from_dict(serialized)
 	t.assert_eq(clone.jersey_number, 0, "jersey_number 0 (unassigned) round-trips")
 
 	# Test edge case: negative number should clamp to 0
 	var dict_with_negative = {"jersey_number": -5}
-	player = SportPlayer.new()
+	player = Player.new()
 	player.from_dict(dict_with_negative)
 	t.assert_eq(player.jersey_number, 0, "jersey_number -5 clamps to 0")
 
 	# Test edge case: number > 99 should clamp to 99
 	var dict_with_large = {"jersey_number": 150}
-	player = SportPlayer.new()
+	player = Player.new()
 	player.from_dict(dict_with_large)
 	t.assert_eq(player.jersey_number, 99, "jersey_number 150 clamps to 99")
 
 func test_career_awards_serialization(t) -> void:
-	var player: SportPlayer = SportPlayer.new()
+	var player: Player = Player.new()
 	player.career_awards = {
 		"opoy": 2,
 		"dpoy": 1,
@@ -121,7 +119,7 @@ func test_career_awards_serialization(t) -> void:
 	}
 
 	var serialized = player.to_dict()
-	var clone = SportPlayer.new()
+	var clone = Player.new()
 	clone.from_dict(serialized)
 	var round_trip = clone.to_dict()
 
@@ -142,14 +140,14 @@ func test_career_awards_serialization(t) -> void:
 			"pro_bowl": -5
 		}
 	}
-	player = SportPlayer.new()
+	player = Player.new()
 	player.from_dict(dict_with_negative)
 	t.assert_eq(player.career_awards.get("opoy"), 0, "negative opoy clamps to 0")
 	t.assert_eq(player.career_awards.get("dpoy"), 0, "negative dpoy clamps to 0")
 	t.assert_eq(player.career_awards.get("pro_bowl"), 0, "negative pro_bowl clamps to 0")
 
 func test_default_values(t) -> void:
-	var player: SportPlayer = SportPlayer.new()
+	var player: Player = Player.new()
 
 	# Test default jersey_number
 	t.assert_eq(player.jersey_number, 0, "default jersey_number is 0")

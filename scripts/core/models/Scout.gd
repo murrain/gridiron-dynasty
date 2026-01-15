@@ -1,9 +1,9 @@
-extends Resource
+extends "res://scripts/core/models/Person.gd"
 class_name Scout
 
 const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
 
-@export var name: String = "Scout"
+# --- Identity (inherited from Person: id, first_name, last_name, get_full_name()) ---
 @export var role: String = "Regional"
 @export var years_exp: int = 0
 
@@ -152,3 +152,69 @@ func score_player(
 static func get_rng_calls_per_evaluation(num_stats: int) -> int:
 	var total_randfn := (2 * num_stats) + 1
 	return total_randfn * 2
+
+## Load scout data from dictionary with backward compatibility
+## Migrates old "name" field to first_name/last_name
+func from_dict(d: Dictionary) -> void:
+	# Migration: old saves have "name", new saves have first_name/last_name
+	if d.has("name") and not d.has("first_name"):
+		var parts = String(d.get("name", "")).split(" ", false, 2)
+		first_name = parts[0] if parts.size() > 0 else "Unknown"
+		last_name = parts[1] if parts.size() > 1 else ""
+		id = String(d.get("id", id))
+	else:
+		# Load person fields using base class method
+		from_dict_person(d)
+
+	# Load scout-specific fields
+	role = String(d.get("role", role))
+	years_exp = int(d.get("years_exp", years_exp))
+	base_skill = float(d.get("base_skill", base_skill))
+	overrate_athletes = float(d.get("overrate_athletes", overrate_athletes))
+	tape_grinder = float(d.get("tape_grinder", tape_grinder))
+	risk_aversion = float(d.get("risk_aversion", risk_aversion))
+
+	# Load dictionaries
+	stat_skill = (d.get("stat_skill", stat_skill) as Dictionary).duplicate(true)
+	valuation_multipliers = (d.get("valuation_multipliers", valuation_multipliers) as Dictionary).duplicate(true)
+	estimation_multipliers = (d.get("estimation_multipliers", estimation_multipliers) as Dictionary).duplicate(true)
+	stat_bias_mean = (d.get("stat_bias_mean", stat_bias_mean) as Dictionary).duplicate(true)
+	stat_bias_sigma = (d.get("stat_bias_sigma", stat_bias_sigma) as Dictionary).duplicate(true)
+	bucket_weights = (d.get("bucket_weights", bucket_weights) as Dictionary).duplicate(true)
+	pos_bias_pts = (d.get("pos_bias_pts", pos_bias_pts) as Dictionary).duplicate(true)
+
+	# Load calibration fields
+	current_weight = float(d.get("current_weight", current_weight))
+	potential_weight = float(d.get("potential_weight", potential_weight))
+	weight_jitter_sigma = float(d.get("weight_jitter_sigma", weight_jitter_sigma))
+	board_offset_pts = float(d.get("board_offset_pts", board_offset_pts))
+	board_slope = float(d.get("board_slope", board_slope))
+	board_noise_sigma = float(d.get("board_noise_sigma", board_noise_sigma))
+
+## Serialize scout data to dictionary
+func to_dict() -> Dictionary:
+	# Start with person fields
+	var result = to_dict_person()
+
+	# Add scout-specific fields
+	result["role"] = role
+	result["years_exp"] = years_exp
+	result["base_skill"] = base_skill
+	result["overrate_athletes"] = overrate_athletes
+	result["tape_grinder"] = tape_grinder
+	result["risk_aversion"] = risk_aversion
+	result["stat_skill"] = stat_skill.duplicate(true)
+	result["valuation_multipliers"] = valuation_multipliers.duplicate(true)
+	result["estimation_multipliers"] = estimation_multipliers.duplicate(true)
+	result["stat_bias_mean"] = stat_bias_mean.duplicate(true)
+	result["stat_bias_sigma"] = stat_bias_sigma.duplicate(true)
+	result["bucket_weights"] = bucket_weights.duplicate(true)
+	result["pos_bias_pts"] = pos_bias_pts.duplicate(true)
+	result["current_weight"] = current_weight
+	result["potential_weight"] = potential_weight
+	result["weight_jitter_sigma"] = weight_jitter_sigma
+	result["board_offset_pts"] = board_offset_pts
+	result["board_slope"] = board_slope
+	result["board_noise_sigma"] = board_noise_sigma
+
+	return result

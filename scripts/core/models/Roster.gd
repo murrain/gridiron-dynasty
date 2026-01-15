@@ -1,5 +1,5 @@
 extends Resource
-class_name SportRoster
+class_name Roster
 
 const DepthChart = preload("res://scripts/core/models/DepthChart.gd")
 
@@ -123,7 +123,7 @@ func promote_from_practice_squad(player_id: String) -> bool:
 		return false
 
 	if String(entry.get("status", "")) != "practice_squad":
-		push_warning("SportRoster.promote_from_practice_squad: Player %s is not on practice squad" % player_id)
+		push_warning("Roster.promote_from_practice_squad: Player %s is not on practice squad" % player_id)
 		return false
 
 	entry["status"] = "active"
@@ -163,7 +163,7 @@ func activate_from_ir(player_id: String) -> bool:
 		return false
 
 	if String(entry.get("status", "")) != "ir":
-		push_warning("SportRoster.activate_from_ir: Player %s is not on IR" % player_id)
+		push_warning("Roster.activate_from_ir: Player %s is not on IR" % player_id)
 		return false
 
 	entry["status"] = "active"
