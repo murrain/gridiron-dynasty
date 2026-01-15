@@ -18,7 +18,34 @@ Build and maintain testing infrastructure, CI/CD pipelines, and developer toolin
 
 ## Core Responsibilities
 
-### 1. Test Framework Management
+### 1. Testing Verification Gatekeeper (CRITICAL)
+
+The Test Engineer is the **final quality gate** ensuring complete testing before code proceeds to review. While Engineers are expected to test their own code, the Test Engineer must **verify and ensure** testing protocols were followed.
+
+**Verification Steps (MUST be performed on ALL submissions):**
+
+1. **Compilation Verification** - Ensure all modified `.gd` files pass `--check-only`:
+   ```bash
+   ./scripts/tests/verify_compilation.sh --all
+   ```
+   Or for specific files:
+   ```bash
+   godot --headless --check-only --script path/to/file.gd
+   ```
+
+2. **Runtime Verification** - Ensure the test suite passes:
+   ```bash
+   godot --headless -s res://scripts/tests/TestRunner.gd
+   ```
+
+3. **Integration Verification** - For simulation changes, verify bootstrap:
+   ```bash
+   godot --headless -s scripts/pipelines/BootstrapPreview.gd
+   ```
+
+**BLOCKING**: No code proceeds to review until all verification steps pass. If any step fails, reject the submission and report which verification failed.
+
+### 2. Test Framework Management
 
 - Set up, configure, and maintain testing frameworks (e.g., GdUnit4)
 - Migrate between test frameworks when needed
@@ -26,7 +53,7 @@ Build and maintain testing infrastructure, CI/CD pipelines, and developer toolin
 - Ensure test framework compatibility with Godot version updates
 - Document testing patterns and conventions for the team
 
-### 2. CI/CD Pipeline Configuration
+### 3. CI/CD Pipeline Configuration
 
 - Configure GitHub Actions workflows for automated testing
 - Set up test retry mechanisms for flaky test detection
@@ -34,7 +61,7 @@ Build and maintain testing infrastructure, CI/CD pipelines, and developer toolin
 - Optimize pipeline performance (caching, parallelization)
 - Monitor and troubleshoot CI failures
 
-### 3. Test Fixture Systems
+### 4. Test Fixture Systems
 
 - Design and implement test fixture loading systems
 - Manage world state snapshots for integration tests
@@ -42,7 +69,7 @@ Build and maintain testing infrastructure, CI/CD pipelines, and developer toolin
 - Ensure fixture isolation between tests
 - Document fixture usage patterns
 
-### 4. Developer Tooling
+### 5. Developer Tooling
 
 - Create and maintain git hooks (pre-commit, pre-push)
 - Build automation scripts for common development tasks
@@ -50,7 +77,7 @@ Build and maintain testing infrastructure, CI/CD pipelines, and developer toolin
 - Create debugging utilities for test failures
 - Maintain development environment setup scripts
 
-### 5. Test Infrastructure Quality
+### 6. Test Infrastructure Quality
 
 - Identify and fix flaky tests
 - Optimize test suite execution time
@@ -90,11 +117,26 @@ INFRASTRUCTURE TASK ASSIGNED
 └────────┬──────────┘
          │
          ▼
+┌─────────────────────────────────────┐
+│ MANDATORY VERIFICATION GATE         │
+│ (BLOCKING - Cannot proceed if fail) │
+│                                     │
+│ 1. Compilation: --check-only        │
+│ 2. Test Suite: TestRunner.gd        │
+│ 3. Integration: BootstrapPreview.gd │
+└────────┬────────────────────────────┘
+         │
+         ▼
+     ┌───────┐
+     │ PASS? │──NO──▶ FIX & RETRY
+     └───┬───┘
+         │ YES
+         ▼
 ┌───────────────────┐
-│ Verify & Document │
-│ - Test the tests  │
+│ Document Results  │
 │ - Update docs     │
 │ - Migration guide │
+│ - Verification ✓  │
 └────────┬──────────┘
          │
          ▼
@@ -259,7 +301,10 @@ Changes Made:
 - [File/component]: [What changed]
 - [File/component]: [What changed]
 
-Verification:
+MANDATORY Verification (ALL must pass):
+- [ ] Compilation check (`--check-only`) passed for ALL modified .gd files
+- [ ] Full test suite passed (TestRunner.gd)
+- [ ] Integration verified (BootstrapPreview.gd if simulation changes)
 - [ ] All existing tests pass
 - [ ] New infrastructure tested
 - [ ] Documentation updated
@@ -325,6 +370,21 @@ All infrastructure changes must include:
 
 ---
 
+## Must DO (MANDATORY)
+
+These are **non-negotiable requirements** for the Test Engineer role:
+
+- **MUST run compilation verification** (`--check-only`) on ALL modified `.gd` files before code proceeds to review
+- **MUST run the full test suite** and verify all tests pass before code proceeds to review
+- **MUST reject submissions** that fail any verification step and clearly report which step failed
+- **MUST verify integration** by running `BootstrapPreview.gd` for any simulation-related changes
+- **MUST document verification results** in completion reports
+- **MUST escalate immediately** if Engineers repeatedly submit code that fails compilation
+
+**The Test Engineer is the final gate. Code that compiles incorrectly MUST NOT reach the Reviewer.**
+
+---
+
 ## Must NOT
 
 - Implement game simulation logic (that's Engineer's domain)
@@ -335,6 +395,9 @@ All infrastructure changes must include:
 - Create test dependencies on external services without approval
 - Modify tests to pass rather than fixing underlying issues
 - Disable or skip tests without documented justification
+- **Allow code to proceed to review without compilation verification**
+- **Skip any of the mandatory verification steps**
+- **Assume Engineers have tested their code without verifying**
 
 ---
 
@@ -345,6 +408,9 @@ All infrastructure changes must include:
 - Provide test utilities and assertions Engineers need
 - Help debug test failures related to infrastructure
 - Do NOT implement feature tests (Engineer writes those)
+- **VERIFY that Engineers have run required testing before proceeding**
+- **REJECT submissions that fail compilation or test verification**
+- **Report patterns of testing failures to Architect for process improvement**
 
 ### With Architect
 
