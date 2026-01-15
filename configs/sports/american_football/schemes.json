@@ -1,7 +1,7 @@
 {
   "offensive_schemes": {
     "west_coast": {
-      "philosophy": "Short timing routes, YAC, ball control",
+      "philosophy": "Short timing routes and YAC. Prizes accuracy over arm strength. TEs and RBs must be receivers first, blockers second. WRs run precise routes rather than burning defenders deep.",
       "roster_requirements": {
         "ideal_depth": { "WR": 6, "RB": 4, "TE": 3, "OL": 9 },
         "minimum_depth": { "WR": 5, "RB": 3, "TE": 2 }
@@ -28,7 +28,7 @@
     },
 
     "power_run": {
-      "philosophy": "Physical, downhill running, heavy personnel",
+      "philosophy": "Smashmouth football. TEs are extra linemen, not pass catchers. WRs block on the perimeter. OL wins with brute strength, not finesse. QB mobility is irrelevant - hand the ball off and manage the game.",
       "roster_requirements": {
         "ideal_depth": { "WR": 5, "RB": 4, "TE": 4, "OL": 10 },
         "minimum_depth": { "WR": 4, "RB": 3, "TE": 3 }
@@ -61,7 +61,7 @@
     },
 
     "spread_option": {
-      "philosophy": "RPO, QB run threat, space creation",
+      "philosophy": "QB as a runner creates numbers advantages. Dual-threat QB is mandatory - pocket passers need not apply. Speed over power everywhere. Athletic OL who can pull and get to the second level.",
       "roster_requirements": {
         "ideal_depth": { "WR": 6, "RB": 3, "TE": 2, "OL": 9 },
         "minimum_depth": { "WR": 5, "RB": 2, "TE": 2 }
@@ -92,7 +92,7 @@
     },
 
     "air_raid": {
-      "philosophy": "Vertical passing, 4-5 wide, stretch the field",
+      "philosophy": "Chuck it deep. QB needs a cannon arm but doesn't need to run. TEs are glorified receivers - blocking is an afterthought. Stock up on WRs who can stretch the field. RBs catch passes out of the backfield.",
       "roster_requirements": {
         "ideal_depth": { "WR": 7, "RB": 3, "TE": 2, "OL": 9 },
         "minimum_depth": { "WR": 6, "RB": 2, "TE": 2 }
@@ -121,7 +121,7 @@
     },
 
     "zone_run": {
-      "philosophy": "Outside zone, cutback lanes, athletic OL",
+      "philosophy": "Outside zone and cutback lanes. RBs need vision and patience, not just power. OL must be athletic enough to reach the second level - maulers need not apply. Everyone blocks on the perimeter.",
       "roster_requirements": {
         "ideal_depth": { "WR": 5, "RB": 4, "TE": 3, "OL": 10 },
         "minimum_depth": { "WR": 4, "RB": 3, "TE": 2 }
@@ -148,7 +148,7 @@
     },
 
     "pro_style": {
-      "philosophy": "Balanced, multiple formations, adaptable",
+      "philosophy": "Balanced attack with no strong preferences. Adaptable to personnel. Jack of all trades, master of none - won't maximize any player type but won't waste anyone either.",
       "roster_requirements": {
         "ideal_depth": { "WR": 6, "RB": 4, "TE": 3, "OL": 9 },
         "minimum_depth": { "WR": 5, "RB": 3, "TE": 2 }
@@ -159,7 +159,7 @@
 
   "defensive_schemes": {
     "4_3_under": {
-      "philosophy": "DE pass rush, athletic LBs, single-gap",
+      "philosophy": "Pin ears back and rush the passer. EDGEs are pure pass rushers - run defense is secondary. LBs must cover, not just thump. Aggressive, attacking front that gambles on getting to the QB.",
       "roster_requirements": {
         "ideal_depth": { "DL": 7, "EDGE": 4, "LB": 5, "CB": 5, "S": 4 },
         "minimum_depth": { "DL": 6, "EDGE": 3, "LB": 4 }
@@ -183,7 +183,7 @@
     },
 
     "3_4_two_gap": {
-      "philosophy": "Space-eating DL, versatile OLBs, two-gap",
+      "philosophy": "Massive DL who eat blocks and free up LBs. DL are anchors, not pass rushers - strength over speed. OLBs must be versatile, not just sack specialists. LBs are downhill thumpers, not coverage players.",
       "roster_requirements": {
         "ideal_depth": { "DL": 5, "EDGE": 5, "LB": 7, "CB": 5, "S": 4 },
         "minimum_depth": { "DL": 4, "EDGE": 4, "LB": 6 }
@@ -208,7 +208,7 @@
     },
 
     "cover_2": {
-      "philosophy": "Zone coverage, split safeties, CBs play flats",
+      "philosophy": "Zone coverage with split safeties. CBs must tackle - they play the flats, not deep. LBs need range to cover the middle, sacrificing size. Safeties read and react rather than freelancing.",
       "roster_requirements": {
         "ideal_depth": { "DL": 6, "EDGE": 4, "LB": 6, "CB": 5, "S": 4 },
         "minimum_depth": { "DL": 5, "EDGE": 3, "LB": 5 }
@@ -232,7 +232,7 @@
     },
 
     "cover_3": {
-      "philosophy": "Single high safety, CBs play deep thirds",
+      "philosophy": "Single high safety covers the deep middle. CBs play deep thirds - must have range. Free safety is the last line of defense, prioritizing speed and coverage over tackling. LBs handle underneath zones.",
       "roster_requirements": {
         "ideal_depth": { "DL": 6, "EDGE": 4, "LB": 6, "CB": 5, "S": 4 },
         "minimum_depth": { "DL": 5, "EDGE": 3, "LB": 5 }
@@ -254,7 +254,7 @@
     },
 
     "press_man": {
-      "philosophy": "Physical CBs, man coverage, aggressive",
+      "philosophy": "Get physical at the line and stick to receivers. CBs need strength and speed to jam and run with anyone. Aggressive, high-risk/high-reward. Zone awareness doesn't matter - just don't get beat by your man.",
       "roster_requirements": {
         "ideal_depth": { "DL": 6, "EDGE": 4, "LB": 5, "CB": 6, "S": 4 },
         "minimum_depth": { "DL": 5, "EDGE": 3, "LB": 4, "CB": 5 }
@@ -275,7 +275,7 @@
     },
 
     "tampa_2": {
-      "philosophy": "Cover 2 with MLB dropping deep middle",
+      "philosophy": "Cover 2 with an athletic MLB who can run with TEs down the seam. LBs must be freakishly fast, sacrificing traditional size and tackling ability. CBs funnel everything inside and make tackles in the flat.",
       "roster_requirements": {
         "ideal_depth": { "DL": 6, "EDGE": 4, "LB": 6, "CB": 5, "S": 4 },
         "minimum_depth": { "DL": 5, "EDGE": 3, "LB": 5 }
@@ -299,7 +299,7 @@
     },
 
     "aggressive_blitz": {
-      "philosophy": "Pressure-heavy, disguised blitzes, risk/reward",
+      "philosophy": "Bring pressure from everywhere and live with the consequences. LBs and DBs must be able to rush, sacrificing zone awareness. Feast or famine - get sacks or give up big plays. Not for the faint of heart.",
       "roster_requirements": {
         "ideal_depth": { "DL": 6, "EDGE": 5, "LB": 7, "CB": 5, "S": 4 },
         "minimum_depth": { "DL": 5, "EDGE": 4, "LB": 6 }
