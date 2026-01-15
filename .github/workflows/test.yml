@@ -67,29 +67,3 @@ jobs:
           check_name: 'GdUnit4 Test Results'
           comment_mode: 'off'
 
-  # Run legacy tests alongside GdUnit4 tests during migration
-  legacy-tests:
-    name: Legacy Tests (Migration Phase)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Setup Godot
-        uses: chickensoft-games/setup-godot@v2
-        with:
-          version: 4.5.1
-          use-dotnet: false
-
-      - name: Run Legacy TestRunner
-        run: |
-          godot --headless -s scripts/tests/TestRunner.gd 2>&1 || exit_code=$?
-          if [ "${exit_code:-0}" -ne 0 ]; then
-            echo "::warning::Legacy tests failed with exit code ${exit_code}"
-            exit ${exit_code}
-          fi
-        timeout-minutes: 10
