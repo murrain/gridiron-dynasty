@@ -1157,12 +1157,17 @@ static func calculate_event_outcome(
     if relevant_stats.is_empty():
         relevant_stats = DEFAULT_RELEVANT_STATS
 
+    # Final guard against division by zero (defensive, should not happen with DEFAULT_RELEVANT_STATS)
+    if relevant_stats.is_empty():
+        push_error("No relevant stats for event outcome calculation - cannot proceed")
+        return 0.0
+
     var resistance := 0.0
     for relevant_stat in relevant_stats:
         var stat_value := float(stats.get(relevant_stat, STAT_AVERAGE))
         resistance += (stat_value - STAT_AVERAGE) / STAT_AVERAGE  # -1.0 to +1.0 per stat
 
-    resistance = resistance / relevant_stats.size()  # Average
+    resistance = resistance / float(relevant_stats.size())  # Average, cast to float for safety
 
     # Map resistance to position in range
     # resistance of -1.0 → bottom of range (worst outcome)
@@ -2035,8 +2040,20 @@ The specific order within offseason processing matters:
 ```gdscript
 ## NflSeason.gd or SeasonManager.gd - end of season processing
 func process_offseason(world_state: Dictionary, rng: RandomNumberGenerator) -> void:
+    # Validate world_state has required keys
+    if not world_state.has("players"):
+        push_error("world_state missing 'players' array")
+        return
+    if not world_state.has("current_year"):
+        push_error("world_state missing 'current_year'")
+        return
+
     var players: Array = world_state["players"]
     var season_year := int(world_state["current_year"])
+
+    # Ensure performance_grades dictionary exists
+    if not world_state.has("performance_grades"):
+        world_state["performance_grades"] = {}
 
     # Step 1: Calculate performance grades (pure calculation, no RNG)
     var grades := PerformanceGrader.grade_all_players(players, world_state, cfg)

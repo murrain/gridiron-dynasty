@@ -105,7 +105,10 @@ static func _generate_fallback_player(
     var basic_stats := ["speed", "strength", "awareness", "stamina"]
 
     for stat_name in basic_stats:
-        stats[stat_name] = _sample_gauss(DEFAULT_MU, DEFAULT_SIGMA, STAT_MIN, STAT_MAX, rng)
+        stats[stat_name] = clamp(
+            _sample_gauss(DEFAULT_MU, DEFAULT_SIGMA, STAT_MIN, STAT_MAX, rng),
+            STAT_MIN, STAT_MAX
+        )
 
     return {
         "position": position,
@@ -879,12 +882,11 @@ func generate_player_class(
         players.append(player)
 
     # Apply freak boosts to selected candidates
-    var freak_cfg := gen_cfg.get("freaks", {})
-    var max_freaks := int(freak_cfg.get("max_per_class", 5))
-    var freak_candidates := select_freak_candidates(players, max_freaks, rng)
+    var freak_cfg: Dictionary = gen_cfg.get("freaks", {})
+    var freak_candidates := select_freak_candidates(players, freak_cfg, positions_cfg, rng)
 
     for candidate in freak_candidates:
-        apply_freak_boost(candidate, positions_cfg, rng)
+        apply_freak_boost(candidate, all_stats, positions_cfg, freak_cfg, rng)
 
     return players
 ```
