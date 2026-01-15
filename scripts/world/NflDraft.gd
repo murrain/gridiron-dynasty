@@ -8,6 +8,8 @@ const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
 const RecruitingScoreCache = preload("res://scripts/core/scouting/RecruitingScoreCache.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
+const EvaluationContext = preload("res://scripts/core/evaluation/EvaluationContext.gd")
+const EvaluationModifierStack = preload("res://scripts/core/evaluation/EvaluationModifierStack.gd")
 
 const ELITE_RESCUE_SCORE := 999.0  # Guaranteed top pick priority for elite prospects
 
@@ -799,86 +801,43 @@ func _score_draft_pool(
 			p, positions_cfg, class_rules
 		)
 
-		# Apply position tier multiplier based on round and position
-		# This implements tier-based draft strategy (premium/standard/devalued positions)
-		# and overrides legacy position_value for more realistic draft behavior
-		var position_tier_mult := _get_position_tier_multiplier(
-			position,
-			round_num,
-			overall_rating,
-			draft_strategy
+		# Create evaluation context for this player
+		# Construct team dictionary from available components
+		var team := {
+			"id": team_id,
+			"offensive_scheme": team_offensive_scheme,
+			"defensive_scheme": team_defensive_scheme,
+			"coach": coach
+		}
+
+		var ctx := EvaluationContext.for_draft(
+			p,                      # player
+			team,                   # team
+			roster,                 # roster
+			round_num,              # draft_round
+			year,                   # year
+			positions_cfg,          # positions_cfg
+			stats_cfg,              # stats_cfg
+			class_rules,            # class_rules
+			draft_strategy          # draft_strategy
 		)
+		ctx.base_rating = overall_rating
 
-		# Apply position value multiplier (legacy market value, still used for within-tier rankings)
-		var position_value_mult := float(position_values.get(position, 1.0))
+		# Create and apply evaluation modifier stack
+		var stack := EvaluationModifierStack.create_draft_stack()
+		var eval_result := stack.evaluate(ctx)
 
-		# Apply position need weighting with round-based scaling
-		# Early rounds (1-2): Need is minor factor (Best Player Available philosophy)
-		# Later rounds (3+): Need becomes more important (fill roster gaps)
-		var need_mult := float(needs.get(position, 1.0))
-		var need_weight := 0.15 if round_num <= 2 else 0.30  # 15% weight in rounds 1-2, 30% in later rounds
-		var need_adjustment := 1.0 + (need_mult - 1.0) * need_weight
-
-		# Apply QB urgency boost for elite prospects (rating >= 75)
-		# This ensures teams without franchise QBs aggressively target top QB prospects
-		# Only boosts elite QBs to prevent reaching for mediocre prospects
-		# NOTE: Uses FULL config multipliers (desperate: 2.8x, moderate: 1.6x) since
-		# QB urgency is no longer applied in _calculate_position_needs()
-		var qb_urgency_boost := 1.0
-		if position == "QB" and overall_rating >= 75.0:
-			var qb_urgency := _evaluate_qb_urgency(roster, positions_cfg, class_rules)
-			var qb_cfg: Dictionary = class_rules.get("draft_qb_urgency", {})
-			if qb_urgency.get("level") == "desperate":
-				qb_urgency_boost = float(qb_cfg.get("desperate_multiplier", 2.8))
-			elif qb_urgency.get("level") == "moderate":
-				qb_urgency_boost = float(qb_cfg.get("moderate_multiplier", 1.6))
-
-		# Calculate roster move net value
-		# If drafting this player requires cutting someone, factor that into the evaluation
-		var roster_move_penalty := _calculate_roster_move_penalty(
-			roster,
-			p,
-			position,
-			overall_rating
-		)
-
-		# Calculate scheme fit adjustment
-		# Teams evaluate players based on how well they fit the team's offensive/defensive scheme
-		# Elite players (90+) transcend scheme (20% impact), average players are fully affected
-		var coach_rigidity := float(coach.get("scheme_rigidity", 1.0))
-		var scheme_adjusted_rating := SchemeFitCalculator.calculate_for_team(
-			p,
-			position,
-			overall_rating,
-			team_offensive_scheme,
-			team_defensive_scheme,
-			coach_rigidity
-		)
-		# Convert to multiplier: if scheme rating is 10% higher than base, mult = 1.10
-		var scheme_fit_mult := 1.0
-		if overall_rating > 0.0:
-			scheme_fit_mult = scheme_adjusted_rating / overall_rating
-
-		# Calculate coach mindset adjustment
-		# Defensive-minded coaches boost defensive players, offensive-minded boost offensive players
-		# This simulates coaches building rosters around their philosophy
-		var coach_mindset_mult := _calculate_coach_mindset_multiplier(
-			position, overall_rating, coach, draft_strategy
-		)
-
-		# Final weighted score: position tier is primary, position value is secondary, need is tertiary, QB urgency is final
-		# Order: tier > market value > need > QB urgency > scheme fit > coach mindset > roster move net value
-		# Roster move penalty reduces score if we'd have to cut a valuable player
-		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment * qb_urgency_boost * scheme_fit_mult * coach_mindset_mult * roster_move_penalty
+		# Calculate weighted score using modifiers
+		var weighted_score := base_score * eval_result.final_multiplier
 
 		scored.append({
 			"player": p,
 			"score": weighted_score,
 			"base_score": base_score,
-			"position_tier_mult": position_tier_mult,
-			"position_value_mult": position_value_mult,
-			"need_mult": need_mult,
-			"overall_rating": overall_rating
+			"overall_rating": overall_rating,
+			"final_multiplier": eval_result.final_multiplier,
+			"applied_modifiers": eval_result.get_active_modifiers(),
+			"position": position
 		})
 
 	# Sort by weighted score descending

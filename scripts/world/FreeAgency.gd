@@ -51,6 +51,8 @@ const SimLogger = preload("res://autoloads/SimLogger.gd")
 const ContractNegotiation = preload("res://scripts/world/ContractNegotiation.gd")
 const ContractLifecycle = preload("res://scripts/world/ContractLifecycle.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
+const EvaluationContext = preload("res://scripts/core/evaluation/EvaluationContext.gd")
+const EvaluationModifierStack = preload("res://scripts/core/evaluation/EvaluationModifierStack.gd")
 
 
 ## Run complete free agency simulation for a given year.
@@ -717,41 +719,32 @@ static func _calculate_team_fit(fa_profile: Dictionary, team: Dictionary, world_
 	var position := String(fa_profile.get("position", ""))
 	var rating := float(fa_profile.get("rating", 50.0))
 
-	# Get team schemes
-	var team_offensive_scheme := String(team.get("offensive_scheme", "pro_style"))
-	var team_defensive_scheme := String(team.get("defensive_scheme", "cover_2"))
+	# Get roster for this team
+	var team_id := String(team.get("id", ""))
+	var nfl_rosters: Dictionary = world_state.get("nfl_rosters", {}) as Dictionary
+	var roster: Dictionary = nfl_rosters.get(team_id, {}) as Dictionary
 
-	# Get coach data for mindset evaluation
-	var coach: Dictionary = team.get("coach", {}) as Dictionary
-	var coach_rigidity := float(coach.get("scheme_rigidity", 1.0))
+	# Create evaluation context
+	var player_data := {
+		"player": fa_profile.get("player", {}),
+		"position": position
+	}
 
-	# Need to reconstruct player dictionary for SchemeFitCalculator
-	# FA profiles have player data embedded
-	var player := fa_profile.get("player", {}) as Dictionary
-	if player.is_empty():
-		# Try to get stats directly from fa_profile if player dict not available
-		player = {"stats": fa_profile.get("stats", {})}
-
-	# Calculate scheme-adjusted rating
-	var scheme_adjusted_rating := SchemeFitCalculator.calculate_for_team(
-		player,
-		position,
-		rating,
-		team_offensive_scheme,
-		team_defensive_scheme,
-		coach_rigidity
+	var ctx := EvaluationContext.for_free_agency(
+		player_data,                                    # player
+		team,                                           # team
+		roster,                                         # roster
+		int(world_state.get("current_year", 2024)),    # year
+		world_state.get("positions_cfg", {}),           # positions_cfg
+		world_state.get("class_rules", {})              # class_rules
 	)
+	ctx.base_rating = rating
 
-	# Convert scheme fit to multiplier (clamped to reasonable range)
-	var scheme_mult := 1.0
-	if rating > 0.0:
-		scheme_mult = clampf(scheme_adjusted_rating / rating, 0.8, 1.2)  # Cap scheme impact at ±20%
+	# Create and apply FA modifier stack
+	var stack := EvaluationModifierStack.create_free_agency_stack()
+	var result := stack.evaluate(ctx)
 
-	# Calculate coach mindset multiplier
-	var coach_mindset_mult := _calculate_coach_mindset_multiplier(position, rating, coach)
-
-	# Combine scheme fit and coach mindset
-	return scheme_mult * coach_mindset_mult
+	return result.final_multiplier
 
 
 ## Calculate coach mindset multiplier for FA interest.
