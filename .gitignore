@@ -8,3 +8,6 @@
 # Compilation verification cache
 .godot_compilation_cache
 godot
+
+# GdUnit4 test reports (generated output)
+reports/

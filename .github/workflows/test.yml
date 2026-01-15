@@ -1,0 +1,95 @@
+# GdUnit4 Test Workflow
+#
+# Runs the test suite using GdUnit4's official GitHub Action.
+# Features:
+#   - Per-test retry (not all-or-nothing) for flaky test detection
+#   - JUnit XML reports for CI integration
+#   - HTML reports for detailed analysis
+#   - Configurable timeouts to catch infinite loops
+#
+# ARCH-026: GdUnit4 Migration POC
+
+name: Run Tests
+
+on:
+  push:
+    branches: [main, test-infra/gdunit4-migration]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: GdUnit4 Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Run GdUnit4 Tests
+        uses: MikeSchulze/gdUnit4-action@v1
+        with:
+          godot-version: '4.5.0'
+          version: 'v6.0.1'
+          paths: 'res://scripts/tests/gdunit4'
+          retries: 3
+          timeout: 10
+          report-name: 'gdunit4-test-report'
+
+      - name: Upload HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gdunit4-html-report
+          path: reports/
+          retention-days: 14
+
+      - name: Upload JUnit XML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gdunit4-junit-report
+          path: '**/*.xml'
+          retention-days: 14
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: '**/*.xml'
+          check_name: 'GdUnit4 Test Results'
+          comment_mode: 'off'
+
+  # Run legacy tests alongside GdUnit4 tests during migration
+  legacy-tests:
+    name: Legacy Tests (Migration Phase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.5.0
+          use-dotnet: false
+
+      - name: Run Legacy TestRunner
+        run: |
+          godot --headless -s scripts/tests/TestRunner.gd 2>&1 || exit_code=$?
+          if [ "${exit_code:-0}" -ne 0 ]; then
+            echo "::warning::Legacy tests failed with exit code ${exit_code}"
+            exit ${exit_code}
+          fi
+        timeout-minutes: 10
