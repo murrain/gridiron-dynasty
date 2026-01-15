@@ -29,7 +29,7 @@ func test_max_depth_exists_for_all_positions() -> void:
 
 func test_get_max_depth_returns_correct_values() -> void:
 	assert_int(RosterComposition.get_max_depth("QB")).is_equal(3)
-	assert_int(RosterComposition.get_max_depth("RB")).is_equal(5)
+	assert_int(RosterComposition.get_max_depth("RB")).is_equal(4)
 	assert_int(RosterComposition.get_max_depth("WR")).is_equal(7)
 	assert_int(RosterComposition.get_max_depth("TE")).is_equal(4)
 	assert_int(RosterComposition.get_max_depth("K")).is_equal(1)
@@ -275,8 +275,8 @@ func _make_test_schemes_cfg() -> Dictionary:
 			"power_run": {
 				"philosophy": "Physical, downhill running, heavy personnel",
 				"roster_requirements": {
-					"ideal_depth": {"WR": 5, "RB": 5, "TE": 4, "OL": 10},
-					"minimum_depth": {"WR": 4, "RB": 4, "TE": 3}
+					"ideal_depth": {"WR": 5, "RB": 4, "TE": 4, "OL": 10},
+					"minimum_depth": {"WR": 4, "RB": 3, "TE": 3}
 				}
 			},
 			"pro_style": {
@@ -319,7 +319,7 @@ func _make_test_schemes_cfg() -> Dictionary:
 		},
 		"config": {
 			"position_caps": {
-				"QB": 3, "RB": 5, "WR": 7, "TE": 4, "OL": 10,
+				"QB": 3, "RB": 4, "WR": 7, "TE": 4, "OL": 10,
 				"DL": 7, "EDGE": 5, "LB": 7, "CB": 6, "S": 5,
 				"K": 1, "P": 1
 			}

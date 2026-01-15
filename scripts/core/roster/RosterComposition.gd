@@ -55,7 +55,7 @@ const IDEAL_DEPTH := {
 ##
 ## DESIGN RATIONALE:
 ##   - QB: 3 max (starter + backup + developmental) - no team carries 4+ QBs
-##   - RB: 5 max (RBBC committees rarely exceed 4, with 1 FB/special teams)
+##   - RB: 4 max (starter + backup + 3rd down back + FB/special teams)
 ##   - WR: 7 max (even pass-heavy offenses cap at 6-7 active receivers)
 ##   - TE: 4 max (2-TE sets + backups is the ceiling)
 ##   - OL: 10 max (5 starters + 5 backups covers all contingencies)
@@ -67,7 +67,7 @@ const IDEAL_DEPTH := {
 ##   - K/P: 1 each (never roster 2 kickers/punters)
 const MAX_DEPTH := {
 	"QB": 3,
-	"RB": 5,
+	"RB": 4,
 	"WR": 7,
 	"TE": 4,
 	"OL": 10,
