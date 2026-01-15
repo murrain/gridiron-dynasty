@@ -175,6 +175,284 @@ func test_position_need_hard_cap_blocks() -> void:
 
 
 # =============================================================================
+# POSITION TIER MODIFIER TESTS
+# =============================================================================
+
+## Test premium positions get boost in early rounds
+func test_position_tier_premium_round_1() -> void:
+	var mod := PositionTierModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.phase = "draft"
+	ctx.position = "QB"
+	ctx.draft_round = 1
+	ctx.draft_strategy = {"position_tiers": {"premium": ["QB", "EDGE"], "devalued": ["RB"]}}
+
+	assert_bool(mod.is_applicable(ctx)).is_true()
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(1.3)
+	assert_str(result.reason).contains("premium")
+
+
+## Test devalued positions get penalty in early rounds
+func test_position_tier_devalued_round_1() -> void:
+	var mod := PositionTierModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.phase = "draft"
+	ctx.position = "RB"
+	ctx.draft_round = 1
+	ctx.draft_strategy = {"position_tiers": {"premium": ["QB"], "devalued": ["RB", "S"]}}
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(0.7)
+	assert_str(result.reason).contains("devalued")
+
+
+## Test tier modifier converges to neutral in late rounds
+func test_position_tier_neutral_late_rounds() -> void:
+	var mod := PositionTierModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.phase = "draft"
+	ctx.position = "QB"
+	ctx.draft_round = 6
+	ctx.draft_strategy = {"position_tiers": {"premium": ["QB"], "devalued": ["RB"]}}
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(1.0)
+
+
+## Test position tier not applicable in free agency
+func test_position_tier_not_applicable_in_fa() -> void:
+	var mod := PositionTierModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.phase = "free_agency"
+	ctx.position = "QB"
+	ctx.draft_round = 0
+	ctx.draft_strategy = {"position_tiers": {"premium": ["QB"], "devalued": []}}
+
+	assert_bool(mod.is_applicable(ctx)).is_false()
+
+
+# =============================================================================
+# POSITION VALUE MODIFIER TESTS
+# =============================================================================
+
+## Test position with high market value
+func test_position_value_high_value() -> void:
+	var mod := PositionValueModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "QB"
+	ctx.positions_cfg = {"QB": {"value": 1.2}}
+
+	assert_bool(mod.is_applicable(ctx)).is_true()
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(1.2)
+	assert_str(result.reason).contains("high market value")
+
+
+## Test position with low market value
+func test_position_value_low_value() -> void:
+	var mod := PositionValueModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "K"
+	ctx.positions_cfg = {"K": {"value": 0.8}}
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(0.8)
+	assert_str(result.reason).contains("low market value")
+
+
+## Test position value defaults to 1.0 if not configured
+func test_position_value_default() -> void:
+	var mod := PositionValueModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "WR"
+	ctx.positions_cfg = {"WR": {}}  # No value configured
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(1.0)
+
+
+# =============================================================================
+# QB URGENCY MODIFIER TESTS
+# =============================================================================
+
+## Test QB urgency triggers for desperate team
+func test_qb_urgency_desperate_no_qb() -> void:
+	var mod := QBUrgencyModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "QB"
+	ctx.phase = "draft"
+	ctx.base_rating = 82.0  # Elite prospect
+	ctx.roster = {"by_position": {"QB": []}, "players": {}}
+	ctx.class_rules = {"draft_qb_urgency": {"desperate_multiplier": 2.8, "moderate_multiplier": 1.6}}
+	ctx.positions_cfg = {}
+
+	assert_bool(mod.is_applicable(ctx)).is_true()
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(2.8)
+	assert_str(result.reason).contains("Desperate")
+
+
+## Test QB urgency not applicable for non-elite QB
+func test_qb_urgency_not_applicable_non_elite() -> void:
+	var mod := QBUrgencyModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "QB"
+	ctx.phase = "draft"
+	ctx.base_rating = 70.0  # Not elite
+
+	assert_bool(mod.is_applicable(ctx)).is_false()
+
+
+## Test QB urgency not applicable for non-QB position
+func test_qb_urgency_not_applicable_non_qb() -> void:
+	var mod := QBUrgencyModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "WR"
+	ctx.phase = "draft"
+	ctx.base_rating = 85.0
+
+	assert_bool(mod.is_applicable(ctx)).is_false()
+
+
+## Test QB urgency neutral when franchise QB exists
+func test_qb_urgency_franchise_qb_exists() -> void:
+	var mod := QBUrgencyModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "QB"
+	ctx.phase = "draft"
+	ctx.base_rating = 82.0
+	ctx.roster = {
+		"by_position": {"QB": ["qb_1"]},
+		"players": {"qb_1": {"overall": 85.0, "age": 28}}  # Franchise QB
+	}
+	ctx.class_rules = {"draft_qb_urgency": {"desperate_multiplier": 2.8}}
+	ctx.positions_cfg = {}
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(1.0)
+
+
+# =============================================================================
+# COACH MINDSET MODIFIER TESTS
+# =============================================================================
+
+## Test defensive coach boosts defensive players
+func test_coach_mindset_defensive_coach() -> void:
+	var mod := CoachMindsetModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "EDGE"
+	ctx.base_rating = 80.0  # Elite
+	ctx.phase = "draft"
+	ctx.coach = {"specialty_position": "Defense"}
+
+	assert_bool(mod.is_applicable(ctx)).is_true()
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_greater(1.0)
+	assert_str(result.reason).contains("Defense")
+
+
+## Test offensive coach boosts offensive players
+func test_coach_mindset_offensive_coach() -> void:
+	var mod := CoachMindsetModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "WR"
+	ctx.base_rating = 80.0
+	ctx.phase = "draft"
+	ctx.coach = {"specialty_position": "Offense"}
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_greater(1.0)
+
+
+## Test defensive coach slight penalty for offensive players
+func test_coach_mindset_opposite_penalty() -> void:
+	var mod := CoachMindsetModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "WR"  # Offensive
+	ctx.base_rating = 75.0
+	ctx.phase = "draft"
+	ctx.coach = {"specialty_position": "Defense"}  # Defensive coach
+
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_less(1.0)
+
+
+## Test position specialist heavily boosts that position
+func test_coach_mindset_specialist() -> void:
+	var mod := CoachMindsetModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "QB"
+	ctx.base_rating = 80.0  # Elite
+	ctx.phase = "draft"
+	ctx.coach = {"specialty_position": "QB"}  # QB specialist
+
+	var result := mod.calculate(ctx)
+	# Should get specialist boost (1.18 for elite)
+	assert_float(result.multiplier).is_greater_equal(1.1)
+
+
+## Test no specialty means not applicable
+func test_coach_mindset_no_specialty() -> void:
+	var mod := CoachMindsetModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "QB"
+	ctx.coach = {}  # No specialty
+
+	assert_bool(mod.is_applicable(ctx)).is_false()
+
+
+# =============================================================================
+# ROSTER MOVE MODIFIER TESTS
+# =============================================================================
+
+## Test no penalty when position not at cap
+func test_roster_move_not_at_cap() -> void:
+	var mod := RosterMoveModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.position = "WR"
+	ctx.phase = "draft"
+	ctx.base_rating = 75.0
+	ctx.roster = {
+		"by_position": {"WR": ["wr_1", "wr_2"]},  # Not at cap
+		"players": {}
+	}
+
+	assert_bool(mod.is_applicable(ctx)).is_true()
+	var result := mod.calculate(ctx)
+	assert_float(result.multiplier).is_equal(1.0)
+	assert_str(result.reason).contains("No roster move")
+
+
+## Test not applicable in free agency
+func test_roster_move_not_in_fa() -> void:
+	var mod := RosterMoveModifier.new()
+
+	var ctx := EvaluationContext.new()
+	ctx.phase = "free_agency"
+	ctx.roster = {"by_position": {}}
+
+	assert_bool(mod.is_applicable(ctx)).is_false()
+
+
+# =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
 
