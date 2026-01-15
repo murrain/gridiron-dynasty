@@ -8,6 +8,8 @@ const ScoutRuntime = preload("res://scripts/core/scouting/ScoutRuntime.gd")
 const RecruitingScoreCache = preload("res://scripts/core/scouting/RecruitingScoreCache.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
+const EvaluationContext = preload("res://scripts/core/evaluation/EvaluationContext.gd")
+const EvaluationModifierStack = preload("res://scripts/core/evaluation/EvaluationModifierStack.gd")
 
 const ELITE_RESCUE_SCORE := 999.0  # Guaranteed top pick priority for elite prospects
 
@@ -151,12 +153,21 @@ func run(
 			var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
 			var scout: Dictionary = team_scouts.get(team_id, {}) as Dictionary
 
+			# Get team schemes for scheme fit evaluation
+			var team_data: Dictionary = team_index.get(team_id, {}) as Dictionary
+			var team_offensive_scheme := String(team_data.get("offensive_scheme", "pro_style"))
+			var team_defensive_scheme := String(team_data.get("defensive_scheme", "cover_2"))
+			var team_coach: Dictionary = team_data.get("coach", {}) as Dictionary
+
 			# Score all remaining players (with caching)
 			var scored_players := _score_draft_pool(
 				remaining_pool,
 				roster,
 				team_id,
 				scout,
+				team_offensive_scheme,
+				team_defensive_scheme,
+				team_coach,
 				positions_cfg,
 				stats_cfg,
 				class_rules,
@@ -625,6 +636,9 @@ func _score_draft_pool(
 	roster: Dictionary,
 	team_id: String,
 	scout: Dictionary,
+	team_offensive_scheme: String,
+	team_defensive_scheme: String,
+	coach: Dictionary,
 	positions_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	class_rules: Dictionary,
@@ -787,62 +801,43 @@ func _score_draft_pool(
 			p, positions_cfg, class_rules
 		)
 
-		# Apply position tier multiplier based on round and position
-		# This implements tier-based draft strategy (premium/standard/devalued positions)
-		# and overrides legacy position_value for more realistic draft behavior
-		var position_tier_mult := _get_position_tier_multiplier(
-			position,
-			round_num,
-			overall_rating,
-			draft_strategy
+		# Create evaluation context for this player
+		# Construct team dictionary from available components
+		var team := {
+			"id": team_id,
+			"offensive_scheme": team_offensive_scheme,
+			"defensive_scheme": team_defensive_scheme,
+			"coach": coach
+		}
+
+		var ctx := EvaluationContext.for_draft(
+			p,                      # player
+			team,                   # team
+			roster,                 # roster
+			round_num,              # draft_round
+			year,                   # year
+			positions_cfg,          # positions_cfg
+			stats_cfg,              # stats_cfg
+			class_rules,            # class_rules
+			draft_strategy          # draft_strategy
 		)
+		ctx.base_rating = overall_rating
 
-		# Apply position value multiplier (legacy market value, still used for within-tier rankings)
-		var position_value_mult := float(position_values.get(position, 1.0))
+		# Create and apply evaluation modifier stack
+		var stack := EvaluationModifierStack.create_draft_stack()
+		var eval_result := stack.evaluate(ctx)
 
-		# Apply position need weighting with round-based scaling
-		# Early rounds (1-2): Need is minor factor (Best Player Available philosophy)
-		# Later rounds (3+): Need becomes more important (fill roster gaps)
-		var need_mult := float(needs.get(position, 1.0))
-		var need_weight := 0.15 if round_num <= 2 else 0.30  # 15% weight in rounds 1-2, 30% in later rounds
-		var need_adjustment := 1.0 + (need_mult - 1.0) * need_weight
-
-		# Apply QB urgency boost for elite prospects (rating >= 75)
-		# This ensures teams without franchise QBs aggressively target top QB prospects
-		# Only boosts elite QBs to prevent reaching for mediocre prospects
-		# NOTE: Uses FULL config multipliers (desperate: 2.8x, moderate: 1.6x) since
-		# QB urgency is no longer applied in _calculate_position_needs()
-		var qb_urgency_boost := 1.0
-		if position == "QB" and overall_rating >= 75.0:
-			var qb_urgency := _evaluate_qb_urgency(roster, positions_cfg, class_rules)
-			var qb_cfg: Dictionary = class_rules.get("draft_qb_urgency", {})
-			if qb_urgency.get("level") == "desperate":
-				qb_urgency_boost = float(qb_cfg.get("desperate_multiplier", 2.8))
-			elif qb_urgency.get("level") == "moderate":
-				qb_urgency_boost = float(qb_cfg.get("moderate_multiplier", 1.6))
-
-		# Calculate roster move net value
-		# If drafting this player requires cutting someone, factor that into the evaluation
-		var roster_move_penalty := _calculate_roster_move_penalty(
-			roster,
-			p,
-			position,
-			overall_rating
-		)
-
-		# Final weighted score: position tier is primary, position value is secondary, need is tertiary, QB urgency is final
-		# Order: tier > market value > need > QB urgency > roster move net value
-		# Roster move penalty reduces score if we'd have to cut a valuable player
-		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment * qb_urgency_boost * roster_move_penalty
+		# Calculate weighted score using modifiers
+		var weighted_score := base_score * eval_result.final_multiplier
 
 		scored.append({
 			"player": p,
 			"score": weighted_score,
 			"base_score": base_score,
-			"position_tier_mult": position_tier_mult,
-			"position_value_mult": position_value_mult,
-			"need_mult": need_mult,
-			"overall_rating": overall_rating
+			"overall_rating": overall_rating,
+			"final_multiplier": eval_result.final_multiplier,
+			"applied_modifiers": eval_result.get_active_modifiers(),
+			"position": position
 		})
 
 	# Sort by weighted score descending
@@ -947,6 +942,89 @@ static func _get_position_tier_multiplier(
 
 	# Default: no modifier for unlisted positions
 	return 1.0
+
+
+## Calculates coach mindset multiplier based on coach's philosophy.
+##
+## Defensive-minded coaches (specialty_position == "Defense") boost defensive prospects.
+## Offensive-minded coaches (specialty_position == "Offense") boost offensive prospects.
+## Position-specific coaches (e.g., "QB") boost that position.
+##
+## This simulates how coaches build rosters around their philosophy:
+## - Rex Ryan would prioritize elite defensive players even with offensive needs
+## - Sean McVay would prioritize offensive weapons
+## - Andy Reid might overvalue QB prospects
+##
+## Elite prospects (78+) get larger boosts, simulating coaches wanting "franchise pieces"
+## on their side of the ball.
+##
+## RNG: None (deterministic calculation)
+##
+## @param position: Player position
+## @param player_rating: Player's overall rating
+## @param coach: Coach dictionary with specialty_position
+## @param draft_strategy: Draft strategy configuration
+## @return float: Multiplier (0.95 to 1.15)
+static func _calculate_coach_mindset_multiplier(
+	position: String,
+	player_rating: float,
+	coach: Dictionary,
+	draft_strategy: Dictionary
+) -> float:
+	var specialty := String(coach.get("specialty_position", ""))
+
+	# No specialty = neutral evaluation
+	if specialty.is_empty():
+		return 1.0
+
+	# Define position groups
+	var offensive_positions := ["QB", "RB", "WR", "TE", "OL"]
+	var defensive_positions := ["DL", "EDGE", "LB", "CB", "S"]
+
+	var is_offensive := position in offensive_positions
+	var is_defensive := position in defensive_positions
+
+	# Base boost for matching coach philosophy
+	var base_boost := 1.0
+	var elite_threshold := float(draft_strategy.get("generational_threshold", 78.0))
+
+	if specialty == "Defense":
+		if is_defensive:
+			# Defensive coach boosts defensive players
+			base_boost = 1.08
+			# Elite defensive prospects get larger boost (coach wants franchise defender)
+			if player_rating >= elite_threshold:
+				base_boost = 1.15
+		elif is_offensive:
+			# Slight penalty for offensive players (not coach's focus)
+			base_boost = 0.97
+
+	elif specialty == "Offense":
+		if is_offensive:
+			# Offensive coach boosts offensive players
+			base_boost = 1.08
+			# Elite offensive prospects get larger boost
+			if player_rating >= elite_threshold:
+				base_boost = 1.15
+		elif is_defensive:
+			# Slight penalty for defensive players (not coach's focus)
+			base_boost = 0.97
+
+	else:
+		# Position-specific specialty (e.g., "QB", "EDGE")
+		if position == specialty:
+			# Coach is a specialist at this position - big boost
+			base_boost = 1.12
+			if player_rating >= elite_threshold:
+				base_boost = 1.18
+		elif specialty in offensive_positions and is_offensive:
+			# Offensive position specialist still values offense somewhat
+			base_boost = 1.03
+		elif specialty in defensive_positions and is_defensive:
+			# Defensive position specialist still values defense somewhat
+			base_boost = 1.03
+
+	return base_boost
 
 
 ## Calculates scout disagreement across a sample of prospects.
@@ -1164,6 +1242,25 @@ func _calculate_position_needs(
 	for pos in positions_cfg.keys():
 		var current_count := (by_position.get(pos, []) as Array).size()
 		var ideal := RosterComposition.get_ideal_depth(pos)
+		var max_allowed := RosterComposition.get_max_depth(pos)
+
+		# HARD CAP CHECK: At or above max = 0.0 interest (cannot add players)
+		if current_count >= max_allowed:
+			needs[pos] = 0.0
+			continue
+
+		# OVERSTOCKED CHECK: Above ideal but below cap = very low interest
+		# This prevents teams from continuing to draft positions they don't need
+		if current_count > ideal:
+			# Scale from 0.4 (at ideal+1) to 0.1 (near cap)
+			var excess := current_count - ideal
+			var slots_to_cap := max_allowed - ideal
+			if slots_to_cap > 0:
+				var ratio := float(excess) / float(slots_to_cap)
+				needs[pos] = 0.4 - (ratio * 0.3)  # 0.4 → 0.1
+			else:
+				needs[pos] = 0.1
+			continue
 
 		# More need = higher multiplier
 		if current_count == 0:
@@ -1172,7 +1269,7 @@ func _calculate_position_needs(
 			var deficit := ideal - current_count
 			needs[pos] = 1.0 + (float(deficit) / float(ideal)) * 0.3
 		else:
-			needs[pos] = 0.85  # Low need, slight penalty
+			needs[pos] = 0.95  # At ideal depth, neutral
 
 	# NOTE: QB urgency is NOT applied here to avoid compound multipliers
 	# QB urgency boost is applied separately in _score_draft_pool() for elite prospects (rating >= 75)
@@ -1385,10 +1482,11 @@ func _find_cut_candidate_rating(
 
 ## Handle post-draft roster cuts when position is overstocked
 ##
-## After drafting a player, if the position group exceeds ideal depth,
+## After drafting a player, if the position group exceeds MAX depth (hard cap),
 ## release the weakest player at that position (excluding clear starter).
 ##
-## This prevents roster composition issues like 5 RBs, 5 TEs when ideal is 4/3.
+## This prevents roster composition issues like 5 QBs when max is 3.
+## Also trims down to ideal if significantly overstocked.
 func _handle_post_draft_roster_cuts(
 	world_state: Dictionary,
 	roster: Dictionary,
@@ -1399,11 +1497,16 @@ func _handle_post_draft_roster_cuts(
 ) -> void:
 	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
 	var position_ids := by_position.get(drafted_position, []) as Array
+	var max_allowed := RosterComposition.get_max_depth(drafted_position)
 	var ideal := RosterComposition.get_ideal_depth(drafted_position)
 
-	# Only cut if we're overstocked (current > ideal)
-	if position_ids.size() <= ideal:
-		return
+	# HARD CAP: Must cut if above max (e.g., 4 QBs when max is 3)
+	# Also cut if significantly overstocked (more than 1 above ideal)
+	var overstocked_by := position_ids.size() - ideal
+	var above_cap := position_ids.size() > max_allowed
+
+	if not above_cap and overstocked_by <= 1:
+		return  # Acceptable: at or slightly above ideal, within cap
 
 	# Find weakest player at this position (skip index 0 = starter)
 	var worst_player_id: String = ""

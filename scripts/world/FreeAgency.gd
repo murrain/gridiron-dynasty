@@ -51,6 +51,8 @@ const SimLogger = preload("res://autoloads/SimLogger.gd")
 const ContractNegotiation = preload("res://scripts/world/ContractNegotiation.gd")
 const ContractLifecycle = preload("res://scripts/world/ContractLifecycle.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
+const EvaluationContext = preload("res://scripts/core/evaluation/EvaluationContext.gd")
+const EvaluationModifierStack = preload("res://scripts/core/evaluation/EvaluationModifierStack.gd")
 
 
 ## Run complete free agency simulation for a given year.
@@ -341,6 +343,11 @@ static func generate_team_interest(
 			var position := String(fa_profile.get("position", ""))
 			var minimum_demand := float(fa_profile.get("minimum_demand", 0.0))
 
+			# HARD CAP CHECK: Zero interest if position is at max capacity
+			if RosterComposition.is_position_at_cap(roster, position):
+				team_interest[team_id][player_id] = 0.0
+				continue
+
 			# Calculate interest components
 			var need_match := _calculate_need_match(position, team_needs)
 			var affordability := _calculate_affordability(minimum_demand, cap_space)
@@ -626,25 +633,48 @@ static func _filter_by_tier(free_agents: Array, tier: String) -> Array:
 	return filtered
 
 
-## INTERNAL: Assess team needs (STUB - replace when Team 2 ready).
+## INTERNAL: Assess team needs with position cap awareness.
+##
+## Returns array of position needs, but EXCLUDES positions at hard cap.
+## Positions at/above max depth will NOT appear in the needs array.
 static func _assess_team_needs_stub(roster: Dictionary) -> Array:
 	var needs: Array = []
 	var by_position := roster.get("by_position", {}) as Dictionary
 
 	for position in RosterComposition.IDEAL_DEPTH.keys():
-		var current: int = by_position.get(position, []).size()
+		var current: int = (by_position.get(position, []) as Array).size()
 		var target: int = RosterComposition.get_ideal_depth(position)
+		var max_allowed: int = RosterComposition.get_max_depth(position)
+
+		# HARD CAP CHECK: Never show interest in capped positions
+		if current >= max_allowed:
+			continue
+
+		# OVERSTOCKED CHECK: Don't flag as need if above ideal (even below cap)
+		if current >= target:
+			continue
 
 		if current < target * 0.7:  # 70% threshold
 			needs.append({
 				"position": position,
-				"priority": "high" if current < target * 0.5 else "medium"
+				"priority": "high" if current < target * 0.5 else "medium",
+				"at_cap": false
 			})
 
 	return needs
 
 
 ## INTERNAL: Calculate need match score.
+##
+## Returns:
+##   - 2.0: Critical/high need
+##   - 1.5: Medium need
+##   - 0.3: No need (position at/above ideal) - very low interest
+##   - 0.0: Position at cap (via _assess_team_needs_stub exclusion)
+##
+## NOTE: The baseline is now 0.3 instead of 1.0 to prevent teams from
+## signing players at positions they don't need. This fixes the bug
+## where teams accumulate 5+ QBs due to baseline interest.
 static func _calculate_need_match(position: String, team_needs: Array) -> float:
 	for need in team_needs:
 		var need_dict := need as Dictionary
@@ -655,7 +685,9 @@ static func _calculate_need_match(position: String, team_needs: Array) -> float:
 			elif priority == "medium":
 				return 1.5  # Moderate need
 
-	return 1.0  # No specific need (baseline interest)
+	# No need for this position = very low interest (was 1.0, now 0.3)
+	# This prevents accumulating players at positions team doesn't need
+	return 0.3
 
 
 ## INTERNAL: Calculate affordability score.
@@ -675,11 +707,106 @@ static func _calculate_affordability(demand: float, cap_space: float) -> float:
 		return 0.2  # Stretch
 
 
-## INTERNAL: Calculate team fit multiplier.
+## INTERNAL: Calculate team fit multiplier based on scheme fit.
+##
+## Uses SchemeFitCalculator to determine how well a player fits
+## the team's offensive/defensive scheme.
+##
+## Returns:
+##   - 0.8-1.2: Scheme fit multiplier based on player/scheme compatibility
+##   - 1.0: Neutral (special teams or unknown position)
 static func _calculate_team_fit(fa_profile: Dictionary, team: Dictionary, world_state: Dictionary) -> float:
-	# TODO: Implement contender vs rebuilder logic when team win% available
-	# For now, return neutral 1.0
-	return 1.0
+	var position := String(fa_profile.get("position", ""))
+	var rating := float(fa_profile.get("rating", 50.0))
+
+	# Get roster for this team
+	var team_id := String(team.get("id", ""))
+	var nfl_rosters: Dictionary = world_state.get("nfl_rosters", {}) as Dictionary
+	var roster: Dictionary = nfl_rosters.get(team_id, {}) as Dictionary
+
+	# Create evaluation context
+	var player_data := {
+		"player": fa_profile.get("player", {}),
+		"position": position
+	}
+
+	var ctx := EvaluationContext.for_free_agency(
+		player_data,                                    # player
+		team,                                           # team
+		roster,                                         # roster
+		int(world_state.get("current_year", 2024)),    # year
+		world_state.get("positions_cfg", {}),           # positions_cfg
+		world_state.get("class_rules", {})              # class_rules
+	)
+	ctx.base_rating = rating
+
+	# Create and apply FA modifier stack
+	var stack := EvaluationModifierStack.create_free_agency_stack()
+	var result := stack.evaluate(ctx)
+
+	return result.final_multiplier
+
+
+## Calculate coach mindset multiplier for FA interest.
+##
+## Similar to draft evaluation - coaches prefer players on their side of the ball.
+## Effect is dampened compared to draft (max ±8% vs ±15%) since FA is more
+## need-driven than draft.
+##
+## @param position: Player position
+## @param player_rating: Player's overall rating
+## @param coach: Coach dictionary with specialty_position
+## @return float: Multiplier (0.95 to 1.08)
+static func _calculate_coach_mindset_multiplier(
+	position: String,
+	player_rating: float,
+	coach: Dictionary
+) -> float:
+	var specialty := String(coach.get("specialty_position", ""))
+
+	# No specialty = neutral evaluation
+	if specialty.is_empty():
+		return 1.0
+
+	# Define position groups
+	var offensive_positions := ["QB", "RB", "WR", "TE", "OL"]
+	var defensive_positions := ["DL", "EDGE", "LB", "CB", "S"]
+
+	var is_offensive := position in offensive_positions
+	var is_defensive := position in defensive_positions
+
+	# Dampened effect for FA (need-driven, less coach preference)
+	var base_boost := 1.0
+	var elite_threshold := 78.0
+
+	if specialty == "Defense":
+		if is_defensive:
+			base_boost = 1.05
+			if player_rating >= elite_threshold:
+				base_boost = 1.08
+		elif is_offensive:
+			base_boost = 0.98
+
+	elif specialty == "Offense":
+		if is_offensive:
+			base_boost = 1.05
+			if player_rating >= elite_threshold:
+				base_boost = 1.08
+		elif is_defensive:
+			base_boost = 0.98
+
+	else:
+		# Position-specific specialty (e.g., "QB", "EDGE")
+		if position == specialty:
+			base_boost = 1.06
+			if player_rating >= elite_threshold:
+				base_boost = 1.10
+		elif specialty in offensive_positions and is_offensive:
+			base_boost = 1.02
+		elif specialty in defensive_positions and is_defensive:
+			base_boost = 1.02
+
+	return base_boost
 
 
 ## INTERNAL: Generate offers for a specific player.
@@ -1379,13 +1506,24 @@ static func _generate_udfa_team_interest(
 			var position := String(fa_profile.get("position", ""))
 			var minimum_demand := float(fa_profile.get("minimum_demand", 0.9))
 
+			# HARD CAP CHECK: Zero interest if position is at max capacity
+			if RosterComposition.is_position_at_cap(roster, position):
+				team_interest[team_id][player_id] = 0.0
+				continue
+
 			# Base interest from positional need
 			var deficit := int(position_deficits.get(position, 0))
 			var need_score := 1.0
 			if deficit > 0:
 				need_score = 3.0  # Critical need (position below minimum)
 			elif players.size() < min_roster_size - 5:
-				need_score = 2.0  # Any position helps when significantly short
+				# Only consider filling if position is below ideal (not overstocked)
+				var current := (roster.get("by_position", {}).get(position, []) as Array).size()
+				var ideal := RosterComposition.get_ideal_depth(position)
+				if current < ideal:
+					need_score = 2.0  # Position has room, helps fill roster
+				else:
+					need_score = 0.3  # Position overstocked, low interest
 
 			# Affordability (UDFAs are cheap, so usually 1.0)
 			var affordability := 1.0 if cap_space >= minimum_demand else 0.3
