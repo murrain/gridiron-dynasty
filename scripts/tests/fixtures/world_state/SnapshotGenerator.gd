@@ -26,7 +26,8 @@ const OUTPUT_DIR := "res://scripts/tests/fixtures/world_state/"
 
 # Schema version - INCREMENT when world_state structure changes
 # This enables detection of stale snapshots after model changes
-const SNAPSHOT_SCHEMA_VERSION := 1
+# v2: Added draft_year (flat), eval_score, contract.signed_year fields
+const SNAPSHOT_SCHEMA_VERSION := 2
 
 var _config: Dictionary = {}
 

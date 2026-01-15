@@ -246,12 +246,25 @@ func _create_test_nfl_world_state() -> Dictionary:
 		var t: Dictionary = team
 		var players := []
 		for j in range(53):  # 53 players per roster
+			var position: String = ["QB", "RB", "WR", "TE", "OL"][j % 5]
+			var age: int = 22 + (j % 10)
+			var eval_score: float = 60.0 + randf() * 30.0
+			var draft_year: int = 2020 + (j / 10)  # Spread across draft classes
+			var signed_year: int = draft_year + (j % 3)  # Some have extensions
+
 			players.append({
 				"player_id": "player_%s_%d" % [t["id"], j],
-				"position": ["QB", "RB", "WR", "TE", "OL"][j % 5],
-				"composite_score": 60.0 + randf() * 30.0,
-				"age": 22 + (j % 10),
-				"contract": {"years_remaining": 1 + (j % 4), "years_total": 4}
+				"position": position,
+				"composite_score": eval_score,
+				"eval_score": eval_score,  # Add eval_score for roster management
+				"age": age,
+				"draft_year": draft_year,
+				"contract": {
+					"annual_value": _generate_realistic_salary(position, age, eval_score),
+					"signed_year": signed_year,
+					"years_remaining": 1 + (j % 4),
+					"years_total": 4
+				}
 			})
 		rosters[t["id"]] = {"players": players}
 
@@ -261,3 +274,39 @@ func _create_test_nfl_world_state() -> Dictionary:
 		"retired_players": [],
 		"free_agents": {}
 	}
+
+
+func _generate_realistic_salary(position: String, age: int, eval_score: float) -> float:
+	## Generate realistic contract values for test data based on position, age, and performance.
+	## This creates varied contract scenarios to test roster management logic.
+
+	# Position-specific base salaries (in millions)
+	var position_base: Dictionary = {
+		"QB": 8.0,
+		"RB": 2.5,
+		"WR": 4.0,
+		"TE": 3.0,
+		"OL": 3.5
+	}
+	var base: float = float(position_base.get(position, 3.0))
+
+	# Age multiplier (peak earning years are 25-30)
+	var age_mult: float = 1.0
+	if age < 25:
+		age_mult = 0.6  # Rookie contracts
+	elif age < 28:
+		age_mult = 1.2  # Prime, getting paid
+	elif age < 32:
+		age_mult = 1.0  # Still solid
+	else:
+		age_mult = 0.8  # Declining, cheaper contracts
+
+	# Performance multiplier (based on eval_score relative to average of 75)
+	var perf_mult: float = eval_score / 75.0
+
+	# Add some randomness for variety (+/- 20%)
+	var random_factor: float = randf_range(0.8, 1.2)
+
+	# Calculate final salary and clamp to realistic range
+	var salary: float = base * age_mult * perf_mult * random_factor
+	return clampf(salary, 0.5, 25.0)

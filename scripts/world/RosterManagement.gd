@@ -86,6 +86,7 @@ static func run(
 
 	var target_fa_budget_min := float(rm_cfg.get("target_fa_budget_min", 30.0))
 	var target_fa_budget_max := float(rm_cfg.get("target_fa_budget_max", 50.0))
+	var market_value_multiplier := float(rm_cfg.get("market_value_multiplier", 0.15))
 	var value_threshold := float(rm_cfg.get("value_threshold", 1.5))
 	var age_decline_factor := float(rm_cfg.get("age_decline_factor", 0.02))
 	var min_roster_size := int(rm_cfg.get("min_roster_size", 45))
@@ -120,6 +121,7 @@ static func run(
 			year,
 			cap_limit,
 			target_budget,
+			market_value_multiplier,
 			value_threshold,
 			age_decline_factor,
 			min_roster_size
@@ -156,14 +158,15 @@ static func run(
 ##
 ## Identifies underperforming veterans and releases them to create cap space
 ## for free agency. Uses a value-based approach: compare cap hit to player
-## value (eval_score * threshold) and release worst offenders first.
+## value (eval_score * market_multiplier * threshold) and release worst offenders first.
 ##
 ## @param world_state: World state dictionary
 ## @param team_id: Team identifier
 ## @param year: Current year
 ## @param cap_limit: League salary cap limit
 ## @param target_budget: Target FA budget for this team
-## @param value_threshold: Multiplier for eval_score when comparing to cap hit
+## @param market_value_multiplier: Converts rating to market value (e.g., 0.15 means 70 rating = $10.5M)
+## @param value_threshold: Multiplier for market value (e.g., 1.5 = release if 50% overpaid)
 ## @param age_decline_factor: Additional penalty per year over 30
 ## @param min_roster_size: Minimum roster size (don't release below this)
 ##
@@ -174,6 +177,7 @@ static func _process_team_roster(
 	year: int,
 	cap_limit: float,
 	target_budget: float,
+	market_value_multiplier: float,
 	value_threshold: float,
 	age_decline_factor: float,
 	min_roster_size: int
@@ -207,6 +211,7 @@ static func _process_team_roster(
 	# Evaluate all players for release consideration
 	var release_candidates := _identify_release_candidates(
 		players,
+		market_value_multiplier,
 		value_threshold,
 		age_decline_factor,
 		year
@@ -293,16 +298,19 @@ static func _calculate_team_cap_usage(players: Array) -> float:
 
 ## Identify release candidates based on cap inefficiency.
 ##
-## Cap inefficiency = annual_value / (eval_score * threshold * age_factor)
+## Cap inefficiency = annual_value / (market_value * threshold * age_factor)
+## Where market_value = eval_score * market_value_multiplier
 ## Higher values = worse value for money = higher priority for release
 ##
 ## @param players: Array of player dictionaries
-## @param value_threshold: Threshold multiplier for eval_score
+## @param market_value_multiplier: Converts rating to market value (e.g., 0.15 means 70 rating = $10.5M)
+## @param value_threshold: Threshold multiplier for market value (e.g., 1.5 = release if 50% overpaid)
 ## @param age_decline_factor: Penalty per year over 30
 ## @param year: Current year
 ## @return: Array of candidate dictionaries with inefficiency scores
 static func _identify_release_candidates(
 	players: Array,
+	market_value_multiplier: float,
 	value_threshold: float,
 	age_decline_factor: float,
 	year: int
@@ -334,8 +342,14 @@ static func _identify_release_candidates(
 		if age > 30:
 			age_penalty = 1.0 + (float(age - 30) * age_decline_factor)
 
-		# Calculate expected value
-		var expected_value := (eval_score / 100.0) * value_threshold
+		# Calculate expected value (market-based)
+		# Formula: market_value = eval_score * market_multiplier
+		#          expected_value = market_value * threshold
+		# Example: 70-rated player with multiplier=0.15, threshold=1.5
+		#          market_value = 70 * 0.15 = $10.5M
+		#          expected_value = 10.5 * 1.5 = $15.75M (cut if paid >50% over market)
+		var market_value := eval_score * market_value_multiplier
+		var expected_value := market_value * value_threshold
 
 		# Calculate cap inefficiency
 		var cap_inefficiency := 0.0

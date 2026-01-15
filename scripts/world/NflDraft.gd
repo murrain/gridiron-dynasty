@@ -176,7 +176,7 @@ func run(
 
 			# Create rookie contract
 			var overall_pick := picks.size() + 1
-			var contract := _create_rookie_contract(round_num, overall_pick, league_cfg, contract_rng)
+			var contract := _create_rookie_contract(round_num, overall_pick, league_cfg, contract_rng, year)
 
 			# Update player with NFL info
 			player["nfl_team_id"] = team_id
@@ -188,6 +188,13 @@ func run(
 				"pick": overall_pick,
 				"team_id": team_id
 			}
+
+			# Flatten draft_year for RosterManagement compatibility
+			player["draft_year"] = year
+
+			# Initialize eval_score using composite_score for RosterManagement
+			var composite := float(player.get("composite_score", 50.0))
+			player["eval_score"] = composite
 
 			# Add to roster
 			var players: Array = roster.get("players", []) as Array
@@ -1505,7 +1512,8 @@ func _create_rookie_contract(
 	round_num: int,
 	overall_pick: int,
 	league_cfg: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	year: int
 ) -> Dictionary:
 	# Rookie contracts are typically 4 years with 5th year option for 1st round
 	var years := 4
@@ -1531,7 +1539,8 @@ func _create_rookie_contract(
 		"signing_bonus": signing_bonus,
 		"annual_value": annual_value,
 		"fifth_year_option": has_fifth_year_option,
-		"gtd_remaining": signing_bonus
+		"gtd_remaining": signing_bonus,
+		"signed_year": year
 	}
 
 
