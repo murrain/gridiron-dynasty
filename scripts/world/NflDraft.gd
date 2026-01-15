@@ -1164,6 +1164,25 @@ func _calculate_position_needs(
 	for pos in positions_cfg.keys():
 		var current_count := (by_position.get(pos, []) as Array).size()
 		var ideal := RosterComposition.get_ideal_depth(pos)
+		var max_allowed := RosterComposition.get_max_depth(pos)
+
+		# HARD CAP CHECK: At or above max = 0.0 interest (cannot add players)
+		if current_count >= max_allowed:
+			needs[pos] = 0.0
+			continue
+
+		# OVERSTOCKED CHECK: Above ideal but below cap = very low interest
+		# This prevents teams from continuing to draft positions they don't need
+		if current_count > ideal:
+			# Scale from 0.4 (at ideal+1) to 0.1 (near cap)
+			var excess := current_count - ideal
+			var slots_to_cap := max_allowed - ideal
+			if slots_to_cap > 0:
+				var ratio := float(excess) / float(slots_to_cap)
+				needs[pos] = 0.4 - (ratio * 0.3)  # 0.4 → 0.1
+			else:
+				needs[pos] = 0.1
+			continue
 
 		# More need = higher multiplier
 		if current_count == 0:
@@ -1172,7 +1191,7 @@ func _calculate_position_needs(
 			var deficit := ideal - current_count
 			needs[pos] = 1.0 + (float(deficit) / float(ideal)) * 0.3
 		else:
-			needs[pos] = 0.85  # Low need, slight penalty
+			needs[pos] = 0.95  # At ideal depth, neutral
 
 	# NOTE: QB urgency is NOT applied here to avoid compound multipliers
 	# QB urgency boost is applied separately in _score_draft_pool() for elite prospects (rating >= 75)
@@ -1385,10 +1404,11 @@ func _find_cut_candidate_rating(
 
 ## Handle post-draft roster cuts when position is overstocked
 ##
-## After drafting a player, if the position group exceeds ideal depth,
+## After drafting a player, if the position group exceeds MAX depth (hard cap),
 ## release the weakest player at that position (excluding clear starter).
 ##
-## This prevents roster composition issues like 5 RBs, 5 TEs when ideal is 4/3.
+## This prevents roster composition issues like 5 QBs when max is 3.
+## Also trims down to ideal if significantly overstocked.
 func _handle_post_draft_roster_cuts(
 	world_state: Dictionary,
 	roster: Dictionary,
@@ -1399,11 +1419,16 @@ func _handle_post_draft_roster_cuts(
 ) -> void:
 	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
 	var position_ids := by_position.get(drafted_position, []) as Array
+	var max_allowed := RosterComposition.get_max_depth(drafted_position)
 	var ideal := RosterComposition.get_ideal_depth(drafted_position)
 
-	# Only cut if we're overstocked (current > ideal)
-	if position_ids.size() <= ideal:
-		return
+	# HARD CAP: Must cut if above max (e.g., 4 QBs when max is 3)
+	# Also cut if significantly overstocked (more than 1 above ideal)
+	var overstocked_by := position_ids.size() - ideal
+	var above_cap := position_ids.size() > max_allowed
+
+	if not above_cap and overstocked_by <= 1:
+		return  # Acceptable: at or slightly above ideal, within cap
 
 	# Find weakest player at this position (skip index 0 = starter)
 	var worst_player_id: String = ""

@@ -341,6 +341,11 @@ static func generate_team_interest(
 			var position := String(fa_profile.get("position", ""))
 			var minimum_demand := float(fa_profile.get("minimum_demand", 0.0))
 
+			# HARD CAP CHECK: Zero interest if position is at max capacity
+			if RosterComposition.is_position_at_cap(roster, position):
+				team_interest[team_id][player_id] = 0.0
+				continue
+
 			# Calculate interest components
 			var need_match := _calculate_need_match(position, team_needs)
 			var affordability := _calculate_affordability(minimum_demand, cap_space)
@@ -626,25 +631,48 @@ static func _filter_by_tier(free_agents: Array, tier: String) -> Array:
 	return filtered
 
 
-## INTERNAL: Assess team needs (STUB - replace when Team 2 ready).
+## INTERNAL: Assess team needs with position cap awareness.
+##
+## Returns array of position needs, but EXCLUDES positions at hard cap.
+## Positions at/above max depth will NOT appear in the needs array.
 static func _assess_team_needs_stub(roster: Dictionary) -> Array:
 	var needs: Array = []
 	var by_position := roster.get("by_position", {}) as Dictionary
 
 	for position in RosterComposition.IDEAL_DEPTH.keys():
-		var current: int = by_position.get(position, []).size()
+		var current: int = (by_position.get(position, []) as Array).size()
 		var target: int = RosterComposition.get_ideal_depth(position)
+		var max_allowed: int = RosterComposition.get_max_depth(position)
+
+		# HARD CAP CHECK: Never show interest in capped positions
+		if current >= max_allowed:
+			continue
+
+		# OVERSTOCKED CHECK: Don't flag as need if above ideal (even below cap)
+		if current >= target:
+			continue
 
 		if current < target * 0.7:  # 70% threshold
 			needs.append({
 				"position": position,
-				"priority": "high" if current < target * 0.5 else "medium"
+				"priority": "high" if current < target * 0.5 else "medium",
+				"at_cap": false
 			})
 
 	return needs
 
 
 ## INTERNAL: Calculate need match score.
+##
+## Returns:
+##   - 2.0: Critical/high need
+##   - 1.5: Medium need
+##   - 0.3: No need (position at/above ideal) - very low interest
+##   - 0.0: Position at cap (via _assess_team_needs_stub exclusion)
+##
+## NOTE: The baseline is now 0.3 instead of 1.0 to prevent teams from
+## signing players at positions they don't need. This fixes the bug
+## where teams accumulate 5+ QBs due to baseline interest.
 static func _calculate_need_match(position: String, team_needs: Array) -> float:
 	for need in team_needs:
 		var need_dict := need as Dictionary
@@ -655,7 +683,9 @@ static func _calculate_need_match(position: String, team_needs: Array) -> float:
 			elif priority == "medium":
 				return 1.5  # Moderate need
 
-	return 1.0  # No specific need (baseline interest)
+	# No need for this position = very low interest (was 1.0, now 0.3)
+	# This prevents accumulating players at positions team doesn't need
+	return 0.3
 
 
 ## INTERNAL: Calculate affordability score.
@@ -1379,13 +1409,24 @@ static func _generate_udfa_team_interest(
 			var position := String(fa_profile.get("position", ""))
 			var minimum_demand := float(fa_profile.get("minimum_demand", 0.9))
 
+			# HARD CAP CHECK: Zero interest if position is at max capacity
+			if RosterComposition.is_position_at_cap(roster, position):
+				team_interest[team_id][player_id] = 0.0
+				continue
+
 			# Base interest from positional need
 			var deficit := int(position_deficits.get(position, 0))
 			var need_score := 1.0
 			if deficit > 0:
 				need_score = 3.0  # Critical need (position below minimum)
 			elif players.size() < min_roster_size - 5:
-				need_score = 2.0  # Any position helps when significantly short
+				# Only consider filling if position is below ideal (not overstocked)
+				var current := (roster.get("by_position", {}).get(position, []) as Array).size()
+				var ideal := RosterComposition.get_ideal_depth(position)
+				if current < ideal:
+					need_score = 2.0  # Position has room, helps fill roster
+				else:
+					need_score = 0.3  # Position overstocked, low interest
 
 			# Affordability (UDFAs are cheap, so usually 1.0)
 			var affordability := 1.0 if cap_space >= minimum_demand else 0.3

@@ -47,6 +47,39 @@ const IDEAL_DEPTH := {
 	"P": 1
 }
 
+## Maximum roster depth by position (HARD CAPS)
+##
+## These are absolute limits that cannot be exceeded under any circumstances.
+## No team should ever have more than this many players at a position.
+## Used to prevent unrealistic roster compositions (e.g., 5 QBs).
+##
+## DESIGN RATIONALE:
+##   - QB: 3 max (starter + backup + developmental) - no team carries 4+ QBs
+##   - RB: 5 max (RBBC committees rarely exceed 4, with 1 FB/special teams)
+##   - WR: 7 max (even pass-heavy offenses cap at 6-7 active receivers)
+##   - TE: 4 max (2-TE sets + backups is the ceiling)
+##   - OL: 10 max (5 starters + 5 backups covers all contingencies)
+##   - DL: 7 max (rotational players in base + nickel packages)
+##   - EDGE: 5 max (2 starters + situational pass rushers)
+##   - LB: 7 max (3-4 schemes need more, but 7 is ceiling)
+##   - CB: 6 max (2 outside + nickel + dime + 2 backups)
+##   - S: 5 max (2 starters + big nickel + 2 backups)
+##   - K/P: 1 each (never roster 2 kickers/punters)
+const MAX_DEPTH := {
+	"QB": 3,
+	"RB": 5,
+	"WR": 7,
+	"TE": 4,
+	"OL": 10,
+	"DL": 7,
+	"EDGE": 5,
+	"LB": 7,
+	"CB": 6,
+	"S": 5,
+	"K": 1,
+	"P": 1
+}
+
 ## Minimum roster depth by position
 ##
 ## Absolute minimum to field a functional team.
@@ -65,6 +98,14 @@ const MINIMUM_DEPTH := {
 	"K": 1,   # One kicker required
 	"P": 1    # One punter required
 }
+
+## Get maximum depth for a position (hard cap)
+##
+## @param position: Position abbreviation (QB, RB, etc.)
+## @return int: Maximum allowed roster depth for that position
+static func get_max_depth(position: String) -> int:
+	return int(MAX_DEPTH.get(position, 3))
+
 
 ## Get ideal depth for a position
 ##
@@ -157,3 +198,187 @@ static func is_roster_viable(roster: Dictionary) -> bool:
 static func is_roster_ideal(roster: Dictionary) -> bool:
 	var deficits := calculate_position_deficits(roster)
 	return deficits.is_empty()
+
+
+## Check if position is at or above maximum capacity (hard cap)
+##
+## This is the primary gatekeeper for preventing position overstocking.
+## Returns true if the team cannot add any more players at this position.
+##
+## @param roster: Team roster dictionary with "by_position" field
+## @param position: Position to check
+## @return bool: True if position is at or above max depth
+static func is_position_at_cap(roster: Dictionary, position: String) -> bool:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var current := (by_position.get(position, []) as Array).size()
+	var max_allowed := get_max_depth(position)
+	return current >= max_allowed
+
+
+## Check how many slots are available at a position before hitting the cap
+##
+## @param roster: Team roster dictionary with "by_position" field
+## @param position: Position to check
+## @return int: Number of available slots (0 if at/above cap)
+static func get_available_slots(roster: Dictionary, position: String) -> int:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var current := (by_position.get(position, []) as Array).size()
+	var max_allowed := get_max_depth(position)
+	return maxi(0, max_allowed - current)
+
+
+## Get scheme-adjusted ideal depth for a position
+##
+## Offensive and defensive schemes affect how many players are needed
+## at each position. For example, air raid offenses need more WRs,
+## while 3-4 defenses need more LBs.
+##
+## @param position: Position abbreviation
+## @param offensive_scheme: Team's offensive scheme (e.g., "air_raid", "power_run")
+## @param defensive_scheme: Team's defensive scheme (e.g., "4_3_under", "3_4_two_gap")
+## @param schemes_cfg: Schemes configuration from schemes.json
+## @return int: Scheme-adjusted ideal depth (never exceeds MAX_DEPTH)
+static func get_scheme_adjusted_ideal_depth(
+	position: String,
+	offensive_scheme: String,
+	defensive_scheme: String,
+	schemes_cfg: Dictionary
+) -> int:
+	var base_ideal := get_ideal_depth(position)
+	var max_allowed := get_max_depth(position)
+
+	# Check offensive scheme for offensive positions
+	if position in ["RB", "WR", "TE", "OL"]:
+		var off_schemes := schemes_cfg.get("offensive_schemes", {}) as Dictionary
+		var scheme := off_schemes.get(offensive_scheme, {}) as Dictionary
+		var roster_req := scheme.get("roster_requirements", {}) as Dictionary
+		var ideal_depths := roster_req.get("ideal_depth", {}) as Dictionary
+		if ideal_depths.has(position):
+			base_ideal = int(ideal_depths[position])
+
+	# Check defensive scheme for defensive positions
+	if position in ["DL", "EDGE", "LB", "CB", "S"]:
+		var def_schemes := schemes_cfg.get("defensive_schemes", {}) as Dictionary
+		var scheme := def_schemes.get(defensive_scheme, {}) as Dictionary
+		var roster_req := scheme.get("roster_requirements", {}) as Dictionary
+		var ideal_depths := roster_req.get("ideal_depth", {}) as Dictionary
+		if ideal_depths.has(position):
+			base_ideal = int(ideal_depths[position])
+
+	# Never exceed max depth
+	return mini(base_ideal, max_allowed)
+
+
+## Get scheme-adjusted minimum depth for a position
+##
+## @param position: Position abbreviation
+## @param offensive_scheme: Team's offensive scheme
+## @param defensive_scheme: Team's defensive scheme
+## @param schemes_cfg: Schemes configuration from schemes.json
+## @return int: Scheme-adjusted minimum depth
+static func get_scheme_adjusted_minimum_depth(
+	position: String,
+	offensive_scheme: String,
+	defensive_scheme: String,
+	schemes_cfg: Dictionary
+) -> int:
+	var base_minimum := get_minimum_depth(position)
+
+	# Check offensive scheme for offensive positions
+	if position in ["RB", "WR", "TE", "OL"]:
+		var off_schemes := schemes_cfg.get("offensive_schemes", {}) as Dictionary
+		var scheme := off_schemes.get(offensive_scheme, {}) as Dictionary
+		var roster_req := scheme.get("roster_requirements", {}) as Dictionary
+		var min_depths := roster_req.get("minimum_depth", {}) as Dictionary
+		if min_depths.has(position):
+			base_minimum = int(min_depths[position])
+
+	# Check defensive scheme for defensive positions
+	if position in ["DL", "EDGE", "LB", "CB", "S"]:
+		var def_schemes := schemes_cfg.get("defensive_schemes", {}) as Dictionary
+		var scheme := def_schemes.get(defensive_scheme, {}) as Dictionary
+		var roster_req := scheme.get("roster_requirements", {}) as Dictionary
+		var min_depths := roster_req.get("minimum_depth", {}) as Dictionary
+		if min_depths.has(position):
+			base_minimum = int(min_depths[position])
+
+	return base_minimum
+
+
+## Calculate position need multiplier for draft/FA considering scheme and caps
+##
+## Returns a multiplier for draft/FA interest:
+##   - 0.0: Position at cap, cannot add players
+##   - 0.5: Position overstocked (above ideal), low interest
+##   - 1.0: Position at ideal depth, neutral
+##   - 1.5+: Position below ideal, high need
+##
+## @param roster: Team roster dictionary
+## @param position: Position to evaluate
+## @param offensive_scheme: Team's offensive scheme
+## @param defensive_scheme: Team's defensive scheme
+## @param schemes_cfg: Schemes configuration
+## @return float: Need multiplier (0.0 to 2.0)
+static func calculate_position_need_multiplier(
+	roster: Dictionary,
+	position: String,
+	offensive_scheme: String,
+	defensive_scheme: String,
+	schemes_cfg: Dictionary
+) -> float:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var current := (by_position.get(position, []) as Array).size()
+	var max_allowed := get_max_depth(position)
+	var ideal := get_scheme_adjusted_ideal_depth(position, offensive_scheme, defensive_scheme, schemes_cfg)
+
+	# HARD CAP: At or above max = 0.0 interest (cannot add)
+	if current >= max_allowed:
+		return 0.0
+
+	# Above ideal but below cap = very low interest (0.3-0.5)
+	if current > ideal:
+		# Scale from 0.5 (at ideal+1) to 0.3 (near cap)
+		var excess := current - ideal
+		var slots_to_cap := max_allowed - ideal
+		if slots_to_cap > 0:
+			var ratio := float(excess) / float(slots_to_cap)
+			return 0.5 - (ratio * 0.2)  # 0.5 → 0.3
+		return 0.3
+
+	# At ideal = neutral (1.0)
+	if current == ideal:
+		return 1.0
+
+	# Below ideal = high interest (1.2 to 2.0 based on deficit)
+	if current == 0:
+		return 2.0  # Critical need
+
+	var deficit := ideal - current
+	var deficit_ratio := float(deficit) / float(ideal)
+	return 1.0 + deficit_ratio  # 1.0 to ~2.0
+
+
+## Calculate all position deficits with scheme awareness
+##
+## @param roster: Team roster dictionary
+## @param offensive_scheme: Team's offensive scheme
+## @param defensive_scheme: Team's defensive scheme
+## @param schemes_cfg: Schemes configuration
+## @return Dictionary: Position -> deficit amount (negative = overstocked)
+static func calculate_scheme_aware_deficits(
+	roster: Dictionary,
+	offensive_scheme: String,
+	defensive_scheme: String,
+	schemes_cfg: Dictionary
+) -> Dictionary:
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var deficits := {}
+
+	for pos in IDEAL_DEPTH.keys():
+		var current := (by_position.get(pos, []) as Array).size()
+		var ideal := get_scheme_adjusted_ideal_depth(pos, offensive_scheme, defensive_scheme, schemes_cfg)
+		var deficit := ideal - current
+		# Include both deficits (positive) and overstocks (negative)
+		deficits[pos] = deficit
+
+	return deficits
