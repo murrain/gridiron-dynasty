@@ -7,6 +7,17 @@ const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
 @export var role: String = "Regional"
 @export var years_exp: int = 0
 
+# Backward compatibility property for code that uses scout.name
+# This allows ScoutFactory and other generation code to work without changes
+var name: String:
+	get:
+		return get_full_name()
+	set(value):
+		# Parse name into first_name and last_name
+		var parts = value.strip_edges().split(" ", false, 2)
+		first_name = parts[0] if parts.size() > 0 else "Unknown"
+		last_name = parts[1] if parts.size() > 1 else ""
+
 var base_skill: float = 0.6
 var overrate_athletes: float = 0.0
 var tape_grinder: float = 0.3
