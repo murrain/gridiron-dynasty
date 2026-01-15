@@ -903,33 +903,34 @@ Add to `main.json`:
 | **Consequences** | Contract and roster decisions have psychological ripple effects |
 | **Unpredictability** | Same event can affect different personality types differently |
 
-### 3.2 New Personality Stats (Non-Measurables)
+### 3.2 Personality Stats for Event System
 
-The stat-driven event system requires additional non-measurable stats that define a player's psychological makeup. These are hidden by default and revealed through scouting.
+The stat-driven event system uses mental stats to determine how players respond to career events. Most required stats **already exist** in the base player template (see PLAYER_GENERATION_REWORK.md Section 3.3). We add only two new stats to complete the system.
+
+#### 3.2.1 Existing Stats (from Base Template)
+
+These stats are already defined in the base player template and drive event responses:
+
+| Stat | Description | Event Role |
+|------|-------------|------------|
+| `work_ethic` | Effort put into improvement | Development rate, recovery speed, response to competition |
+| `discipline` | Self-control, adherence to routines | Response to money/success, off-field behavior |
+| `composure` | Ability to stay calm under pressure | Response to negative events, clutch performance |
+| `maturity` | Emotional intelligence, perspective | Response to personal events, decision making |
+| `coachability` | Responsiveness to coaching | Learning rate, scheme adaptation |
+| `adaptability` | Ability to adjust to new situations | Response to trades, coaching changes |
+| `focus` | Mental concentration ability | In-season performance consistency |
+
+#### 3.2.2 New Stats for Event System
+
+Only **two new stats** are added specifically for the career event system:
 
 ```gdscript
-## New personality-related stats for the event system
-const PERSONALITY_STATS := {
-    # Core mental stats (may already exist)
-    "composure": {
-        "range": [0, 100],
-        "description": "Ability to stay calm under pressure, handle adversity",
-        "affects": ["response to negative events", "clutch performance", "recovery speed"]
-    },
-    "discipline": {
-        "range": [0, 100],
-        "description": "Self-control, adherence to routines, avoiding temptation",
-        "affects": ["response to money/success", "off-field behavior", "training consistency"]
-    },
-    "work_ethic": {
-        "range": [0, 100],
-        "description": "Effort put into improvement, practice habits",
-        "affects": ["development rate", "recovery speed", "response to competition"]
-    },
-
-    # New stats for event system
+## New personality stats for event system (add to base_player template)
+const NEW_EVENT_STATS := {
     "competitiveness": {
-        "range": [0, 100],
+        "mu": 50, "sigma": 12,
+        "floor": 35,  # Non-competitive players don't pursue NFL careers
         "description": "Drive to win, response to competition and challenges",
         "affects": ["response to prove-it deals", "response to being replaced", "clutch moments"],
         "examples": {
@@ -937,46 +938,27 @@ const PERSONALITY_STATS := {
             "low": "Coasts when comfortable, satisfied with 'good enough'"
         }
     },
-    "maturity": {
-        "range": [0, 100],
-        "description": "Emotional intelligence, perspective, handling of life events",
-        "affects": ["response to personal events", "locker room presence", "decision making"],
-        "growth": "Tends to increase with age and experience"
-    },
-    "ambition": {
-        "range": [0, 100],
-        "description": "Drive for greatness, desire for legacy/achievements",
-        "affects": ["response to success/milestones", "hunger after winning"],
-        "examples": {
-            "high": "Tom Brady - 7 rings not enough, still hungry",
-            "low": "Happy with one Pro Bowl, doesn't push for more"
-        }
-    },
     "confidence": {
-        "range": [0, 100],
+        "mu": 50, "sigma": 16,  # Wide variance - imposter syndrome to extreme cockiness
         "description": "Self-belief, how they view their own abilities",
         "affects": ["response to failure", "recovery from mistakes", "handling criticism"],
-        "volatility": "Can swing based on recent performance"
-    },
-    "adaptability": {
-        "range": [0, 100],
-        "description": "Ability to adjust to new situations, schemes, teammates",
-        "affects": ["response to trades", "new coaching staff", "scheme changes"]
-    },
-    "responsibility": {
-        "range": [0, 100],
-        "description": "Sense of duty, reliability, handling of obligations",
-        "affects": ["response to family events", "team leadership", "off-field decisions"]
-    },
-    "team_loyalty": {
-        "range": [0, 100],
-        "description": "Attachment to current team, willingness to sacrifice for team",
-        "affects": ["response to franchise tag", "pay cut willingness", "trade requests"]
+        "volatility": "Can swing significantly based on recent performance and events"
     }
 }
 ```
 
-#### 3.2.1 Stat Interactions
+#### 3.2.3 Why Only Two New Stats?
+
+Adding more stats (ambition, responsibility, team_loyalty) was considered but **deferred** to avoid premature complexity:
+
+1. **Existing stats cover most scenarios** - `work_ethic`, `discipline`, `composure`, and `maturity` handle 80% of event responses
+2. **Competitiveness fills the key gap** - captures "chip on shoulder" and "prove doubters wrong" mentality
+3. **Confidence enables volatility** - allows for players whose self-belief swings based on circumstances
+4. **Simpler = testable** - fewer stats means easier to validate and tune the system
+
+**Future consideration**: If specific event types require nuance that existing stats can't capture, additional stats can be added in a targeted way.
+
+#### 3.2.4 Stat Interactions
 
 These stats often work together to determine outcomes:
 
@@ -990,42 +972,43 @@ These stats often work together to determine outcomes:
 │  discipline (primary)          composure (primary)        composure (primary)    │
 │  work_ethic                    work_ethic                 confidence             │
 │  maturity                      competitiveness            competitiveness        │
-│  ambition                      confidence                                        │
+│                                confidence                                        │
 │                                                                                  │
-│  "Good Teammate"               "Self-Motivated"           "Coachable"            │
-│  ──────────────                ───────────────            ───────────            │
-│  team_loyalty (primary)        ambition (primary)         coachability           │
-│  maturity                      competitiveness            discipline             │
-│  responsibility                work_ethic                 maturity               │
-│  discipline                    discipline                                        │
+│  "Driven to Improve"           "Self-Motivated"           "Coachable"            │
+│  ────────────────              ───────────────            ───────────            │
+│  work_ethic (primary)          competitiveness (primary)  coachability           │
+│  competitiveness               work_ethic                 discipline             │
+│  discipline                    discipline                 maturity               │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.2.2 Stat Generation
+#### 3.2.5 Stat Correlations
 
-New personality stats should be generated at player creation with realistic distributions and correlations:
+Mental stats have correlations (not fully independent). These should be applied during player generation:
 
 ```gdscript
-## Personality stats have correlations (not fully independent)
+## Personality stat correlations for generation
 const STAT_CORRELATIONS := {
     # High work_ethic tends to correlate with discipline
     ["work_ethic", "discipline"]: 0.6,
 
-    # High competitiveness correlates with ambition
-    ["competitiveness", "ambition"]: 0.5,
+    # High competitiveness correlates with confidence
+    ["competitiveness", "confidence"]: 0.3,
 
     # Maturity correlates with composure
     ["maturity", "composure"]: 0.4,
 
-    # Responsibility correlates with discipline
-    ["responsibility", "discipline"]: 0.5,
+    # Discipline correlates with focus
+    ["discipline", "focus"]: 0.5,
 
-    # These are more independent
-    ["confidence", "work_ethic"]: 0.1,  # Can be confident but lazy
-    ["team_loyalty", "ambition"]: -0.2  # Ambitious players may want to leave
+    # Confidence and work_ethic are more independent
+    # (can be confident but lazy, or hardworking but insecure)
+    ["confidence", "work_ethic"]: 0.1
 }
 ```
+
+Note: The new stats (`competitiveness`, `confidence`) should be added to the base player template defined in PLAYER_GENERATION_REWORK.md Section 3.3.
 
 ### 3.3 Event Categories
 
@@ -1927,11 +1910,159 @@ static func _apply_event_stat_changes(
     player["stats"] = stats
 ```
 
-### 3.12 Recovery Mechanics
+### 3.12 Career Event Lifecycle Integration
+
+This section explicitly defines WHERE and WHEN career events are processed within the simulation lifecycle.
+
+#### 3.12.1 Integration Point: Post-Season Processing
+
+Career events are processed during the **offseason phase**, after the season simulation completes but before the next season begins.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Simulation Lifecycle (Simplified)                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────┐                                                         │
+│  │   PRE-SEASON        │  • Free agency, trades, roster cuts                     │
+│  │   (Before Week 1)   │  • Training camp modifiers applied                      │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   REGULAR SEASON    │  • 17 weeks of games simulated                          │
+│  │   (Weeks 1-17)      │  • Stats accumulated, injuries tracked                  │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   PLAYOFFS          │  • Postseason games                                     │
+│  │   (If applicable)   │  • Championship events                                  │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   OFFSEASON         │  1. Performance grades calculated                       │
+│  │   PROCESSING        │  2. Awards/milestones determined                        │
+│  │   ★ EVENTS HERE ★   │  3. ★ CAREER EVENTS PROCESSED ★ ← Here!                 │
+│  │                     │  4. Player development applied                          │
+│  │                     │  5. Event recovery/decay applied                        │
+│  │                     │  6. Contracts expire, FA begins                         │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   NEXT SEASON       │  • Draft, free agency, repeat                           │
+│  └─────────────────────┘                                                         │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 3.12.2 Offseason Processing Order
+
+The specific order within offseason processing matters:
+
+```gdscript
+## NflSeason.gd or SeasonManager.gd - end of season processing
+func process_offseason(world_state: Dictionary, rng: RandomNumberGenerator) -> void:
+    var players: Array = world_state["players"]
+    var season_year := int(world_state["current_year"])
+
+    # Step 1: Calculate performance grades (pure calculation, no RNG)
+    var grades := PerformanceGrader.grade_all_players(players, world_state, cfg)
+    world_state["performance_grades"][season_year] = grades
+
+    # Step 2: Determine awards and milestones
+    var awards := AwardSelector.select_awards(players, grades, world_state)
+    _apply_milestone_events(players, awards)
+
+    # Step 3: Process career events (RNG consumed here)
+    for player in players:
+        var season_context := _build_season_context(player, world_state, grades, awards)
+        var events := CareerEventProcessor.process_season_events(player, season_context, rng)
+
+        # Generate headlines for significant events
+        for event in events:
+            if _is_newsworthy(event):
+                NewsGenerator.create_headline(event, player, world_state)
+
+    # Step 4: Apply player development (RNG consumed here)
+    for player in players:
+        PlayerLifecycle.advance_one_year(player, dev_config, positions_cfg, rng, context)
+
+    # Step 5: Apply event recovery/decay
+    for player in players:
+        _process_event_recovery(player, rng)
+
+    # Step 6: Handle contract expirations, begin FA period
+    ContractManager.process_expirations(world_state)
+```
+
+#### 3.12.3 Why This Order?
+
+1. **Grades before events**: Performance grades inform which milestone events trigger (Pro Bowl, All-Pro)
+2. **Events before development**: Stat changes from events affect the development calculations
+3. **Development before recovery**: Recovery applies to event stat changes, not development gains
+4. **Everything before FA**: Player valuations need updated stats for contract negotiations
+
+#### 3.12.4 Contract-Triggered Events
+
+Some events trigger **immediately** when contracts are signed, not during offseason:
+
+```gdscript
+## ContractNegotiator.gd - called when contract is signed
+func on_contract_signed(player: Dictionary, contract: Dictionary, rng: RandomNumberGenerator) -> void:
+    var event_type := _determine_contract_event_type(player, contract)
+
+    if event_type != "":
+        var event := CareerEventProcessor.create_contract_event(
+            player, contract, event_type, rng
+        )
+        # Apply immediately, don't wait for offseason
+        CareerEventProcessor._apply_event_stat_changes(player, event, rng)
+
+        # Store in history
+        var history: Array = player.get("career_events", [])
+        history.append(event)
+        player["career_events"] = history
+
+## Determine what type of contract event this is
+func _determine_contract_event_type(player: Dictionary, contract: Dictionary) -> String:
+    var market_value := PlayerValue.calculate_market_value(player)
+    var contract_aav := float(contract["total_value"]) / float(contract["years"])
+    var ratio := contract_aav / market_value
+
+    var years := int(contract["years"])
+    var guaranteed := float(contract.get("guaranteed", 0))
+
+    # Prove-it deal: Short-term, below market, with incentives
+    if years == 1 and ratio < 0.95 and contract.get("has_incentives", false):
+        return "contract.prove_it_deal"
+
+    # Got paid: Above market or huge guaranteed
+    if ratio > 1.2 or guaranteed > 30_000_000:
+        return "contract.got_paid"
+
+    # Contract year detection happens at season start, not here
+    return ""
+```
+
+#### 3.12.5 In-Season Event Triggers
+
+Some events can trigger during the season (not just offseason):
+
+| Event Type | When Triggered | Processing |
+|------------|----------------|------------|
+| Contract signed (prove-it, got-paid) | Immediately on signing | Applied right away |
+| Traded | Immediately on trade | Applied right away |
+| Released/Cut | Immediately on release | Applied right away |
+| Injury comeback | Start of season after injury | Applied at season start |
+| Contract year | Start of final contract year | Applied at season start |
+| Performance events (costly mistake) | End of game | Queued for offseason |
+| Personal events | Offseason only | Applied during offseason |
+| Milestone events | End of season | Applied during offseason |
+
+### 3.13 Recovery Mechanics
 
 Negative events don't have to be permanent. Players can recover from setbacks, and their recovery speed is influenced by their stats and circumstances.
 
-#### 3.10.1 Recovery Speed Factors
+#### 3.13.1 Recovery Speed Factors
 
 ```gdscript
 ## RecoveryCalculator - determines how quickly a player bounces back from negative events
@@ -1981,7 +2112,7 @@ static func calculate_recovery_multiplier(player: Dictionary) -> float:
     return clamp(multiplier, 0.5, 2.0)  # 0.5x to 2.0x recovery speed
 ```
 
-#### 3.10.2 Recovery Application
+#### 3.13.2 Recovery Application
 
 ```gdscript
 ## Apply recovery to temporary events during offseason
@@ -2024,7 +2155,7 @@ static func process_event_recovery(
     return event
 ```
 
-#### 3.10.3 Recovery Examples
+#### 3.13.3 Recovery Examples
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -2048,7 +2179,7 @@ static func process_event_recovery(
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.10.4 Support System Bonuses
+#### 3.13.4 Support System Bonuses
 
 External factors can also accelerate recovery:
 
@@ -2090,11 +2221,11 @@ const RECOVERY_SUPPORT_BONUSES := {
 }
 ```
 
-### 3.13 Personality Evolution
+### 3.14 Personality Evolution
 
 Personality types are not fixed for life. People can change, and significant events can reshape a player's core personality over their career.
 
-#### 3.11.1 Personality Change Triggers
+#### 3.14.1 Personality Change Triggers
 
 ```gdscript
 const PERSONALITY_CHANGE_TRIGGERS := {
@@ -2164,7 +2295,7 @@ const PERSONALITY_CHANGE_TRIGGERS := {
 }
 ```
 
-#### 3.11.2 Gradual Personality Drift
+#### 3.14.2 Gradual Personality Drift
 
 Beyond triggered changes, personality can drift gradually based on sustained patterns:
 
@@ -2226,7 +2357,7 @@ static func check_personality_evolution(
     return {"changed": false}
 ```
 
-#### 3.11.3 Personality Evolution Tracking
+#### 3.14.3 Personality Evolution Tracking
 
 ```gdscript
 ## Store personality changes in player history
@@ -2246,7 +2377,7 @@ player["personality_history"] = [
 ]
 ```
 
-#### 3.11.4 Personality Change Visibility
+#### 3.14.4 Personality Change Visibility
 
 ```gdscript
 const PERSONALITY_CHANGE_VISIBILITY := {
@@ -2266,7 +2397,7 @@ const PERSONALITY_CHANGE_VISIBILITY := {
 }
 ```
 
-### 3.14 Personality as Emergent from Stats
+### 3.15 Personality as Emergent from Stats
 
 Rather than hardcoding personality types with special event modifiers, personality emerges naturally from a player's stat combination. The same stats that determine event outcomes also define who the player "is".
 
@@ -2334,12 +2465,32 @@ This approach means:
 - **Personality labels are descriptive, not mechanical**
 - **Players can "change personality" by changing their stats over time**
 
-### 3.15 Configuration
+### 3.16 Configuration
 
 Add to `main.json`:
 
 ```json
 {
+    "performance_grading": {
+        "enabled": true,
+        "grade_scale": {
+            "min": 0.0,
+            "max": 100.0,
+            "average_starter": 60.0,
+            "elite_threshold": 85.0,
+            "poor_threshold": 45.0
+        },
+        "overperformer_threshold": 0.3,
+        "underperformer_threshold": -0.3,
+        "position_weights": {
+            "CB": {
+                "ball_skills": 0.45,
+                "coverage": 0.40,
+                "tackling": 0.15
+            }
+        }
+    },
+
     "career_events": {
         "enabled": true,
         "event_probabilities": {
@@ -2351,27 +2502,52 @@ Add to `main.json`:
             "single_event_max": 25,
             "cumulative_year_max": 40
         },
-        "personality_distribution": {
-            "competitor": 0.25,
-            "front_runner": 0.20,
-            "steady_eddie": 0.40,
-            "volatile": 0.15
-        },
         "contract_thresholds": {
-            "prove_it_deal_market_ratio": 0.7,
-            "got_paid_market_ratio": 1.2,
+            "prove_it_deal_max_years": 1,
+            "prove_it_deal_max_ratio": 0.95,
+            "got_paid_min_ratio": 1.2,
             "big_guaranteed_money": 30000000
         },
         "decay_rates": {
             "temporary_event_default": 0.4,
             "chip_on_shoulder": 0.3,
             "personal_crisis": 0.5
+        },
+        "personality_drift": {
+            "adversity_threshold_years": 3,
+            "success_threshold_years": 3,
+            "competitor_erosion_chance": 0.10,
+            "steady_erosion_chance": 0.08,
+            "front_runner_improvement_chance": 0.12,
+            "volatile_improvement_chance": 0.10,
+            "age_mellowing_chance": 0.15,
+            "age_mellowing_starts": 30
+        }
+    },
+
+    "recovery": {
+        "stat_influences": {
+            "work_ethic": { "weight": 0.35, "bonus_per_10": 0.08 },
+            "discipline": { "weight": 0.25, "bonus_per_10": 0.06 },
+            "composure": { "weight": 0.20, "bonus_per_10": 0.05 },
+            "coachability": { "weight": 0.20, "bonus_per_10": 0.05 }
+        },
+        "multiplier_bounds": { "min": 0.5, "max": 2.0 },
+        "support_bonuses": {
+            "veteran_mentor": 0.15,
+            "strong_coaching": 0.10,
+            "team_culture_high": 0.12,
+            "married": 0.08,
+            "counseling_program": 0.20,
+            "sports_psychologist": 0.15
         }
     }
 }
 ```
 
-### 3.16 Event History Storage
+Note: Code examples in this document use constants with these config values as defaults. Actual implementations should read from config and fall back to constants only if config is missing.
+
+### 3.17 Event History Storage
 
 ```gdscript
 ## Player career_events array

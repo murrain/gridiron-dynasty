@@ -47,62 +47,147 @@ The current system uses `gaussian_share: 0.75` to determine, **per stat**, wheth
 Players are generated with a specific position in mind. All stats use the position's configured distributions.
 
 ```gdscript
+## Default values for stat distributions (fallbacks)
+const DEFAULT_MU := 50.0
+const DEFAULT_SIGMA := 12.0
+const STAT_MIN := 0.0
+const STAT_MAX := 100.0
+
 ## Templated player generation
 ## Position is chosen first, then stats are generated to fit
+## Includes validation and fallbacks for missing config data
 static func generate_templated_player(
     position: String,
     positions_cfg: Dictionary,
     main_cfg: Dictionary,
     rng: RandomNumberGenerator
 ) -> Dictionary:
-    var pos_config := positions_cfg[position]
+    # Validate position exists in config
+    if not positions_cfg.has(position):
+        push_warning("Unknown position '%s', using fallback" % position)
+        return _generate_fallback_player(position, rng)
+
+    var pos_config: Dictionary = positions_cfg[position]
+    var distributions: Dictionary = pos_config.get("distributions", {})
+
+    if distributions.is_empty():
+        push_warning("No distributions for position '%s'" % position)
+        return _generate_fallback_player(position, rng)
+
     var stats := {}
 
     # Generate ALL stats using position-specific Gaussian distributions
-    for stat_name in pos_config["distributions"].keys():
-        var dist := pos_config["distributions"][stat_name]
-        stats[stat_name] = _sample_gauss(
-            float(dist["mu"]),
-            float(dist["sigma"]),
-            0.0,
-            100.0,
-            rng
-        )
+    for stat_name in distributions.keys():
+        var dist: Dictionary = distributions[stat_name]
+
+        # Get distribution parameters with fallbacks
+        var mu := float(dist.get("mu", DEFAULT_MU))
+        var sigma := float(dist.get("sigma", DEFAULT_SIGMA))
+        var floor_val := float(dist.get("floor", STAT_MIN))
+
+        # Sample and apply floor
+        var value := _sample_gauss(mu, sigma, STAT_MIN, STAT_MAX, rng)
+        stats[stat_name] = max(floor_val, value)
 
     return {
         "position": position,
         "stats": stats,
         "generation_mode": "templated"
     }
+
+## Fallback player generation when config is missing
+static func _generate_fallback_player(
+    position: String,
+    rng: RandomNumberGenerator
+) -> Dictionary:
+    # Generate basic stats with default distribution
+    var stats := {}
+    var basic_stats := ["speed", "strength", "awareness", "stamina"]
+
+    for stat_name in basic_stats:
+        stats[stat_name] = _sample_gauss(DEFAULT_MU, DEFAULT_SIGMA, STAT_MIN, STAT_MAX, rng)
+
+    return {
+        "position": position,
+        "stats": stats,
+        "generation_mode": "templated_fallback"
+    }
 ```
 
 ### 1.2 Chaos Generation (20%)
 
-Stats are generated first using uniform distributions, then the player is assigned to their best-fit position.
+Stats are generated first using uniform distributions, then the player is assigned to their best-fit position. After position assignment, we validate that the player meets minimum viability requirements for that position.
 
 ```gdscript
+## Constants for chaos generation (should match config)
+const CHAOS_STAT_MIN := 25.0
+const CHAOS_STAT_MAX := 95.0
+const VIABILITY_BOOST_MIN := 0.0
+const VIABILITY_BOOST_MAX := 10.0
+
 ## Chaos player generation
 ## Stats are generated randomly, then best position is determined
+## After position assignment, viability is validated and adjusted if needed
 static func generate_chaos_player(
     all_stats: Array,
     positions_cfg: Dictionary,
+    chaos_cfg: Dictionary,
     rng: RandomNumberGenerator
 ) -> Dictionary:
     var stats := {}
 
+    # Get config values with defaults
+    var stat_min := float(chaos_cfg.get("stat_range", {}).get("min", CHAOS_STAT_MIN))
+    var stat_max := float(chaos_cfg.get("stat_range", {}).get("max", CHAOS_STAT_MAX))
+
     # Generate ALL stats using uniform distribution across full range
     for stat_name in all_stats:
-        # Use wider range for more variance
-        stats[stat_name] = rng.randf_range(25.0, 95.0)
+        stats[stat_name] = rng.randf_range(stat_min, stat_max)
 
     # Find best-fit position based on generated stats
     var best_position := _find_best_fit_position(stats, positions_cfg)
+
+    # CRITICAL: Validate viability minimums for assigned position
+    # Chaos players should still be viable at their position
+    stats = _ensure_position_viability(stats, best_position, positions_cfg, rng)
 
     return {
         "position": best_position,
         "stats": stats,
         "generation_mode": "chaos"
     }
+
+## Ensure chaos player meets minimum viability requirements for assigned position
+## This prevents creating completely broken players (e.g., QB who can't throw at all)
+static func _ensure_position_viability(
+    stats: Dictionary,
+    position: String,
+    positions_cfg: Dictionary,
+    rng: RandomNumberGenerator
+) -> Dictionary:
+    var pos_config: Dictionary = positions_cfg.get(position, {})
+    var distributions: Dictionary = pos_config.get("distributions", {})
+
+    for stat_name in distributions.keys():
+        var dist: Dictionary = distributions[stat_name]
+        if not dist.has("viability_min"):
+            continue  # No minimum requirement for this stat
+
+        var viability_min := float(dist["viability_min"])
+        var current_value := float(stats.get(stat_name, 0.0))
+
+        if current_value < viability_min:
+            # Boost stat to meet minimum, with small random variance
+            # This makes chaos players "barely viable" at critical stats
+            # rather than accidentally elite
+            var boost_variance := rng.randf_range(VIABILITY_BOOST_MIN, VIABILITY_BOOST_MAX)
+            stats[stat_name] = viability_min + boost_variance
+
+    return stats
+
+## Constants for position fit scoring
+const STAT_SCORE_DIVISOR := 10.0  # Normalizes stat deltas to reasonable score contribution
+const VIABILITY_MISS_PENALTY := 20.0  # Heavy penalty for missing viability minimum
 
 ## Determine best position fit based on core stat alignment
 static func _find_best_fit_position(
@@ -113,24 +198,33 @@ static func _find_best_fit_position(
     var best_score := -INF
 
     for position in positions_cfg.keys():
-        var pos_config := positions_cfg[position]
+        var pos_config: Dictionary = positions_cfg[position]
         var score := 0.0
 
         # Score based on how well stats match position's core stats
-        for core_stat in pos_config.get("core_stats", []):
-            if stats.has(core_stat):
-                var stat_value := float(stats[core_stat])
-                var expected_mu := float(pos_config["distributions"][core_stat]["mu"])
-                # Higher score if stat is above position's expected mean
-                score += (stat_value - expected_mu) / 10.0
+        var core_stats: Array = pos_config.get("core_stats", [])
+        var distributions: Dictionary = pos_config.get("distributions", {})
+
+        for core_stat in core_stats:
+            if not stats.has(core_stat):
+                continue
+            if not distributions.has(core_stat):
+                continue
+
+            var stat_value := float(stats[core_stat])
+            var expected_mu := float(distributions[core_stat].get("mu", 50.0))
+            # Higher score if stat is above position's expected mean
+            score += (stat_value - expected_mu) / STAT_SCORE_DIVISOR
 
         # Penalty for missing viability minimums
-        for stat_name in pos_config["distributions"].keys():
-            var dist := pos_config["distributions"][stat_name]
-            if dist.has("viability_min"):
-                var viability_min := float(dist["viability_min"])
-                if float(stats.get(stat_name, 0)) < viability_min:
-                    score -= 20.0  # Heavy penalty
+        for stat_name in distributions.keys():
+            var dist: Dictionary = distributions[stat_name]
+            if not dist.has("viability_min"):
+                continue
+
+            var viability_min := float(dist["viability_min"])
+            if float(stats.get(stat_name, 0)) < viability_min:
+                score -= VIABILITY_MISS_PENALTY
 
         if score > best_score:
             best_score = score
@@ -175,38 +269,67 @@ Freaks get a **completely random stat** boosted to ~90, regardless of whether it
 ### 2.2 Freak Generation Algorithm
 
 ```gdscript
+## Constants (should match config)
+const TAG_FREAK := "Freak"
+const DEFAULT_BOOST_MIN := 88.0
+const DEFAULT_BOOST_MAX := 95.0
+const LOW_STAT_THRESHOLD := 50.0
+
 ## Generate freak by boosting a RANDOM low stat to elite level
-## No position-specific logic - pure chaos
+## CONSTRAINT: Cannot boost stats that have viability_min (would break position)
 static func apply_freak_boost(
     player: Dictionary,
     all_stats: Array,
+    positions_cfg: Dictionary,
+    freak_cfg: Dictionary,
     rng: RandomNumberGenerator
 ) -> Dictionary:
     var stats: Dictionary = player["stats"]
+    var position: String = player.get("position", "")
 
-    # Find all stats that are currently LOW for this player (below 50)
-    # These are candidates for the freak boost
-    var low_stats := []
+    # Get position config to check viability requirements
+    var pos_cfg: Dictionary = positions_cfg.get(position, {})
+    var distributions: Dictionary = pos_cfg.get("distributions", {})
+
+    # Find all stats that are:
+    # 1. Currently LOW (below threshold)
+    # 2. Do NOT have viability_min (safe to boost without breaking position)
+    var eligible_stats := []
+    var threshold := float(freak_cfg.get("low_stat_threshold", LOW_STAT_THRESHOLD))
+
     for stat_name in all_stats:
-        if stats.has(stat_name):
-            var value := float(stats[stat_name])
-            if value < 50.0:
-                low_stats.append(stat_name)
+        if not stats.has(stat_name):
+            continue
 
-    if low_stats.is_empty():
-        return player  # No low stats to boost (rare)
+        var value := float(stats[stat_name])
+        if value >= threshold:
+            continue  # Not a low stat
 
-    # Randomly pick 1 low stat to boost to elite level
-    var stat_to_boost: String = low_stats[rng.randi() % low_stats.size()]
+        # Check if this stat has viability_min - if so, skip it
+        # Boosting a viability stat could create a "good at their position" player
+        # We want WEIRD stats, not "secretly elite QB arm"
+        var stat_dist: Dictionary = distributions.get(stat_name, {})
+        if stat_dist.has("viability_min"):
+            continue  # Skip - this is a position-critical stat
+
+        eligible_stats.append(stat_name)
+
+    if eligible_stats.is_empty():
+        return player  # No eligible stats to boost
+
+    # Randomly pick 1 eligible stat to boost
+    var idx := rng.randi_range(0, eligible_stats.size() - 1)
+    var stat_to_boost: String = eligible_stats[idx]
     var current_value := float(stats[stat_to_boost])
 
-    # Boost to elite level (88-95 range)
-    var boost_target := rng.randf_range(88.0, 95.0)
+    # Boost to elite level (from config)
+    var boost_range: Array = freak_cfg.get("boost_range", [DEFAULT_BOOST_MIN, DEFAULT_BOOST_MAX])
+    var boost_target := rng.randf_range(float(boost_range[0]), float(boost_range[1]))
     stats[stat_to_boost] = boost_target
 
     # Tag the player as a freak
     var tags: Array = player.get("tags", [])
-    tags.append("Freak")
+    tags.append(TAG_FREAK)
     player["tags"] = tags
 
     player["freak_data"] = {
@@ -220,7 +343,32 @@ static func apply_freak_boost(
     return player
 ```
 
-### 2.3 Why Pure Randomness?
+### 2.3 Why Exclude Viability Stats?
+
+The freak system boosts **non-critical stats** to create weird utility, not secretly elite players:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Eligible vs Ineligible Freak Stats                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  POSITION    INELIGIBLE (has viability_min)    ELIGIBLE (can be freak stat)      │
+│  ────────    ─────────────────────────────     ────────────────────────────      │
+│  QB          throw_accuracy, throw_power,      kick_power, blocking, tackling,   │
+│              awareness                         coverage, run_stuffing            │
+│                                                                                  │
+│  WR          speed, agility, catching          blocking, throw_accuracy,         │
+│                                                kick_power, tackling              │
+│                                                                                  │
+│  TE          strength, catching                throw_accuracy, kick_power,       │
+│                                                coverage, pass_rush               │
+│                                                                                  │
+│  This ensures freaks are WEIRD, not just "secretly good at their job"            │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.4 Why Pure Randomness?
 
 Position-specific "unusual stats" are predictable:
 - Scout sees TE → checks throw_accuracy for trick play potential
@@ -238,38 +386,82 @@ The value is in the **discovery** - coaches who invest in deep scouting find wei
 Not every player can become a freak. Selection criteria:
 
 ```gdscript
+## Constants for freak selection (should match config)
+const DEFAULT_MIN_CORE_STAT_AVG := 60.0
+const DEFAULT_LOW_STAT_THRESHOLD := 50.0
+
 ## Select candidates for freak boosts
+## Uses config values for thresholds to avoid hardcoded magic numbers
 static func select_freak_candidates(
     players: Array,
-    max_freaks: int,
+    freak_cfg: Dictionary,
+    positions_cfg: Dictionary,
     rng: RandomNumberGenerator
 ) -> Array:
     var candidates := []
+
+    # Get config values with defaults
+    var max_freaks := int(freak_cfg.get("max_per_class", 5))
+    var min_core_avg := float(freak_cfg.get("min_core_stat_avg", DEFAULT_MIN_CORE_STAT_AVG))
+    var low_stat_threshold := float(freak_cfg.get("low_stat_threshold", DEFAULT_LOW_STAT_THRESHOLD))
 
     for player in players:
         # Can be either templated OR chaos player
         # Chaos players with a freak stat are extra weird
 
         # Must have solid core stats (not a bust with a gimmick)
-        var position: String = player["position"]
-        var core_stat_avg := _get_core_stat_average(player, position)
-        if core_stat_avg < 60.0:
+        var position: String = player.get("position", "")
+        var core_stat_avg := _get_core_stat_average(player, position, positions_cfg)
+        if core_stat_avg < min_core_avg:
             continue  # Below average players don't become freaks
 
-        # Must have at least one low stat to boost
-        var has_low_stat := false
-        for stat_name in player["stats"].keys():
-            if float(player["stats"][stat_name]) < 50.0:
-                has_low_stat = true
-                break
-        if not has_low_stat:
+        # Must have at least one low stat to boost (that doesn't have viability_min)
+        var has_eligible_low_stat := _has_eligible_low_stat(
+            player, position, positions_cfg, low_stat_threshold
+        )
+        if not has_eligible_low_stat:
             continue
 
         candidates.append(player)
 
-    # Randomly select from candidates
-    candidates.shuffle()
-    return candidates.slice(0, min(max_freaks, candidates.size()))
+    # Randomly select from candidates using RNG (not Array.shuffle for determinism)
+    var selected := []
+    var indices := range(candidates.size())
+
+    for i in range(min(max_freaks, candidates.size())):
+        if indices.is_empty():
+            break
+        var idx := rng.randi_range(0, indices.size() - 1)
+        selected.append(candidates[indices[idx]])
+        indices.remove_at(idx)
+
+    return selected
+
+## Check if player has at least one eligible low stat to boost
+## Eligible = below threshold AND no viability_min for position
+static func _has_eligible_low_stat(
+    player: Dictionary,
+    position: String,
+    positions_cfg: Dictionary,
+    threshold: float
+) -> bool:
+    var stats: Dictionary = player.get("stats", {})
+    var pos_cfg: Dictionary = positions_cfg.get(position, {})
+    var distributions: Dictionary = pos_cfg.get("distributions", {})
+
+    for stat_name in stats.keys():
+        var value := float(stats[stat_name])
+        if value >= threshold:
+            continue  # Not low enough
+
+        # Check if this stat has viability_min
+        var stat_dist: Dictionary = distributions.get(stat_name, {})
+        if stat_dist.has("viability_min"):
+            continue  # Can't boost viability stats
+
+        return true  # Found an eligible low stat
+
+    return false
 ```
 
 ---
@@ -524,18 +716,24 @@ For chaos players, base stats still use the base template (not random 0-100):
 
 ```gdscript
 ## Chaos generation respects base template for mental stats
-static func generate_chaos_player(
+## Also validates viability minimums after position assignment
+static func generate_chaos_player_with_inheritance(
     all_physical_stats: Array,
     base_template: Dictionary,
     positions_cfg: Dictionary,
+    chaos_cfg: Dictionary,
     rng: RandomNumberGenerator
 ) -> Dictionary:
     var stats := {}
 
+    # Get config values with defaults
+    var stat_min := float(chaos_cfg.get("stat_range", {}).get("min", CHAOS_STAT_MIN))
+    var stat_max := float(chaos_cfg.get("stat_range", {}).get("max", CHAOS_STAT_MAX))
+
     # Mental stats: Use base template distributions (NOT random)
     # These represent "NFL-caliber human being" regardless of position
     for stat_name in base_template["mental_stats"].keys():
-        var dist := base_template["mental_stats"][stat_name]
+        var dist: Dictionary = base_template["mental_stats"][stat_name]
         var floor_val := float(dist.get("floor", 0.0))
         stats[stat_name] = max(
             floor_val,
@@ -545,10 +743,14 @@ static func generate_chaos_player(
     # Physical/skill stats: Random uniform (the chaos part)
     for stat_name in all_physical_stats:
         if not stats.has(stat_name):
-            stats[stat_name] = rng.randf_range(25.0, 95.0)
+            stats[stat_name] = rng.randf_range(stat_min, stat_max)
 
     # Find best-fit position
     var best_position := _find_best_fit_position(stats, positions_cfg)
+
+    # CRITICAL: Validate viability minimums for assigned position
+    # Even chaos players must meet minimum requirements to be playable
+    stats = _ensure_position_viability(stats, best_position, positions_cfg, rng)
 
     return {
         "position": best_position,
