@@ -705,11 +705,115 @@ static func _calculate_affordability(demand: float, cap_space: float) -> float:
 		return 0.2  # Stretch
 
 
-## INTERNAL: Calculate team fit multiplier.
+## INTERNAL: Calculate team fit multiplier based on scheme fit.
+##
+## Uses SchemeFitCalculator to determine how well a player fits
+## the team's offensive/defensive scheme.
+##
+## Returns:
+##   - 0.8-1.2: Scheme fit multiplier based on player/scheme compatibility
+##   - 1.0: Neutral (special teams or unknown position)
 static func _calculate_team_fit(fa_profile: Dictionary, team: Dictionary, world_state: Dictionary) -> float:
-	# TODO: Implement contender vs rebuilder logic when team win% available
-	# For now, return neutral 1.0
-	return 1.0
+	var position := String(fa_profile.get("position", ""))
+	var rating := float(fa_profile.get("rating", 50.0))
+
+	# Get team schemes
+	var team_offensive_scheme := String(team.get("offensive_scheme", "pro_style"))
+	var team_defensive_scheme := String(team.get("defensive_scheme", "cover_2"))
+
+	# Get coach data for mindset evaluation
+	var coach: Dictionary = team.get("coach", {}) as Dictionary
+	var coach_rigidity := float(coach.get("scheme_rigidity", 1.0))
+
+	# Need to reconstruct player dictionary for SchemeFitCalculator
+	# FA profiles have player data embedded
+	var player := fa_profile.get("player", {}) as Dictionary
+	if player.is_empty():
+		# Try to get stats directly from fa_profile if player dict not available
+		player = {"stats": fa_profile.get("stats", {})}
+
+	# Calculate scheme-adjusted rating
+	var scheme_adjusted_rating := SchemeFitCalculator.calculate_for_team(
+		player,
+		position,
+		rating,
+		team_offensive_scheme,
+		team_defensive_scheme,
+		coach_rigidity
+	)
+
+	# Convert scheme fit to multiplier (clamped to reasonable range)
+	var scheme_mult := 1.0
+	if rating > 0.0:
+		scheme_mult = clampf(scheme_adjusted_rating / rating, 0.8, 1.2)  # Cap scheme impact at ±20%
+
+	# Calculate coach mindset multiplier
+	var coach_mindset_mult := _calculate_coach_mindset_multiplier(position, rating, coach)
+
+	# Combine scheme fit and coach mindset
+	return scheme_mult * coach_mindset_mult
+
+
+## Calculate coach mindset multiplier for FA interest.
+##
+## Similar to draft evaluation - coaches prefer players on their side of the ball.
+## Effect is dampened compared to draft (max ±8% vs ±15%) since FA is more
+## need-driven than draft.
+##
+## @param position: Player position
+## @param player_rating: Player's overall rating
+## @param coach: Coach dictionary with specialty_position
+## @return float: Multiplier (0.95 to 1.08)
+static func _calculate_coach_mindset_multiplier(
+	position: String,
+	player_rating: float,
+	coach: Dictionary
+) -> float:
+	var specialty := String(coach.get("specialty_position", ""))
+
+	# No specialty = neutral evaluation
+	if specialty.is_empty():
+		return 1.0
+
+	# Define position groups
+	var offensive_positions := ["QB", "RB", "WR", "TE", "OL"]
+	var defensive_positions := ["DL", "EDGE", "LB", "CB", "S"]
+
+	var is_offensive := position in offensive_positions
+	var is_defensive := position in defensive_positions
+
+	# Dampened effect for FA (need-driven, less coach preference)
+	var base_boost := 1.0
+	var elite_threshold := 78.0
+
+	if specialty == "Defense":
+		if is_defensive:
+			base_boost = 1.05
+			if player_rating >= elite_threshold:
+				base_boost = 1.08
+		elif is_offensive:
+			base_boost = 0.98
+
+	elif specialty == "Offense":
+		if is_offensive:
+			base_boost = 1.05
+			if player_rating >= elite_threshold:
+				base_boost = 1.08
+		elif is_defensive:
+			base_boost = 0.98
+
+	else:
+		# Position-specific specialty (e.g., "QB", "EDGE")
+		if position == specialty:
+			base_boost = 1.06
+			if player_rating >= elite_threshold:
+				base_boost = 1.10
+		elif specialty in offensive_positions and is_offensive:
+			base_boost = 1.02
+		elif specialty in defensive_positions and is_defensive:
+			base_boost = 1.02
+
+	return base_boost
 
 
 ## INTERNAL: Generate offers for a specific player.

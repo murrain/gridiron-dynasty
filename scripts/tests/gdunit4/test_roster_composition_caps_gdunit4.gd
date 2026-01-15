@@ -325,3 +325,119 @@ func _make_test_schemes_cfg() -> Dictionary:
 			}
 		}
 	}
+
+
+# =============================================================================
+# COACH MINDSET TESTS
+# =============================================================================
+
+const NflDraft = preload("res://scripts/world/NflDraft.gd")
+
+
+func test_defensive_coach_boosts_defensive_players() -> void:
+	var coach := {"specialty_position": "Defense"}
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Defensive coach boosts defensive positions
+	var edge_mult := NflDraft._calculate_coach_mindset_multiplier("EDGE", 70.0, coach, draft_strategy)
+	var lb_mult := NflDraft._calculate_coach_mindset_multiplier("LB", 70.0, coach, draft_strategy)
+	var cb_mult := NflDraft._calculate_coach_mindset_multiplier("CB", 70.0, coach, draft_strategy)
+
+	assert_float(edge_mult).is_equal(1.08)
+	assert_float(lb_mult).is_equal(1.08)
+	assert_float(cb_mult).is_equal(1.08)
+
+
+func test_defensive_coach_penalizes_offensive_players() -> void:
+	var coach := {"specialty_position": "Defense"}
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Defensive coach slightly penalizes offensive positions
+	var wr_mult := NflDraft._calculate_coach_mindset_multiplier("WR", 70.0, coach, draft_strategy)
+	var rb_mult := NflDraft._calculate_coach_mindset_multiplier("RB", 70.0, coach, draft_strategy)
+
+	assert_float(wr_mult).is_equal(0.97)
+	assert_float(rb_mult).is_equal(0.97)
+
+
+func test_defensive_coach_extra_boost_for_elite_defenders() -> void:
+	var coach := {"specialty_position": "Defense"}
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Elite defenders (78+) get bigger boost from defensive coach
+	var elite_edge_mult := NflDraft._calculate_coach_mindset_multiplier("EDGE", 85.0, coach, draft_strategy)
+	var standard_edge_mult := NflDraft._calculate_coach_mindset_multiplier("EDGE", 70.0, coach, draft_strategy)
+
+	assert_float(elite_edge_mult).is_equal(1.15)
+	assert_float(standard_edge_mult).is_equal(1.08)
+	assert_float(elite_edge_mult).is_greater(standard_edge_mult)
+
+
+func test_offensive_coach_boosts_offensive_players() -> void:
+	var coach := {"specialty_position": "Offense"}
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Offensive coach boosts offensive positions
+	var qb_mult := NflDraft._calculate_coach_mindset_multiplier("QB", 70.0, coach, draft_strategy)
+	var wr_mult := NflDraft._calculate_coach_mindset_multiplier("WR", 70.0, coach, draft_strategy)
+
+	assert_float(qb_mult).is_equal(1.08)
+	assert_float(wr_mult).is_equal(1.08)
+
+
+func test_offensive_coach_penalizes_defensive_players() -> void:
+	var coach := {"specialty_position": "Offense"}
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Offensive coach slightly penalizes defensive positions
+	var edge_mult := NflDraft._calculate_coach_mindset_multiplier("EDGE", 70.0, coach, draft_strategy)
+	var cb_mult := NflDraft._calculate_coach_mindset_multiplier("CB", 70.0, coach, draft_strategy)
+
+	assert_float(edge_mult).is_equal(0.97)
+	assert_float(cb_mult).is_equal(0.97)
+
+
+func test_position_specialist_coach_big_boost_for_position() -> void:
+	var coach := {"specialty_position": "QB"}
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# QB specialist coach heavily boosts QBs
+	var qb_mult := NflDraft._calculate_coach_mindset_multiplier("QB", 70.0, coach, draft_strategy)
+	var elite_qb_mult := NflDraft._calculate_coach_mindset_multiplier("QB", 85.0, coach, draft_strategy)
+
+	assert_float(qb_mult).is_equal(1.12)
+	assert_float(elite_qb_mult).is_equal(1.18)
+
+
+func test_position_specialist_still_values_own_side() -> void:
+	var coach := {"specialty_position": "QB"}  # Offensive position specialist
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# QB specialist still slightly values other offensive players
+	var wr_mult := NflDraft._calculate_coach_mindset_multiplier("WR", 70.0, coach, draft_strategy)
+	var edge_mult := NflDraft._calculate_coach_mindset_multiplier("EDGE", 70.0, coach, draft_strategy)
+
+	assert_float(wr_mult).is_equal(1.03)  # Slight boost to offense
+	assert_float(edge_mult).is_equal(1.0)  # Neutral for defense
+
+
+func test_no_specialty_returns_neutral() -> void:
+	var coach := {"specialty_position": ""}  # No specialty
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Coach with no specialty evaluates everyone neutrally
+	var qb_mult := NflDraft._calculate_coach_mindset_multiplier("QB", 70.0, coach, draft_strategy)
+	var edge_mult := NflDraft._calculate_coach_mindset_multiplier("EDGE", 70.0, coach, draft_strategy)
+
+	assert_float(qb_mult).is_equal(1.0)
+	assert_float(edge_mult).is_equal(1.0)
+
+
+func test_empty_coach_returns_neutral() -> void:
+	var coach := {}  # Empty coach dictionary
+	var draft_strategy := {"generational_threshold": 78.0}
+
+	# Missing coach data = neutral evaluation
+	var qb_mult := NflDraft._calculate_coach_mindset_multiplier("QB", 70.0, coach, draft_strategy)
+
+	assert_float(qb_mult).is_equal(1.0)

@@ -151,12 +151,21 @@ func run(
 			var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
 			var scout: Dictionary = team_scouts.get(team_id, {}) as Dictionary
 
+			# Get team schemes for scheme fit evaluation
+			var team_data: Dictionary = team_index.get(team_id, {}) as Dictionary
+			var team_offensive_scheme := String(team_data.get("offensive_scheme", "pro_style"))
+			var team_defensive_scheme := String(team_data.get("defensive_scheme", "cover_2"))
+			var team_coach: Dictionary = team_data.get("coach", {}) as Dictionary
+
 			# Score all remaining players (with caching)
 			var scored_players := _score_draft_pool(
 				remaining_pool,
 				roster,
 				team_id,
 				scout,
+				team_offensive_scheme,
+				team_defensive_scheme,
+				team_coach,
 				positions_cfg,
 				stats_cfg,
 				class_rules,
@@ -625,6 +634,9 @@ func _score_draft_pool(
 	roster: Dictionary,
 	team_id: String,
 	scout: Dictionary,
+	team_offensive_scheme: String,
+	team_defensive_scheme: String,
+	coach: Dictionary,
 	positions_cfg: Dictionary,
 	stats_cfg: Dictionary,
 	class_rules: Dictionary,
@@ -830,10 +842,34 @@ func _score_draft_pool(
 			overall_rating
 		)
 
+		# Calculate scheme fit adjustment
+		# Teams evaluate players based on how well they fit the team's offensive/defensive scheme
+		# Elite players (90+) transcend scheme (20% impact), average players are fully affected
+		var coach_rigidity := float(coach.get("scheme_rigidity", 1.0))
+		var scheme_adjusted_rating := SchemeFitCalculator.calculate_for_team(
+			p,
+			position,
+			overall_rating,
+			team_offensive_scheme,
+			team_defensive_scheme,
+			coach_rigidity
+		)
+		# Convert to multiplier: if scheme rating is 10% higher than base, mult = 1.10
+		var scheme_fit_mult := 1.0
+		if overall_rating > 0.0:
+			scheme_fit_mult = scheme_adjusted_rating / overall_rating
+
+		# Calculate coach mindset adjustment
+		# Defensive-minded coaches boost defensive players, offensive-minded boost offensive players
+		# This simulates coaches building rosters around their philosophy
+		var coach_mindset_mult := _calculate_coach_mindset_multiplier(
+			position, overall_rating, coach, draft_strategy
+		)
+
 		# Final weighted score: position tier is primary, position value is secondary, need is tertiary, QB urgency is final
-		# Order: tier > market value > need > QB urgency > roster move net value
+		# Order: tier > market value > need > QB urgency > scheme fit > coach mindset > roster move net value
 		# Roster move penalty reduces score if we'd have to cut a valuable player
-		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment * qb_urgency_boost * roster_move_penalty
+		var weighted_score := base_score * position_tier_mult * position_value_mult * need_adjustment * qb_urgency_boost * scheme_fit_mult * coach_mindset_mult * roster_move_penalty
 
 		scored.append({
 			"player": p,
@@ -947,6 +983,89 @@ static func _get_position_tier_multiplier(
 
 	# Default: no modifier for unlisted positions
 	return 1.0
+
+
+## Calculates coach mindset multiplier based on coach's philosophy.
+##
+## Defensive-minded coaches (specialty_position == "Defense") boost defensive prospects.
+## Offensive-minded coaches (specialty_position == "Offense") boost offensive prospects.
+## Position-specific coaches (e.g., "QB") boost that position.
+##
+## This simulates how coaches build rosters around their philosophy:
+## - Rex Ryan would prioritize elite defensive players even with offensive needs
+## - Sean McVay would prioritize offensive weapons
+## - Andy Reid might overvalue QB prospects
+##
+## Elite prospects (78+) get larger boosts, simulating coaches wanting "franchise pieces"
+## on their side of the ball.
+##
+## RNG: None (deterministic calculation)
+##
+## @param position: Player position
+## @param player_rating: Player's overall rating
+## @param coach: Coach dictionary with specialty_position
+## @param draft_strategy: Draft strategy configuration
+## @return float: Multiplier (0.95 to 1.15)
+static func _calculate_coach_mindset_multiplier(
+	position: String,
+	player_rating: float,
+	coach: Dictionary,
+	draft_strategy: Dictionary
+) -> float:
+	var specialty := String(coach.get("specialty_position", ""))
+
+	# No specialty = neutral evaluation
+	if specialty.is_empty():
+		return 1.0
+
+	# Define position groups
+	var offensive_positions := ["QB", "RB", "WR", "TE", "OL"]
+	var defensive_positions := ["DL", "EDGE", "LB", "CB", "S"]
+
+	var is_offensive := position in offensive_positions
+	var is_defensive := position in defensive_positions
+
+	# Base boost for matching coach philosophy
+	var base_boost := 1.0
+	var elite_threshold := float(draft_strategy.get("generational_threshold", 78.0))
+
+	if specialty == "Defense":
+		if is_defensive:
+			# Defensive coach boosts defensive players
+			base_boost = 1.08
+			# Elite defensive prospects get larger boost (coach wants franchise defender)
+			if player_rating >= elite_threshold:
+				base_boost = 1.15
+		elif is_offensive:
+			# Slight penalty for offensive players (not coach's focus)
+			base_boost = 0.97
+
+	elif specialty == "Offense":
+		if is_offensive:
+			# Offensive coach boosts offensive players
+			base_boost = 1.08
+			# Elite offensive prospects get larger boost
+			if player_rating >= elite_threshold:
+				base_boost = 1.15
+		elif is_defensive:
+			# Slight penalty for defensive players (not coach's focus)
+			base_boost = 0.97
+
+	else:
+		# Position-specific specialty (e.g., "QB", "EDGE")
+		if position == specialty:
+			# Coach is a specialist at this position - big boost
+			base_boost = 1.12
+			if player_rating >= elite_threshold:
+				base_boost = 1.18
+		elif specialty in offensive_positions and is_offensive:
+			# Offensive position specialist still values offense somewhat
+			base_boost = 1.03
+		elif specialty in defensive_positions and is_defensive:
+			# Defensive position specialist still values defense somewhat
+			base_boost = 1.03
+
+	return base_boost
 
 
 ## Calculates scout disagreement across a sample of prospects.
