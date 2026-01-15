@@ -34,16 +34,14 @@ func test_basic_serialization(t) -> void:
 		"rookie_of_year": 1,
 		"championships": 2
 	}
-	player.contract = {
-		"current_year": 1,
-		"total_years": 4,
-		"annual_value": 2.5,
-		"guaranteed": 1.0,
-		"range_min": 2.0,
-		"range_max": 3.0,
-		"valuation_source": "v1",
-		"valuation_seed": 999
-	}
+	player.contract.current_year = 1
+	player.contract.total_years = 4
+	player.contract.annual_value = 2.5
+	player.contract.guaranteed = 1.0
+	player.contract.range_min = 2.0
+	player.contract.range_max = 3.0
+	player.contract.valuation_source = "v1"
+	player.contract.valuation_seed = 999
 
 	var serialized: Dictionary = player.to_dict()
 	var clone: Player = Player.new()
