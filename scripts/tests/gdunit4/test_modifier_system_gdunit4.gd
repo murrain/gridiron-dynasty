@@ -145,8 +145,9 @@ func test_create_free_agency_stack() -> void:
 	var stack := EvaluationModifierStack.create_free_agency_stack()
 	var modifiers := stack.get_modifiers()
 
-	# FA stack should have 5 modifiers (no tier or QB urgency)
-	assert_int(modifiers.size()).is_equal(5)
+	# FA stack has 4 modifiers: PositionValue, PositionNeed, SchemeFit, CoachMindset
+	# (no PositionTier, QBUrgency, or RosterMove - those are draft-specific)
+	assert_int(modifiers.size()).is_equal(4)
 
 
 # =============================================================================
@@ -361,7 +362,7 @@ func test_coach_mindset_defensive_coach() -> void:
 	assert_bool(mod.is_applicable(ctx)).is_true()
 	var result := mod.calculate(ctx)
 	assert_float(result.multiplier).is_greater(1.0)
-	assert_str(result.reason).contains("Defense")
+	assert_str(result.reason).contains("Defensive")
 
 
 ## Test offensive coach boosts offensive players

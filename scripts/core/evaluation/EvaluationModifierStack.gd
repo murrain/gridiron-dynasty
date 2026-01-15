@@ -243,6 +243,7 @@ static func _get_standard_fa_modifiers() -> Array:
 	var mods: Array = []
 
 	var modifier_classes := [
+		"res://scripts/core/evaluation/modifiers/PositionValueModifier.gd",
 		"res://scripts/core/evaluation/modifiers/PositionNeedModifier.gd",
 		"res://scripts/core/evaluation/modifiers/SchemeFitModifier.gd",
 		"res://scripts/core/evaluation/modifiers/CoachMindsetModifier.gd",
