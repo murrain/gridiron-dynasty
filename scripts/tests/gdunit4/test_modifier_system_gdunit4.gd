@@ -534,8 +534,127 @@ func test_scheme_fit_integration() -> void:
 
 
 # =============================================================================
-# HELPER METHODS
+# SIMULATION VERIFICATION TESTS
 # =============================================================================
+
+## Verify different coaches produce different evaluations for the same player
+func test_coach_preferences_produce_varied_evaluations() -> void:
+	var stack := EvaluationModifierStack.create_draft_stack()
+
+	# Offensive coach evaluating WR
+	var offensive_ctx := EvaluationContext.new()
+	offensive_ctx.position = "WR"
+	offensive_ctx.phase = "draft"
+	offensive_ctx.draft_round = 1
+	offensive_ctx.base_rating = 82.0
+	offensive_ctx.roster = {"by_position": {"WR": ["wr_1"]}, "players": {"wr_1": {"overall": 75.0}}}
+	offensive_ctx.positions_cfg = {"WR": {"value": 1.0}}
+	offensive_ctx.draft_strategy = {"position_tiers": {"premium": ["QB", "EDGE"], "devalued": ["RB"]}}
+	offensive_ctx.team = {}
+	offensive_ctx.class_rules = {}
+	offensive_ctx.coach = {"specialty_position": "Offense"}
+	var offensive_result := stack.evaluate(offensive_ctx)
+
+	# Defensive coach evaluating same WR (identical context except coach)
+	var defensive_ctx := EvaluationContext.new()
+	defensive_ctx.position = "WR"
+	defensive_ctx.phase = "draft"
+	defensive_ctx.draft_round = 1
+	defensive_ctx.base_rating = 82.0
+	defensive_ctx.roster = {"by_position": {"WR": ["wr_1"]}, "players": {"wr_1": {"overall": 75.0}}}
+	defensive_ctx.positions_cfg = {"WR": {"value": 1.0}}
+	defensive_ctx.draft_strategy = {"position_tiers": {"premium": ["QB", "EDGE"], "devalued": ["RB"]}}
+	defensive_ctx.team = {}
+	defensive_ctx.class_rules = {}
+	defensive_ctx.coach = {"specialty_position": "Defense"}
+	var defensive_result := stack.evaluate(defensive_ctx)
+
+	# Offensive coach should value WR more than defensive coach
+	assert_float(offensive_result.final_multiplier).is_greater(defensive_result.final_multiplier)
+
+	# The difference should be meaningful (at least 3% difference = ~2-3 rating points)
+	var difference := offensive_result.final_multiplier - defensive_result.final_multiplier
+	assert_float(difference).is_greater(0.03)
+
+
+## Verify position caps block acquisition when at max depth
+func test_position_caps_prevent_exceeding_max_depth() -> void:
+	var stack := EvaluationModifierStack.create_draft_stack()
+
+	# Team already has 4 RBs (at max cap)
+	var ctx := EvaluationContext.new()
+	ctx.position = "RB"
+	ctx.phase = "draft"
+	ctx.draft_round = 3
+	ctx.base_rating = 78.0
+	ctx.roster = {
+		"by_position": {"RB": ["rb_1", "rb_2", "rb_3", "rb_4"]},  # 4 RBs = at cap
+		"players": {}
+	}
+	ctx.positions_cfg = {"RB": {"value": 0.9}}
+	ctx.draft_strategy = {"position_tiers": {"premium": [], "devalued": ["RB"]}}
+	ctx.team = {}
+	ctx.coach = {}
+	ctx.class_rules = {}
+
+	var result := stack.evaluate(ctx)
+
+	# Should return 0.0 multiplier (blocked by position cap)
+	assert_float(result.final_multiplier).is_equal(0.0)
+
+	# Now test with room for one more RB
+	ctx.roster = {
+		"by_position": {"RB": ["rb_1", "rb_2", "rb_3"]},  # 3 RBs = room for more
+		"players": {}
+	}
+	var result_with_room := stack.evaluate(ctx)
+
+	# Should be non-zero (can add player)
+	assert_float(result_with_room.final_multiplier).is_greater(0.0)
+
+
+## Verify QB-desperate teams heavily prioritize elite QB prospects
+func test_qb_desperate_teams_prioritize_elite_qb() -> void:
+	var stack := EvaluationModifierStack.create_draft_stack()
+
+	# Elite QB prospect (82+ rating triggers QB urgency)
+	var elite_qb_ctx := EvaluationContext.new()
+	elite_qb_ctx.position = "QB"
+	elite_qb_ctx.phase = "draft"
+	elite_qb_ctx.draft_round = 1
+	elite_qb_ctx.base_rating = 85.0  # Elite prospect
+	elite_qb_ctx.positions_cfg = {"QB": {"value": 1.15}}
+	elite_qb_ctx.draft_strategy = {"position_tiers": {"premium": ["QB"], "devalued": []}}
+	elite_qb_ctx.team = {}
+	elite_qb_ctx.coach = {}
+	elite_qb_ctx.class_rules = {
+		"draft_qb_urgency": {
+			"desperate_multiplier": 2.8,
+			"moderate_multiplier": 1.6,
+			"elite_threshold": 75
+		}
+	}
+
+	# Desperate team: no QB on roster
+	elite_qb_ctx.roster = {
+		"by_position": {"QB": []},
+		"players": {}
+	}
+	var desperate_result := stack.evaluate(elite_qb_ctx)
+
+	# Team with franchise QB (85+ overall, under 32)
+	elite_qb_ctx.roster = {
+		"by_position": {"QB": ["qb_1"]},
+		"players": {"qb_1": {"overall": 88.0, "age": 28}}
+	}
+	var satisfied_result := stack.evaluate(elite_qb_ctx)
+
+	# Desperate team should value the elite QB MUCH more
+	assert_float(desperate_result.final_multiplier).is_greater(satisfied_result.final_multiplier)
+
+	# The desperate team multiplier should be at least 2x the satisfied team
+	var ratio := desperate_result.final_multiplier / satisfied_result.final_multiplier
+	assert_float(ratio).is_greater_equal(2.0)
 
 ## Helper to create test context with high need
 func _create_test_context_for_high_need() -> EvaluationContext:
