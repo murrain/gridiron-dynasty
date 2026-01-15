@@ -65,7 +65,7 @@ func from_dict(d: Dictionary) -> void:
 
 	var roster_payload: Dictionary = d.get("roster", {})
 	if roster == null:
-		roster = SportRoster.new()
+		roster = Roster.new()
 	roster.from_dict(roster_payload)
 
 	player_ids = (d.get("player_ids", player_ids) as Array).duplicate()
