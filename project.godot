@@ -21,3 +21,7 @@ App="*res://autoloads/App.gd"
 Config="*res://autoloads/Config.gd"
 Rand="*res://autoloads/Rand.gd"
 RngBox="*res://autoloads/RngBox.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
