@@ -153,8 +153,9 @@ static func generate_chaos_player(
         # Fallback: pick first available position
         var positions: Array = positions_cfg.keys()
         if positions.is_empty():
-            push_error("positions_cfg is empty!")
-            return {"position": "UNKNOWN", "stats": stats, "generation_mode": "chaos_error"}
+            push_error("positions_cfg is empty - cannot generate player!")
+            # Return empty dictionary to signal error; caller must handle
+            return {}
         best_position = positions[0]
 
     # CRITICAL: Validate viability minimums for assigned position
@@ -191,7 +192,8 @@ static func _ensure_position_viability(
             # This makes chaos players "barely viable" at critical stats
             # rather than accidentally elite
             var boost_variance := rng.randf_range(VIABILITY_BOOST_MIN, VIABILITY_BOOST_MAX)
-            stats[stat_name] = viability_min + boost_variance
+            # Clamp to ensure we don't exceed stat ceiling
+            stats[stat_name] = clamp(viability_min + boost_variance, STAT_MIN, STAT_MAX)
 
     return stats
 
@@ -334,6 +336,10 @@ static func apply_freak_boost(
 
     # Boost to elite level (from config)
     var boost_range: Array = freak_cfg.get("boost_range", [DEFAULT_BOOST_MIN, DEFAULT_BOOST_MAX])
+    # Validate boost_range has required elements
+    if boost_range.size() < 2:
+        push_warning("Invalid boost_range config, using defaults")
+        boost_range = [DEFAULT_BOOST_MIN, DEFAULT_BOOST_MAX]
     var boost_target := rng.randf_range(float(boost_range[0]), float(boost_range[1]))
     stats[stat_to_boost] = boost_target
 
@@ -778,7 +784,10 @@ static func generate_chaos_player_with_inheritance(
     if best_position.is_empty():
         push_warning("No valid position found for chaos player, using fallback")
         var positions: Array = positions_cfg.keys()
-        best_position = positions[0] if not positions.is_empty() else "UNKNOWN"
+        if positions.is_empty():
+            push_error("positions_cfg is empty - cannot generate player!")
+            return {}  # Signal error to caller
+        best_position = positions[0]
 
     # CRITICAL: Validate viability minimums for assigned position
     # Even chaos players must meet minimum requirements to be playable

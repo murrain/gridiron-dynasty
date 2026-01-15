@@ -1081,7 +1081,7 @@ Note: The new stats (`competitiveness`, `confidence`) should be added to the bas
 
 Rather than hardcoding probability modifiers per event, player reactions are driven by their stats. Events define a range of possible outcomes, and the player's current stats determine where they land in that range.
 
-#### 3.4.1 Core Philosophy
+#### 3.5.1 Core Philosophy
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -1103,7 +1103,7 @@ Rather than hardcoding probability modifiers per event, player reactions are dri
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.4.2 Event Response Calculation
+#### 3.5.2 Event Response Calculation
 
 ```gdscript
 ## Calculate where a player lands in an event's outcome range
@@ -1145,7 +1145,7 @@ static func calculate_event_outcome(
     return range_min + (range_size * final_position)
 ```
 
-#### 3.4.3 Event Definition Format
+#### 3.5.3 Event Definition Format
 
 Events now define outcome ranges and which stats influence the response:
 
@@ -1167,7 +1167,7 @@ const EVENT_SCHEMA := {
 
 ### 3.6 Contract Events
 
-#### 3.5.1 Prove-It Deal
+#### 3.6.1 Prove-It Deal
 
 **Trigger**: Team believes player COULD be great, but instead of committing to a long-term deal at that projected value, offers ~90% of value for 1 year with incentives. The player gets the opportunity to prove they can hit that performance level.
 
@@ -1216,7 +1216,7 @@ const PROVE_IT_DEAL := {
 ## because they're wired to respond to the challenge
 ```
 
-#### 3.5.2 Got Paid (Big Contract)
+#### 3.6.2 Got Paid (Big Contract)
 
 **Trigger**: Player signs contract significantly above market value or receives massive guaranteed money.
 
@@ -1239,9 +1239,9 @@ const GOT_PAID := {
             "relevant_stats": ["focus", "discipline", "work_ethic"],
             "direction": "negative"
         },
-        "hunger": {
-            "range": [-40, 0],          # Always decreases somewhat, question is how much
-            "relevant_stats": ["work_ethic", "competitiveness"],
+        "competitiveness": {
+            "range": [-30, -5],         # Big paydays can reduce competitive drive
+            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
             "direction": "negative"
         }
     },
@@ -1267,7 +1267,7 @@ const GOT_PAID := {
 ## Same event, stats determine outcome
 ```
 
-#### 3.4.3 Contract Year
+#### 3.6.3 Contract Year
 
 **Trigger**: Player is in final year of contract (playing for next deal).
 
@@ -1277,15 +1277,15 @@ const CONTRACT_YEAR := {
     "stat_changes": {
         "work_ethic": [+5, +15],
         "focus": [+10, +20],
-        "effort": [+10, +15],           # In-game effort stat
-        "injury_risk": [+5, +10]        # Playing through pain = injury risk
+        "competitiveness": [+5, +15],   # Extra motivated to perform
+        "discipline": [+5, +10]         # Staying focused on the prize
     },
     "duration": "seasonal",
     "notes": "The 'contract year phenomenon' - players often have career years when playing for next deal"
 }
 ```
 
-#### 3.5.4 Franchise Tagged
+#### 3.6.4 Franchise Tagged
 
 **Trigger**: Team applies franchise tag instead of long-term deal.
 
@@ -1295,7 +1295,7 @@ const FRANCHISE_TAGGED := {
     "stat_changes": {
         "work_ethic": {
             "range": [-15, +15],        # Wide range - team players accept, selfish resent
-            "relevant_stats": ["team_loyalty", "maturity", "discipline"],
+            "relevant_stats": ["maturity", "discipline", "coachability"],
             "direction": "neutral"
         },
         "discipline": {
@@ -1305,12 +1305,12 @@ const FRANCHISE_TAGGED := {
         },
         "focus": {
             "range": [-15, +10],
-            "relevant_stats": ["focus", "professionalism"],
+            "relevant_stats": ["focus", "discipline", "maturity"],
             "direction": "neutral"
         },
-        "team_loyalty": {
-            "range": [-25, -5],         # Almost always hurts loyalty
-            "relevant_stats": ["team_loyalty", "maturity"],
+        "composure": {
+            "range": [-15, -5],         # Tags create frustration and uncertainty
+            "relevant_stats": ["composure", "maturity"],
             "direction": "negative"
         }
     },
@@ -1318,7 +1318,7 @@ const FRANCHISE_TAGGED := {
 }
 ```
 
-#### 3.4.5 Took Pay Cut
+#### 3.6.5 Took Pay Cut
 
 **Trigger**: Player restructures or signs below market to stay with contender.
 
@@ -1326,10 +1326,11 @@ const FRANCHISE_TAGGED := {
 const TOOK_PAY_CUT := {
     "event_type": "contract.pay_cut",
     "stat_changes": {
-        "team_loyalty": [+15, +25],
+        "maturity": [+10, +20],         # Prioritizing team over money shows maturity
         "focus": [+5, +15],             # Focused on winning
         "composure": [+5, +10],         # Mature decision
-        "work_ethic": [+5, +10]
+        "work_ethic": [+5, +10],
+        "discipline": [+5, +10]         # Commitment to winning takes discipline
     },
     "duration": "permanent",
     "triggers_trait": "team_first",     # Can earn this trait
@@ -1342,7 +1343,7 @@ const TOOK_PAY_CUT := {
 
 ### 3.7 Team/Roster Events
 
-#### 3.6.1 Released/Cut
+#### 3.7.1 Released/Cut
 
 ```gdscript
 const RELEASED := {
@@ -1379,29 +1380,28 @@ const RELEASED := {
 ##   → confidence boost, composure maintained, big chip on shoulder
 ```
 
-#### 3.5.2 Named Team Captain
+#### 3.7.2 Named Team Captain
 
 ```gdscript
 const NAMED_CAPTAIN := {
     "event_type": "team.named_captain",
     "stat_changes": {
-        "leadership": [+10, +20],       # New stat
-        "composure": [+5, +15],
+        "composure": [+5, +15],         # Leadership responsibility builds poise
         "discipline": [+5, +10],
         "work_ethic": [+5, +10],
-        "focus": [+5, +10]
+        "focus": [+5, +10],
+        "maturity": [+5, +10]           # Leadership role matures players
     },
     "duration": "permanent",
     "triggers_trait": "leader",
     "team_effects": {
-        # Captain can influence teammates
-        "locker_room_presence": +15,
-        "young_player_development": +0.1  # 10% boost to young players' growth
+        # Captain can influence teammates (tracked separately in team state)
+        "mentorship_bonus": +0.1  # 10% boost to young players' growth
     }
 }
 ```
 
-#### 3.6.3 Traded
+#### 3.7.3 Traded
 
 ```gdscript
 const TRADED := {
@@ -1419,7 +1419,7 @@ const TRADED := {
         },
         "discipline": {
             "range": [-10, +10],
-            "relevant_stats": ["discipline", "professionalism"],
+            "relevant_stats": ["discipline", "maturity", "coachability"],
             "direction": "neutral"
         }
     },
@@ -1437,7 +1437,7 @@ const TRADED := {
 ## Context shifts the range, stats determine where in shifted range you land
 ```
 
-#### 3.6.4 Team Drafts Replacement
+#### 3.7.4 Team Drafts Replacement
 
 ```gdscript
 const TEAM_DRAFTS_REPLACEMENT := {
@@ -1475,7 +1475,7 @@ const TEAM_DRAFTS_REPLACEMENT := {
 ## Low confidence player: feels threatened, composure/confidence tank
 ```
 
-#### 3.5.5 Veteran Mentor Assigned
+#### 3.7.5 Veteran Mentor Assigned
 
 ```gdscript
 const VETERAN_MENTOR := {
@@ -1496,15 +1496,15 @@ const VETERAN_MENTOR := {
     },
     "mentor_effects": {
         # Mentor also benefits
-        "leadership": [+3, +5],
-        "legacy_score": [+5, +10]        # For Hall of Fame consideration
+        "maturity": [+3, +5],            # Teaching others builds character
+        "composure": [+3, +5]            # Responsibility helps steadiness
     }
 }
 ```
 
 ### 3.8 Personal Life Events
 
-#### 3.6.1 Marriage
+#### 3.8.1 Marriage
 
 ```gdscript
 const MARRIAGE := {
@@ -1513,7 +1513,7 @@ const MARRIAGE := {
         "discipline": [+5, +15],
         "composure": [+5, +10],
         "focus": [-5, +10],             # Honeymoon phase can distract
-        "stability": [+10, +20]         # New hidden stat
+        "maturity": [+5, +15]           # Marriage often matures players
     },
     "duration": "permanent",
     "first_year_modifier": {
@@ -1522,7 +1522,7 @@ const MARRIAGE := {
 }
 ```
 
-#### 3.6.2 Divorce
+#### 3.8.2 Divorce
 
 ```gdscript
 const DIVORCE := {
@@ -1531,7 +1531,7 @@ const DIVORCE := {
         "focus": [-20, -10],
         "composure": [-15, -5],
         "discipline": [-15, -5],
-        "stability": [-25, -15]
+        "confidence": [-15, -5]         # Personal failure affects self-belief
     },
     "duration": "temporary",
     "years_remaining": 2,               # Takes time to recover
@@ -1543,7 +1543,7 @@ const DIVORCE := {
 }
 ```
 
-#### 3.7.3 New Child
+#### 3.8.3 New Child
 
 ```gdscript
 const NEW_CHILD := {
@@ -1556,7 +1556,7 @@ const NEW_CHILD := {
         },
         "discipline": {
             "range": [-5, +15],
-            "relevant_stats": ["discipline", "maturity", "responsibility"],
+            "relevant_stats": ["discipline", "maturity", "work_ethic"],
             "direction": "positive"
         },
         "focus": {
@@ -1566,18 +1566,18 @@ const NEW_CHILD := {
         },
         "work_ethic": {
             "range": [-10, +15],        # Motivated to provide vs distracted
-            "relevant_stats": ["work_ethic", "maturity", "responsibility"],
+            "relevant_stats": ["work_ethic", "maturity", "discipline"],
             "direction": "positive"
         }
     },
     "duration": "permanent"
 }
 
-## Mature, responsible player: new child motivates them, grows up
-## Immature, unfocused player: struggles with new responsibility
+## Mature, disciplined player: new child motivates them, grows up
+## Immature, unfocused player: struggles with new demands
 ```
 
-#### 3.6.4 Off-Field Trouble
+#### 3.8.4 Off-Field Trouble
 
 ```gdscript
 const OFF_FIELD_TROUBLE := {
@@ -1586,9 +1586,9 @@ const OFF_FIELD_TROUBLE := {
         "discipline": [-20, -10],
         "focus": [-15, -5],
         "composure": [-10, -5],
-        "reputation": [-25, -10]        # New stat: affects contracts, endorsements
+        "confidence": [-15, -5]         # Public embarrassment affects self-image
     },
-    "duration": "permanent",            # Reputation sticks
+    "duration": "permanent",            # Character concerns persist
     "severity_levels": {
         "minor": {                      # Bar fight, traffic incident
             "discipline": -10,
@@ -1607,7 +1607,7 @@ const OFF_FIELD_TROUBLE := {
     },
     "recovery_path": {
         "community_service": {
-            "reputation": [+5, +15],
+            "confidence": [+5, +15],     # Rebuilding self-image
             "discipline": [+5, +10]
         },
         "counseling_program": {
@@ -1618,7 +1618,7 @@ const OFF_FIELD_TROUBLE := {
 }
 ```
 
-#### 3.6.5 Found Religion/Purpose
+#### 3.8.5 Found Religion/Purpose
 
 ```gdscript
 const FOUND_PURPOSE := {
@@ -1628,7 +1628,7 @@ const FOUND_PURPOSE := {
         "composure": [+10, +15],
         "focus": [+5, +15],
         "work_ethic": [+5, +15],
-        "stability": [+15, +25]
+        "maturity": [+10, +20]          # Major personal growth
     },
     "duration": "permanent",
     "triggers_trait": "high_character",
@@ -1641,7 +1641,7 @@ const FOUND_PURPOSE := {
 
 ### 3.9 Performance Events
 
-#### 3.8.1 Costly Mistake (Game-Losing Play)
+#### 3.9.1 Costly Mistake (Game-Losing Play)
 
 ```gdscript
 const COSTLY_MISTAKE := {
@@ -1682,7 +1682,7 @@ const COSTLY_MISTAKE := {
 ## Low confidence + low composure: can develop "yips", confidence craters
 ```
 
-#### 3.7.2 Injury Comeback
+#### 3.9.2 Injury Comeback
 
 ```gdscript
 const INJURY_COMEBACK := {
@@ -1714,7 +1714,7 @@ const INJURY_COMEBACK := {
 }
 ```
 
-#### 3.8.3 Super Bowl Loss
+#### 3.9.3 Super Bowl Loss
 
 ```gdscript
 const SUPER_BOWL_LOSS := {
@@ -1735,8 +1735,8 @@ const SUPER_BOWL_LOSS := {
             "relevant_stats": ["work_ethic", "competitiveness"],
             "direction": "positive"
         },
-        "clutch_factor": {
-            "range": [-15, +10],        # Can be haunted or learn from it
+        "confidence": {
+            "range": [-15, +10],        # Can be haunted by loss or grow from it
             "relevant_stats": ["composure", "confidence", "maturity"],
             "direction": "neutral"
         }
@@ -1750,7 +1750,7 @@ const SUPER_BOWL_LOSS := {
 
 ### 3.10 Milestone Events
 
-#### 3.9.1 First Pro Bowl Selection
+#### 3.10.1 First Pro Bowl Selection
 
 ```gdscript
 const FIRST_PRO_BOWL := {
@@ -1784,7 +1784,7 @@ const FIRST_PRO_BOWL := {
 ## Low competitiveness: "made it", coasts on reputation
 ```
 
-#### 3.9.2 Won Championship
+#### 3.10.2 Won Championship
 
 ```gdscript
 const WON_CHAMPIONSHIP := {
@@ -1805,8 +1805,8 @@ const WON_CHAMPIONSHIP := {
             "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
             "direction": "neutral"
         },
-        "hunger": {
-            "range": [-25, +15],
+        "competitiveness": {
+            "range": [-20, +15],        # Some get satisfied, others want more rings
             "relevant_stats": ["competitiveness", "ambition", "work_ethic"],
             "direction": "neutral"
         }
@@ -1877,7 +1877,8 @@ static func process_season_events(
     return events
 
 
-## Apply stat changes from an event, respecting personality modifiers
+## Apply stat changes from an event using stat-based resistance
+## NOTE: This uses the stat-driven system from Section 3.5, NOT personality modifiers
 static func _apply_event_stat_changes(
     player: Dictionary,
     event: Dictionary,
@@ -1885,24 +1886,29 @@ static func _apply_event_stat_changes(
 ) -> void:
     var stats: Dictionary = player.get("stats", {})
     var changes: Dictionary = event.get("stat_changes", {})
-    var personality := get_personality_label(player)  # Computed from stats
 
     for stat_name in changes.keys():
-        var change_range = changes[stat_name]
-        if change_range is Array and change_range.size() == 2:
-            # Roll within range, modified by personality
+        var change_config = changes[stat_name]
+
+        # Handle both formats: simple [min, max] arrays and full config dictionaries
+        if change_config is Array and change_config.size() == 2:
+            # Simple format: just roll within range (used for some older event definitions)
             var base_change := rng.randf_range(
-                float(change_range[0]),
-                float(change_range[1])
+                float(change_config[0]),
+                float(change_config[1])
             )
-
-            # Personality modifiers
-            base_change *= _get_personality_modifier(personality, stat_name, event)
-
-            # Apply change
             if stats.has(stat_name):
                 stats[stat_name] = clamp(
                     float(stats[stat_name]) + base_change,
+                    0.0,
+                    100.0
+                )
+        elif change_config is Dictionary and change_config.has("range"):
+            # Full format: use stat-based resistance calculation
+            var final_change := calculate_event_outcome(player, event, stat_name, rng)
+            if stats.has(stat_name):
+                stats[stat_name] = clamp(
+                    float(stats[stat_name]) + final_change,
                     0.0,
                     100.0
                 )
