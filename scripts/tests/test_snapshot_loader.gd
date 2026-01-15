@@ -62,7 +62,12 @@ func test_config_loads(t: TestHelpers) -> void:
 
 func test_available_years(t: TestHelpers) -> void:
 	var years := SnapshotLoader.get_available_years()
-	t.assert_true(years.is_sorted(), "available years are sorted")
+	var is_sorted := true
+	for i in range(years.size() - 1):
+		if years[i] > years[i + 1]:
+			is_sorted = false
+			break
+	t.assert_true(is_sorted, "available years are sorted")
 
 	# Test that years are integers
 	for year in years:
@@ -192,7 +197,7 @@ func test_multiple_calls_return_independent_copies(t: TestHelpers) -> void:
 	if teams1.size() > 0 and teams2.size() > 0:
 		# Test 1: Modify existing value
 		var team1: Dictionary = teams1[0]
-		var original_id := team1.get("id", "")
+		var original_id: String = team1.get("id", "")
 		team1["id"] = "MODIFIED_ID_12345"
 
 		var team2: Dictionary = teams2[0]
@@ -228,7 +233,7 @@ func test_setup_world_performance(t: TestHelpers) -> void:
 	SnapshotLoader.clear_cache()
 
 	# Warm up the cache first
-	var _ := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
+	var _warmup := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
 
 	# Time a second call (includes deep copy but cache is warm)
 	var start := Time.get_ticks_usec()
@@ -251,12 +256,12 @@ func test_cache_hit_performance(t: TestHelpers) -> void:
 
 	# First load (cache miss - parses JSON)
 	var start1 := Time.get_ticks_usec()
-	var _ := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
+	var _warmup := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
 	var miss_time := (Time.get_ticks_usec() - start1) / 1000.0
 
 	# Second load (cache hit - skips JSON parsing)
 	var start2 := Time.get_ticks_usec()
-	var _ = SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
+	var _cached = SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
 	var hit_time := (Time.get_ticks_usec() - start2) / 1000.0
 
 	print("  Cache miss: %.2f ms, Cache hit: %.2f ms" % [miss_time, hit_time])
@@ -270,7 +275,7 @@ func test_cache_clear_works(t: TestHelpers) -> void:
 		return
 
 	# Load to populate cache
-	var _ := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
+	var _warmup := SnapshotLoader.setup_world(SnapshotLoader.YEAR_5, 0, TEST_SEED)
 
 	# Clear cache
 	SnapshotLoader.clear_cache()
