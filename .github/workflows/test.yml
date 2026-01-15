@@ -36,7 +36,7 @@ jobs:
       - name: Run GdUnit4 Tests
         uses: MikeSchulze/gdUnit4-action@v1
         with:
-          godot-version: '4.5.0'
+          godot-version: '4.5.1'
           version: 'v6.0.1'
           paths: 'res://scripts/tests/gdunit4'
           retries: 3
@@ -82,7 +82,7 @@ jobs:
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.5.0
+          version: 4.5.1
           use-dotnet: false
 
       - name: Run Legacy TestRunner
