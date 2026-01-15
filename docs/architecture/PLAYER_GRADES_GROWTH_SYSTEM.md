@@ -1885,7 +1885,7 @@ static func _apply_event_stat_changes(
 ) -> void:
     var stats: Dictionary = player.get("stats", {})
     var changes: Dictionary = event.get("stat_changes", {})
-    var personality := _get_personality_type(player)
+    var personality := get_personality_label(player)  # Computed from stats
 
     for stat_name in changes.keys():
         var change_range = changes[stat_name]
@@ -2221,185 +2221,114 @@ const RECOVERY_SUPPORT_BONUSES := {
 }
 ```
 
-### 3.14 Personality Evolution
+### 3.14 Personality Evolution Through Stats
 
-Personality types are not fixed for life. People can change, and significant events can reshape a player's core personality over their career.
+> **DECISION**: Personality is ALWAYS computed from stats, never stored. Personality "evolution" happens naturally as underlying stats change from career events. There is no stored `personality_type` field.
 
-#### 3.14.1 Personality Change Triggers
+Personality labels are not fixed for life because stats change. When a player's `composure`, `work_ethic`, or `confidence` shift from career events, their computed personality label may change as well.
 
-```gdscript
-const PERSONALITY_CHANGE_TRIGGERS := {
-    # Major life events can shift personality
-    "found_purpose": {
-        "from": ["volatile", "front_runner"],
-        "to": "steady_eddie",
-        "chance": 0.40,
-        "description": "Finding meaning brings stability"
-    },
+#### 3.14.1 How Personality Changes
 
-    "championship_win": {
-        "from": ["front_runner"],
-        "to": "competitor",
-        "chance": 0.25,
-        "description": "Winning can build lasting confidence"
-    },
+Personality changes are **emergent**, not explicit:
 
-    "career_threatening_injury_comeback": {
-        "from": ["front_runner", "volatile"],
-        "to": "competitor",
-        "chance": 0.35,
-        "description": "Surviving adversity builds resilience"
-    },
-
-    "multiple_releases": {
-        "from": ["competitor", "steady_eddie"],
-        "to": "front_runner",
-        "chance": 0.20,
-        "description": "Repeated rejection can damage confidence"
-    },
-
-    "massive_contract_complacency": {
-        "from": ["competitor"],
-        "to": "front_runner",
-        "chance": 0.15,
-        "description": "Success can breed complacency even in competitors"
-    },
-
-    "veteran_mentor_influence": {
-        "from": ["volatile", "front_runner"],
-        "to": "steady_eddie",
-        "chance": 0.20,
-        "description": "Great mentors can stabilize young players"
-    },
-
-    "captain_responsibility": {
-        "from": ["volatile"],
-        "to": "competitor",
-        "chance": 0.30,
-        "description": "Leadership responsibility can focus a player"
-    },
-
-    "repeated_clutch_performances": {
-        "from": ["front_runner", "steady_eddie"],
-        "to": "competitor",
-        "chance": 0.25,
-        "description": "Proving yourself in big moments builds competitor mentality"
-    },
-
-    "repeated_playoff_failures": {
-        "from": ["competitor"],
-        "to": "front_runner",
-        "chance": 0.15,
-        "description": "Repeated failures can erode confidence"
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Personality Evolution Flow                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  BEFORE EVENT:                                                                   │
+│    composure: 38, discipline: 42, work_ethic: 55                                 │
+│    → computed label: "volatile" (low composure + low discipline)                 │
+│                                                                                  │
+│  EVENT: "found_purpose" triggers                                                 │
+│    → discipline: 42 → 60 (+18)                                                   │
+│    → composure: 38 → 56 (+18)                                                    │
+│    → work_ethic: 55 → 72 (+17)                                                   │
+│                                                                                  │
+│  AFTER EVENT:                                                                    │
+│    composure: 56, discipline: 60, work_ethic: 72                                 │
+│    → computed label: "steady_eddie" (high discipline + adequate composure)       │
+│                                                                                  │
+│  RESULT: Personality changed from "volatile" → "steady_eddie"                    │
+│          But we never stored personality_type - it's always computed             │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.14.2 Gradual Personality Drift
+#### 3.14.2 Tracking Personality History
 
-Beyond triggered changes, personality can drift gradually based on sustained patterns:
+Since personality is computed, we track changes by detecting when the label changes:
 
 ```gdscript
-## Check for gradual personality evolution during offseason
-static func check_personality_evolution(
+## Check if personality label changed after processing events
+## Called during offseason processing AFTER events are applied
+static func check_personality_change(
     player: Dictionary,
-    season_context: Dictionary,
-    rng: RandomNumberGenerator
+    previous_label: String
 ) -> Dictionary:
-    var current_personality: String = player.get("personality_type", "steady_eddie")
-    var career_events: Array = player.get("career_events", [])
-    var new_personality := current_personality
+    var current_label := get_personality_label(player)
 
-    # Count recent positive vs negative outcomes (last 3 years)
-    var recent_events := _get_recent_events(career_events, 3)
-    var adversity_count := _count_adversity_events(recent_events)
-    var success_count := _count_success_events(recent_events)
-
-    # Gradual drift based on sustained patterns
-    if adversity_count >= 3 and success_count == 0:
-        # Lots of adversity, no success
-        match current_personality:
-            "competitor":
-                # Even competitors can be worn down
-                if rng.randf() < 0.10:  # 10% chance per year of sustained adversity
-                    new_personality = "front_runner"
-            "steady_eddie":
-                # Steady players can become fragile
-                if rng.randf() < 0.08:
-                    new_personality = "front_runner"
-
-    elif success_count >= 3 and adversity_count == 0:
-        # Sustained success
-        match current_personality:
-            "front_runner":
-                # Success can build genuine confidence
-                if rng.randf() < 0.12:
-                    new_personality = "steady_eddie"
-            "volatile":
-                # Success can stabilize volatile players
-                if rng.randf() < 0.10:
-                    new_personality = "competitor"
-
-    # Check for age-related maturation (players often mellow with age)
-    var age := int(player.get("age", 22))
-    if age >= 30 and current_personality == "volatile":
-        if rng.randf() < 0.15:  # 15% chance per year after 30
-            new_personality = "steady_eddie"
-
-    if new_personality != current_personality:
+    if current_label != previous_label:
+        # Record the change for narrative/UI purposes
         return {
             "changed": true,
-            "from": current_personality,
-            "to": new_personality,
-            "reason": _determine_change_reason(adversity_count, success_count, age)
+            "from": previous_label,
+            "to": current_label,
+            "reason": _infer_change_reason(player)
         }
 
     return {"changed": false}
+
+## Infer why personality changed based on recent stat changes
+static func _infer_change_reason(player: Dictionary) -> String:
+    var recent_events: Array = player.get("career_events", [])
+    if recent_events.is_empty():
+        return "gradual maturation"
+
+    var latest_event: Dictionary = recent_events[-1]
+    var event_type: String = latest_event.get("event_type", "")
+
+    # Map events to human-readable reasons
+    match event_type:
+        "personal.found_purpose":
+            return "Found purpose after personal struggles"
+        "performance.injury_comeback":
+            return "Surviving injury built mental toughness"
+        "milestone.championship":
+            return "Championship validated self-belief"
+        "team.released":
+            return "Being cut changed his outlook"
+        _:
+            return "Career experiences reshaped his mentality"
 ```
 
-#### 3.14.3 Personality Evolution Tracking
+#### 3.14.3 Optional: Personality Change History
+
+For narrative purposes, we can optionally track when the computed label changed:
 
 ```gdscript
-## Store personality changes in player history
-player["personality_history"] = [
+## Optional personality history for UI/narrative
+## This is computed data, not source of truth
+player["personality_label_history"] = [
     {
-        "type": "volatile",
+        "label": "volatile",
         "from_age": 22,
-        "to_age": 25
+        "to_age": 25,
+        "ending_stats": {"composure": 38, "discipline": 42}
     },
     {
-        "type": "competitor",
+        "label": "steady_eddie",
         "from_age": 25,
         "to_age": null,  # Current
-        "trigger": "career_threatening_injury_comeback",
-        "description": "ACL comeback built mental toughness"
+        "trigger_event": "personal.found_purpose",
+        "starting_stats": {"composure": 56, "discipline": 60}
     }
 ]
 ```
 
-#### 3.14.4 Personality Change Visibility
+### 3.15 Personality Computation
 
-```gdscript
-const PERSONALITY_CHANGE_VISIBILITY := {
-    # Some changes are publicly observable
-    "public": [
-        "found_purpose",           # Often discussed in media
-        "captain_responsibility",  # Public announcement
-        "repeated_playoff_failures"  # Performance is public
-    ],
-
-    # Some require scouting/intel to detect
-    "requires_scouting": [
-        "gradual_drift",           # Subtle changes
-        "veteran_mentor_influence",  # Internal team dynamics
-        "locker_room_evolution"    # Behind closed doors
-    ]
-}
-```
-
-### 3.15 Personality as Emergent from Stats
-
-Rather than hardcoding personality types with special event modifiers, personality emerges naturally from a player's stat combination. The same stats that determine event outcomes also define who the player "is".
+Personality labels are computed from stats, not stored. This is the canonical computation:
 
 ```gdscript
 ## Personality is DESCRIPTIVE, not prescriptive
@@ -2885,9 +2814,10 @@ player["career_events"] = [
    - Personality modifiers
    - Duration and decay settings
 
-3. **Personality system** - At player creation
-   - Assign personality type (competitor, front_runner, steady_eddie, volatile)
-   - Store on player for event processing
+3. **Personality system** - Computed at runtime
+   - `get_personality_label(player)` computes from current stats
+   - No stored personality_type field
+   - Events modify stats, which may change computed personality
 
 ### Phase 4: Downstream Systems
 
@@ -2967,6 +2897,128 @@ func test_late_bloomer_trajectory():
 
 ---
 
+## Data Migration Strategy
+
+Existing save files contain players without the new fields (`development_profile`, `career_grades`, `career_events`). This section defines how to migrate them.
+
+### Migration Function
+
+```gdscript
+## PlayerMigration.gd - Migrate existing players to new schema
+class_name PlayerMigration
+
+## Migrate a player from v1.0 (no development/events) to v2.0
+## Uses deterministic seeding so migration is reproducible
+static func migrate_player_v1_to_v2(
+    player: Dictionary,
+    positions_cfg: Dictionary,
+    dev_config: Dictionary
+) -> Dictionary:
+    var player_id: String = player.get("player_id", str(player.hash()))
+
+    # Generate deterministic seed from player_id
+    var seed := _generate_migration_seed(player_id)
+    var rng := RandomNumberGenerator.new()
+    rng.seed = seed
+
+    # Add development_profile if missing
+    if not player.has("development_profile"):
+        player["development_profile"] = _generate_development_profile_for_existing(
+            player, rng, dev_config
+        )
+
+    # Initialize empty career_events array
+    if not player.has("career_events"):
+        player["career_events"] = []
+
+    # Initialize empty career_grades array (no retroactive grading)
+    if not player.has("career_grades"):
+        player["career_grades"] = []
+
+    # Add schema version
+    player["schema_version"] = 2
+
+    return player
+
+## Generate deterministic seed from player_id string
+static func _generate_migration_seed(player_id: String) -> int:
+    var hash_val := 0
+    for c in player_id:
+        hash_val = (hash_val * 31 + c.unicode_at(0)) & 0x7FFFFFFF
+    return hash_val
+
+## Generate development profile for existing player based on their career so far
+static func _generate_development_profile_for_existing(
+    player: Dictionary,
+    rng: RandomNumberGenerator,
+    dev_config: Dictionary
+) -> Dictionary:
+    var age := int(player.get("age", 22))
+    var years_in_league := max(0, age - 22)
+
+    # For existing players, infer development type from their career trajectory
+    # Players with high ratings at young age are likely early_peak
+    # Players who improved significantly are likely late_bloomer
+    var current_rating := float(player.get("overall_rating", 70))
+
+    var inferred_type := "steady"
+
+    if years_in_league >= 3:
+        # Has enough history to infer
+        if current_rating >= 85 and age <= 26:
+            inferred_type = "early_peak"
+        elif current_rating >= 80 and age >= 28:
+            inferred_type = "late_bloomer"
+        elif current_rating < 65:
+            inferred_type = "erratic"
+
+    return {
+        "development_type": inferred_type,
+        "growth_rate_modifier": 1.0,
+        "prime_age_start": 26 if inferred_type == "early_peak" else 28,
+        "prime_age_end": 30 if inferred_type == "early_peak" else 32,
+        "decline_rate_modifier": 1.0,
+        "development_events": [],
+        "migrated": true,  # Flag that this was inferred, not generated at creation
+        "migration_age": age
+    }
+```
+
+### Migration Trigger
+
+Migration should happen:
+1. **On save load**: When loading a save file, check `schema_version` on each player
+2. **Batch migration**: Process all players in world_state during load
+3. **Lazy migration**: Or migrate individual players when they're accessed
+
+```gdscript
+## In SaveLoader.gd or WorldState.gd
+func load_world_state(save_data: Dictionary) -> Dictionary:
+    var world_state := save_data
+
+    # Check if migration needed
+    var players: Array = world_state.get("players", [])
+    for i in range(players.size()):
+        var player: Dictionary = players[i]
+        if player.get("schema_version", 1) < 2:
+            players[i] = PlayerMigration.migrate_player_v1_to_v2(
+                player, positions_cfg, dev_config
+            )
+
+    world_state["players"] = players
+    return world_state
+```
+
+### Migration Guarantees
+
+1. **Deterministic**: Same player_id always produces same migration result
+2. **Non-destructive**: Original fields are preserved, only new fields added
+3. **Flagged**: Migrated profiles have `migrated: true` so we know they were inferred
+4. **No retroactive grading**: `career_grades` starts empty - we don't fake historical grades
+5. **No retroactive events**: `career_events` starts empty - we don't fabricate past events
+
+---
+
 ## Files to Create/Modify
 
 ### New Files
@@ -2988,9 +3040,9 @@ func test_late_bloomer_trajectory():
 
 | File | Changes |
 |------|---------|
-| `scripts/core/models/Player.gd` | Add `development_profile`, `career_grades`, `career_events`, `personality_type` |
+| `scripts/core/models/Player.gd` | Add `development_profile`, `career_grades`, `career_events` (personality is computed, not stored) |
 | `scripts/world/PlayerLifecycle.gd` | Apply development profile modifiers, decay temporary events |
-| `scripts/generation/PlayerGenerator.gd` | Generate development profiles and personality types |
+| `scripts/generation/PlayerGenerator.gd` | Generate development profiles (personality computed from stats) |
 | `scripts/world/NflSeason.gd` | Call grading and event processing at end of season |
 | `scripts/world/CollegeSeason.gd` | Call college grading at end of season |
 | `scripts/core/contracts/ContractNegotiator.gd` | Trigger contract events (prove-it, got-paid, etc.) |

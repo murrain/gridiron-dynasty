@@ -147,6 +147,16 @@ static func generate_chaos_player(
     # Find best-fit position based on generated stats
     var best_position := _find_best_fit_position(stats, positions_cfg)
 
+    # Handle edge case where no valid position found
+    if best_position.is_empty():
+        push_warning("No valid position found for chaos player, using fallback")
+        # Fallback: pick first available position
+        var positions: Array = positions_cfg.keys()
+        if positions.is_empty():
+            push_error("positions_cfg is empty!")
+            return {"position": "UNKNOWN", "stats": stats, "generation_mode": "chaos_error"}
+        best_position = positions[0]
+
     # CRITICAL: Validate viability minimums for assigned position
     # Chaos players should still be viable at their position
     stats = _ensure_position_viability(stats, best_position, positions_cfg, rng)
@@ -468,6 +478,8 @@ static func _has_eligible_low_stat(
 
 ## 3. Stat Inheritance System
 
+> **DECISION**: The config JSON files will be rewritten to use an inherited structure. A `base_player` template defines common stats (work_ethic, discipline, etc.) that apply to all players. Position templates inherit from `base_player` and add/override position-specific stats. This is a breaking config change.
+
 ### 3.1 Problem: Repeated Definitions
 
 Currently, stats like `work_ethic`, `discipline`, `maturity` would need to be defined for every position. This is:
@@ -650,33 +662,41 @@ Positions inherit from base and can override **only if the position genuinely se
 
 ```gdscript
 ## Resolve final stat distributions for a position
+## Returns empty Dictionary if position not found (caller should handle)
 static func resolve_position_stats(
     position: String,
     base_template: Dictionary,
     positions_cfg: Dictionary
 ) -> Dictionary:
-    var pos_config := positions_cfg[position]
+    # Validate position exists
+    if not positions_cfg.has(position):
+        push_error("Position '%s' not found in positions_cfg" % position)
+        return {}
+
+    var pos_config: Dictionary = positions_cfg[position]
     var resolved := {}
 
-    # Start with all base stats
+    # Start with all base stats (use deep copy to avoid reference bugs)
     for category in base_template.keys():
-        for stat_name in base_template[category].keys():
-            resolved[stat_name] = base_template[category][stat_name].duplicate()
+        var category_stats: Dictionary = base_template.get(category, {})
+        for stat_name in category_stats.keys():
+            resolved[stat_name] = category_stats[stat_name].duplicate(true)  # Deep copy
 
     # Apply position overrides
     var overrides: Dictionary = pos_config.get("overrides", {})
     for stat_name in overrides.keys():
+        var override_values: Dictionary = overrides[stat_name]
         if resolved.has(stat_name):
             # Merge override into existing stat
-            for key in overrides[stat_name].keys():
-                resolved[stat_name][key] = overrides[stat_name][key]
+            for key in override_values.keys():
+                resolved[stat_name][key] = override_values[key]
         else:
-            resolved[stat_name] = overrides[stat_name].duplicate()
+            resolved[stat_name] = override_values.duplicate(true)  # Deep copy
 
     # Add position-specific stats
     var pos_specific: Dictionary = pos_config.get("position_specific", {})
     for stat_name in pos_specific.keys():
-        resolved[stat_name] = pos_specific[stat_name].duplicate()
+        resolved[stat_name] = pos_specific[stat_name].duplicate(true)  # Deep copy
 
     return resolved
 ```
@@ -732,12 +752,18 @@ static func generate_chaos_player_with_inheritance(
 
     # Mental stats: Use base template distributions (NOT random)
     # These represent "NFL-caliber human being" regardless of position
-    for stat_name in base_template["mental_stats"].keys():
-        var dist: Dictionary = base_template["mental_stats"][stat_name]
+    var mental_stats: Dictionary = base_template.get("mental_stats", {})
+    if mental_stats.is_empty():
+        push_warning("base_template missing mental_stats, using defaults")
+
+    for stat_name in mental_stats.keys():
+        var dist: Dictionary = mental_stats[stat_name]
+        var mu := float(dist.get("mu", DEFAULT_MU))
+        var sigma := float(dist.get("sigma", DEFAULT_SIGMA))
         var floor_val := float(dist.get("floor", 0.0))
         stats[stat_name] = max(
             floor_val,
-            _sample_gauss(float(dist["mu"]), float(dist["sigma"]), 0.0, 100.0, rng)
+            _sample_gauss(mu, sigma, 0.0, 100.0, rng)
         )
 
     # Physical/skill stats: Random uniform (the chaos part)
@@ -747,6 +773,12 @@ static func generate_chaos_player_with_inheritance(
 
     # Find best-fit position
     var best_position := _find_best_fit_position(stats, positions_cfg)
+
+    # Handle edge case where no valid position found
+    if best_position.is_empty():
+        push_warning("No valid position found for chaos player, using fallback")
+        var positions: Array = positions_cfg.keys()
+        best_position = positions[0] if not positions.is_empty() else "UNKNOWN"
 
     # CRITICAL: Validate viability minimums for assigned position
     # Even chaos players must meet minimum requirements to be playable
@@ -1002,7 +1034,59 @@ const FREAK_STAT_SCOUTING := {
 
 ---
 
-## 9. Open Questions
+## 9. Config Migration
+
+The config schema changes are breaking. The following migration is required:
+
+### 9.1 Config File Changes
+
+| File | Change |
+|------|--------|
+| `base_player.json` | **NEW** - Create with base mental stats (work_ethic, discipline, etc.) |
+| `positions.json` | **REWRITE** - Change from self-contained to inheritance-based structure |
+| `main.json` | **ADD** - Add `player_generation` config block |
+
+### 9.2 positions.json Migration
+
+```json
+// BEFORE (self-contained, every position repeats all stats):
+{
+    "QB": {
+        "distributions": {
+            "throw_accuracy": {"mu": 78, "sigma": 10},
+            "work_ethic": {"mu": 65, "sigma": 12},  // Repeated in every position
+            ...
+        }
+    }
+}
+
+// AFTER (inheritance-based):
+{
+    "QB": {
+        "inherits": "base_player",
+        "distributions": {
+            "throw_accuracy": {"mu": 78, "sigma": 10, "viability_min": 60},
+            "composure": {"mu": 58, "sigma": 12}  // Override base (QBs need higher composure)
+        },
+        "core_stats": ["throw_accuracy", "throw_power", "decision_making"]
+    }
+}
+```
+
+### 9.3 Test Snapshot Regeneration
+
+After config migration, **all test snapshots must be regenerated** because player generation will produce different outputs.
+
+```bash
+# After config changes, regenerate all snapshots
+godot --headless --script scripts/tests/regenerate_snapshots.gd
+```
+
+> **Note**: Future persistence may switch to SQLite, which will require additional migration tooling.
+
+---
+
+## 10. Open Questions
 
 1. **Chaos stat range**: Should chaos players use full 0-100 range or constrained 25-95?
 2. **Freak visibility**: Should freak stats be visible at combine, or require deep scouting/game film?
