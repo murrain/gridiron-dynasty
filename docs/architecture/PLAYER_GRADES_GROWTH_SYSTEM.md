@@ -408,22 +408,26 @@ func evaluate_prospect_grades(player: Dictionary) -> Dictionary:
 func _identify_grade_red_flags(grades: Array) -> Array:
     var flags := []
 
+    # Early return for empty array
+    if grades.is_empty():
+        return flags
+
     # Declining grades = concerning
     if grades.size() >= 2:
-        var latest := float(grades[-1]["adjusted_grade"])
-        var previous := float(grades[-2]["adjusted_grade"])
+        var latest := float(grades[-1].get("adjusted_grade", 0.0))
+        var previous := float(grades[-2].get("adjusted_grade", 0.0))
         if latest < previous - 5.0:
             flags.append("declining_production")
 
     # High raw grade but low adjusted = weak competition
-    var latest_grade := grades[-1]
-    var raw := float(latest_grade["raw_grade"])
-    var adjusted := float(latest_grade["adjusted_grade"])
+    var latest_grade: Dictionary = grades[-1]
+    var raw := float(latest_grade.get("raw_grade", 0.0))
+    var adjusted := float(latest_grade.get("adjusted_grade", 0.0))
     if raw - adjusted > 10.0:
         flags.append("inflated_by_weak_competition")
 
     # Low game sample
-    if int(latest_grade["games_graded"]) < 8:
+    if int(latest_grade.get("games_graded", 0)) < 8:
         flags.append("limited_sample_size")
 
     # Inconsistent grades across years
@@ -903,33 +907,34 @@ Add to `main.json`:
 | **Consequences** | Contract and roster decisions have psychological ripple effects |
 | **Unpredictability** | Same event can affect different personality types differently |
 
-### 3.2 New Personality Stats (Non-Measurables)
+### 3.2 Personality Stats for Event System
 
-The stat-driven event system requires additional non-measurable stats that define a player's psychological makeup. These are hidden by default and revealed through scouting.
+The stat-driven event system uses mental stats to determine how players respond to career events. Most required stats **already exist** in the base player template (see PLAYER_GENERATION_REWORK.md Section 3.3). We add only two new stats to complete the system.
+
+#### 3.2.1 Existing Stats (from Base Template)
+
+These stats are already defined in the base player template and drive event responses:
+
+| Stat | Description | Event Role |
+|------|-------------|------------|
+| `work_ethic` | Effort put into improvement | Development rate, recovery speed, response to competition |
+| `discipline` | Self-control, adherence to routines | Response to money/success, off-field behavior |
+| `composure` | Ability to stay calm under pressure | Response to negative events, clutch performance |
+| `maturity` | Emotional intelligence, perspective | Response to personal events, decision making |
+| `coachability` | Responsiveness to coaching | Learning rate, scheme adaptation |
+| `adaptability` | Ability to adjust to new situations | Response to trades, coaching changes |
+| `focus` | Mental concentration ability | In-season performance consistency |
+
+#### 3.2.2 New Stats for Event System
+
+Only **two new stats** are added specifically for the career event system:
 
 ```gdscript
-## New personality-related stats for the event system
-const PERSONALITY_STATS := {
-    # Core mental stats (may already exist)
-    "composure": {
-        "range": [0, 100],
-        "description": "Ability to stay calm under pressure, handle adversity",
-        "affects": ["response to negative events", "clutch performance", "recovery speed"]
-    },
-    "discipline": {
-        "range": [0, 100],
-        "description": "Self-control, adherence to routines, avoiding temptation",
-        "affects": ["response to money/success", "off-field behavior", "training consistency"]
-    },
-    "work_ethic": {
-        "range": [0, 100],
-        "description": "Effort put into improvement, practice habits",
-        "affects": ["development rate", "recovery speed", "response to competition"]
-    },
-
-    # New stats for event system
+## New personality stats for event system (add to base_player template)
+const NEW_EVENT_STATS := {
     "competitiveness": {
-        "range": [0, 100],
+        "mu": 50, "sigma": 12,
+        "floor": 35,  # Non-competitive players don't pursue NFL careers
         "description": "Drive to win, response to competition and challenges",
         "affects": ["response to prove-it deals", "response to being replaced", "clutch moments"],
         "examples": {
@@ -937,46 +942,27 @@ const PERSONALITY_STATS := {
             "low": "Coasts when comfortable, satisfied with 'good enough'"
         }
     },
-    "maturity": {
-        "range": [0, 100],
-        "description": "Emotional intelligence, perspective, handling of life events",
-        "affects": ["response to personal events", "locker room presence", "decision making"],
-        "growth": "Tends to increase with age and experience"
-    },
-    "ambition": {
-        "range": [0, 100],
-        "description": "Drive for greatness, desire for legacy/achievements",
-        "affects": ["response to success/milestones", "hunger after winning"],
-        "examples": {
-            "high": "Tom Brady - 7 rings not enough, still hungry",
-            "low": "Happy with one Pro Bowl, doesn't push for more"
-        }
-    },
     "confidence": {
-        "range": [0, 100],
+        "mu": 50, "sigma": 16,  # Wide variance - imposter syndrome to extreme cockiness
         "description": "Self-belief, how they view their own abilities",
         "affects": ["response to failure", "recovery from mistakes", "handling criticism"],
-        "volatility": "Can swing based on recent performance"
-    },
-    "adaptability": {
-        "range": [0, 100],
-        "description": "Ability to adjust to new situations, schemes, teammates",
-        "affects": ["response to trades", "new coaching staff", "scheme changes"]
-    },
-    "responsibility": {
-        "range": [0, 100],
-        "description": "Sense of duty, reliability, handling of obligations",
-        "affects": ["response to family events", "team leadership", "off-field decisions"]
-    },
-    "team_loyalty": {
-        "range": [0, 100],
-        "description": "Attachment to current team, willingness to sacrifice for team",
-        "affects": ["response to franchise tag", "pay cut willingness", "trade requests"]
+        "volatility": "Can swing significantly based on recent performance and events"
     }
 }
 ```
 
-#### 3.2.1 Stat Interactions
+#### 3.2.3 Why Only Two New Stats?
+
+Adding more stats (ambition, responsibility, team_loyalty) was considered but **deferred** to avoid premature complexity:
+
+1. **Existing stats cover most scenarios** - `work_ethic`, `discipline`, `composure`, and `maturity` handle 80% of event responses
+2. **Competitiveness fills the key gap** - captures "chip on shoulder" and "prove doubters wrong" mentality
+3. **Confidence enables volatility** - allows for players whose self-belief swings based on circumstances
+4. **Simpler = testable** - fewer stats means easier to validate and tune the system
+
+**Future consideration**: If specific event types require nuance that existing stats can't capture, additional stats can be added in a targeted way.
+
+#### 3.2.4 Stat Interactions
 
 These stats often work together to determine outcomes:
 
@@ -990,42 +976,43 @@ These stats often work together to determine outcomes:
 │  discipline (primary)          composure (primary)        composure (primary)    │
 │  work_ethic                    work_ethic                 confidence             │
 │  maturity                      competitiveness            competitiveness        │
-│  ambition                      confidence                                        │
+│                                confidence                                        │
 │                                                                                  │
-│  "Good Teammate"               "Self-Motivated"           "Coachable"            │
-│  ──────────────                ───────────────            ───────────            │
-│  team_loyalty (primary)        ambition (primary)         coachability           │
-│  maturity                      competitiveness            discipline             │
-│  responsibility                work_ethic                 maturity               │
-│  discipline                    discipline                                        │
+│  "Driven to Improve"           "Self-Motivated"           "Coachable"            │
+│  ────────────────              ───────────────            ───────────            │
+│  work_ethic (primary)          competitiveness (primary)  coachability           │
+│  competitiveness               work_ethic                 discipline             │
+│  discipline                    discipline                 maturity               │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.2.2 Stat Generation
+#### 3.2.5 Stat Correlations
 
-New personality stats should be generated at player creation with realistic distributions and correlations:
+Mental stats have correlations (not fully independent). These should be applied during player generation:
 
 ```gdscript
-## Personality stats have correlations (not fully independent)
+## Personality stat correlations for generation
 const STAT_CORRELATIONS := {
     # High work_ethic tends to correlate with discipline
     ["work_ethic", "discipline"]: 0.6,
 
-    # High competitiveness correlates with ambition
-    ["competitiveness", "ambition"]: 0.5,
+    # High competitiveness correlates with confidence
+    ["competitiveness", "confidence"]: 0.3,
 
     # Maturity correlates with composure
     ["maturity", "composure"]: 0.4,
 
-    # Responsibility correlates with discipline
-    ["responsibility", "discipline"]: 0.5,
+    # Discipline correlates with focus
+    ["discipline", "focus"]: 0.5,
 
-    # These are more independent
-    ["confidence", "work_ethic"]: 0.1,  # Can be confident but lazy
-    ["team_loyalty", "ambition"]: -0.2  # Ambitious players may want to leave
+    # Confidence and work_ethic are more independent
+    # (can be confident but lazy, or hardworking but insecure)
+    ["confidence", "work_ethic"]: 0.1
 }
 ```
+
+Note: The new stats (`competitiveness`, `confidence`) should be added to the base player template defined in PLAYER_GENERATION_REWORK.md Section 3.3.
 
 ### 3.3 Event Categories
 
@@ -1098,7 +1085,7 @@ const STAT_CORRELATIONS := {
 
 Rather than hardcoding probability modifiers per event, player reactions are driven by their stats. Events define a range of possible outcomes, and the player's current stats determine where they land in that range.
 
-#### 3.4.1 Core Philosophy
+#### 3.5.1 Core Philosophy
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -1120,9 +1107,14 @@ Rather than hardcoding probability modifiers per event, player reactions are dri
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.4.2 Event Response Calculation
+#### 3.5.2 Event Response Calculation
 
 ```gdscript
+## Constants for event outcome calculation
+const DEFAULT_RELEVANT_STATS := ["discipline", "composure", "maturity"]
+const STAT_AVERAGE := 50.0
+const OUTCOME_VARIANCE := 0.2
+
 ## Calculate where a player lands in an event's outcome range
 ## based on their current stats
 static func calculate_event_outcome(
@@ -1132,22 +1124,50 @@ static func calculate_event_outcome(
     rng: RandomNumberGenerator
 ) -> float:
     var stats: Dictionary = player.get("stats", {})
-    var change_config: Dictionary = event["stat_changes"][stat_name]
 
-    var range_min: float = change_config["range"][0]
-    var range_max: float = change_config["range"][1]
+    # Defensive: validate event has stat_changes
+    if not event.has("stat_changes"):
+        push_error("Event missing stat_changes")
+        return 0.0
+
+    var stat_changes: Dictionary = event["stat_changes"]
+    if not stat_changes.has(stat_name):
+        push_warning("Stat '%s' not in event stat_changes" % stat_name)
+        return 0.0
+
+    var change_config: Dictionary = stat_changes[stat_name]
+
+    # Defensive: validate range exists and has 2 elements
+    if not change_config.has("range"):
+        push_error("Change config missing 'range' for stat: %s" % stat_name)
+        return 0.0
+
+    var range_array = change_config["range"]
+    if not (range_array is Array and range_array.size() >= 2):
+        push_error("Invalid range format for stat: %s" % stat_name)
+        return 0.0
+
+    var range_min: float = float(range_array[0])
+    var range_max: float = float(range_array[1])
     var range_size: float = range_max - range_min
 
     # Calculate player's "resistance" to negative outcomes
     # based on relevant stats for this type of change
-    var relevant_stats: Array = change_config.get("relevant_stats", ["discipline", "composure", "maturity"])
+    var relevant_stats: Array = change_config.get("relevant_stats", DEFAULT_RELEVANT_STATS)
+    if relevant_stats.is_empty():
+        relevant_stats = DEFAULT_RELEVANT_STATS
+
+    # Final guard against division by zero (defensive, should not happen with DEFAULT_RELEVANT_STATS)
+    if relevant_stats.is_empty():
+        push_error("No relevant stats for event outcome calculation - cannot proceed")
+        return 0.0
+
     var resistance := 0.0
-
     for relevant_stat in relevant_stats:
-        var stat_value := float(stats.get(relevant_stat, 50.0))
-        resistance += (stat_value - 50.0) / 50.0  # -1.0 to +1.0 per stat
+        var stat_value := float(stats.get(relevant_stat, STAT_AVERAGE))
+        resistance += (stat_value - STAT_AVERAGE) / STAT_AVERAGE  # -1.0 to +1.0 per stat
 
-    resistance = resistance / relevant_stats.size()  # Average
+    resistance = resistance / float(relevant_stats.size())  # Average, cast to float for safety
 
     # Map resistance to position in range
     # resistance of -1.0 → bottom of range (worst outcome)
@@ -1155,14 +1175,14 @@ static func calculate_event_outcome(
     var base_position := (resistance + 1.0) / 2.0  # 0.0 to 1.0
 
     # Add randomness (±20% variance)
-    var variance := rng.randf_range(-0.2, 0.2)
+    var variance := rng.randf_range(-OUTCOME_VARIANCE, OUTCOME_VARIANCE)
     var final_position := clamp(base_position + variance, 0.0, 1.0)
 
     # Calculate actual change
     return range_min + (range_size * final_position)
 ```
 
-#### 3.4.3 Event Definition Format
+#### 3.5.3 Event Definition Format
 
 Events now define outcome ranges and which stats influence the response:
 
@@ -1184,7 +1204,7 @@ const EVENT_SCHEMA := {
 
 ### 3.6 Contract Events
 
-#### 3.5.1 Prove-It Deal
+#### 3.6.1 Prove-It Deal
 
 **Trigger**: Team believes player COULD be great, but instead of committing to a long-term deal at that projected value, offers ~90% of value for 1 year with incentives. The player gets the opportunity to prove they can hit that performance level.
 
@@ -1233,7 +1253,7 @@ const PROVE_IT_DEAL := {
 ## because they're wired to respond to the challenge
 ```
 
-#### 3.5.2 Got Paid (Big Contract)
+#### 3.6.2 Got Paid (Big Contract)
 
 **Trigger**: Player signs contract significantly above market value or receives massive guaranteed money.
 
@@ -1256,9 +1276,9 @@ const GOT_PAID := {
             "relevant_stats": ["focus", "discipline", "work_ethic"],
             "direction": "negative"
         },
-        "hunger": {
-            "range": [-40, 0],          # Always decreases somewhat, question is how much
-            "relevant_stats": ["work_ethic", "competitiveness"],
+        "competitiveness": {
+            "range": [-30, -5],         # Big paydays can reduce competitive drive
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
             "direction": "negative"
         }
     },
@@ -1284,7 +1304,7 @@ const GOT_PAID := {
 ## Same event, stats determine outcome
 ```
 
-#### 3.4.3 Contract Year
+#### 3.6.3 Contract Year
 
 **Trigger**: Player is in final year of contract (playing for next deal).
 
@@ -1292,17 +1312,33 @@ const GOT_PAID := {
 const CONTRACT_YEAR := {
     "event_type": "contract.contract_year",
     "stat_changes": {
-        "work_ethic": [+5, +15],
-        "focus": [+10, +20],
-        "effort": [+10, +15],           # In-game effort stat
-        "injury_risk": [+5, +10]        # Playing through pain = injury risk
+        "work_ethic": {
+            "range": [+5, +15],
+            "relevant_stats": ["work_ethic", "competitiveness"],
+            "direction": "positive"
+        },
+        "focus": {
+            "range": [+10, +20],
+            "relevant_stats": ["focus", "discipline"],
+            "direction": "positive"
+        },
+        "competitiveness": {
+            "range": [+5, +15],
+            "relevant_stats": ["competitiveness", "confidence"],
+            "direction": "positive"
+        },
+        "discipline": {
+            "range": [+5, +10],
+            "relevant_stats": ["discipline", "maturity"],
+            "direction": "positive"
+        }
     },
     "duration": "seasonal",
     "notes": "The 'contract year phenomenon' - players often have career years when playing for next deal"
 }
 ```
 
-#### 3.5.4 Franchise Tagged
+#### 3.6.4 Franchise Tagged
 
 **Trigger**: Team applies franchise tag instead of long-term deal.
 
@@ -1312,7 +1348,7 @@ const FRANCHISE_TAGGED := {
     "stat_changes": {
         "work_ethic": {
             "range": [-15, +15],        # Wide range - team players accept, selfish resent
-            "relevant_stats": ["team_loyalty", "maturity", "discipline"],
+            "relevant_stats": ["maturity", "discipline", "coachability"],
             "direction": "neutral"
         },
         "discipline": {
@@ -1322,12 +1358,12 @@ const FRANCHISE_TAGGED := {
         },
         "focus": {
             "range": [-15, +10],
-            "relevant_stats": ["focus", "professionalism"],
+            "relevant_stats": ["focus", "discipline", "maturity"],
             "direction": "neutral"
         },
-        "team_loyalty": {
-            "range": [-25, -5],         # Almost always hurts loyalty
-            "relevant_stats": ["team_loyalty", "maturity"],
+        "composure": {
+            "range": [-15, -5],         # Tags create frustration and uncertainty
+            "relevant_stats": ["composure", "maturity"],
             "direction": "negative"
         }
     },
@@ -1335,7 +1371,7 @@ const FRANCHISE_TAGGED := {
 }
 ```
 
-#### 3.4.5 Took Pay Cut
+#### 3.6.5 Took Pay Cut
 
 **Trigger**: Player restructures or signs below market to stay with contender.
 
@@ -1343,10 +1379,11 @@ const FRANCHISE_TAGGED := {
 const TOOK_PAY_CUT := {
     "event_type": "contract.pay_cut",
     "stat_changes": {
-        "team_loyalty": [+15, +25],
+        "maturity": [+10, +20],         # Prioritizing team over money shows maturity
         "focus": [+5, +15],             # Focused on winning
         "composure": [+5, +10],         # Mature decision
-        "work_ethic": [+5, +10]
+        "work_ethic": [+5, +10],
+        "discipline": [+5, +10]         # Commitment to winning takes discipline
     },
     "duration": "permanent",
     "triggers_trait": "team_first",     # Can earn this trait
@@ -1359,7 +1396,7 @@ const TOOK_PAY_CUT := {
 
 ### 3.7 Team/Roster Events
 
-#### 3.6.1 Released/Cut
+#### 3.7.1 Released/Cut
 
 ```gdscript
 const RELEASED := {
@@ -1396,29 +1433,48 @@ const RELEASED := {
 ##   → confidence boost, composure maintained, big chip on shoulder
 ```
 
-#### 3.5.2 Named Team Captain
+#### 3.7.2 Named Team Captain
 
 ```gdscript
 const NAMED_CAPTAIN := {
     "event_type": "team.named_captain",
     "stat_changes": {
-        "leadership": [+10, +20],       # New stat
-        "composure": [+5, +15],
-        "discipline": [+5, +10],
-        "work_ethic": [+5, +10],
-        "focus": [+5, +10]
+        "composure": {
+            "range": [+5, +15],
+            "relevant_stats": ["composure", "maturity"],
+            "direction": "positive"
+        },
+        "discipline": {
+            "range": [+5, +10],
+            "relevant_stats": ["discipline", "work_ethic"],
+            "direction": "positive"
+        },
+        "work_ethic": {
+            "range": [+5, +10],
+            "relevant_stats": ["work_ethic", "discipline"],
+            "direction": "positive"
+        },
+        "focus": {
+            "range": [+5, +10],
+            "relevant_stats": ["focus", "discipline"],
+            "direction": "positive"
+        },
+        "maturity": {
+            "range": [+5, +10],
+            "relevant_stats": ["maturity", "composure"],
+            "direction": "positive"
+        }
     },
     "duration": "permanent",
     "triggers_trait": "leader",
     "team_effects": {
-        # Captain can influence teammates
-        "locker_room_presence": +15,
-        "young_player_development": +0.1  # 10% boost to young players' growth
+        # Captain can influence teammates (tracked separately in team state)
+        "mentorship_bonus": +0.1  # 10% boost to young players' growth
     }
 }
 ```
 
-#### 3.6.3 Traded
+#### 3.7.3 Traded
 
 ```gdscript
 const TRADED := {
@@ -1436,7 +1492,7 @@ const TRADED := {
         },
         "discipline": {
             "range": [-10, +10],
-            "relevant_stats": ["discipline", "professionalism"],
+            "relevant_stats": ["discipline", "maturity", "coachability"],
             "direction": "neutral"
         }
     },
@@ -1454,7 +1510,7 @@ const TRADED := {
 ## Context shifts the range, stats determine where in shifted range you land
 ```
 
-#### 3.6.4 Team Drafts Replacement
+#### 3.7.4 Team Drafts Replacement
 
 ```gdscript
 const TEAM_DRAFTS_REPLACEMENT := {
@@ -1492,7 +1548,7 @@ const TEAM_DRAFTS_REPLACEMENT := {
 ## Low confidence player: feels threatened, composure/confidence tank
 ```
 
-#### 3.5.5 Veteran Mentor Assigned
+#### 3.7.5 Veteran Mentor Assigned
 
 ```gdscript
 const VETERAN_MENTOR := {
@@ -1513,15 +1569,15 @@ const VETERAN_MENTOR := {
     },
     "mentor_effects": {
         # Mentor also benefits
-        "leadership": [+3, +5],
-        "legacy_score": [+5, +10]        # For Hall of Fame consideration
+        "maturity": [+3, +5],            # Teaching others builds character
+        "composure": [+3, +5]            # Responsibility helps steadiness
     }
 }
 ```
 
 ### 3.8 Personal Life Events
 
-#### 3.6.1 Marriage
+#### 3.8.1 Marriage
 
 ```gdscript
 const MARRIAGE := {
@@ -1530,7 +1586,7 @@ const MARRIAGE := {
         "discipline": [+5, +15],
         "composure": [+5, +10],
         "focus": [-5, +10],             # Honeymoon phase can distract
-        "stability": [+10, +20]         # New hidden stat
+        "maturity": [+5, +15]           # Marriage often matures players
     },
     "duration": "permanent",
     "first_year_modifier": {
@@ -1539,7 +1595,7 @@ const MARRIAGE := {
 }
 ```
 
-#### 3.6.2 Divorce
+#### 3.8.2 Divorce
 
 ```gdscript
 const DIVORCE := {
@@ -1548,7 +1604,7 @@ const DIVORCE := {
         "focus": [-20, -10],
         "composure": [-15, -5],
         "discipline": [-15, -5],
-        "stability": [-25, -15]
+        "confidence": [-15, -5]         # Personal failure affects self-belief
     },
     "duration": "temporary",
     "years_remaining": 2,               # Takes time to recover
@@ -1560,7 +1616,7 @@ const DIVORCE := {
 }
 ```
 
-#### 3.7.3 New Child
+#### 3.8.3 New Child
 
 ```gdscript
 const NEW_CHILD := {
@@ -1573,7 +1629,7 @@ const NEW_CHILD := {
         },
         "discipline": {
             "range": [-5, +15],
-            "relevant_stats": ["discipline", "maturity", "responsibility"],
+            "relevant_stats": ["discipline", "maturity", "work_ethic"],
             "direction": "positive"
         },
         "focus": {
@@ -1583,18 +1639,18 @@ const NEW_CHILD := {
         },
         "work_ethic": {
             "range": [-10, +15],        # Motivated to provide vs distracted
-            "relevant_stats": ["work_ethic", "maturity", "responsibility"],
+            "relevant_stats": ["work_ethic", "maturity", "discipline"],
             "direction": "positive"
         }
     },
     "duration": "permanent"
 }
 
-## Mature, responsible player: new child motivates them, grows up
-## Immature, unfocused player: struggles with new responsibility
+## Mature, disciplined player: new child motivates them, grows up
+## Immature, unfocused player: struggles with new demands
 ```
 
-#### 3.6.4 Off-Field Trouble
+#### 3.8.4 Off-Field Trouble
 
 ```gdscript
 const OFF_FIELD_TROUBLE := {
@@ -1603,9 +1659,9 @@ const OFF_FIELD_TROUBLE := {
         "discipline": [-20, -10],
         "focus": [-15, -5],
         "composure": [-10, -5],
-        "reputation": [-25, -10]        # New stat: affects contracts, endorsements
+        "confidence": [-15, -5]         # Public embarrassment affects self-image
     },
-    "duration": "permanent",            # Reputation sticks
+    "duration": "permanent",            # Character concerns persist
     "severity_levels": {
         "minor": {                      # Bar fight, traffic incident
             "discipline": -10,
@@ -1624,7 +1680,7 @@ const OFF_FIELD_TROUBLE := {
     },
     "recovery_path": {
         "community_service": {
-            "reputation": [+5, +15],
+            "confidence": [+5, +15],     # Rebuilding self-image
             "discipline": [+5, +10]
         },
         "counseling_program": {
@@ -1635,7 +1691,7 @@ const OFF_FIELD_TROUBLE := {
 }
 ```
 
-#### 3.6.5 Found Religion/Purpose
+#### 3.8.5 Found Religion/Purpose
 
 ```gdscript
 const FOUND_PURPOSE := {
@@ -1645,7 +1701,7 @@ const FOUND_PURPOSE := {
         "composure": [+10, +15],
         "focus": [+5, +15],
         "work_ethic": [+5, +15],
-        "stability": [+15, +25]
+        "maturity": [+10, +20]          # Major personal growth
     },
     "duration": "permanent",
     "triggers_trait": "high_character",
@@ -1658,7 +1714,7 @@ const FOUND_PURPOSE := {
 
 ### 3.9 Performance Events
 
-#### 3.8.1 Costly Mistake (Game-Losing Play)
+#### 3.9.1 Costly Mistake (Game-Losing Play)
 
 ```gdscript
 const COSTLY_MISTAKE := {
@@ -1699,7 +1755,7 @@ const COSTLY_MISTAKE := {
 ## Low confidence + low composure: can develop "yips", confidence craters
 ```
 
-#### 3.7.2 Injury Comeback
+#### 3.9.2 Injury Comeback
 
 ```gdscript
 const INJURY_COMEBACK := {
@@ -1731,7 +1787,7 @@ const INJURY_COMEBACK := {
 }
 ```
 
-#### 3.8.3 Super Bowl Loss
+#### 3.9.3 Super Bowl Loss
 
 ```gdscript
 const SUPER_BOWL_LOSS := {
@@ -1752,8 +1808,8 @@ const SUPER_BOWL_LOSS := {
             "relevant_stats": ["work_ethic", "competitiveness"],
             "direction": "positive"
         },
-        "clutch_factor": {
-            "range": [-15, +10],        # Can be haunted or learn from it
+        "confidence": {
+            "range": [-15, +10],        # Can be haunted by loss or grow from it
             "relevant_stats": ["composure", "confidence", "maturity"],
             "direction": "neutral"
         }
@@ -1767,7 +1823,7 @@ const SUPER_BOWL_LOSS := {
 
 ### 3.10 Milestone Events
 
-#### 3.9.1 First Pro Bowl Selection
+#### 3.10.1 First Pro Bowl Selection
 
 ```gdscript
 const FIRST_PRO_BOWL := {
@@ -1785,23 +1841,23 @@ const FIRST_PRO_BOWL := {
         },
         "work_ethic": {
             "range": [-15, +15],        # Can motivate or satisfy
-            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
             "direction": "neutral"
         },
         "focus": {
             "range": [-10, +15],
-            "relevant_stats": ["focus", "competitiveness", "ambition"],
+            "relevant_stats": ["focus", "competitiveness", "discipline"],
             "direction": "neutral"
         }
     },
     "duration": "permanent"
 }
 
-## High competitiveness + high ambition: wants more, stays hungry
-## Low competitiveness: "made it", coasts on reputation
+## High competitiveness + high discipline: wants more, stays hungry
+## Low competitiveness: "made it", coasts
 ```
 
-#### 3.9.2 Won Championship
+#### 3.10.2 Won Championship
 
 ```gdscript
 const WON_CHAMPIONSHIP := {
@@ -1819,12 +1875,12 @@ const WON_CHAMPIONSHIP := {
         },
         "work_ethic": {
             "range": [-20, +20],        # Big range - dynasty mindset vs complacency
-            "relevant_stats": ["work_ethic", "competitiveness", "ambition"],
+            "relevant_stats": ["work_ethic", "competitiveness", "discipline"],
             "direction": "neutral"
         },
-        "hunger": {
-            "range": [-25, +15],
-            "relevant_stats": ["competitiveness", "ambition", "work_ethic"],
+        "competitiveness": {
+            "range": [-20, +15],        # Some get satisfied, others want more rings
+            "relevant_stats": ["competitiveness", "work_ethic", "discipline"],
             "direction": "neutral"
         }
     },
@@ -1837,7 +1893,7 @@ const WON_CHAMPIONSHIP := {
     }
 }
 
-## High competitiveness + high ambition: wants more rings, stays hungry
+## High competitiveness + high discipline: wants more rings, stays hungry
 ## Low competitiveness: "got my ring", coasts
 ```
 
@@ -1894,7 +1950,8 @@ static func process_season_events(
     return events
 
 
-## Apply stat changes from an event, respecting personality modifiers
+## Apply stat changes from an event using stat-based resistance
+## NOTE: This uses the stat-driven system from Section 3.5, NOT personality modifiers
 static func _apply_event_stat_changes(
     player: Dictionary,
     event: Dictionary,
@@ -1902,24 +1959,29 @@ static func _apply_event_stat_changes(
 ) -> void:
     var stats: Dictionary = player.get("stats", {})
     var changes: Dictionary = event.get("stat_changes", {})
-    var personality := _get_personality_type(player)
 
     for stat_name in changes.keys():
-        var change_range = changes[stat_name]
-        if change_range is Array and change_range.size() == 2:
-            # Roll within range, modified by personality
+        var change_config = changes[stat_name]
+
+        # Handle both formats: simple [min, max] arrays and full config dictionaries
+        if change_config is Array and change_config.size() == 2:
+            # Simple format: just roll within range (used for some older event definitions)
             var base_change := rng.randf_range(
-                float(change_range[0]),
-                float(change_range[1])
+                float(change_config[0]),
+                float(change_config[1])
             )
-
-            # Personality modifiers
-            base_change *= _get_personality_modifier(personality, stat_name, event)
-
-            # Apply change
             if stats.has(stat_name):
                 stats[stat_name] = clamp(
                     float(stats[stat_name]) + base_change,
+                    0.0,
+                    100.0
+                )
+        elif change_config is Dictionary and change_config.has("range"):
+            # Full format: use stat-based resistance calculation
+            var final_change := calculate_event_outcome(player, event, stat_name, rng)
+            if stats.has(stat_name):
+                stats[stat_name] = clamp(
+                    float(stats[stat_name]) + final_change,
                     0.0,
                     100.0
                 )
@@ -1927,11 +1989,171 @@ static func _apply_event_stat_changes(
     player["stats"] = stats
 ```
 
-### 3.12 Recovery Mechanics
+### 3.12 Career Event Lifecycle Integration
+
+This section explicitly defines WHERE and WHEN career events are processed within the simulation lifecycle.
+
+#### 3.12.1 Integration Point: Post-Season Processing
+
+Career events are processed during the **offseason phase**, after the season simulation completes but before the next season begins.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Simulation Lifecycle (Simplified)                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────┐                                                         │
+│  │   PRE-SEASON        │  • Free agency, trades, roster cuts                     │
+│  │   (Before Week 1)   │  • Training camp modifiers applied                      │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   REGULAR SEASON    │  • 17 weeks of games simulated                          │
+│  │   (Weeks 1-17)      │  • Stats accumulated, injuries tracked                  │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   PLAYOFFS          │  • Postseason games                                     │
+│  │   (If applicable)   │  • Championship events                                  │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   OFFSEASON         │  1. Performance grades calculated                       │
+│  │   PROCESSING        │  2. Awards/milestones determined                        │
+│  │   ★ EVENTS HERE ★   │  3. ★ CAREER EVENTS PROCESSED ★ ← Here!                 │
+│  │                     │  4. Player development applied                          │
+│  │                     │  5. Event recovery/decay applied                        │
+│  │                     │  6. Contracts expire, FA begins                         │
+│  └──────────┬──────────┘                                                         │
+│             ↓                                                                    │
+│  ┌─────────────────────┐                                                         │
+│  │   NEXT SEASON       │  • Draft, free agency, repeat                           │
+│  └─────────────────────┘                                                         │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 3.12.2 Offseason Processing Order
+
+The specific order within offseason processing matters:
+
+```gdscript
+## NflSeason.gd or SeasonManager.gd - end of season processing
+func process_offseason(world_state: Dictionary, rng: RandomNumberGenerator) -> void:
+    # Validate world_state has required keys
+    if not world_state.has("players"):
+        push_error("world_state missing 'players' array")
+        return
+    if not world_state.has("current_year"):
+        push_error("world_state missing 'current_year'")
+        return
+
+    var players: Array = world_state["players"]
+    var season_year := int(world_state["current_year"])
+
+    # Ensure performance_grades dictionary exists
+    if not world_state.has("performance_grades"):
+        world_state["performance_grades"] = {}
+
+    # Step 1: Calculate performance grades (pure calculation, no RNG)
+    var grades := PerformanceGrader.grade_all_players(players, world_state, cfg)
+    world_state["performance_grades"][season_year] = grades
+
+    # Step 2: Determine awards and milestones
+    var awards := AwardSelector.select_awards(players, grades, world_state)
+    _apply_milestone_events(players, awards)
+
+    # Step 3: Process career events (RNG consumed here)
+    for player in players:
+        var season_context := _build_season_context(player, world_state, grades, awards)
+        var events := CareerEventProcessor.process_season_events(player, season_context, rng)
+
+        # Generate headlines for significant events
+        for event in events:
+            if _is_newsworthy(event):
+                NewsGenerator.create_headline(event, player, world_state)
+
+    # Step 4: Apply player development (RNG consumed here)
+    for player in players:
+        PlayerLifecycle.advance_one_year(player, dev_config, positions_cfg, rng, context)
+
+    # Step 5: Apply event recovery/decay
+    for player in players:
+        _process_event_recovery(player, rng)
+
+    # Step 6: Handle contract expirations, begin FA period
+    ContractManager.process_expirations(world_state)
+```
+
+#### 3.12.3 Why This Order?
+
+1. **Grades before events**: Performance grades inform which milestone events trigger (Pro Bowl, All-Pro)
+2. **Events before development**: Stat changes from events affect the development calculations
+3. **Development before recovery**: Recovery applies to event stat changes, not development gains
+4. **Everything before FA**: Player valuations need updated stats for contract negotiations
+
+#### 3.12.4 Contract-Triggered Events
+
+Some events trigger **immediately** when contracts are signed, not during offseason:
+
+```gdscript
+## ContractNegotiator.gd - called when contract is signed
+func on_contract_signed(player: Dictionary, contract: Dictionary, rng: RandomNumberGenerator) -> void:
+    var event_type := _determine_contract_event_type(player, contract)
+
+    if event_type != "":
+        var event := CareerEventProcessor.create_contract_event(
+            player, contract, event_type, rng
+        )
+        # Apply immediately, don't wait for offseason
+        CareerEventProcessor._apply_event_stat_changes(player, event, rng)
+
+        # Store in history
+        var history: Array = player.get("career_events", [])
+        history.append(event)
+        player["career_events"] = history
+
+## Determine what type of contract event this is
+func _determine_contract_event_type(player: Dictionary, contract: Dictionary) -> String:
+    var market_value := PlayerValue.calculate_market_value(player)
+    var contract_aav := float(contract["total_value"]) / float(contract["years"])
+    var ratio := contract_aav / market_value
+
+    var years := int(contract["years"])
+    var guaranteed := float(contract.get("guaranteed", 0))
+
+    # Prove-it deal: Short-term, below market, with incentives
+    if years == 1 and ratio < 0.95 and contract.get("has_incentives", false):
+        return "contract.prove_it_deal"
+
+    # Got paid: Above market or huge guaranteed
+    if ratio > 1.2 or guaranteed > 30_000_000:
+        return "contract.got_paid"
+
+    # Contract year detection happens at season start, not here
+    return ""
+```
+
+#### 3.12.5 In-Season Event Triggers
+
+Some events can trigger during the season (not just offseason):
+
+| Event Type | When Triggered | Processing |
+|------------|----------------|------------|
+| Contract signed (prove-it, got-paid) | Immediately on signing | Applied right away |
+| Traded | Immediately on trade | Applied right away |
+| Released/Cut | Immediately on release | Applied right away |
+| Injury comeback | Start of season after injury | Applied at season start |
+| Contract year | Start of final contract year | Applied at season start |
+| Performance events (costly mistake) | End of game | Queued for offseason |
+| Personal events | Offseason only | Applied during offseason |
+| Milestone events | End of season | Applied during offseason |
+
+### 3.13 Recovery Mechanics
 
 Negative events don't have to be permanent. Players can recover from setbacks, and their recovery speed is influenced by their stats and circumstances.
 
-#### 3.10.1 Recovery Speed Factors
+#### 3.13.1 Recovery Speed Factors
 
 ```gdscript
 ## RecoveryCalculator - determines how quickly a player bounces back from negative events
@@ -1981,7 +2203,7 @@ static func calculate_recovery_multiplier(player: Dictionary) -> float:
     return clamp(multiplier, 0.5, 2.0)  # 0.5x to 2.0x recovery speed
 ```
 
-#### 3.10.2 Recovery Application
+#### 3.13.2 Recovery Application
 
 ```gdscript
 ## Apply recovery to temporary events during offseason
@@ -2024,7 +2246,7 @@ static func process_event_recovery(
     return event
 ```
 
-#### 3.10.3 Recovery Examples
+#### 3.13.3 Recovery Examples
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -2048,7 +2270,7 @@ static func process_event_recovery(
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.10.4 Support System Bonuses
+#### 3.13.4 Support System Bonuses
 
 External factors can also accelerate recovery:
 
@@ -2090,185 +2312,114 @@ const RECOVERY_SUPPORT_BONUSES := {
 }
 ```
 
-### 3.13 Personality Evolution
+### 3.14 Personality Evolution Through Stats
 
-Personality types are not fixed for life. People can change, and significant events can reshape a player's core personality over their career.
+> **DECISION**: Personality is ALWAYS computed from stats, never stored. Personality "evolution" happens naturally as underlying stats change from career events. There is no stored `personality_type` field.
 
-#### 3.11.1 Personality Change Triggers
+Personality labels are not fixed for life because stats change. When a player's `composure`, `work_ethic`, or `confidence` shift from career events, their computed personality label may change as well.
 
-```gdscript
-const PERSONALITY_CHANGE_TRIGGERS := {
-    # Major life events can shift personality
-    "found_purpose": {
-        "from": ["volatile", "front_runner"],
-        "to": "steady_eddie",
-        "chance": 0.40,
-        "description": "Finding meaning brings stability"
-    },
+#### 3.14.1 How Personality Changes
 
-    "championship_win": {
-        "from": ["front_runner"],
-        "to": "competitor",
-        "chance": 0.25,
-        "description": "Winning can build lasting confidence"
-    },
+Personality changes are **emergent**, not explicit:
 
-    "career_threatening_injury_comeback": {
-        "from": ["front_runner", "volatile"],
-        "to": "competitor",
-        "chance": 0.35,
-        "description": "Surviving adversity builds resilience"
-    },
-
-    "multiple_releases": {
-        "from": ["competitor", "steady_eddie"],
-        "to": "front_runner",
-        "chance": 0.20,
-        "description": "Repeated rejection can damage confidence"
-    },
-
-    "massive_contract_complacency": {
-        "from": ["competitor"],
-        "to": "front_runner",
-        "chance": 0.15,
-        "description": "Success can breed complacency even in competitors"
-    },
-
-    "veteran_mentor_influence": {
-        "from": ["volatile", "front_runner"],
-        "to": "steady_eddie",
-        "chance": 0.20,
-        "description": "Great mentors can stabilize young players"
-    },
-
-    "captain_responsibility": {
-        "from": ["volatile"],
-        "to": "competitor",
-        "chance": 0.30,
-        "description": "Leadership responsibility can focus a player"
-    },
-
-    "repeated_clutch_performances": {
-        "from": ["front_runner", "steady_eddie"],
-        "to": "competitor",
-        "chance": 0.25,
-        "description": "Proving yourself in big moments builds competitor mentality"
-    },
-
-    "repeated_playoff_failures": {
-        "from": ["competitor"],
-        "to": "front_runner",
-        "chance": 0.15,
-        "description": "Repeated failures can erode confidence"
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Personality Evolution Flow                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  BEFORE EVENT:                                                                   │
+│    composure: 38, discipline: 42, work_ethic: 55                                 │
+│    → computed label: "volatile" (low composure + low discipline)                 │
+│                                                                                  │
+│  EVENT: "found_purpose" triggers                                                 │
+│    → discipline: 42 → 60 (+18)                                                   │
+│    → composure: 38 → 56 (+18)                                                    │
+│    → work_ethic: 55 → 72 (+17)                                                   │
+│                                                                                  │
+│  AFTER EVENT:                                                                    │
+│    composure: 56, discipline: 60, work_ethic: 72                                 │
+│    → computed label: "steady_eddie" (high discipline + adequate composure)       │
+│                                                                                  │
+│  RESULT: Personality changed from "volatile" → "steady_eddie"                    │
+│          But we never stored personality_type - it's always computed             │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 3.11.2 Gradual Personality Drift
+#### 3.14.2 Tracking Personality History
 
-Beyond triggered changes, personality can drift gradually based on sustained patterns:
+Since personality is computed, we track changes by detecting when the label changes:
 
 ```gdscript
-## Check for gradual personality evolution during offseason
-static func check_personality_evolution(
+## Check if personality label changed after processing events
+## Called during offseason processing AFTER events are applied
+static func check_personality_change(
     player: Dictionary,
-    season_context: Dictionary,
-    rng: RandomNumberGenerator
+    previous_label: String
 ) -> Dictionary:
-    var current_personality: String = player.get("personality_type", "steady_eddie")
-    var career_events: Array = player.get("career_events", [])
-    var new_personality := current_personality
+    var current_label := get_personality_label(player)
 
-    # Count recent positive vs negative outcomes (last 3 years)
-    var recent_events := _get_recent_events(career_events, 3)
-    var adversity_count := _count_adversity_events(recent_events)
-    var success_count := _count_success_events(recent_events)
-
-    # Gradual drift based on sustained patterns
-    if adversity_count >= 3 and success_count == 0:
-        # Lots of adversity, no success
-        match current_personality:
-            "competitor":
-                # Even competitors can be worn down
-                if rng.randf() < 0.10:  # 10% chance per year of sustained adversity
-                    new_personality = "front_runner"
-            "steady_eddie":
-                # Steady players can become fragile
-                if rng.randf() < 0.08:
-                    new_personality = "front_runner"
-
-    elif success_count >= 3 and adversity_count == 0:
-        # Sustained success
-        match current_personality:
-            "front_runner":
-                # Success can build genuine confidence
-                if rng.randf() < 0.12:
-                    new_personality = "steady_eddie"
-            "volatile":
-                # Success can stabilize volatile players
-                if rng.randf() < 0.10:
-                    new_personality = "competitor"
-
-    # Check for age-related maturation (players often mellow with age)
-    var age := int(player.get("age", 22))
-    if age >= 30 and current_personality == "volatile":
-        if rng.randf() < 0.15:  # 15% chance per year after 30
-            new_personality = "steady_eddie"
-
-    if new_personality != current_personality:
+    if current_label != previous_label:
+        # Record the change for narrative/UI purposes
         return {
             "changed": true,
-            "from": current_personality,
-            "to": new_personality,
-            "reason": _determine_change_reason(adversity_count, success_count, age)
+            "from": previous_label,
+            "to": current_label,
+            "reason": _infer_change_reason(player)
         }
 
     return {"changed": false}
+
+## Infer why personality changed based on recent stat changes
+static func _infer_change_reason(player: Dictionary) -> String:
+    var recent_events: Array = player.get("career_events", [])
+    if recent_events.is_empty():
+        return "gradual maturation"
+
+    var latest_event: Dictionary = recent_events[-1]
+    var event_type: String = latest_event.get("event_type", "")
+
+    # Map events to human-readable reasons
+    match event_type:
+        "personal.found_purpose":
+            return "Found purpose after personal struggles"
+        "performance.injury_comeback":
+            return "Surviving injury built mental toughness"
+        "milestone.championship":
+            return "Championship validated self-belief"
+        "team.released":
+            return "Being cut changed his outlook"
+        _:
+            return "Career experiences reshaped his mentality"
 ```
 
-#### 3.11.3 Personality Evolution Tracking
+#### 3.14.3 Optional: Personality Change History
+
+For narrative purposes, we can optionally track when the computed label changed:
 
 ```gdscript
-## Store personality changes in player history
-player["personality_history"] = [
+## Optional personality history for UI/narrative
+## This is computed data, not source of truth
+player["personality_label_history"] = [
     {
-        "type": "volatile",
+        "label": "volatile",
         "from_age": 22,
-        "to_age": 25
+        "to_age": 25,
+        "ending_stats": {"composure": 38, "discipline": 42}
     },
     {
-        "type": "competitor",
+        "label": "steady_eddie",
         "from_age": 25,
         "to_age": null,  # Current
-        "trigger": "career_threatening_injury_comeback",
-        "description": "ACL comeback built mental toughness"
+        "trigger_event": "personal.found_purpose",
+        "starting_stats": {"composure": 56, "discipline": 60}
     }
 ]
 ```
 
-#### 3.11.4 Personality Change Visibility
+### 3.15 Personality Computation
 
-```gdscript
-const PERSONALITY_CHANGE_VISIBILITY := {
-    # Some changes are publicly observable
-    "public": [
-        "found_purpose",           # Often discussed in media
-        "captain_responsibility",  # Public announcement
-        "repeated_playoff_failures"  # Performance is public
-    ],
-
-    # Some require scouting/intel to detect
-    "requires_scouting": [
-        "gradual_drift",           # Subtle changes
-        "veteran_mentor_influence",  # Internal team dynamics
-        "locker_room_evolution"    # Behind closed doors
-    ]
-}
-```
-
-### 3.14 Personality as Emergent from Stats
-
-Rather than hardcoding personality types with special event modifiers, personality emerges naturally from a player's stat combination. The same stats that determine event outcomes also define who the player "is".
+Personality labels are computed from stats, not stored. This is the canonical computation:
 
 ```gdscript
 ## Personality is DESCRIPTIVE, not prescriptive
@@ -2334,12 +2485,32 @@ This approach means:
 - **Personality labels are descriptive, not mechanical**
 - **Players can "change personality" by changing their stats over time**
 
-### 3.15 Configuration
+### 3.16 Configuration
 
 Add to `main.json`:
 
 ```json
 {
+    "performance_grading": {
+        "enabled": true,
+        "grade_scale": {
+            "min": 0.0,
+            "max": 100.0,
+            "average_starter": 60.0,
+            "elite_threshold": 85.0,
+            "poor_threshold": 45.0
+        },
+        "overperformer_threshold": 0.3,
+        "underperformer_threshold": -0.3,
+        "position_weights": {
+            "CB": {
+                "ball_skills": 0.45,
+                "coverage": 0.40,
+                "tackling": 0.15
+            }
+        }
+    },
+
     "career_events": {
         "enabled": true,
         "event_probabilities": {
@@ -2351,27 +2522,52 @@ Add to `main.json`:
             "single_event_max": 25,
             "cumulative_year_max": 40
         },
-        "personality_distribution": {
-            "competitor": 0.25,
-            "front_runner": 0.20,
-            "steady_eddie": 0.40,
-            "volatile": 0.15
-        },
         "contract_thresholds": {
-            "prove_it_deal_market_ratio": 0.7,
-            "got_paid_market_ratio": 1.2,
+            "prove_it_deal_max_years": 1,
+            "prove_it_deal_max_ratio": 0.95,
+            "got_paid_min_ratio": 1.2,
             "big_guaranteed_money": 30000000
         },
         "decay_rates": {
             "temporary_event_default": 0.4,
             "chip_on_shoulder": 0.3,
             "personal_crisis": 0.5
+        },
+        "personality_drift": {
+            "adversity_threshold_years": 3,
+            "success_threshold_years": 3,
+            "competitor_erosion_chance": 0.10,
+            "steady_erosion_chance": 0.08,
+            "front_runner_improvement_chance": 0.12,
+            "volatile_improvement_chance": 0.10,
+            "age_mellowing_chance": 0.15,
+            "age_mellowing_starts": 30
+        }
+    },
+
+    "recovery": {
+        "stat_influences": {
+            "work_ethic": { "weight": 0.35, "bonus_per_10": 0.08 },
+            "discipline": { "weight": 0.25, "bonus_per_10": 0.06 },
+            "composure": { "weight": 0.20, "bonus_per_10": 0.05 },
+            "coachability": { "weight": 0.20, "bonus_per_10": 0.05 }
+        },
+        "multiplier_bounds": { "min": 0.5, "max": 2.0 },
+        "support_bonuses": {
+            "veteran_mentor": 0.15,
+            "strong_coaching": 0.10,
+            "team_culture_high": 0.12,
+            "married": 0.08,
+            "counseling_program": 0.20,
+            "sports_psychologist": 0.15
         }
     }
 }
 ```
 
-### 3.16 Event History Storage
+Note: Code examples in this document use constants with these config values as defaults. Actual implementations should read from config and fall back to constants only if config is missing.
+
+### 3.17 Event History Storage
 
 ```gdscript
 ## Player career_events array
@@ -2563,8 +2759,8 @@ player["career_events"] = [
 │    Composite: 87 → 89 (bounce back, still in prime window)                      │
 │    Performance Grade: 85.1 (back to elite)                                      │
 │    EVENT: "team.veteran_mentor" - mentors rookie                                │
-│      → Leadership: +12                                                          │
-│      → Legacy Score: +8                                                         │
+│      → Maturity: +5                                                             │
+│      → Composure: +5                                                            │
 │    → Proves he can coexist, earns captain nomination                            │
 │                                                                                 │
 │  ════════════════════════════════════════════════════════════════════════════   │
@@ -2709,9 +2905,10 @@ player["career_events"] = [
    - Personality modifiers
    - Duration and decay settings
 
-3. **Personality system** - At player creation
-   - Assign personality type (competitor, front_runner, steady_eddie, volatile)
-   - Store on player for event processing
+3. **Personality system** - Computed at runtime
+   - `get_personality_label(player)` computes from current stats
+   - No stored personality_type field
+   - Events modify stats, which may change computed personality
 
 ### Phase 4: Downstream Systems
 
@@ -2791,6 +2988,128 @@ func test_late_bloomer_trajectory():
 
 ---
 
+## Data Migration Strategy
+
+Existing save files contain players without the new fields (`development_profile`, `career_grades`, `career_events`). This section defines how to migrate them.
+
+### Migration Function
+
+```gdscript
+## PlayerMigration.gd - Migrate existing players to new schema
+class_name PlayerMigration
+
+## Migrate a player from v1.0 (no development/events) to v2.0
+## Uses deterministic seeding so migration is reproducible
+static func migrate_player_v1_to_v2(
+    player: Dictionary,
+    positions_cfg: Dictionary,
+    dev_config: Dictionary
+) -> Dictionary:
+    var player_id: String = player.get("player_id", str(player.hash()))
+
+    # Generate deterministic seed from player_id
+    var seed := _generate_migration_seed(player_id)
+    var rng := RandomNumberGenerator.new()
+    rng.seed = seed
+
+    # Add development_profile if missing
+    if not player.has("development_profile"):
+        player["development_profile"] = _generate_development_profile_for_existing(
+            player, rng, dev_config
+        )
+
+    # Initialize empty career_events array
+    if not player.has("career_events"):
+        player["career_events"] = []
+
+    # Initialize empty career_grades array (no retroactive grading)
+    if not player.has("career_grades"):
+        player["career_grades"] = []
+
+    # Add schema version
+    player["schema_version"] = 2
+
+    return player
+
+## Generate deterministic seed from player_id string
+static func _generate_migration_seed(player_id: String) -> int:
+    var hash_val := 0
+    for c in player_id:
+        hash_val = (hash_val * 31 + c.unicode_at(0)) & 0x7FFFFFFF
+    return hash_val
+
+## Generate development profile for existing player based on their career so far
+static func _generate_development_profile_for_existing(
+    player: Dictionary,
+    rng: RandomNumberGenerator,
+    dev_config: Dictionary
+) -> Dictionary:
+    var age := int(player.get("age", 22))
+    var years_in_league := max(0, age - 22)
+
+    # For existing players, infer development type from their career trajectory
+    # Players with high ratings at young age are likely early_peak
+    # Players who improved significantly are likely late_bloomer
+    var current_rating := float(player.get("overall_rating", 70))
+
+    var inferred_type := "steady"
+
+    if years_in_league >= 3:
+        # Has enough history to infer
+        if current_rating >= 85 and age <= 26:
+            inferred_type = "early_peak"
+        elif current_rating >= 80 and age >= 28:
+            inferred_type = "late_bloomer"
+        elif current_rating < 65:
+            inferred_type = "erratic"
+
+    return {
+        "development_type": inferred_type,
+        "growth_rate_modifier": 1.0,
+        "prime_age_start": 26 if inferred_type == "early_peak" else 28,
+        "prime_age_end": 30 if inferred_type == "early_peak" else 32,
+        "decline_rate_modifier": 1.0,
+        "development_events": [],
+        "migrated": true,  # Flag that this was inferred, not generated at creation
+        "migration_age": age
+    }
+```
+
+### Migration Trigger
+
+Migration should happen:
+1. **On save load**: When loading a save file, check `schema_version` on each player
+2. **Batch migration**: Process all players in world_state during load
+3. **Lazy migration**: Or migrate individual players when they're accessed
+
+```gdscript
+## In SaveLoader.gd or WorldState.gd
+func load_world_state(save_data: Dictionary) -> Dictionary:
+    var world_state := save_data
+
+    # Check if migration needed
+    var players: Array = world_state.get("players", [])
+    for i in range(players.size()):
+        var player: Dictionary = players[i]
+        if player.get("schema_version", 1) < 2:
+            players[i] = PlayerMigration.migrate_player_v1_to_v2(
+                player, positions_cfg, dev_config
+            )
+
+    world_state["players"] = players
+    return world_state
+```
+
+### Migration Guarantees
+
+1. **Deterministic**: Same player_id always produces same migration result
+2. **Non-destructive**: Original fields are preserved, only new fields added
+3. **Flagged**: Migrated profiles have `migrated: true` so we know they were inferred
+4. **No retroactive grading**: `career_grades` starts empty - we don't fake historical grades
+5. **No retroactive events**: `career_events` starts empty - we don't fabricate past events
+
+---
+
 ## Files to Create/Modify
 
 ### New Files
@@ -2812,9 +3131,9 @@ func test_late_bloomer_trajectory():
 
 | File | Changes |
 |------|---------|
-| `scripts/core/models/Player.gd` | Add `development_profile`, `career_grades`, `career_events`, `personality_type` |
+| `scripts/core/models/Player.gd` | Add `development_profile`, `career_grades`, `career_events` (personality is computed, not stored) |
 | `scripts/world/PlayerLifecycle.gd` | Apply development profile modifiers, decay temporary events |
-| `scripts/generation/PlayerGenerator.gd` | Generate development profiles and personality types |
+| `scripts/generation/PlayerGenerator.gd` | Generate development profiles (personality computed from stats) |
 | `scripts/world/NflSeason.gd` | Call grading and event processing at end of season |
 | `scripts/world/CollegeSeason.gd` | Call college grading at end of season |
 | `scripts/core/contracts/ContractNegotiator.gd` | Trigger contract events (prove-it, got-paid, etc.) |
