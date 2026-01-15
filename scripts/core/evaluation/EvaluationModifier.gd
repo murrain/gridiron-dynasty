@@ -67,6 +67,13 @@ func get_tags() -> Array:
 	return []
 
 
+## Get the valid bounds for this modifier's multiplier
+## Override in subclasses to specify custom ranges
+## Returns: Dictionary with "min" and "max" keys
+func get_bounds() -> Dictionary:
+	return {"min": 0.6, "max": 1.4}
+
+
 ## Whether this modifier should be applied given the context
 ## Override to add conditions (e.g., draft-only modifiers)
 func is_applicable(ctx: EvaluationContext) -> bool:

@@ -47,6 +47,9 @@ var stats_cfg: Dictionary = {}
 var class_rules: Dictionary = {}
 var schemes_cfg: Dictionary = {}
 
+## Team's draft strategy configuration (position tiers, etc.)
+var draft_strategy: Dictionary = {}
+
 ## Team's calculated position needs (position -> need_multiplier)
 var position_needs: Dictionary = {}
 
@@ -66,7 +69,8 @@ static func for_draft(
 	p_year: int,
 	p_positions_cfg: Dictionary,
 	p_stats_cfg: Dictionary,
-	p_class_rules: Dictionary
+	p_class_rules: Dictionary,
+	p_draft_strategy: Dictionary = {}
 ) -> EvaluationContext:
 	var ctx := EvaluationContext.new()
 	ctx.player = p_player
@@ -82,6 +86,7 @@ static func for_draft(
 	ctx.positions_cfg = p_positions_cfg
 	ctx.stats_cfg = p_stats_cfg
 	ctx.class_rules = p_class_rules
+	ctx.draft_strategy = p_draft_strategy
 	return ctx
 
 
@@ -146,3 +151,23 @@ func is_defensive_position() -> bool:
 ## Helper to check if position is special teams
 func is_special_teams_position() -> bool:
 	return position in ["K", "P"]
+
+
+## Helper to get the relevant scheme for this position
+func get_scheme_for_position() -> String:
+	if is_offensive_position():
+		return offensive_scheme
+	elif is_defensive_position():
+		return defensive_scheme
+	return ""
+
+
+## Helper to get position group classification
+func get_position_group() -> String:
+	if is_offensive_position():
+		return "offense"
+	elif is_defensive_position():
+		return "defense"
+	elif is_special_teams_position():
+		return "special_teams"
+	return "unknown"

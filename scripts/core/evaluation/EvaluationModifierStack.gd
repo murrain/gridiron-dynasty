@@ -152,8 +152,23 @@ func evaluate(ctx: EvaluationContext) -> StackResult:
 		# Calculate modifier value
 		var mod_result: EvaluationModifier.ModifierResult = m.calculate(ctx)
 
+		# Apply per-modifier bounds enforcement
+		var bounds := m.get_bounds()
+		var min_bound := float(bounds.get("min", 0.0))
+		var max_bound := float(bounds.get("max", 10.0))
+		mod_result.multiplier = clampf(mod_result.multiplier, min_bound, max_bound)
+
 		# Apply multiplier
 		result.final_multiplier *= mod_result.multiplier
+
+		# Intermediate clamping checkpoints
+		var priority := m.get_priority()
+		if priority == 30:
+			# After PositionNeedModifier - cap at 2.0x
+			result.final_multiplier = minf(result.final_multiplier, 2.0)
+		elif priority == 60:
+			# After CoachMindsetModifier - cap at 3.0x
+			result.final_multiplier = minf(result.final_multiplier, 3.0)
 
 		# Record application
 		result.applied_modifiers.append({
@@ -163,6 +178,9 @@ func evaluate(ctx: EvaluationContext) -> StackResult:
 			"reason": mod_result.reason,
 			"details": mod_result.details
 		})
+
+	# Apply cumulative cap - maximum 4.0x total
+	result.final_multiplier = minf(result.final_multiplier, 4.0)
 
 	return result
 
