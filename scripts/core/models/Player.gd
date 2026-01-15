@@ -1,14 +1,27 @@
 @icon("res://icon.svg")
 # res://scripts/core/models/Player.gd
-extends Resource
-class_name SportPlayer
+extends "res://scripts/core/models/Person.gd"
+class_name Player
 
-# --- Identity ---
-@export var id: String = ""
-@export var first_name: String = ""
-@export var last_name: String = ""
+const Contract = preload("res://scripts/core/models/Contract.gd")
+const Injury = preload("res://scripts/core/models/Injury.gd")
+
+## Player lifecycle stages
+## Provides type-level discrimination of player state
+enum PlayerStage {
+	HIGH_SCHOOL = 0,      # High school player
+	COLLEGE = 1,          # College player
+	DRAFT_ELIGIBLE = 2,   # Declared for draft/eligible
+	NFL_ROOKIE = 3,       # First year in NFL
+	NFL_VETERAN = 4,      # Multi-year NFL player
+	NFL_FREE_AGENT = 5,   # Free agent (unsigned)
+	RETIRED = 6           # Retired from play
+}
+
+# --- Identity (inherited from Person: id, first_name, last_name, get_full_name()) ---
 @export var position: String = "ATH"
 @export var age: int = 18
+@export var stage: PlayerStage = PlayerStage.HIGH_SCHOOL
 @export var class_tag: String = "" # e.g., "CLASS_OF_2033" or recruiting class label
 @export var jersey_number: int = 0  # Player's jersey number (0 = unassigned)
 
@@ -68,10 +81,10 @@ var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "Injury
 @export var wear: Dictionary = {"snaps": 0, "collisions": 0, "injury_count": 0}
 @export var development_report: Array = []
 # --- Health / Lifecycle ---
-var injuries: Array[Dictionary] = []
+var injuries: Array[Injury] = []
 
 # --- Contract ---
-# Schema lives on the player to keep the roster state explicit and serializable.
+# Typed contract resource for type safety and validation
 # Contract lifecycle is deterministic and replayable when the input decisions
 # are logged; do not derive hidden randomness at mutation time.
 # - Signing: set current_year = 1 and total_years > 0 with explicit values for
@@ -79,26 +92,28 @@ var injuries: Array[Dictionary] = []
 # - Extension: update total_years and financial fields explicitly; never
 #   increment current_year implicitly.
 # - Release: clear current_year/total_years and zero out financials explicitly.
-@export var contract: Dictionary = {}
+@export var contract: Contract = null
 
 # =========================
 # Lifecycle / Utilities
 # =========================
 
 func _init() -> void:
-	contract = _default_contract()
-
-func get_full_name() -> String:
-	return ("%s %s" % [first_name, last_name]).strip_edges()
+	contract = Contract.new()
 
 func from_dict(d: Dictionary) -> void:
+	# Load person fields first
+	from_dict_person(d)
 	# Safe loader; ignores unknown keys so you can evolve schema without breaking saves.
-	# Identity
-	id = str(d.get("id", id))
-	first_name = String(d.get("first_name", first_name))
-	last_name = String(d.get("last_name", last_name))
 	position = String(d.get("position", position))
 	age = int(d.get("age", age))
+
+	# Load stage with backward compatibility
+	if d.has("stage"):
+		stage = d["stage"] as PlayerStage
+	else:
+		# Infer stage from context for old saves
+		stage = _infer_stage_from_fields(d)
 	class_tag = String(d.get("class_tag", class_tag))
 	# Valid range: 0-99 (0 = unassigned)
 	jersey_number = clampi(int(d.get("jersey_number", jersey_number)), 0, 99)
@@ -136,14 +151,22 @@ func from_dict(d: Dictionary) -> void:
 	derived = (d.get("derived", derived) as Dictionary).duplicate(true)
 	traits = (d.get("traits", traits) as Array).duplicate()
 	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
-	injuries = (d.get("injuries", injuries) as Array).duplicate(true)
+
+	# Injuries - backward compatible with Dictionary array
+	injuries.clear()
+	for injury_data in d.get("injuries", []):
+		var injury = Injury.new()
+		if injury_data is Dictionary:
+			injury.from_dict(injury_data)
+		injuries.append(injury)
+
 	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
 
-	# Contract
+	# Contract - backward compatible with both Dictionary and Contract
 	var contract_data: Dictionary = d.get("contract", {}) as Dictionary
-	contract = _default_contract()
-	for key in contract_data.keys():
-		contract[key] = contract_data[key]
+	if contract == null:
+		contract = Contract.new()
+	contract.from_dict(contract_data)
 
 	# Career awards
 	var awards_data: Dictionary = d.get("career_awards", {}) as Dictionary
@@ -153,50 +176,112 @@ func from_dict(d: Dictionary) -> void:
 			career_awards[award_key] = max(0, int(awards_data[award_key]))
 
 func to_dict() -> Dictionary:
-	return {
-		"id": id,
-		"first_name": first_name,
-		"last_name": last_name,
-		"position": position,
-		"age": age,
-		"class_tag": class_tag,
-		"jersey_number": jersey_number,
-		"gen_mode": gen_mode,
-		"school_tag": school_tag,
-		"notes": notes,
-		"wear": wear.duplicate(true),
-		"development_report": development_report.duplicate(true),
-		"contract": contract.duplicate(true),
-		"career_awards": career_awards.duplicate(true),
-		"physicals": {
-			"height_in": height_in,
-			"weight_lb": weight_lb,
-			"hand_size_in": hand_size_in,
-			"arm_length_in": arm_length_in,
-			"wingspan_in": wingspan_in
-		},
-		"combine": {
-			"forty_sec": forty_sec,
-			"bench_225_reps": bench_225_reps,
-			"vertical_in": vertical_in,
-			"broad_in": broad_in,
-			"shuttle20_sec": shuttle20_sec,
-			"cone3_sec": cone3_sec,
-			"shuttle60_sec": shuttle60_sec,
-			"injury_eval": injury_eval,
-			"drug_screen": drug_screen,
-			"cybex_index": cybex_index,
-			"wonderlic": wonderlic
-		},
-		"stats": stats.duplicate(true),
-		"potential": potential.duplicate(true),
-		"derived": derived.duplicate(true),
-		"traits": traits.duplicate(),
-		"hidden_traits": hidden_traits.duplicate(),
-		"injuries": injuries.duplicate(true)
+	# Start with person fields
+	var result = to_dict_person()
+	# Add player-specific fields
+	result["position"] = position
+	result["age"] = age
+	result["stage"] = stage
+	result["class_tag"] = class_tag
+	result["jersey_number"] = jersey_number
+	result["gen_mode"] = gen_mode
+	result["school_tag"] = school_tag
+	result["notes"] = notes
+	result["wear"] = wear.duplicate(true)
+	result["development_report"] = development_report.duplicate(true)
+	result["contract"] = contract.to_dict() if contract != null else {}
+	result["career_awards"] = career_awards.duplicate(true)
+	result["physicals"] = {
+		"height_in": height_in,
+		"weight_lb": weight_lb,
+		"hand_size_in": hand_size_in,
+		"arm_length_in": arm_length_in,
+		"wingspan_in": wingspan_in
+	}
+	result["combine"] = {
+		"forty_sec": forty_sec,
+		"bench_225_reps": bench_225_reps,
+		"vertical_in": vertical_in,
+		"broad_in": broad_in,
+		"shuttle20_sec": shuttle20_sec,
+		"cone3_sec": cone3_sec,
+		"shuttle60_sec": shuttle60_sec,
+		"injury_eval": injury_eval,
+		"drug_screen": drug_screen,
+		"cybex_index": cybex_index,
+		"wonderlic": wonderlic
+	}
+	result["stats"] = stats.duplicate(true)
+	result["potential"] = potential.duplicate(true)
+	result["derived"] = derived.duplicate(true)
+	result["traits"] = traits.duplicate()
+	result["hidden_traits"] = hidden_traits.duplicate()
+
+	# Serialize injuries
+	var injuries_array: Array = []
+	for injury in injuries:
+		injuries_array.append(injury.to_dict())
+	result["injuries"] = injuries_array
+
+	return result
+
+# =========================
+# Player Stage Methods
+# =========================
+
+## Check if player is currently in NFL (rookie or veteran)
+func is_nfl_player() -> bool:
+	return stage in [PlayerStage.NFL_ROOKIE, PlayerStage.NFL_VETERAN]
+
+## Check if player is draft eligible
+func is_available_for_draft() -> bool:
+	return stage == PlayerStage.DRAFT_ELIGIBLE
+
+## Check if player is in college
+func is_college_player() -> bool:
+	return stage == PlayerStage.COLLEGE
+
+## Check if player is in high school
+func is_high_school_player() -> bool:
+	return stage == PlayerStage.HIGH_SCHOOL
+
+## Check if player is a free agent
+func is_free_agent() -> bool:
+	return stage == PlayerStage.NFL_FREE_AGENT
+
+## Check if player is retired
+func is_retired() -> bool:
+	return stage == PlayerStage.RETIRED
+
+## Transition player to a new stage with validation
+## Returns true if transition is valid, false otherwise
+## Invalid transitions will log a warning
+func transition_to(new_stage: PlayerStage) -> bool:
+	# Define valid transitions for each stage
+	var valid_transitions = {
+		PlayerStage.HIGH_SCHOOL: [PlayerStage.COLLEGE],
+		PlayerStage.COLLEGE: [PlayerStage.DRAFT_ELIGIBLE, PlayerStage.COLLEGE],
+		PlayerStage.DRAFT_ELIGIBLE: [PlayerStage.NFL_ROOKIE, PlayerStage.NFL_FREE_AGENT],
+		PlayerStage.NFL_ROOKIE: [PlayerStage.NFL_VETERAN, PlayerStage.NFL_FREE_AGENT, PlayerStage.RETIRED],
+		PlayerStage.NFL_VETERAN: [PlayerStage.NFL_FREE_AGENT, PlayerStage.RETIRED],
+		PlayerStage.NFL_FREE_AGENT: [PlayerStage.NFL_ROOKIE, PlayerStage.NFL_VETERAN, PlayerStage.RETIRED],
+		PlayerStage.RETIRED: []
 	}
 
-# --- Derived stat recompute ---
+	if new_stage in valid_transitions.get(stage, []):
+		stage = new_stage
+		return true
+	else:
+		push_warning("Invalid stage transition: %s -> %s for player %s" % [
+			PlayerStage.keys()[stage],
+			PlayerStage.keys()[new_stage],
+			get_full_name()
+		])
+		return false
+
+# =========================
+# Derived stat recompute
+# =========================
 # Pass in your stats.json "derived formulas" (pre-parsed into tokens or safe eval).
 func recompute_derived(derived_specs: Array[Dictionary]) -> void:
 	# expected spec: [{name:"catch_radius", formula:"(wingspan * 0.5) + (hand_size * 5.0)"}, ...]
@@ -245,19 +330,6 @@ func _build_formula_scope() -> Dictionary:
 		"stats": stats
 	}
 
-func _default_contract() -> Dictionary:
-	return {
-		"current_year": 0,
-		"total_years": 0,
-		"annual_value": 0.0,
-		"guaranteed": 0.0,
-		"range_min": 0.0,
-		"range_max": 0.0,
-		"valuation_source": "",
-		"valuation_seed": 0,
-		"source_eval_id": ""
-	}
-
 # Very tiny formula interpreter just for placeholders; replace with your own expression engine.
 func _eval_simple_formula(formula: String, scope: Dictionary) -> float:
 	# Supports tokens like 'wingspan', 'hand_size', '+-*/()' and 'stats["speed"]'
@@ -294,3 +366,26 @@ func _accumulate_trait_mods(stat_name: String, trait_defs: Dictionary) -> Dictio
 		if defh.has("mult"):
 			total_mult *= float((defh["mult"] as Dictionary).get(stat_name, 1.0))
 	return {"add": total_add, "mult": total_mult}
+
+## Infer player stage from context fields (for backward compatibility)
+## Used when loading old save files without explicit stage field
+func _infer_stage_from_fields(d: Dictionary) -> PlayerStage:
+	# Check contract status
+	var contract_data: Dictionary = d.get("contract", {}) as Dictionary
+	var has_contract = int(contract_data.get("total_years", 0)) > 0
+	var has_school = String(d.get("school_tag", "")) != ""
+	var player_age = int(d.get("age", 18))
+
+	# Priority: contract status > school > age
+	if has_contract:
+		# Has NFL contract - rookie vs veteran based on age
+		return PlayerStage.NFL_VETERAN if player_age > 23 else PlayerStage.NFL_ROOKIE
+	elif has_school:
+		# In school - college vs high school based on age
+		return PlayerStage.COLLEGE if player_age >= 18 else PlayerStage.HIGH_SCHOOL
+	elif player_age >= 21:
+		# Old enough for NFL but no contract - free agent
+		return PlayerStage.NFL_FREE_AGENT
+	else:
+		# Default to high school
+		return PlayerStage.HIGH_SCHOOL

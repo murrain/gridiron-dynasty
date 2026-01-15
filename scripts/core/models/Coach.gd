@@ -1,11 +1,9 @@
 @icon("res://icon.svg")
 # res://scripts/core/models/Coach.gd
-extends Resource
+extends "res://scripts/core/models/Person.gd"
 class_name Coach
 
-@export var id: String = ""
-@export var first_name: String = ""
-@export var last_name: String = ""
+# --- Identity (inherited from Person: id, first_name, last_name, get_full_name()) ---
 @export var role: String = ""
 
 # --- Coaching Attributes (0-100 scale) ---
@@ -29,9 +27,8 @@ class_name Coach
 @export var medical_tolerance: String = "cautious"    # risk_averse, cautious, moderate_risk, aggressive
 
 func from_dict(d: Dictionary) -> void:
-	id = String(d.get("id", id))
-	first_name = String(d.get("first_name", first_name))
-	last_name = String(d.get("last_name", last_name))
+	# Load person fields first
+	from_dict_person(d)
 	role = String(d.get("role", role))
 
 	# Coaching attributes
@@ -54,20 +51,19 @@ func from_dict(d: Dictionary) -> void:
 	medical_tolerance = String(d.get("medical_tolerance", medical_tolerance))
 
 func to_dict() -> Dictionary:
-	return {
-		"id": id,
-		"first_name": first_name,
-		"last_name": last_name,
-		"role": role,
-		"coaching_ability": coaching_ability,
-		"recruiting_skill": recruiting_skill,
-		"player_development": player_development,
-		"experience_years": experience_years,
-		"specialty_position": specialty_position,
-		"scheme_preference": scheme_preference,
-		"offensive_scheme": offensive_scheme,
-		"defensive_scheme": defensive_scheme,
-		"scheme_rigidity": scheme_rigidity,
-		"character_tolerance": character_tolerance,
-		"medical_tolerance": medical_tolerance
-	}
+	# Start with person fields
+	var result = to_dict_person()
+	# Add coach-specific fields
+	result["role"] = role
+	result["coaching_ability"] = coaching_ability
+	result["recruiting_skill"] = recruiting_skill
+	result["player_development"] = player_development
+	result["experience_years"] = experience_years
+	result["specialty_position"] = specialty_position
+	result["scheme_preference"] = scheme_preference
+	result["offensive_scheme"] = offensive_scheme
+	result["defensive_scheme"] = defensive_scheme
+	result["scheme_rigidity"] = scheme_rigidity
+	result["character_tolerance"] = character_tolerance
+	result["medical_tolerance"] = medical_tolerance
+	return result

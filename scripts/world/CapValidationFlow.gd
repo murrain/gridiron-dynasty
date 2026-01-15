@@ -2,7 +2,7 @@ extends RefCounted
 class_name CapValidationFlow
 
 const CapAccounting = preload("res://scripts/core/finance/CapAccounting.gd")
-const SportRoster = preload("res://scripts/core/models/Roster.gd")
+const Roster = preload("res://scripts/core/models/Roster.gd")
 
 # Cap validation is anchored to a dedicated calendar phase for traceability.
 # Determinism: no RNG use, ordering follows the input team array.

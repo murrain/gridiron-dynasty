@@ -91,13 +91,6 @@ func run(
 	var remaining_pool := draft_pool.duplicate()
 	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
 
-	# Normalize field names early: draft uses "player_id", FA expects "id"
-	# This ensures UDFAs are compatible with FreeAgency system from the start
-	for player in remaining_pool:
-		var p: Dictionary = player
-		if p.has("player_id") and not p.has("id"):
-			p["id"] = p["player_id"]
-
 	# OPTIMIZATION: Pre-sort entire draft pool by talent ("the big board")
 	# Sort once at start, then players are removed as drafted
 	# This eliminates redundant sorting on every pick
