@@ -1,0 +1,157 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7team_selection"]
+
+[ext_resource type="Script" path="res://scenes/ui/new_game/TeamSelectionUI.gd" id="1_script"]
+
+[node name="TeamSelectionUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Select Your Team"
+horizontal_alignment = 1
+
+[node name="SubtitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Choose an NFL team to manage. You will become their head coach."
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="MainContent" type="HSplitContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 400
+
+[node name="TeamListPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/TeamListPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="TeamList" type="ItemList" parent="MarginContainer/VBoxContainer/MainContent/TeamListPanel/MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+auto_height = false
+
+[node name="DetailPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.8
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="TeamNameLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Select a Team"
+
+[node name="DivisionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = ""
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="CoachSectionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Head Coach"
+
+[node name="CoachSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="CoachNameLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Coach: -"
+
+[node name="CoachAbilityLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Ability: -"
+
+[node name="OffenseSchemeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Offense: -"
+
+[node name="DefenseSchemeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Defense: -"
+
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TeamSectionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Team Info"
+
+[node name="StatsSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TeamOverallLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/StatsSection"]
+layout_mode = 2
+text = "Team Overall: -"
+
+[node name="RosterSizeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/StatsSection"]
+layout_mode = 2
+text = "Roster Size: -"
+
+[node name="DraftPicksLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/StatsSection"]
+layout_mode = 2
+text = "Draft Picks: -"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SelectButton" type="Button" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+disabled = true
+text = "Select This Team"
+
+[node name="ButtonBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="RandomButton" type="Button" parent="MarginContainer/VBoxContainer/ButtonBar"]
+layout_mode = 2
+text = "Pick Random Team"
