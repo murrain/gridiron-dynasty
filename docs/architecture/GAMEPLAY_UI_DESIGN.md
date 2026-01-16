@@ -158,14 +158,17 @@ var example_fa_message = {
 
 **Actionable Message Pattern**:
 
-Messages show inline action buttons so users can act immediately without navigating to a detail view:
+Messages show inline action buttons with window-like controls (expand to detail, dismiss):
 
 ```
-┌─────────────────────────────────────────┐
-│ 📡 WR Marcus Johnson released by Cowboys│
-│    78 OVR • Cap casualty • High interest│
-│    [SIGN HIM $2.1M]  [View]  [Dismiss]  │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 📡 WR Marcus Johnson released by Cowboys    [⤢] [×] │
+│    78 OVR • Cap casualty • High interest            │
+│    [SIGN $2.1M]                                     │
+└─────────────────────────────────────────────────────┘
+
+[⤢] = Expand to detail panel (view full player profile)
+[×] = Dismiss message (pass on this player)
 ```
 
 **Filtering League Messages**:
@@ -186,72 +189,98 @@ var league_message_filters = {
 
 **Core Principle**: Every actionable message has its primary action available directly in the inbox - no extra clicks to navigate, then find the action, then click again.
 
+### Message Item Layout
+
+Each message has a consistent layout with window-like controls:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ [icon] Title/Summary                        [⤢] [×] │
+│        Secondary info line                          │
+│        [PRIMARY ACTION]  [Secondary]                │
+└─────────────────────────────────────────────────────┘
+
+[⤢] = Expand to detail panel (like maximize)
+[×] = Dismiss/archive message (close)
+```
+
 ### Message Inline Actions by Category
 
 ```
 CRITICAL - Game day decision
-┌─────────────────────────────────────────┐
-│ ! Set starting lineup for Week 6       │
-│   vs Cowboys • Kickoff in 2 days        │
-│   [SET LINEUP]              [View Game] │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ ! Set starting lineup for Week 6            [⤢] [×] │
+│   vs Cowboys • Kickoff in 2 days                    │
+│   [SET LINEUP]                                      │
+└─────────────────────────────────────────────────────┘
 
 INJURY - Player injured
-┌─────────────────────────────────────────┐
-│ + QB Smith out 4-6 weeks (ACL sprain)   │
-│   Backup: J. Wilson (72 OVR)            │
-│   [MOVE TO IR]  [View Depth]  [Dismiss] │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ + QB Smith out 4-6 weeks (ACL sprain)       [⤢] [×] │
+│   Backup: J. Wilson (72 OVR)                        │
+│   [MOVE TO IR]  [View Depth Chart]                  │
+└─────────────────────────────────────────────────────┘
 
 CONTRACT - Offer received
-┌─────────────────────────────────────────┐
-│ $ Contract offer from Ravens for WR Lee │
-│   3yr/$24M • $12M guaranteed            │
-│   [ACCEPT]  [COUNTER]  [DECLINE]        │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ $ Contract offer from Ravens for WR Lee     [⤢] [×] │
+│   3yr/$24M • $12M guaranteed                        │
+│   [ACCEPT]  [COUNTER]  [DECLINE]                    │
+└─────────────────────────────────────────────────────┘
 
 CONTRACT - Expiring soon
-┌─────────────────────────────────────────┐
-│ $ CB Davis contract expires in 3 days   │
-│   Current: 2yr/$8M • Asking: 3yr/$15M   │
-│   [EXTEND $15M]  [Let Walk]  [Negotiate]│
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ $ CB Davis contract expires in 3 days       [⤢] [×] │
+│   Current: 2yr/$8M • Asking: 3yr/$15M               │
+│   [EXTEND $15M]  [Let Walk]  [Negotiate]            │
+└─────────────────────────────────────────────────────┘
 
 SCOUT - Report ready
-┌─────────────────────────────────────────┐
-│ 🔍 Scout report: Marcus Hall, CB        │
-│   Alabama • Projected: Round 1          │
-│   [ADD TO BOARD]  [View Report]         │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 🔍 Scout report: Marcus Hall, CB            [⤢] [×] │
+│   Alabama • Projected: Round 1                      │
+│   [ADD TO BOARD]                                    │
+└─────────────────────────────────────────────────────┘
 
 DRAFT - Your pick approaching
-┌─────────────────────────────────────────┐
-│ 📋 Pick #14 coming up (3 picks away)    │
-│   Best available: Hall CB, Porter OT    │
-│   [OPEN DRAFT ROOM]  [Ask Coach]        │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 📋 Pick #14 coming up (3 picks away)        [⤢] [×] │
+│   Best available: Hall CB, Porter OT                │
+│   [OPEN DRAFT ROOM]  [Ask Coach]                    │
+└─────────────────────────────────────────────────────┘
 
 LEAGUE - Free agent available
-┌─────────────────────────────────────────┐
-│ 📡 WR Marcus Johnson released by Cowboys│
-│   78 OVR • Cap casualty • High interest │
-│   [SIGN $2.1M]  [View Player]  [Dismiss]│
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 📡 WR Marcus Johnson released by Cowboys    [⤢] [×] │
+│   78 OVR • Cap casualty • High interest             │
+│   [SIGN $2.1M]                                      │
+└─────────────────────────────────────────────────────┘
 
 LEAGUE - Trade rumor
-┌─────────────────────────────────────────┐
-│ 📡 Bears shopping DE Williams           │
-│   85 OVR • 2yr/$12M remaining           │
-│   [MAKE OFFER]  [View Player]  [Dismiss]│
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 📡 Bears shopping DE Williams               [⤢] [×] │
+│   85 OVR • 2yr/$12M remaining                       │
+│   [MAKE OFFER]                                      │
+└─────────────────────────────────────────────────────┘
 
 PERSONNEL - Waiver claim available
-┌─────────────────────────────────────────┐
-│ 👤 RB Thompson on waivers (Waiver #8)   │
-│   76 OVR • $1.2M salary                 │
-│   [CLAIM]  [Pass]  [View Player]        │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 👤 RB Thompson on waivers (Waiver #8)       [⤢] [×] │
+│   76 OVR • $1.2M salary                             │
+│   [CLAIM]  [Pass]                                   │
+└─────────────────────────────────────────────────────┘
 ```
+
+### Window Control Icons
+
+| Icon | Action | Keyboard |
+|------|--------|----------|
+| `⤢` | Expand to detail panel | `Enter` |
+| `×` | Dismiss/archive message | `Backspace` or `D` |
+
+**Expand (⤢)**: Opens the full context in the detail panel - player profile, contract details, game preview, etc. Use when you need more information before deciding.
+
+**Dismiss (×)**: Archives the message. For informational messages, removes from inbox. For actionable messages, confirms you've seen it but chose not to act (e.g., passing on a free agent).
 
 ### MessageItem Component
 
