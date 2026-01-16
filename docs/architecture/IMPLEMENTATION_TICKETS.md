@@ -3349,6 +3349,176 @@ Category Tabs: [Draft Prospects (3)] [Trade Targets (5)] [FA Watch (2)] [All (10
 
 ---
 
+### DRAFT-010: Speculative AI Pick Pre-computation
+
+**Priority:** MEDIUM
+**Estimated Effort:** 4-6 hours
+**Risk:** LOW
+**Dependencies:** None (enhances existing InteractiveDraft)
+
+#### Description
+
+Pre-compute upcoming AI picks while the user is deliberating on their selection. When the user submits their pick, the next 5-10 AI picks execute nearly instantly because decisions were already computed. No threading required - single-threaded speculative computation during user think time.
+
+#### Why No Threading?
+
+Draft picks are **inherently sequential** - Team B's pick depends on Team A's result. Even with 32 threads, execution must serialize. Threading adds complexity without benefit:
+
+| Approach | Complexity | Benefit |
+|----------|------------|---------|
+| Thread per team (32) | HIGH - mutex locks, race conditions | Minimal - still serializes |
+| Single background thread | MEDIUM - sync overhead | Marginal - 50ms savings |
+| **Speculative batch (no threads)** | **LOW** | **Same result, zero complexity** |
+
+**Computation time with pre-computed boards:**
+- Find best available: ~5ms per pick (O(n) board scan)
+- 10 picks × 5ms = **50ms total** (imperceptible to user)
+
+#### Target State
+```gdscript
+# In InteractiveDraft.gd
+
+## Speculative picks computed while user deliberates
+var _speculative_picks: Array[Dictionary] = []
+
+func _on_user_turn_started(pick_number: int) -> void:
+    # Pre-compute next 5-10 AI picks in single burst (~50ms)
+    _speculative_picks = _precompute_speculative_picks(10)
+
+func _precompute_speculative_picks(count: int) -> Array[Dictionary]:
+    var results: Array[Dictionary] = []
+    var simulated_drafted = _drafted_players.duplicate()  # Don't modify real state
+
+    for i in range(count):
+        var future_pick = _current_pick + 1 + i
+        if future_pick > _total_picks:
+            break
+
+        var assignment = _get_pick_assignment(future_pick)
+        if assignment.get("is_user_pick", false):
+            break  # Stop at next user pick
+
+        # Find best available using simulated state
+        var team_id = assignment["team_id"]
+        var board = _team_boards.get(team_id, [])
+
+        for entry in board:
+            var player_id = entry["player_id"]
+            if not simulated_drafted.has(player_id):
+                results.append({
+                    "pick_number": future_pick,
+                    "team_id": team_id,
+                    "player_id": player_id
+                })
+                simulated_drafted[player_id] = true  # Mark in simulation
+                break
+
+    return results
+
+func _on_user_pick_submitted(player_id: String) -> void:
+    # 1. Execute user's actual pick
+    _execute_pick(_current_pick, player_id)
+    _current_pick += 1
+
+    # 2. Instantly process speculative picks
+    for spec in _speculative_picks:
+        if _drafted_players.has(spec["player_id"]):
+            # User "stole" this pick - recompute (still fast, board exists)
+            var fallback = _find_best_available(spec["team_id"])
+            _execute_pick(spec["pick_number"], fallback)
+        else:
+            # Speculative pick still valid - instant execution
+            _execute_pick(spec["pick_number"], spec["player_id"])
+        _current_pick += 1
+
+    _speculative_picks.clear()
+
+    # 3. Check if next pick is user's turn or continue AI
+    _check_next_pick()
+```
+
+#### User Experience Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  PICK 15: Your Turn                                         │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  [Background: Pre-computing picks 16-25 (~50ms)]            │
+│                                                             │
+│  User browses players, compares, deliberates...             │
+│  (Takes 10-60 seconds typically)                            │
+│                                                             │
+│  User clicks [DRAFT] on J. Williams                         │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│  Instant execution:                                         │
+│    Pick 15: You select J. Williams         ✓ (0ms)          │
+│    Pick 16: Patriots select M. Harrison    ✓ (cached)       │
+│    Pick 17: Saints select D. Carter        ✓ (cached)       │
+│    Pick 18: Bengals select T. Young        ✓ (cached)       │
+│    ...                                                      │
+│    Pick 24: Your Turn (next user pick)                      │
+│                                                             │
+│  Total time: <100ms (feels instant)                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| User picks same player as speculative | Recompute that team's pick (fallback to next on board) |
+| User picks player 3 teams wanted | Recompute all affected teams (still <50ms) |
+| Trade occurs during user turn | Clear speculative cache, recompute after trade |
+| User's next pick is immediate (back-to-back) | Skip speculation, just wait for user |
+| Draft ends during speculative range | Stop at final pick |
+
+#### Acceptance Criteria
+- [ ] Pre-compute 5-10 AI picks when user's turn starts
+- [ ] Speculative picks use duplicated state (don't modify real draft state)
+- [ ] User pick invalidates affected speculative picks (recompute fallback)
+- [ ] AI picks after user submission execute in <100ms total
+- [ ] No threading - single-threaded speculative batch
+- [ ] Clear speculative cache on trade events
+- [ ] Works correctly with back-to-back user picks
+
+#### Files to Modify
+- `scripts/world/InteractiveDraft.gd` - Add speculative computation
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `_precompute_speculative_picks()` returns correct count of picks
+- [ ] Speculative computation doesn't modify `_drafted_players` (uses duplicate)
+- [ ] Speculative picks stop at next user pick
+- [ ] Speculative picks stop at end of draft
+- [ ] Empty speculative array when user has back-to-back picks
+
+**Integration Tests:**
+- [ ] Full draft completes correctly with speculation enabled
+- [ ] User picking speculative target triggers correct fallback
+- [ ] Multiple teams wanting same player handled correctly
+- [ ] Trade during user turn clears speculative cache
+- [ ] Speculative picks respect trade-modified pick assignments
+
+**Determinism Tests:**
+- [ ] Same seed + same user picks = identical draft results (speculation doesn't affect outcome)
+- [ ] Speculative computation is deterministic (same inputs = same speculative picks)
+
+**Performance Tests:**
+- [ ] Speculative computation for 10 picks completes in <50ms
+- [ ] Post-user-pick execution completes in <100ms
+- [ ] No frame drops during speculative computation
+- [ ] Memory usage stable (no leaks from repeated speculation)
+
+**Regression Tests:**
+- [ ] Draft works correctly with speculation disabled (fallback path)
+- [ ] Existing draft tests pass unchanged
+- [ ] AI pick quality unchanged (same players selected, just faster)
+
+---
+
 ## Draft System Dependency Graph
 
 ```
@@ -3366,7 +3536,9 @@ DRAFT-006 (UDFA) ─────────────────────
                                          │
 DRAFT-007 (Grades) ──────────────────────┤
                                          │
-DRAFT-009 (Shortlist) ───────────────────┘
+DRAFT-009 (Shortlist) ───────────────────┤
+                                         │
+DRAFT-010 (Speculative Picks) ───────────┘
 
 DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 ```
@@ -3384,7 +3556,8 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 | DRAFT-007: Draft Grades | LOW | 3-4 | LOW | PLANNED |
 | DRAFT-008: Conditional Picks | VERY LOW | 8-10 | MEDIUM | POST-1.0 |
 | DRAFT-009: Player Shortlist/Watchlist | MEDIUM | 6-8 | LOW | PLANNED |
-| **Total** | - | **63-82** | - | - |
+| DRAFT-010: Speculative AI Pre-computation | MEDIUM | 4-6 | LOW | PLANNED |
+| **Total** | - | **67-88** | - | - |
 
 ### Recommended Implementation Order
 
@@ -3412,9 +3585,9 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 | Phase 2: Decomposition | ARCH-008 to ARCH-016 | 24-32 hours | MEDIUM |
 | Phase 3: Persistence | ARCH-017 to ARCH-022 | 28-38 hours | MEDIUM |
 | Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
-| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-009 | 63-82 hours | LOW-MEDIUM |
+| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-010 | 67-88 hours | LOW-MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
-| **Total** | **36 tickets** | **236-300 hours** | - |
+| **Total** | **37 tickets** | **240-306 hours** | - |
 
 > **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
 
