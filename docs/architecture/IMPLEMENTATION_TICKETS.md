@@ -2457,43 +2457,62 @@ extends Control
 # - Player Comparison (side-by-side compare 3-4 players)
 ```
 
-#### Player Comparison Tool
+#### Player Comparison Tool (General Purpose - Reusable Component)
+
+The comparison tool is a **general-purpose component** reusable across the game:
+- **Draft**: Compare draft prospects, draft directly from comparison
+- **Roster Management**: Compare your players to league leaders ("my safeties vs top 5 NFL safeties")
+- **Free Agency**: Compare free agent targets to your current starters
+- **Trade Evaluation**: Compare incoming player to your roster
+
 ```
 ╔════════════════════════════════════════════════════════════════════════╗
-║                    PLAYER COMPARISON (3-4 Players)                     ║
+║  PLAYER COMPARISON                              [Filter: Safety ▼]     ║
 ╠════════════════════════════════════════════════════════════════════════╣
-║  ATTRIBUTE        │ J. Williams │ M. Harrison │ D. Carter │ T. Young  ║
+║  ATTRIBUTE        │ K. Johnson  │ M. Williams │ T. Smith  │ D. Brown  ║
+║                   │ (MY ROSTER) │ (LEAGUE)    │ (DRAFTED) │ (FA)      ║
 ║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
-║  Position         │     QB      │     QB      │    QB     │    QB     ║
-║  School           │   Alabama   │   Ohio St   │  Georgia  │   USC     ║
-║  Height           │   6'4"      │   6'2"      │   6'3"    │   6'5"    ║
-║  Weight           │   228 lb    │   215 lb    │   221 lb  │   235 lb  ║
+║  Team             │   My Team   │   Ravens    │    ───    │   FREE    ║
+║  Age              │     26      │     28      │    22     │    30     ║
+║  Contract         │  $8.2M/yr   │  $14.1M/yr  │   Rookie  │    ───    ║
 ║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
-║  Arm Strength     │     92      │     85      │    88     │    94     ║
-║  Accuracy         │     88      │     91      │    86     │    82     ║
-║  Pocket Presence  │     85      │     78      │    90     │    75     ║
-║  Mobility         │     72      │     88      │    80     │    68     ║
+║  Coverage         │     82      │     94      │    78     │    85     ║
+║  Tackling         │     88      │     86      │    75     │    90     ║
+║  Ball Skills      │     79      │     91      │    82     │    77     ║
+║  Range            │     85      │     88      │    90     │    72     ║
 ║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
-║  40-Yard Dash     │   4.68s     │   4.52s     │   4.61s   │   4.75s   ║
-║  Wonderlic        │     32      │     28      │    35     │    24     ║
-║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
-║  Projected Pick   │    #1-3     │    #5-10    │   #8-15   │  #12-20   ║
-║  Scout Grade      │     A       │     B+      │    B+     │    B      ║
-║  Risk Level       │    LOW      │   MEDIUM    │    LOW    │   HIGH    ║
+║  Overall          │     83      │     90      │    81     │    81     ║
+║  Status           │   STARTER   │     ───     │ UNAVAIL.  │ AVAILABLE ║
 ╠════════════════════════════════════════════════════════════════════════╣
-║                  │  [DRAFT]    │  [DRAFT]    │  [DRAFT]  │  [DRAFT]  ║
+║  Actions:         │   [VIEW]    │   [VIEW]    │   [───]   │  [SIGN]   ║
 ╚════════════════════════════════════════════════════════════════════════╝
-   [Add Player]  [Remove]  [Export]  [Clear All]
+   [Add Player]  [Add from: My Roster | League | Draft | FA]  [Clear All]
 ```
+
+**Unavailable Player Handling:**
+- Players drafted by other teams show "UNAVAIL." status with grayed styling
+- Action button disabled (shows `[───]` instead of `[DRAFT]`)
+- Player remains in comparison for reference but clearly marked
+- Optional: Auto-remove unavailable players setting
+
+**Context-Aware Actions:**
+| Source | Available Actions |
+|--------|-------------------|
+| Draft Pool | [DRAFT] (when user's turn) |
+| Free Agents | [SIGN] (opens contract negotiation) |
+| League Players | [VIEW] (read-only, or [TRADE] if tradeable) |
+| My Roster | [VIEW] (opens player card) |
 
 Features:
 - Compare 3-4 players simultaneously (same position recommended)
+- **Mix players from any source**: roster, league, draft, free agents
 - Color-coded cells (green = best, red = worst in category)
 - Stat bars for visual comparison
 - Add/remove players dynamically
 - Filter by position for relevant comparisons
+- **Unavailable players visually indicated** (grayed out, action disabled)
+- **Context-aware action buttons** (Draft/Sign/View/Trade based on player source)
 - Export comparison to clipboard
-- **Draft directly from comparison** - each player column has a [DRAFT] button when it's user's turn (no need to back out to main draft UI)
 
 #### Acceptance Criteria
 - [ ] Create `MockDraftSimulator.gd` to generate projections
@@ -2506,11 +2525,16 @@ Features:
 - [ ] **Color-coded cells highlight best/worst in each category**
 - [ ] **Dynamic add/remove players from comparison**
 - [ ] **Draft player directly from comparison view (no back-navigation required)**
+- [ ] **Compare players from mixed sources (roster, league, draft, FA)**
+- [ ] **Unavailable players clearly indicated with disabled actions**
+- [ ] **Context-aware action buttons based on player source**
 - [ ] Team needs analysis based on depth chart
 
 #### Files to Create
 - `scripts/world/MockDraftSimulator.gd`
 - `scripts/world/ScoutingReportGenerator.gd`
+- `scenes/ui/common/PlayerComparisonTool.gd` (reusable component)
+- `scenes/ui/common/PlayerComparisonTool.tscn`
 - `scenes/ui/draft_day/DraftWarRoomUI.gd`
 - `scenes/ui/draft_day/DraftWarRoomUI.tscn`
 
