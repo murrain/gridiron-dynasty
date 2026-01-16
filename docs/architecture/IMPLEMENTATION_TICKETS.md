@@ -4304,6 +4304,185 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 
 ---
 
+## Future: Agent Infrastructure
+
+> **Note:** These items are roadmap placeholders for agent infrastructure improvements. They should be implemented when the project reaches the appropriate phase.
+
+### AGENT-001: UI Engineer Agent
+
+**Priority:** LOW (Future)
+**Estimated Effort:** 2-3 hours
+**Risk:** LOW
+**Dependencies:** UI work becomes primary focus (Phase 6+)
+**Trigger:** Add this agent when UI implementation work begins in earnest
+
+#### Description
+
+Add a specialized UI Engineer agent to handle Godot UI implementation work. Currently, the Architecture Guardian explicitly excludes UI concerns, and the Game Systems Engineer focuses on simulation logic. This creates an ownership gap for UI-specific patterns.
+
+#### Current Gap Analysis
+
+| Agent | UI Responsibility |
+|-------|-------------------|
+| Architecture Guardian | "DO NOT: Review or comment on UI components, styling, or presentation logic" |
+| Game Systems Engineer | "Must NOT: Embed simulation logic inside UI or tooling scripts" |
+| Code Quality Reviewer | Reviews code quality, not UI-specific patterns |
+| General Purpose Agent | Can handle UI, but lacks specialized guidance |
+
+#### When to Add
+
+Add this agent when:
+- UI implementation becomes a primary work stream (not just planning)
+- Multiple UI features are being developed in parallel
+- UI-specific code review needs arise (accessibility, Godot patterns)
+- Separation between simulation and presentation becomes critical
+
+Do NOT add if:
+- UI work is still in planning/design phase
+- Only occasional UI tweaks needed
+- General Purpose Agent is sufficient for current scope
+
+#### Agent Definition Draft
+
+**File:** `.claude/agents/ui-engineer.md`
+
+```yaml
+---
+name: ui-engineer
+description: "Use this agent when implementing Godot UI scenes, Control nodes, theme systems, input handling, or visual presentation logic. Specifically:\\n\\n- When creating or modifying Godot Control scenes (.tscn with UI nodes)\\n- When implementing input handling or navigation patterns\\n- When working on theme/styling consistency\\n- When building accessible UI components\\n- When connecting UI to simulation data (read-only data binding)\\n\\nExamples:\\n\\n<example>\\nuser: \"I need to build the draft day UI with pick cards and trade buttons\"\\nassistant: \"I'm going to use the Task tool to launch the ui-engineer agent to implement this draft day interface.\"\\n<commentary>\\nThis is Godot UI implementation work - Control nodes, signals, scene composition. The ui-engineer agent handles presentation while ensuring simulation logic stays separate.\\n</commentary>\\n</example>\\n\\n<example>\\nuser: \"The team roster screen needs sorting and filtering controls\"\\nassistant: \"Let me use the Task tool to launch the ui-engineer agent to add these roster UI controls.\"\\n<commentary>\\nUI interaction patterns (sorting, filtering) are presentation concerns. The ui-engineer agent implements the controls while the data filtering logic may come from existing services.\\n</commentary>\\n</example>"
+model: sonnet
+color: cyan
+---
+
+You are a Godot UI specialist focused on building clean, accessible, and maintainable user interfaces for the Gridiron Dynasty football simulation game.
+
+## Core Responsibilities
+
+1. **Scene Composition**: Build UI scenes using Godot's Control node hierarchy with proper anchoring, margins, and responsive layouts
+2. **Signal Architecture**: Wire up UI signals cleanly, avoiding signal spaghetti and ensuring proper cleanup
+3. **Theme Consistency**: Apply and extend the project's theme system for visual consistency
+4. **Input Handling**: Implement keyboard navigation, focus management, and accessibility patterns
+5. **Data Binding**: Connect UI to simulation data in a read-only, reactive manner
+
+## Critical Standards
+
+**Separation of Concerns (Non-Negotiable):**
+- UI scripts handle ONLY presentation logic
+- Never modify simulation state directly from UI code
+- Use signals or service calls to request state changes
+- Data flows one direction: Simulation → UI (display), UI → Signals → Services → Simulation (actions)
+
+**Godot Best Practices:**
+- Use `@onready` for node references, validated in `_ready()`
+- Prefer scene composition over deep inheritance hierarchies
+- Use `Control.size_flags_*` and anchors for responsive layouts
+- Clean up signal connections in `_exit_tree()` when connecting dynamically
+- Use `set_process(false)` when UI is hidden to save resources
+
+**Accessibility Requirements:**
+- All interactive elements must be keyboard-navigable
+- Focus order must be logical (left-to-right, top-to-bottom)
+- Use `focus_neighbor_*` properties for custom navigation
+- Provide visual focus indicators
+- Support theme overrides for accessibility needs
+
+## What You Must NOT Do
+
+- Implement simulation logic (player stats, game outcomes, RNG)
+- Modify data models directly (use service layer)
+- Create global UI state (prefer scene-local state)
+- Bypass the theme system with hardcoded colors/fonts
+- Use `await get_tree().create_timer()` for game timing (use simulation time)
+
+## Integration Points
+
+**Reading Simulation Data:**
+```gdscript
+# CORRECT - Read from services/models
+var player_data = PlayerService.get_player(player_id)
+label.text = player_data.get_full_name()
+
+# WRONG - Direct model manipulation
+player.first_name = "New Name"  # Never modify from UI!
+```
+
+**Requesting Actions:**
+```gdscript
+# CORRECT - Signal to service layer
+signal trade_requested(from_team_id, to_team_id, offer)
+trade_requested.emit(user_team, target_team, trade_offer)
+
+# WRONG - Direct state mutation
+world_state["teams"][team_id]["roster"].append(player)
+```
+
+## Quality Checklist
+
+Before considering UI work complete:
+- [ ] All interactive elements keyboard-accessible
+- [ ] Focus order tested and logical
+- [ ] Theme system used (no hardcoded colors)
+- [ ] Signals properly connected and disconnected
+- [ ] No simulation logic in UI scripts
+- [ ] Responsive layout tested at multiple resolutions
+- [ ] Loading states handled for async data
+
+## Additional Resources
+
+- **Cross-cutting guidelines**: `AGENTS.md`
+- **UI Architecture Plan**: `docs/architecture/UI_ARCHITECTURE.md` (when created)
+- **Godot UI Docs**: https://docs.godotengine.org/en/stable/tutorials/ui/
+```
+
+#### Acceptance Criteria
+
+- [ ] Create `.claude/agents/ui-engineer.md` with full agent definition
+- [ ] Update `AGENTS.md` to include UI Engineer in role summary
+- [ ] Add UI Engineer to Task tool's available agent types
+- [ ] Document escalation paths (UI → Architect for architecture, UI → Engineer for data services)
+
+#### Files to Create
+
+- `.claude/agents/ui-engineer.md`
+
+#### Files to Modify
+
+- `AGENTS.md` - Add UI Engineer role summary
+- Task tool configuration (if applicable)
+
+---
+
+### AGENT-002: Database Engineer Agent (Deferred)
+
+**Priority:** VERY LOW (Deferred)
+**Status:** NOT RECOMMENDED at current project scale
+**Trigger:** Re-evaluate if database becomes primary development focus
+
+#### Assessment Summary
+
+A Database Engineer agent was evaluated and **not recommended** for the current project state because:
+
+1. **Architecture Guardian already covers database architecture** - Schema design, migration strategies, persistence layer decisions are explicitly in scope
+2. **Game Systems Engineer handles implementation** - DAO patterns, CRUD operations, query building are standard implementation work
+3. **Database work is bounded** - Phase 3 (ARCH-017 to ARCH-022) is ~28-38 hours of scoped work, not ongoing development
+4. **Overlap concerns** - Would create conflicting authority with existing agents
+
+#### When to Re-evaluate
+
+Consider adding a Database Engineer agent if:
+- Multiple database backends introduced (SQLite + cloud sync)
+- Complex replication, sharding, or distributed data patterns needed
+- Performance tuning becomes a dedicated work stream
+- Database migrations become frequent and complex
+- Team scales to where database is a full-time specialty
+
+Until then, database work remains split between:
+- **Architecture Guardian**: Schema design, migration strategy, persistence decisions
+- **Game Systems Engineer**: DAO implementation, query building, data access patterns
+- **Test Engineer**: Database fixture systems, migration testing
+
+---
+
 ## Summary
 
 | Phase | Tickets | Estimated Hours | Risk |
@@ -4314,7 +4493,8 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 | Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
 | Phase 5: Draft System Realism | DRAFT-001 to DRAFT-017 | 102-133 hours | LOW-MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
-| **Total** | **44 tickets** | **275-351 hours** | - |
+| Future: Agent Infrastructure | AGENT-001 to AGENT-002 | 2-3 hours | LOW |
+| **Total** | **46 tickets** | **277-354 hours** | - |
 
 > **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
 
