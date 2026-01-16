@@ -82,6 +82,17 @@ var _rounds: int = 7
 var _picks_per_round: int = 32
 var _draft_order: Array = []  # Array of pick assignments for all rounds
 
+## Pre-computed draft boards for fast AI picks
+## _team_boards[team_id] = Array of {player_id: String, score: float}
+## Boards are sorted by score descending - AI just picks top available
+var _team_boards: Dictionary = {}
+
+## Set of player IDs that have been drafted (for fast lookup)
+var _drafted_players: Dictionary = {}
+
+## Player lookup by ID for O(1) access
+var _player_by_id: Dictionary = {}
+
 
 ## Initialize the draft with world state and configs
 func initialize(
@@ -171,10 +182,126 @@ func initialize(
 	# Initialize score cache
 	_score_cache = RecruitingScoreCache.new(year)
 
+	# Build player lookup index for O(1) access
+	_build_player_index()
+
 	# Build complete draft order
 	_build_draft_order()
 
+	# Pre-compute draft boards for all teams (this is the key optimization)
+	print("[InteractiveDraft] Pre-computing draft boards for %d teams..." % _teams.size())
+	var board_start := Time.get_ticks_usec()
+	_precompute_team_boards()
+	var board_elapsed := (Time.get_ticks_usec() - board_start) / 1000.0
+	print("[InteractiveDraft] Draft boards computed in %.1fms" % board_elapsed)
+
 	_state = DraftState.NOT_STARTED
+
+
+## Build player lookup index for O(1) access by player_id
+func _build_player_index() -> void:
+	_player_by_id.clear()
+	for player in _remaining_pool:
+		var p: Dictionary = player
+		var player_id := String(p.get("player_id", p.get("id", "")))
+		if not player_id.is_empty():
+			_player_by_id[player_id] = p
+
+
+## Pre-compute draft boards for all teams
+## Each team gets a sorted list of players by their evaluation score
+## This is done once at draft start, then we just mark players as taken
+##
+## OPTIMIZATION: Only evaluate relevant players:
+## - Top 15 players by raw talent (BPA candidates)
+## - Top 4 players at each position of need
+## This reduces evaluations from ~250 per team to ~40-50
+func _precompute_team_boards() -> void:
+	_team_boards.clear()
+	_drafted_players.clear()
+
+	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
+
+	# Pre-group players by position for fast lookup
+	var players_by_position: Dictionary = {}
+	for player in _remaining_pool:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
+		if not players_by_position.has(position):
+			players_by_position[position] = []
+		players_by_position[position].append(p)
+
+	# _remaining_pool is already sorted by talent, so top 15 is just first 15
+	var top_talent_count := 15
+	var top_by_position_count := 4
+
+	for team in _teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		if team_id.is_empty():
+			continue
+
+		var roster: Dictionary = _rosters.get(team_id, {})
+		var scout: Dictionary = _team_scouts.get(team_id, {})
+
+		# Calculate initial position needs
+		var needs := _calculate_position_needs(roster)
+
+		# Build set of players to evaluate
+		var players_to_evaluate: Dictionary = {}  # player_id -> player
+
+		# Add top 15 by talent (BPA candidates)
+		for i in range(min(top_talent_count, _remaining_pool.size())):
+			var p: Dictionary = _remaining_pool[i]
+			var player_id := String(p.get("player_id", p.get("id", "")))
+			players_to_evaluate[player_id] = p
+
+		# Add top 4 at each position of need
+		for position in needs.keys():
+			var need_mult := float(needs.get(position, 1.0))
+			if need_mult < 1.0:  # Position is filled, skip
+				continue
+
+			var pos_players: Array = players_by_position.get(position, [])
+			for i in range(min(top_by_position_count, pos_players.size())):
+				var p: Dictionary = pos_players[i]
+				var player_id := String(p.get("player_id", p.get("id", "")))
+				players_to_evaluate[player_id] = p
+
+		# Score only the relevant players
+		var scored: Array = []
+		for player_id in players_to_evaluate.keys():
+			var player: Dictionary = players_to_evaluate[player_id]
+			var position := String(player.get("position", ""))
+
+			# Get base score from cache or compute
+			var base_score := _score_cache.get_or_compute(
+				player,
+				scout,
+				team_id,
+				"draft_board",
+				_positions_cfg,
+				_stats_cfg,
+				class_rules,
+				_seed
+			)
+
+			# Apply need multiplier
+			var need_mult := float(needs.get(position, 1.0))
+			var weighted_score := base_score * need_mult
+
+			scored.append({
+				"player_id": player_id,
+				"score": weighted_score,
+				"position": position
+			})
+
+		# Sort by score descending
+		scored.sort_custom(func(a, b):
+			return float(a.get("score", 0.0)) > float(b.get("score", 0.0))
+		)
+
+		_team_boards[team_id] = scored
 
 
 ## Build the complete draft order for all rounds
@@ -284,29 +411,38 @@ func make_user_pick(player_id: String) -> bool:
 	return true
 
 
-## Make an AI pick
+## Make an AI pick - uses pre-computed board for fast selection
 func _make_ai_pick(pick_assignment: Dictionary) -> void:
 	var team_id := String(pick_assignment.get("current_owner_id", ""))
 
 	if _remaining_pool.is_empty():
 		return
 
-	# Score players for this team
-	var scored_players := _score_players_for_team(team_id)
+	# Get team's pre-computed board
+	var board: Array = _team_boards.get(team_id, [])
 
-	if scored_players.is_empty():
+	# Find first available player on the board (not yet drafted)
+	var selected_player_id := ""
+	for entry in board:
+		var e: Dictionary = entry
+		var player_id := String(e.get("player_id", ""))
+		if not _drafted_players.has(player_id):
+			selected_player_id = player_id
+			break
+
+	if selected_player_id.is_empty():
 		return
 
-	# Select best player
-	var selected: Dictionary = scored_players[0]
-	var player: Dictionary = selected.get("player", {})
-	var player_id := String(player.get("player_id", player.get("id", "")))
+	# Get player from index
+	var player: Dictionary = _player_by_id.get(selected_player_id, {})
+	if player.is_empty():
+		return
 
-	# Find index in pool
+	# Find index in remaining pool
 	var player_index := -1
 	for i in range(_remaining_pool.size()):
 		var p: Dictionary = _remaining_pool[i]
-		if String(p.get("player_id", p.get("id", ""))) == player_id:
+		if String(p.get("player_id", p.get("id", ""))) == selected_player_id:
 			player_index = i
 			break
 
@@ -348,6 +484,9 @@ func _execute_pick(pick_assignment: Dictionary, player: Dictionary, player_index
 	roster["players"] = players
 	_update_roster_by_position(roster, player)
 	_rosters[team_id] = roster
+
+	# Mark player as drafted (for fast lookup in board iteration)
+	_drafted_players[player_id] = true
 
 	# Record pick
 	var pick_record := {
@@ -404,29 +543,41 @@ func _finalize_draft() -> void:
 	draft_completed.emit(results)
 
 
-## Generate assistant coach recommendations
+## Generate assistant coach recommendations using pre-computed board
 func _generate_recommendations(count: int) -> Array:
-	var scored := _score_players_for_team(_user_team_id)
+	var board: Array = _team_boards.get(_user_team_id, [])
 	var recommendations: Array = []
-
 	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
 
-	for i in range(min(count, scored.size())):
-		var entry: Dictionary = scored[i]
-		var player: Dictionary = entry.get("player", {})
+	var found := 0
+	for entry in board:
+		if found >= count:
+			break
+
+		var e: Dictionary = entry
+		var player_id := String(e.get("player_id", ""))
+
+		# Skip drafted players
+		if _drafted_players.has(player_id):
+			continue
+
+		var player: Dictionary = _player_by_id.get(player_id, {})
+		if player.is_empty():
+			continue
 
 		var overall := PlayerRatingCalculator.calculate_overall_rating(
 			player, _positions_cfg, class_rules
 		)
 
+		found += 1
 		recommendations.append({
-			"player_id": String(player.get("player_id", player.get("id", ""))),
+			"player_id": player_id,
 			"player_name": String(player.get("name", "Unknown")),
 			"position": String(player.get("position", "")),
 			"college": String(player.get("college_team_id", "")),
 			"overall": overall,
-			"score": float(entry.get("score", 0.0)),
-			"rank": i + 1
+			"score": float(e.get("score", 0.0)),
+			"rank": found
 		})
 
 	return recommendations
