@@ -1243,7 +1243,7 @@ func populate(player: Dictionary, scout_report: Dictionary, board_entry: DraftBo
 
 ## Assistant Coach System
 
-The **Assistant Coach** is an AI-driven advisor that analyzes your team's needs, available prospects, and draft position to provide recommendations.
+The **Assistant Coach** is an algorithmic advisor that analyzes your team's needs, available prospects, and draft position to provide the top 3 recommendations. Rationale text is generated from templates based on scoring factors - no external AI required.
 
 ### Assistant Coach Panel
 
@@ -1252,54 +1252,41 @@ The **Assistant Coach** is an AI-driven advisor that analyzes your team's needs,
 │  🧠 ASSISTANT COACH RECOMMENDATIONS                             │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
 │                                                                 │
-│  "With pick #14, here's what I'm seeing..."                     │
-│                                                                 │
+│  #1 RECOMMENDATION                                              │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  #1 RECOMMENDATION                                        │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  Marcus Hall, CB (Alabama)                          │  │  │
-│  │  │  OVR: 91 | Your Tier: 1 (Elite)                     │  │  │
-│  │  │                                                     │  │  │
-│  │  │  "Best player available at your biggest need. Hall  │  │  │
-│  │  │  is a day-one starter who fills the CB1 hole left   │  │  │
-│  │  │  by Johnson's departure. Elite value at #14."       │  │  │
-│  │  │                                                     │  │  │
-│  │  │  [Select This Pick]                                 │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │  Marcus Hall, CB (Alabama)                                │  │
+│  │  OVR: 91 | Your Tier: 1 (Elite) | Fit: ★★★★★              │  │
+│  │                                                           │  │
+│  │  ✓ Fills critical need (CB - Priority 1)                  │  │
+│  │  ✓ Best player available at #14                           │  │
+│  │  ✓ Great value (Tier 1 prospect at pick #14)              │  │
+│  │                                                           │  │
+│  │  [Select This Pick]                                       │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
+│  #2 RECOMMENDATION                                              │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  #2 RECOMMENDATION                                        │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  James Porter, OT (Ohio State)                      │  │  │
-│  │  │  OVR: 89 | Your Tier: 2 (Day 1 Starter)             │  │  │
-│  │  │                                                     │  │  │
-│  │  │  "Protects your franchise QB for the next decade.   │  │  │
-│  │  │  Slight reach at #14 but OT is a premium position   │  │  │
-│  │  │  and Porter won't last to your next pick at #46."   │  │  │
-│  │  │                                                     │  │  │
-│  │  │  [Select This Pick]                                 │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │  James Porter, OT (Ohio State)                            │  │
+│  │  OVR: 89 | Your Tier: 2 (Day 1 Starter) | Fit: ★★★★       │  │
+│  │                                                           │  │
+│  │  ✓ Fills need (OT - Priority 2)                           │  │
+│  │  ○ Slight reach (Tier 2 at pick #14)                      │  │
+│  │  ✓ Premium position                                       │  │
+│  │                                                           │  │
+│  │  [Select This Pick]                                       │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
+│  #3 RECOMMENDATION                                              │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  #3 RECOMMENDATION                                        │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  DeShawn Miles, WR (Georgia)                        │  │  │
-│  │  │  OVR: 88 | Your Tier: 2 (Day 1 Starter)             │  │  │
-│  │  │                                                     │  │  │
-│  │  │  "Best pure talent available. WR isn't a critical   │  │  │
-│  │  │  need but Miles has WR1 upside. Could trade down    │  │  │
-│  │  │  and still get a CB in round 2."                    │  │  │
-│  │  │                                                     │  │  │
-│  │  │  [Select This Pick]                                 │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │  DeShawn Miles, WR (Georgia)                              │  │
+│  │  OVR: 88 | Your Tier: 2 (Day 1 Starter) | Fit: ★★★        │  │
+│  │                                                           │  │
+│  │  ✓ Best pure talent available                             │  │
+│  │  ○ Not a critical need (WR - Priority 3)                  │  │
+│  │  ✓ Good value (Tier 2 at pick #14)                        │  │
+│  │                                                           │  │
+│  │  [Select This Pick]                                       │  │
 │  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ───────────────────────────────────────────────────────────    │
-│  💡 "Consider: If Hall goes before your pick, pivot to Porter.  │
-│     Don't reach for a CB - the value isn't there after Hall."   │
-│  ───────────────────────────────────────────────────────────    │
 │                                                                 │
 │  [Close]                                    [Ignore All Advice] │
 └─────────────────────────────────────────────────────────────────┘
@@ -1312,68 +1299,86 @@ class_name AssistantCoach extends RefCounted
 
 signal recommendations_ready(recommendations: Array[DraftRecommendation])
 
-# Personality traits that affect advice style
+# Configurable weighting for scoring
 enum CoachStyle {
-    BALANCED,       # Weighs need vs BPA equally
-    NEED_FOCUSED,   # Prioritizes filling roster holes
-    BPA_FOCUSED,    # Best player available philosophy
-    TRADE_HAPPY,    # Often suggests trading picks
+    BALANCED,       # 40% talent, 40% need, 20% value
+    NEED_FOCUSED,   # 25% talent, 55% need, 20% value
+    BPA_FOCUSED,    # 60% talent, 20% need, 20% value
 }
 
 var coach_style: CoachStyle = CoachStyle.BALANCED
 var _team_needs: TeamNeeds
 var _draft_board: DraftBoard
-var _roster: Roster
+
+# Weights per style
+const STYLE_WEIGHTS = {
+    CoachStyle.BALANCED: { "talent": 0.4, "need": 0.4, "value": 0.2 },
+    CoachStyle.NEED_FOCUSED: { "talent": 0.25, "need": 0.55, "value": 0.2 },
+    CoachStyle.BPA_FOCUSED: { "talent": 0.6, "need": 0.2, "value": 0.2 },
+}
 
 func generate_recommendations(
     pick_number: int,
-    available_players: Array[Dictionary],
-    other_teams_needs: Dictionary  # For predicting who might be gone
+    available_players: Array[Dictionary]
 ) -> Array[DraftRecommendation]:
-    var recommendations: Array[DraftRecommendation] = []
-
-    # Score each available player
-    var scored_players = _score_all_players(available_players, pick_number)
-
-    # Pick top 3 with diverse reasoning
-    recommendations = _select_diverse_top_3(scored_players)
-
-    # Generate natural language rationale for each
-    for rec in recommendations:
-        rec.rationale = _generate_rationale(rec, pick_number)
-
-    return recommendations
+    var scored = _score_all_players(available_players, pick_number)
+    return _build_top_3_recommendations(scored, pick_number)
 
 func _score_all_players(players: Array[Dictionary], pick: int) -> Array[Dictionary]:
+    var weights = STYLE_WEIGHTS[coach_style]
     var scored = []
+
     for player in players:
-        var score = 0.0
+        var talent_score = player.get("overall", 50) / 100.0  # 0-1
+        var need_score = _calculate_need_score(player.get("position"))  # 0-1
+        var value_score = _calculate_value_score(player, pick)  # 0-1
 
-        # Factor 1: Player quality (overall rating)
-        score += player.get("overall", 50) * 0.4
+        var total = (
+            talent_score * weights.talent +
+            need_score * weights.need +
+            value_score * weights.value
+        )
 
-        # Factor 2: Position need
-        var need_priority = _team_needs.get_priority(player.get("position"))
-        score += (6 - need_priority) * 10 * 0.3  # 0-50 points
+        scored.append({
+            "player": player,
+            "total_score": total,
+            "talent_score": talent_score,
+            "need_score": need_score,
+            "value_score": value_score,
+            "need_priority": _team_needs.get_priority(player.get("position")),
+        })
 
-        # Factor 3: Value (player tier vs pick number)
-        var tier = _draft_board.get_entry(player.id).tier if _draft_board.has_player(player.id) else 3
-        var expected_pick = _tier_to_expected_pick(tier)
-        var value_delta = expected_pick - pick
-        score += clamp(value_delta, -20, 20) * 0.2
-
-        # Factor 4: Coach style modifier
-        score = _apply_style_modifier(score, player, need_priority)
-
-        scored.append({ "player": player, "score": score })
-
-    scored.sort_custom(func(a, b): return a.score > b.score)
+    scored.sort_custom(func(a, b): return a.total_score > b.total_score)
     return scored
 
-func _generate_rationale(rec: DraftRecommendation, pick: int) -> String:
-    # Template-based natural language generation
-    # Considers: need fit, value, comparison to alternatives, future picks
-    pass
+func _calculate_need_score(position: String) -> float:
+    var priority = _team_needs.get_priority(position)
+    if priority == 0:
+        return 0.1  # Not a need at all
+    # Priority 1 = 1.0, Priority 5 = 0.2
+    return 1.0 - (priority - 1) * 0.2
+
+func _calculate_value_score(player: Dictionary, pick: int) -> float:
+    var player_id = player.get("id", "")
+    var tier = 3  # Default to middle tier
+    if _draft_board.has_player(player_id):
+        tier = _draft_board.get_entry(player_id).tier
+
+    # Expected pick ranges by tier
+    var expected_pick = _tier_to_expected_pick(tier)
+    var value_delta = expected_pick - pick
+
+    # Normalize: getting a Tier 1 at pick 20 is great value (+1.0)
+    # Taking a Tier 3 at pick 5 is a reach (-0.5)
+    return clampf((value_delta / 20.0) + 0.5, 0.0, 1.0)
+
+func _tier_to_expected_pick(tier: int) -> int:
+    match tier:
+        1: return 10   # Elite: expected top 10
+        2: return 32   # Day 1 Starter: expected round 1
+        3: return 64   # Quality Depth: expected round 2
+        4: return 128  # Developmental: expected rounds 3-4
+        _: return 200  # Camp Body: late rounds
 ```
 
 ### DraftRecommendation Model
@@ -1384,63 +1389,128 @@ class_name DraftRecommendation extends RefCounted
 var player_id: String
 var player_name: String
 var position: String
+var college: String
 var overall: int
 var tier: int
 var tier_label: String  # "Elite", "Day 1 Starter", etc.
+var fit_stars: int      # 1-5 based on need priority
 
-var score: float           # Internal ranking score
-var need_fit: int          # 1-5 stars
-var value_assessment: String  # "Great value", "Fair", "Slight reach"
+# Scoring breakdown
+var total_score: float
+var talent_score: float
+var need_score: float
+var value_score: float
+var need_priority: int  # 0 = not a need, 1 = critical, 5 = luxury
 
-var rationale: String      # Natural language explanation
-var contingency: String    # "If this player is gone, consider..."
+# Generated bullet points (deterministic from scores)
+var pros: Array[String]
+var cons: Array[String]
+
+static func from_scored_player(data: Dictionary, board: DraftBoard, pick: int) -> DraftRecommendation:
+    var rec = DraftRecommendation.new()
+    var player = data.player
+
+    rec.player_id = player.get("id", "")
+    rec.player_name = "%s %s" % [player.get("first_name", ""), player.get("last_name", "")]
+    rec.position = player.get("position", "")
+    rec.college = player.get("college", "")
+    rec.overall = player.get("overall", 0)
+
+    # Tier info
+    if board.has_player(rec.player_id):
+        var entry = board.get_entry(rec.player_id)
+        rec.tier = entry.tier
+    else:
+        rec.tier = 3  # Unranked = assume middle tier
+    rec.tier_label = _get_tier_label(rec.tier)
+
+    # Scores
+    rec.total_score = data.total_score
+    rec.talent_score = data.talent_score
+    rec.need_score = data.need_score
+    rec.value_score = data.value_score
+    rec.need_priority = data.need_priority
+
+    # Fit stars (inverse of priority, 0 priority = 1 star)
+    rec.fit_stars = 1 if rec.need_priority == 0 else 6 - rec.need_priority
+
+    # Generate pros/cons from scores
+    rec.pros = _generate_pros(rec, pick)
+    rec.cons = _generate_cons(rec, pick)
+
+    return rec
+
+static func _get_tier_label(tier: int) -> String:
+    match tier:
+        1: return "Elite"
+        2: return "Day 1 Starter"
+        3: return "Quality Depth"
+        4: return "Developmental"
+        _: return "Camp Body"
+
+static func _generate_pros(rec: DraftRecommendation, pick: int) -> Array[String]:
+    var pros: Array[String] = []
+
+    # Talent-based pros
+    if rec.overall >= 90:
+        pros.append("Elite talent (OVR %d)" % rec.overall)
+    elif rec.overall >= 85:
+        pros.append("High-end starter potential")
+    elif rec.talent_score > 0.75:
+        pros.append("Best pure talent available")
+
+    # Need-based pros
+    if rec.need_priority == 1:
+        pros.append("Fills critical need (%s - Priority 1)" % rec.position)
+    elif rec.need_priority == 2:
+        pros.append("Fills key need (%s - Priority 2)" % rec.position)
+    elif rec.need_priority > 0 and rec.need_priority <= 3:
+        pros.append("Addresses team need (%s)" % rec.position)
+
+    # Value-based pros
+    if rec.value_score > 0.7:
+        pros.append("Great value (%s at pick #%d)" % [rec.tier_label, pick])
+    elif rec.value_score > 0.5:
+        pros.append("Good value")
+
+    # Position premium
+    if rec.position in ["QB", "OT", "EDGE", "CB"]:
+        pros.append("Premium position")
+
+    return pros
+
+static func _generate_cons(rec: DraftRecommendation, pick: int) -> Array[String]:
+    var cons: Array[String] = []
+
+    # Value concerns
+    if rec.value_score < 0.3:
+        cons.append("Significant reach at #%d" % pick)
+    elif rec.value_score < 0.45:
+        cons.append("Slight reach (%s at pick #%d)" % [rec.tier_label, pick])
+
+    # Need concerns
+    if rec.need_priority == 0:
+        cons.append("Not a team need (%s)" % rec.position)
+    elif rec.need_priority >= 4:
+        cons.append("Low priority need (%s - Priority %d)" % [rec.position, rec.need_priority])
+
+    # Talent concerns
+    if rec.overall < 75:
+        cons.append("Below-average prospect (OVR %d)" % rec.overall)
+
+    return cons
 
 func to_dict() -> Dictionary
 ```
 
-### Coach Advice Generation
-
-The assistant coach generates contextual advice based on multiple factors:
-
-```gdscript
-# Rationale templates
-const RATIONALE_TEMPLATES = {
-    "need_and_bpa": [
-        "Best player available at your biggest need. {name} is a day-one starter who fills the {position} hole. Elite value at #{pick}.",
-        "{name} checks every box - fills a critical need at {position} and is the best player on the board. Don't overthink this one.",
-    ],
-    "bpa_not_need": [
-        "Best pure talent available. {position} isn't a critical need but {name} has {upside} upside. Could address {need_position} in round {next_round}.",
-        "{name} is too good to pass up at #{pick}. Sometimes you take the best player and figure out the roster later.",
-    ],
-    "need_slight_reach": [
-        "Fills your biggest need at {position}. Slight reach at #{pick} but {name} won't last to your next pick at #{next_pick}.",
-        "Addressing {position} now makes sense. {name} is a {tier_label} talent and premium positions go fast.",
-    ],
-    "trade_down": [
-        "Consider trading down. Your top targets at {need_position} should be available in the {range} range, and you'd gain draft capital.",
-        "This might be a good spot to move back. The {position} class is deep and you could add picks.",
-    ],
-}
-
-# Contingency advice
-const CONTINGENCY_TEMPLATES = [
-    "If {name} goes before your pick, pivot to {alt_name}. Don't reach for a {position} - the value isn't there after {name}.",
-    "Keep an eye on {alt_name} as a backup. Similar upside, different skill set.",
-]
-```
-
 ### Assistant Coach Settings
-
-Players can customize their coach's behavior:
 
 ```gdscript
 class_name AssistantCoachSettings extends Resource
 
 @export var coach_style: AssistantCoach.CoachStyle = AssistantCoach.CoachStyle.BALANCED
-@export var auto_show_on_pick: bool = true  # Automatically show recommendations when it's your turn
-@export var show_trade_suggestions: bool = true
-@export var verbosity: int = 2  # 1 = brief, 2 = normal, 3 = detailed
+@export var auto_show_on_pick: bool = true  # Automatically show when it's your turn
+@export var enabled: bool = true  # Show the "Ask Coach" button
 
 func to_dict() -> Dictionary
 static func from_dict(data: Dictionary) -> AssistantCoachSettings
@@ -1453,14 +1523,13 @@ class_name DraftDayUI extends Control
 
 var _assistant_coach: AssistantCoach
 var _coach_panel: AssistantCoachPanel
+var _settings: AssistantCoachSettings
 
 func _on_your_pick_started(pick_number: int) -> void:
-    # Highlight that it's your turn
     _draft_ticker.highlight_current_pick()
     _show_pick_notification()
 
-    # Auto-show coach if enabled
-    if _settings.auto_show_on_pick:
+    if _settings.auto_show_on_pick and _settings.enabled:
         _show_assistant_coach()
 
 func _on_ask_coach_pressed() -> void:
@@ -1470,20 +1539,17 @@ func _show_assistant_coach() -> void:
     var available = _get_available_players()
     var recommendations = _assistant_coach.generate_recommendations(
         _current_pick,
-        available,
-        _estimate_other_teams_needs()
+        available
     )
     _coach_panel.show_recommendations(recommendations)
     _coach_panel.visible = true
 
 func _on_coach_recommendation_selected(rec: DraftRecommendation) -> void:
-    # Select this player in the prospect table
     _prospect_table.select_player(rec.player_id)
     _prospect_detail.populate_from_id(rec.player_id)
     _coach_panel.visible = false
 
 func _on_draft_player_confirmed(player_id: String) -> void:
-    # Execute the pick
     draft_pick_made.emit(_current_pick, player_id)
     _draft_ticker.add_pick(DraftPick.new(_current_pick, _player_team, player_id))
     _prospect_table.remove_player(player_id)
