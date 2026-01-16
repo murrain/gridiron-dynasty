@@ -128,8 +128,8 @@ func _run_phases(advance: AdvanceWorldYear, world_state: Dictionary, year: int, 
 	var calendar := WorldCalendar.new()
 	var all_phases := calendar.phases_for_year(year, "world/calendar", config)
 
-	# Build lookup of phase handlers
-	var handlers := advance._phase_handlers()
+	# Build lookup of phase handlers (GDScript allows calling underscore methods)
+	var handlers: Dictionary = advance._phase_handlers()
 
 	for phase in all_phases:
 		var phase_id := String(phase.get("phase_id", ""))
@@ -138,7 +138,8 @@ func _run_phases(advance: AdvanceWorldYear, world_state: Dictionary, year: int, 
 		if phase_id not in phase_ids:
 			continue
 
-		var phase_seed := advance._derive_seed(year_seed, phase_id, "phase")
+		# Use local _derive_seed implementation for clarity
+		var phase_seed := _derive_seed(year_seed, phase_id, "phase")
 		var handler: Callable = handlers.get(phase_id, Callable())
 
 		if handler.is_valid():
@@ -146,6 +147,25 @@ func _run_phases(advance: AdvanceWorldYear, world_state: Dictionary, year: int, 
 			handler.call(world_state, year, phase_seed, phase, year_seed)
 
 	return world_state
+
+
+## Derive a deterministic seed from year_seed, phase_id, and step_id
+## Matches AdvanceWorldYear._derive_seed() implementation
+func _derive_seed(year_seed: int, phase_id: String, step_id: String) -> int:
+	var key := "%s:%s" % [phase_id, step_id]
+	var hash := _fnv1a_64(key)
+	return Rand.splitmix64(year_seed ^ hash)
+
+
+## FNV-1a 64-bit hash implementation
+## Matches AdvanceWorldYear._fnv1a_64() implementation
+func _fnv1a_64(text: String) -> int:
+	var hash: int = -3750763034362895579
+	var prime: int = 1099511628211
+	for b in text.to_utf8_buffer():
+		hash = int(hash ^ b) & -1
+		hash = int(hash * prime) & -1
+	return hash
 
 
 ## Build list of available teams with coach info
