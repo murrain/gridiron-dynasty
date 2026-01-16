@@ -631,7 +631,7 @@ const INFO_BAR_HEIGHT = 56
 - [ ] Create `LeagueLeadersView`
 - [ ] Create `PlayerComparisonView`
 
-### Phase 5: Draft Board
+### Phase 5: Draft Board (Pre-Draft Planning)
 - [ ] Create `DraftBoard` and `DraftBoardEntry` models
 - [ ] Create `TeamNeeds` model with auto-calculation
 - [ ] Create `DraftBoardView` with tier display
@@ -640,18 +640,30 @@ const INFO_BAR_HEIGHT = 56
 - [ ] Implement drag-and-drop reordering
 - [ ] Create `MockDraftSimulator` for projections
 
-### Phase 6: Quick Actions & Navigation
+### Phase 6: Draft Day UI
+- [ ] Create `DraftDayUI` main scene with layout
+- [ ] Create `DraftTicker` component (live pick feed)
+- [ ] Create `ProspectTable` with sorting/filtering
+- [ ] Create `ProspectDetailCard` component
+- [ ] Implement League Board vs Your Rankings toggle
+- [ ] Create `AssistantCoach` recommendation engine
+- [ ] Create `AssistantCoachPanel` UI
+- [ ] Implement `DraftRecommendation` model with rationale generation
+- [ ] Add coach style settings (Balanced/Need-Focused/BPA/Trade-Happy)
+- [ ] Wire up draft pick confirmation flow
+
+### Phase 7: Quick Actions & Navigation
 - [ ] Create `QuickActionsPanel`
 - [ ] Implement keyboard shortcuts
 - [ ] Navigation stack for back functionality
 - [ ] Create remaining detail views (schedule, cap management, etc.)
 
-### Phase 7: Integration
+### Phase 8: Integration
 - [ ] Connect to game simulation loop
 - [ ] Implement advance tick with blocking decisions
 - [ ] Message creation from game events
 - [ ] League event monitoring and news generation
-- [ ] Persistence (save/load messages, draft board, preferences)
+- [ ] Persistence (save/load messages, draft board, coach settings)
 
 ---
 
@@ -692,6 +704,17 @@ scenes/ui/gameplay/
 │   ├── TierContainer.gd
 │   ├── prospect_card.tscn
 │   └── ProspectCard.gd
+├── draft_day/
+│   ├── draft_day_ui.tscn
+│   ├── DraftDayUI.gd
+│   ├── draft_ticker.tscn
+│   ├── DraftTicker.gd
+│   ├── prospect_table.tscn
+│   ├── ProspectTable.gd
+│   ├── prospect_detail_card.tscn
+│   ├── ProspectDetailCard.gd
+│   ├── assistant_coach_panel.tscn
+│   └── AssistantCoachPanel.gd
 └── detail_panel/
     ├── detail_panel.tscn
     ├── DetailPanel.gd
@@ -719,11 +742,15 @@ scripts/services/
 │   └── MessageAction.gd
 ├── league_news/
 │   └── LeagueNewsService.gd
-└── draft_board/
-    ├── DraftBoard.gd
-    ├── DraftBoardEntry.gd
-    ├── TeamNeeds.gd
-    └── MockDraftSimulator.gd
+├── draft_board/
+│   ├── DraftBoard.gd
+│   ├── DraftBoardEntry.gd
+│   ├── TeamNeeds.gd
+│   └── MockDraftSimulator.gd
+└── assistant_coach/
+    ├── AssistantCoach.gd
+    ├── DraftRecommendation.gd
+    └── AssistantCoachSettings.gd
 ```
 
 ---
@@ -1054,6 +1081,413 @@ func get_projected_available_at_pick(pick: int, board: DraftBoard) -> Array[Draf
 
 func get_reach_probability(player_id: String, pick: int) -> float
 # Probability this player is still available at pick
+```
+
+---
+
+## Draft Day UI
+
+When the draft begins, the UI transforms into a dedicated **Draft Day Experience** - a focused, high-stakes interface for making picks in real-time.
+
+### Draft Day Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🏈 2025 NFL DRAFT - ROUND 1                              Pick 14 • Your Turn!  │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+├───────────────────────────────┬─────────────────────────────────────────────────┤
+│                               │                                                 │
+│  DRAFT TICKER                 │  [League Board]  [Your Rankings]                │
+│  ┌─────────────────────────┐  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  │ 1. Chiefs    QB Smith   │  │                                                 │
+│  │ 2. Bears     DE Jones   │  │  AVAILABLE PROSPECTS                            │
+│  │ 3. Patriots  OT Brown   │  │  ┌─────────────────────────────────────────────┐│
+│  │ 4. Titans    CB Davis   │  │  │ Rank │ Player        │ Pos │ OVR │ Fit    ││
+│  │ 5. Jets      WR Wilson  │  │  ├─────────────────────────────────────────────┤│
+│  │ ...                     │  │  │  #6  │ Marcus Hall   │ CB  │ 91  │ ★★★★★  ││
+│  │ 13. Browns   LB Thomas  │  │  │  #8  │ James Porter  │ OT  │ 89  │ ★★★★   ││
+│  │ ──────────────────────  │  │  │  #9  │ DeShawn Miles │ WR  │ 88  │ ★★★    ││
+│  │ ▶ 14. EAGLES  YOUR PICK │  │  │ #11  │ Tyler Jackson │ LB  │ 87  │ ★★     ││
+│  │ ──────────────────────  │  │  │ #12  │ Chris Adams   │ S   │ 86  │ ★      ││
+│  │ 15. Colts    (waiting)  │  │  └─────────────────────────────────────────────┘│
+│  │ 16. Seahawks (waiting)  │  │                                                 │
+│  └─────────────────────────┘  │  ─────────────────────────────────────────────  │
+│                               │                                                 │
+│  YOUR REMAINING PICKS         │  SELECTED: Marcus Hall, CB                      │
+│  ┌─────────────────────────┐  │  ┌─────────────────────────────────────────────┐│
+│  │ Rd 1, #14 ◀ NOW         │  │  │                                             ││
+│  │ Rd 2, #46               │  │  │  Height: 6'1" | Weight: 195 lbs             ││
+│  │ Rd 3, #78               │  │  │  College: Alabama | Age: 22                 ││
+│  │ Rd 4, #110              │  │  │                                             ││
+│  └─────────────────────────┘  │  │  Strengths: Ball skills, Recovery speed     ││
+│                               │  │  Concerns: Run support, Physicality         ││
+│  ┌─────────────────────────┐  │  │                                             ││
+│  │  🧠 Ask Assistant Coach │  │  │  Scout Grade: 91 | Your Tier: 1 (Elite)     ││
+│  └─────────────────────────┘  │  │                                             ││
+│                               │  │  [DRAFT THIS PLAYER]    [Compare]  [Pass]   ││
+│                               │  └─────────────────────────────────────────────┘│
+└───────────────────────────────┴─────────────────────────────────────────────────┘
+```
+
+### Draft Day Components
+
+```
+scenes/ui/gameplay/
+└── draft_day/
+    ├── draft_day_ui.tscn
+    ├── DraftDayUI.gd
+    ├── draft_ticker.tscn
+    ├── DraftTicker.gd
+    ├── prospect_table.tscn
+    ├── ProspectTable.gd
+    ├── prospect_detail_card.tscn
+    ├── ProspectDetailCard.gd
+    ├── assistant_coach_panel.tscn
+    └── AssistantCoachPanel.gd
+```
+
+### View Toggle: League Board vs Your Rankings
+
+**League Board View**: Shows prospects ranked by consensus/media rankings
+- What the "experts" think
+- Helps gauge if a player is a reach or value pick
+- Shows where players are expected to go
+
+**Your Rankings View**: Shows prospects by your personal draft board
+- Your tier assignments and rankings
+- Highlights fits for your team needs
+- Shows your notes and tags
+
+```gdscript
+enum DraftViewMode {
+    LEAGUE_BOARD,   # Consensus rankings
+    YOUR_RANKINGS,  # Personal draft board
+}
+```
+
+### Draft Ticker
+
+Live feed of picks as they happen:
+
+```gdscript
+class_name DraftTicker extends Control
+
+signal pick_selected(pick_number: int)
+
+var _picks: Array[DraftPick] = []
+var _current_pick: int = 0
+var _user_pick_numbers: Array[int] = []  # Highlight user's picks
+
+func add_pick(pick: DraftPick) -> void
+func scroll_to_current() -> void
+func highlight_user_picks() -> void
+
+# Visual states for each pick row:
+# - Completed (team + player shown)
+# - Current (highlighted, "YOUR PICK" if user's turn)
+# - Upcoming (team only, waiting)
+```
+
+### Prospect Table
+
+Sortable, filterable list of available players:
+
+```gdscript
+class_name ProspectTable extends Control
+
+signal prospect_selected(player_id: String)
+signal prospect_drafted(player_id: String)
+
+enum SortColumn { RANK, NAME, POSITION, OVERALL, FIT }
+
+var _sort_by: SortColumn = SortColumn.RANK
+var _filter_position: String = ""  # Empty = all positions
+var _show_only_board: bool = false  # Only show players on your board
+
+func populate(available_players: Array[Dictionary], board: DraftBoard, needs: TeamNeeds) -> void
+func sort_by(column: SortColumn) -> void
+func filter_by_position(position: String) -> void
+func remove_player(player_id: String) -> void  # When drafted by another team
+
+# Fit rating calculation (★ system)
+func _calculate_fit(player: Dictionary, needs: TeamNeeds) -> int:
+    var position = player.get("position")
+    var need_priority = needs.get_priority(position)
+    if need_priority == 0:
+        return 1  # Not a need
+    return 6 - need_priority  # Priority 1 = ★★★★★, Priority 5 = ★
+```
+
+### Prospect Detail Card
+
+Quick-reference card for selected prospect:
+
+```gdscript
+class_name ProspectDetailCard extends Control
+
+signal draft_requested(player_id: String)
+signal compare_requested(player_id: String)
+
+func populate(player: Dictionary, scout_report: Dictionary, board_entry: DraftBoardEntry) -> void
+
+# Sections:
+# - Header: Name, position, college, age
+# - Physical: Height, weight, arm length, etc.
+# - Ratings: Key stats for position
+# - Analysis: Strengths/concerns from scouting
+# - Board Info: Your tier, notes, tags
+# - Actions: Draft, Compare, Pass
+```
+
+---
+
+## Assistant Coach System
+
+The **Assistant Coach** is an AI-driven advisor that analyzes your team's needs, available prospects, and draft position to provide recommendations.
+
+### Assistant Coach Panel
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  🧠 ASSISTANT COACH RECOMMENDATIONS                             │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│                                                                 │
+│  "With pick #14, here's what I'm seeing..."                     │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  #1 RECOMMENDATION                                        │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │  Marcus Hall, CB (Alabama)                          │  │  │
+│  │  │  OVR: 91 | Your Tier: 1 (Elite)                     │  │  │
+│  │  │                                                     │  │  │
+│  │  │  "Best player available at your biggest need. Hall  │  │  │
+│  │  │  is a day-one starter who fills the CB1 hole left   │  │  │
+│  │  │  by Johnson's departure. Elite value at #14."       │  │  │
+│  │  │                                                     │  │  │
+│  │  │  [Select This Pick]                                 │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  #2 RECOMMENDATION                                        │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │  James Porter, OT (Ohio State)                      │  │  │
+│  │  │  OVR: 89 | Your Tier: 2 (Day 1 Starter)             │  │  │
+│  │  │                                                     │  │  │
+│  │  │  "Protects your franchise QB for the next decade.   │  │  │
+│  │  │  Slight reach at #14 but OT is a premium position   │  │  │
+│  │  │  and Porter won't last to your next pick at #46."   │  │  │
+│  │  │                                                     │  │  │
+│  │  │  [Select This Pick]                                 │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  #3 RECOMMENDATION                                        │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │  DeShawn Miles, WR (Georgia)                        │  │  │
+│  │  │  OVR: 88 | Your Tier: 2 (Day 1 Starter)             │  │  │
+│  │  │                                                     │  │  │
+│  │  │  "Best pure talent available. WR isn't a critical   │  │  │
+│  │  │  need but Miles has WR1 upside. Could trade down    │  │  │
+│  │  │  and still get a CB in round 2."                    │  │  │
+│  │  │                                                     │  │  │
+│  │  │  [Select This Pick]                                 │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ───────────────────────────────────────────────────────────    │
+│  💡 "Consider: If Hall goes before your pick, pivot to Porter.  │
+│     Don't reach for a CB - the value isn't there after Hall."   │
+│  ───────────────────────────────────────────────────────────    │
+│                                                                 │
+│  [Close]                                    [Ignore All Advice] │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### AssistantCoach Model
+
+```gdscript
+class_name AssistantCoach extends RefCounted
+
+signal recommendations_ready(recommendations: Array[DraftRecommendation])
+
+# Personality traits that affect advice style
+enum CoachStyle {
+    BALANCED,       # Weighs need vs BPA equally
+    NEED_FOCUSED,   # Prioritizes filling roster holes
+    BPA_FOCUSED,    # Best player available philosophy
+    TRADE_HAPPY,    # Often suggests trading picks
+}
+
+var coach_style: CoachStyle = CoachStyle.BALANCED
+var _team_needs: TeamNeeds
+var _draft_board: DraftBoard
+var _roster: Roster
+
+func generate_recommendations(
+    pick_number: int,
+    available_players: Array[Dictionary],
+    other_teams_needs: Dictionary  # For predicting who might be gone
+) -> Array[DraftRecommendation]:
+    var recommendations: Array[DraftRecommendation] = []
+
+    # Score each available player
+    var scored_players = _score_all_players(available_players, pick_number)
+
+    # Pick top 3 with diverse reasoning
+    recommendations = _select_diverse_top_3(scored_players)
+
+    # Generate natural language rationale for each
+    for rec in recommendations:
+        rec.rationale = _generate_rationale(rec, pick_number)
+
+    return recommendations
+
+func _score_all_players(players: Array[Dictionary], pick: int) -> Array[Dictionary]:
+    var scored = []
+    for player in players:
+        var score = 0.0
+
+        # Factor 1: Player quality (overall rating)
+        score += player.get("overall", 50) * 0.4
+
+        # Factor 2: Position need
+        var need_priority = _team_needs.get_priority(player.get("position"))
+        score += (6 - need_priority) * 10 * 0.3  # 0-50 points
+
+        # Factor 3: Value (player tier vs pick number)
+        var tier = _draft_board.get_entry(player.id).tier if _draft_board.has_player(player.id) else 3
+        var expected_pick = _tier_to_expected_pick(tier)
+        var value_delta = expected_pick - pick
+        score += clamp(value_delta, -20, 20) * 0.2
+
+        # Factor 4: Coach style modifier
+        score = _apply_style_modifier(score, player, need_priority)
+
+        scored.append({ "player": player, "score": score })
+
+    scored.sort_custom(func(a, b): return a.score > b.score)
+    return scored
+
+func _generate_rationale(rec: DraftRecommendation, pick: int) -> String:
+    # Template-based natural language generation
+    # Considers: need fit, value, comparison to alternatives, future picks
+    pass
+```
+
+### DraftRecommendation Model
+
+```gdscript
+class_name DraftRecommendation extends RefCounted
+
+var player_id: String
+var player_name: String
+var position: String
+var overall: int
+var tier: int
+var tier_label: String  # "Elite", "Day 1 Starter", etc.
+
+var score: float           # Internal ranking score
+var need_fit: int          # 1-5 stars
+var value_assessment: String  # "Great value", "Fair", "Slight reach"
+
+var rationale: String      # Natural language explanation
+var contingency: String    # "If this player is gone, consider..."
+
+func to_dict() -> Dictionary
+```
+
+### Coach Advice Generation
+
+The assistant coach generates contextual advice based on multiple factors:
+
+```gdscript
+# Rationale templates
+const RATIONALE_TEMPLATES = {
+    "need_and_bpa": [
+        "Best player available at your biggest need. {name} is a day-one starter who fills the {position} hole. Elite value at #{pick}.",
+        "{name} checks every box - fills a critical need at {position} and is the best player on the board. Don't overthink this one.",
+    ],
+    "bpa_not_need": [
+        "Best pure talent available. {position} isn't a critical need but {name} has {upside} upside. Could address {need_position} in round {next_round}.",
+        "{name} is too good to pass up at #{pick}. Sometimes you take the best player and figure out the roster later.",
+    ],
+    "need_slight_reach": [
+        "Fills your biggest need at {position}. Slight reach at #{pick} but {name} won't last to your next pick at #{next_pick}.",
+        "Addressing {position} now makes sense. {name} is a {tier_label} talent and premium positions go fast.",
+    ],
+    "trade_down": [
+        "Consider trading down. Your top targets at {need_position} should be available in the {range} range, and you'd gain draft capital.",
+        "This might be a good spot to move back. The {position} class is deep and you could add picks.",
+    ],
+}
+
+# Contingency advice
+const CONTINGENCY_TEMPLATES = [
+    "If {name} goes before your pick, pivot to {alt_name}. Don't reach for a {position} - the value isn't there after {name}.",
+    "Keep an eye on {alt_name} as a backup. Similar upside, different skill set.",
+]
+```
+
+### Assistant Coach Settings
+
+Players can customize their coach's behavior:
+
+```gdscript
+class_name AssistantCoachSettings extends Resource
+
+@export var coach_style: AssistantCoach.CoachStyle = AssistantCoach.CoachStyle.BALANCED
+@export var auto_show_on_pick: bool = true  # Automatically show recommendations when it's your turn
+@export var show_trade_suggestions: bool = true
+@export var verbosity: int = 2  # 1 = brief, 2 = normal, 3 = detailed
+
+func to_dict() -> Dictionary
+static func from_dict(data: Dictionary) -> AssistantCoachSettings
+```
+
+### Integration with Draft Day UI
+
+```gdscript
+class_name DraftDayUI extends Control
+
+var _assistant_coach: AssistantCoach
+var _coach_panel: AssistantCoachPanel
+
+func _on_your_pick_started(pick_number: int) -> void:
+    # Highlight that it's your turn
+    _draft_ticker.highlight_current_pick()
+    _show_pick_notification()
+
+    # Auto-show coach if enabled
+    if _settings.auto_show_on_pick:
+        _show_assistant_coach()
+
+func _on_ask_coach_pressed() -> void:
+    _show_assistant_coach()
+
+func _show_assistant_coach() -> void:
+    var available = _get_available_players()
+    var recommendations = _assistant_coach.generate_recommendations(
+        _current_pick,
+        available,
+        _estimate_other_teams_needs()
+    )
+    _coach_panel.show_recommendations(recommendations)
+    _coach_panel.visible = true
+
+func _on_coach_recommendation_selected(rec: DraftRecommendation) -> void:
+    # Select this player in the prospect table
+    _prospect_table.select_player(rec.player_id)
+    _prospect_detail.populate_from_id(rec.player_id)
+    _coach_panel.visible = false
+
+func _on_draft_player_confirmed(player_id: String) -> void:
+    # Execute the pick
+    draft_pick_made.emit(_current_pick, player_id)
+    _draft_ticker.add_pick(DraftPick.new(_current_pick, _player_team, player_id))
+    _prospect_table.remove_player(player_id)
+    _advance_to_next_pick()
 ```
 
 ---
