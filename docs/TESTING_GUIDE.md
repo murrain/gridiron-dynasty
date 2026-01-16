@@ -4,15 +4,65 @@ This guide documents the testing patterns and infrastructure for the Gridiron Dy
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Test Structure](#test-structure)
-3. [Writing Tests](#writing-tests)
-4. [Custom Assertions](#custom-assertions)
-5. [Fixture System](#fixture-system)
-6. [Running Tests](#running-tests)
-7. [CI/CD Integration](#cicd-integration)
-8. [Migration from Legacy Tests](#migration-from-legacy-tests)
-9. [Troubleshooting](#troubleshooting)
+1. [Prerequisites](#prerequisites)
+2. [Overview](#overview)
+3. [Test Structure](#test-structure)
+4. [Writing Tests](#writing-tests)
+5. [Custom Assertions](#custom-assertions)
+6. [Fixture System](#fixture-system)
+7. [Running Tests](#running-tests)
+8. [CI/CD Integration](#cicd-integration)
+9. [Migration from Legacy Tests](#migration-from-legacy-tests)
+10. [Troubleshooting](#troubleshooting)
+
+---
+
+## Prerequisites
+
+### Required Tools
+
+This project requires the following specific versions for testing:
+
+| Tool | Version | Download URL |
+|------|---------|--------------|
+| Godot | 4.5 stable | https://downloads.godotengine.org/?version=4.5&flavor=stable&slug=linux.x86_64.zip&platform=linux.64 |
+| GdUnit4 | v6.0.3 | https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/tags/v6.0.3.tar.gz |
+
+### Agent Download Instructions
+
+If these tools are not available in your environment, download and install them as follows:
+
+**Godot 4.5 stable:**
+```bash
+# Download Godot 4.5 stable for Linux x86_64
+curl -L -o godot.zip "https://downloads.godotengine.org/?version=4.5&flavor=stable&slug=linux.x86_64.zip&platform=linux.64"
+unzip godot.zip -d /usr/local/bin/
+chmod +x /usr/local/bin/Godot_v4.5-stable_linux.x86_64
+ln -sf /usr/local/bin/Godot_v4.5-stable_linux.x86_64 /usr/local/bin/godot
+```
+
+**GdUnit4 v6.0.3:**
+```bash
+# Download and install GdUnit4 v6.0.3
+curl -L -o gdunit4.tar.gz "https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/tags/v6.0.3.tar.gz"
+tar -xzf gdunit4.tar.gz
+mkdir -p addons
+mv gdUnit4-6.0.3/addons/gdUnit4 addons/
+rm -rf gdUnit4-6.0.3 gdunit4.tar.gz
+```
+
+**Verification:**
+```bash
+# Verify Godot installation
+godot --version
+# Expected output: 4.5.stable
+
+# Verify GdUnit4 is installed
+ls addons/gdUnit4/
+# Expected: bin/, plugin.cfg, etc.
+```
+
+> **IMPORTANT FOR AGENTS**: Before running tests, verify these tools are available. If not present, download them using the commands above. Tests will fail without the correct versions installed.
 
 ---
 
