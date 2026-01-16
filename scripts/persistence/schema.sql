@@ -262,6 +262,49 @@ CREATE INDEX IF NOT EXISTS idx_draft_team ON draft_pick(team_id);
 CREATE INDEX IF NOT EXISTS idx_draft_player ON draft_pick(player_id);
 
 -- =========================
+-- Performance Indexes (ARCH-022)
+-- =========================
+-- Additional composite and filtered indexes for common query patterns
+-- Designed to optimize the queries documented in DATABASE_SCHEMA.md
+
+-- Composite index for position + age queries (draft scouting, roster building)
+-- Example: Find all QBs aged 21-25
+CREATE INDEX IF NOT EXISTS idx_player_position_age ON player(position, age);
+
+-- Composite index for position + stage queries (find NFL veterans by position)
+-- Example: Find all active NFL QBs
+CREATE INDEX IF NOT EXISTS idx_player_position_stage ON player(position, stage);
+
+-- Composite index for stage + age (draft pool queries, retirement candidates)
+-- Example: Find draft-eligible players by age, find aging veterans
+CREATE INDEX IF NOT EXISTS idx_player_stage_age ON player(stage, age);
+
+-- Filtered index for free agent queries (NFL_FREE_AGENT = stage 5)
+-- SQLite doesn't support true partial indexes in CREATE INDEX,
+-- but we can use a covering index that benefits free agent lookups
+CREATE INDEX IF NOT EXISTS idx_player_free_agent ON player(stage, position, age) WHERE stage = 5;
+
+-- Composite index for team roster with position (depth chart queries)
+-- Example: Load all WRs on a specific team
+CREATE INDEX IF NOT EXISTS idx_roster_team_status ON roster_entry(team_id, status);
+
+-- Index for finding expiring contracts (contract year queries)
+-- Example: Find players in final year of contract
+CREATE INDEX IF NOT EXISTS idx_contract_expiring ON player_contract(current_year, total_years);
+
+-- Index for contract value queries (cap management, free agent market)
+CREATE INDEX IF NOT EXISTS idx_contract_value ON player_contract(annual_value);
+
+-- Index for combine queries (draft evaluation, athleticism filtering)
+CREATE INDEX IF NOT EXISTS idx_combine_forty ON player_combine(forty_sec);
+CREATE INDEX IF NOT EXISTS idx_combine_year ON player_combine(combine_year);
+
+-- Team indexes for division/conference queries (standings, schedules)
+CREATE INDEX IF NOT EXISTS idx_team_conference ON team(conference);
+CREATE INDEX IF NOT EXISTS idx_team_division ON team(division);
+CREATE INDEX IF NOT EXISTS idx_team_conf_div ON team(conference, division);
+
+-- =========================
 -- Schema Validation Queries
 -- =========================
 

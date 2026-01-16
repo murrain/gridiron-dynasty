@@ -666,6 +666,73 @@ All indexes defined in initial schema provide:
 - **Age range queries**: 50-100ms (vs 2-3s full scan)
 - **Team roster loads**: 20-50ms (vs 1-2s full scan)
 
+### Index Strategy (ARCH-022)
+
+The schema defines two categories of indexes:
+
+#### Basic Single-Column Indexes
+
+Created with the table definitions for fundamental queries:
+
+| Index Name | Table | Column(s) | Purpose |
+|------------|-------|-----------|---------|
+| `idx_player_position` | player | position | Find players by position |
+| `idx_player_age` | player | age | Age range queries |
+| `idx_player_stage` | player | stage | Lifecycle filtering |
+| `idx_player_school` | player | school_tag | School roster queries |
+| `idx_player_class` | player | class_tag | Recruiting class queries |
+| `idx_player_name` | player | (last_name, first_name) | Name-based search |
+| `idx_roster_team` | roster_entry | team_id | Load team roster |
+| `idx_roster_player` | roster_entry | player_id | Find player's team |
+| `idx_roster_status` | roster_entry | status | Filter by roster status |
+
+#### Composite Performance Indexes (ARCH-022)
+
+Additional indexes for optimized multi-column queries:
+
+| Index Name | Table | Column(s) | Use Case |
+|------------|-------|-----------|----------|
+| `idx_player_position_age` | player | (position, age) | Draft scouting: "Find QBs aged 21-25" |
+| `idx_player_position_stage` | player | (position, stage) | NFL queries: "Find veteran WRs" |
+| `idx_player_stage_age` | player | (stage, age) | Draft pool, retirement candidates |
+| `idx_player_free_agent` | player | (stage, position, age) WHERE stage=5 | Free agent market queries |
+| `idx_roster_team_status` | roster_entry | (team_id, status) | Depth chart: "Active players on team" |
+| `idx_contract_expiring` | player_contract | (current_year, total_years) | Contract year queries |
+| `idx_contract_value` | player_contract | annual_value | Cap management, market analysis |
+| `idx_combine_forty` | player_combine | forty_sec | Athleticism filtering |
+| `idx_combine_year` | player_combine | combine_year | Historical combine data |
+| `idx_team_conf_div` | team | (conference, division) | Standings, scheduling |
+
+#### Index Selection Guidelines
+
+When adding new indexes, consider:
+
+1. **Query frequency**: Index columns used in frequent WHERE clauses
+2. **Column cardinality**: High-cardinality columns benefit more from indexing
+3. **Composite order**: Place equality columns before range columns
+4. **Write overhead**: Each index adds overhead to INSERT/UPDATE operations
+5. **Covering indexes**: Include all selected columns to avoid table lookups
+
+#### Benchmark Tool
+
+Use `BenchmarkDatabase.gd` to measure query performance:
+
+```gdscript
+var bench = BenchmarkDatabase.new()
+var results = bench.run_benchmarks("save_game_001.db")
+bench.print_report(results)
+
+# Analyze specific query execution plan
+var plan = bench.explain_query("save_game_001.db",
+    "SELECT * FROM player WHERE position = 'QB' AND age BETWEEN 21 AND 25")
+```
+
+Target performance thresholds:
+- Position queries: <100ms
+- Age range queries: <100ms
+- Team roster loads: <50ms
+- Combined filters: <100ms
+
 ### Write Performance
 
 - **Single player insert**: ~1-2ms
@@ -830,6 +897,13 @@ ANALYZE;
 - **FTS5**: https://www.sqlite.org/fts5.html
 
 ## Changelog
+
+### Version 1.1 (2026-01-15) - ARCH-022
+- Added composite performance indexes for common query patterns
+- Added filtered index for free agent queries
+- Added benchmark tool (`BenchmarkDatabase.gd`) for performance validation
+- Added migration tool (`MigrateSaveToDatabase.gd`) for JSON to SQLite conversion
+- Updated documentation with index strategy guidelines
 
 ### Version 1 (2026-01-15)
 - Initial schema design
