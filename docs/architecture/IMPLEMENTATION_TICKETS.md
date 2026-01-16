@@ -16,6 +16,183 @@ This document contains detailed implementation tickets for the architectural imp
 
 ---
 
+## Cross-Cutting: UI Standards
+
+> **Scope:** These standards apply to ALL UI work across all phases. Individual tickets reference these standards rather than duplicating requirements.
+
+### UI-STD-001: Keyboard Navigation Requirements
+
+All interactive UI components MUST support full keyboard navigation. Good accessibility benefits everyone - power users, accessibility needs, and gamepad users alike.
+
+#### Core Principles
+
+1. **Every interactive element must be keyboard-accessible** - If you can click it, you can reach it with Tab/Arrow keys
+2. **Focus must be visible** - Clear visual indicator showing which element has focus
+3. **Logical focus order** - Left-to-right, top-to-bottom flow matching visual layout
+4. **Escape closes modals** - Consistent dismissal pattern for dialogs/popups
+5. **Enter/Space activates** - Standard activation for buttons and toggles
+
+#### Acceptance Criteria (apply to all UI tickets)
+
+- [ ] All buttons, inputs, and interactive controls reachable via Tab key
+- [ ] Focus indicator visible and meets contrast requirements
+- [ ] Focus order follows logical reading order
+- [ ] Modal dialogs trap focus (can't Tab outside dialog)
+- [ ] Escape key closes dialogs and returns focus to trigger element
+- [ ] No keyboard traps (user can always navigate away)
+
+---
+
+### UI-STD-002: Keyboard Shortcut Consistency
+
+**Critical Rule:** A shortcut that works on one screen MUST work identically on all screens where that action is available.
+
+#### Global Shortcuts (Always Available)
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `Esc` | Close dialog / Cancel / Back | Universal |
+| `?` or `F1` | Show keyboard shortcuts help | Universal |
+| `Ctrl+S` | Save game | When save available |
+| `Ctrl+Z` | Undo last action | When undo available |
+
+#### Navigation Shortcuts (Main Menu Context)
+
+| Key | Action | Notes |
+|-----|--------|-------|
+| `R` | Open Roster | Team roster view |
+| `D` | Open Draft | Draft screens |
+| `T` | Open Trades | Trade center |
+| `S` | Open Schedule | Season schedule |
+| `F` | Open Free Agency | Free agent market |
+| `L` | Open League | League standings/stats |
+| `O` | Open Options/Settings | Game settings |
+
+#### In-Context Shortcuts (Screen-Specific)
+
+| Key | Action | Available In |
+|-----|--------|--------------|
+| `Space` | Select / Toggle | Lists, checkboxes |
+| `Enter` | Confirm / Open details | Lists, dialogs |
+| `Delete` / `Backspace` | Remove from list | Shortlist, watchlist |
+| `A` | Add to shortlist | Player views |
+| `C` | Compare players | When players selected |
+| `N` | Next item | Draft, lists |
+| `P` | Previous item | Draft, lists |
+| `1-9` | Quick select tab/option | Tabbed interfaces |
+
+#### Shortcut Registry Implementation
+
+All keyboard shortcuts MUST be registered in a central `KeyboardShortcuts` autoload:
+
+```gdscript
+# scripts/ui/KeyboardShortcuts.gd (REQUIRED)
+extends Node
+class_name KeyboardShortcuts
+
+# Central registry prevents conflicts and enables help screen generation
+var shortcuts: Dictionary = {
+    "global": {
+        "escape": {"action": "ui_cancel", "description": "Close/Cancel/Back"},
+        "f1": {"action": "show_help", "description": "Show keyboard shortcuts"},
+    },
+    "navigation": {
+        "r": {"action": "open_roster", "description": "Open Roster"},
+        "d": {"action": "open_draft", "description": "Open Draft"},
+        # ... etc
+    }
+}
+
+func get_shortcut_help() -> Array[Dictionary]:
+    # Returns formatted list for help overlay
+    pass
+
+func is_shortcut_available(key: String, context: String) -> bool:
+    # Check if shortcut is valid in current context
+    pass
+```
+
+#### Validation Requirements
+
+Before any UI PR is merged:
+- [ ] No shortcut conflicts (same key, same context, different action)
+- [ ] New shortcuts registered in `KeyboardShortcuts.gd`
+- [ ] Help overlay updated to show new shortcuts
+- [ ] Shortcut works consistently across all applicable screens
+
+---
+
+### UI-STD-003: Focus Management Patterns
+
+#### Dialog Focus
+
+```gdscript
+# When opening a dialog:
+func _on_dialog_opened() -> void:
+    # Store previous focus for restoration
+    _previous_focus = get_viewport().gui_get_focus_owner()
+    # Focus first interactive element in dialog
+    $FirstButton.grab_focus()
+
+func _on_dialog_closed() -> void:
+    # Restore focus to element that opened the dialog
+    if _previous_focus and is_instance_valid(_previous_focus):
+        _previous_focus.grab_focus()
+```
+
+#### List Navigation
+
+```gdscript
+# Arrow key navigation in lists
+func _gui_input(event: InputEvent) -> void:
+    if event is InputEventKey and event.pressed:
+        match event.keycode:
+            KEY_UP:
+                _select_previous()
+                accept_event()
+            KEY_DOWN:
+                _select_next()
+                accept_event()
+            KEY_HOME:
+                _select_first()
+                accept_event()
+            KEY_END:
+                _select_last()
+                accept_event()
+```
+
+#### Tab Panel Navigation
+
+```gdscript
+# Number keys for quick tab switching
+func _unhandled_key_input(event: InputEvent) -> void:
+    if event is InputEventKey and event.pressed:
+        if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+            var tab_index = event.keycode - KEY_1
+            if tab_index < tab_container.get_tab_count():
+                tab_container.current_tab = tab_index
+```
+
+---
+
+### UI-STD-004: Testing Keyboard Navigation
+
+Every UI ticket with a "UI/UX Tests" section MUST include:
+
+```markdown
+**Keyboard Navigation Tests:**
+- [ ] All interactive elements reachable via Tab key
+- [ ] Focus order matches visual layout (left-to-right, top-to-bottom)
+- [ ] Focus indicator clearly visible on all focused elements
+- [ ] Escape key closes any open dialogs/popups
+- [ ] Enter/Space activates focused buttons
+- [ ] No keyboard traps (can always Tab away)
+- [ ] Screen-specific shortcuts work per UI-STD-002
+- [ ] Shortcuts registered in KeyboardShortcuts.gd
+```
+
+---
+
 ## Phase 1: Foundation (Low Risk, High Value)
 
 ### ARCH-001: Rename SportPlayer to Player
@@ -4379,12 +4556,15 @@ You are a Godot UI specialist focused on building clean, accessible, and maintai
 - Clean up signal connections in `_exit_tree()` when connecting dynamically
 - Use `set_process(false)` when UI is hidden to save resources
 
-**Accessibility Requirements:**
+**Accessibility & Keyboard Navigation (See UI-STD-001 through UI-STD-004):**
 - All interactive elements must be keyboard-navigable
 - Focus order must be logical (left-to-right, top-to-bottom)
 - Use `focus_neighbor_*` properties for custom navigation
 - Provide visual focus indicators
 - Support theme overrides for accessibility needs
+- **Keyboard shortcuts MUST be consistent** - same key = same action across all screens
+- Register ALL shortcuts in `KeyboardShortcuts.gd` (see UI-STD-002)
+- Follow focus management patterns for dialogs and lists (see UI-STD-003)
 
 ## What You Must NOT Do
 
@@ -4426,9 +4606,13 @@ Before considering UI work complete:
 - [ ] No simulation logic in UI scripts
 - [ ] Responsive layout tested at multiple resolutions
 - [ ] Loading states handled for async data
+- [ ] Keyboard shortcuts consistent with UI-STD-002 registry
+- [ ] New shortcuts registered in `KeyboardShortcuts.gd`
+- [ ] Keyboard navigation tests pass (see UI-STD-004)
 
 ## Additional Resources
 
+- **UI Standards**: See `Cross-Cutting: UI Standards` section in this document (UI-STD-001 to UI-STD-004)
 - **Cross-cutting guidelines**: `AGENTS.md`
 - **UI Architecture Plan**: `docs/architecture/UI_ARCHITECTURE.md` (when created)
 - **Godot UI Docs**: https://docs.godotengine.org/en/stable/tutorials/ui/
@@ -4440,14 +4624,19 @@ Before considering UI work complete:
 - [ ] Update `AGENTS.md` to include UI Engineer in role summary
 - [ ] Add UI Engineer to Task tool's available agent types
 - [ ] Document escalation paths (UI → Architect for architecture, UI → Engineer for data services)
+- [ ] Create `scripts/ui/KeyboardShortcuts.gd` autoload per UI-STD-002
+- [ ] Create keyboard shortcuts help overlay scene
 
 #### Files to Create
 
 - `.claude/agents/ui-engineer.md`
+- `scripts/ui/KeyboardShortcuts.gd` - Central shortcut registry (see UI-STD-002)
+- `scenes/ui/common/KeyboardHelpOverlay.tscn` - Help overlay showing all shortcuts
 
 #### Files to Modify
 
 - `AGENTS.md` - Add UI Engineer role summary
+- `project.godot` - Register KeyboardShortcuts as autoload
 - Task tool configuration (if applicable)
 
 ---
