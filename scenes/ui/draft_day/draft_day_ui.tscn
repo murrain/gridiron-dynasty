@@ -1,0 +1,243 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7draft_day_ui"]
+
+[ext_resource type="Script" path="res://scenes/ui/draft_day/DraftDayUI.gd" id="1_script"]
+
+[node name="DraftDayUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="HeaderLabel" type="Label" parent="MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "2025 NFL Draft - Eagles"
+
+[node name="RoundLabel" type="Label" parent="MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Round 1"
+
+[node name="PickLabel" type="Label" parent="MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Pick #1"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="MainContent" type="HSplitContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 250
+
+[node name="LeftPanel" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.3
+
+[node name="DraftTicker" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/DraftTicker"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/DraftTicker/MarginContainer"]
+layout_mode = 2
+
+[node name="TickerLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/DraftTicker/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Draft Ticker"
+
+[node name="TickerList" type="ItemList" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/DraftTicker/MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+auto_height = false
+
+[node name="YourPicksPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/YourPicksPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/YourPicksPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="YourPicksTitleLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/YourPicksPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Your Picks"
+
+[node name="YourPicksLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/YourPicksPanel/MarginContainer"]
+layout_mode = 2
+text = "No picks yet"
+
+[node name="CenterPanel" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ProspectPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="ProspectTitleLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Available Prospects"
+
+[node name="FilterBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="FilterLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer/FilterBar"]
+layout_mode = 2
+text = "Filter:"
+
+[node name="PositionFilter" type="OptionButton" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer/FilterBar"]
+layout_mode = 2
+
+[node name="ProspectList" type="ItemList" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="RightPanel" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.4
+
+[node name="DetailPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="DetailTitleLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Prospect Details"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ProspectNameLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Select a Prospect"
+
+[node name="ProspectPositionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+
+[node name="ProspectCollegeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+
+[node name="ProspectOverallLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+
+[node name="ProspectAgeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DraftButton" type="Button" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+disabled = true
+text = "DRAFT"
+
+[node name="CoachPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="CoachTitleLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Assistant Coach Recommendations"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="RecommendationsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Footer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/VBoxContainer/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Waiting for draft to start..."
+
+[node name="ViewRosterButton" type="Button" parent="MarginContainer/VBoxContainer/Footer"]
+layout_mode = 2
+text = "View My Roster"
+
+[node name="ViewTeamsButton" type="Button" parent="MarginContainer/VBoxContainer/Footer"]
+layout_mode = 2
+text = "View Teams"
+
+[node name="ViewWorldButton" type="Button" parent="MarginContainer/VBoxContainer/Footer"]
+visible = false
+layout_mode = 2
+text = "View World"
