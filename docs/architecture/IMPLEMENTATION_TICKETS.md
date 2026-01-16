@@ -2146,6 +2146,60 @@ func get_ai_trade_interest(team_id: String, current_pick: int) -> Array[Dictiona
 - `scenes/ui/draft_day/DraftDayUI.gd` - Add trade UI trigger
 - World state schema - Add `draft_trades` history
 
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `DraftTradeEngine.propose_trade()` validates trade legality (both teams exist, picks owned by correct teams)
+- [ ] Trade validation rejects trades with picks already traded away
+- [ ] Trade validation rejects trades with invalid pick numbers (0, negative, > 262)
+- [ ] `evaluate_trade_value()` correctly uses pick value chart (1st pick > 2nd pick > ... > 262nd pick)
+- [ ] Value differential calculation matches expected formula (sum of incoming value - sum of outgoing value)
+- [ ] AI acceptance logic deterministic with same seed (same team, same offer, same seed = same decision)
+- [ ] Edge case: Trading pick 1 for multiple late-round picks correctly valued
+- [ ] Edge case: Trading future picks (if supported) validates year constraints
+- [ ] `execute_trade()` updates `draft_pick_ownership` for both teams correctly
+- [ ] Executed trades append to `world_state.draft_trades[year]` array
+- [ ] Pick ownership query after trade returns correct team_id for traded picks
+
+**Integration Tests:**
+- [ ] Trade executed during pick 15 correctly updates InteractiveDraft state for picks 16+
+- [ ] User trades up from pick 20 to pick 10, InteractiveDraft calls user for pick 10
+- [ ] AI team trades up, InteractiveDraft correctly makes AI pick with new pick number
+- [ ] Multiple trades in same draft (3+ trades) maintain consistent pick ownership
+- [ ] Trade involving user's current pick immediately transitions to user selection UI
+- [ ] Trade history persists through save/load cycle (execute trade, save, load, verify history)
+- [ ] Trade executed after draft started but before pick made correctly updates live draft state
+
+**Determinism Tests:**
+- [ ] Run draft with 5 AI-initiated trades, same seed produces identical trades (teams, picks, timing)
+- [ ] AI trade acceptance with seed 12345 vs 12346 produces different but valid results
+- [ ] User proposes same trade 10 times with same seed, AI response identical each time
+- [ ] Trade value calculations never use `randf()` or non-deterministic sources
+
+**Performance Tests:**
+- [ ] `propose_trade()` completes in < 10ms (lightweight validation)
+- [ ] `evaluate_trade_value()` completes in < 50ms (pick chart lookup + simple math)
+- [ ] `get_ai_trade_interest()` completes in < 100ms (scans all 32 teams' needs)
+- [ ] Draft with 20 trades completes in same time as draft with 0 trades (±5%)
+- [ ] Trade UI opens in < 200ms (responsive user experience)
+
+**UI/UX Tests:**
+- [ ] TradeProposalDialog displays user's picks and target team's picks
+- [ ] Trade offer shows value differential ("You give up 500 points, receive 650 points")
+- [ ] Rejected trade displays reason ("Team declined: insufficient value", "Pick already traded")
+- [ ] Accepted trade shows confirmation animation/notification
+- [ ] Trade history panel displays all trades chronologically with teams and picks
+- [ ] User can initiate trade at any point during draft (not just on their turn)
+- [ ] Trade UI disabled when user has no tradeable picks remaining
+- [ ] Attempting to trade pick user doesn't own shows clear error message
+
+**Regression Tests:**
+- [ ] Draft without any trades completes successfully (trade system doesn't break basic draft)
+- [ ] PreDraftProcess generates valid team boards (unaffected by trade engine existence)
+- [ ] Draft simulation determinism maintained (draft with no trades reproducible)
+- [ ] Existing draft UI still functional (pick timer, player cards, draft board)
+- [ ] Save/load draft state with 0 trades works (trade history empty array serializes correctly)
+
 ---
 
 ### DRAFT-002: Underclassman Draft Entry System
@@ -2221,6 +2275,60 @@ func process_declaration_window(world_state: Dictionary, rng: RandomNumberGenera
 - `scripts/pipelines/Advance.gd` - Wire up declaration phase handler
 - `scripts/world/PreDraftProcess.gd` - Use declared pool only
 
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `evaluate_declaration()` returns DECLARED for all seniors (100% declare rate)
+- [ ] True junior with 1st round grade has ≥80% declare probability
+- [ ] True junior with 7th round grade has ≤30% declare probability
+- [ ] Redshirt senior with any grade returns DECLARED (exhausted eligibility)
+- [ ] `get_declaration_probability()` returns values in [0.0, 1.0] range for all valid inputs
+- [ ] Declaration probability deterministic for same player attributes + seed
+- [ ] Edge case: Player with 0 years remaining always declares (forced)
+- [ ] Edge case: Player with negative years remaining throws error (invalid data)
+- [ ] Edge case: Player with 4 years remaining (true freshman) has ~0% declare rate
+- [ ] `process_declaration_window()` returns three arrays: declared, returning, withdrawn
+- [ ] Declared list + returning list = total eligible pool (no players lost/duplicated)
+- [ ] Same seed produces identical declaration decisions across 100 eligible players
+
+**Integration Tests:**
+- [ ] WorldCalendar triggers `draft_declaration` phase at week 18
+- [ ] Declaration phase runs after bowl games, before combine
+- [ ] PreDraftProcess receives only declared players (returning players excluded)
+- [ ] Draft pool size varies year-to-year (200-350 range over 10 simulated years)
+- [ ] Player with `draft_eligible=false` never enters draft pool
+- [ ] Player who returns to school has `years_remaining` decremented by 1
+- [ ] Player who declares moves to draft pool, removed from college rosters
+- [ ] Declaration phase UI (if present) displays eligible players and their decision
+- [ ] Save/load during declaration window preserves decision state
+
+**Determinism Tests:**
+- [ ] Run 5 seasons with seed 1000, record declaration decisions, repeat → identical results
+- [ ] 50 juniors with identical attributes + same seed produce same number of declarations
+- [ ] Changing seed from 1000 to 1001 produces different decisions but same overall distribution
+- [ ] Declaration probability formula never uses global random state
+
+**Performance Tests:**
+- [ ] `evaluate_declaration()` completes in < 5ms per player (simple probability calculation)
+- [ ] `process_declaration_window()` for 500 eligible players completes in < 1 second
+- [ ] Declaration phase doesn't block UI (async processing or fast enough to be unnoticeable)
+- [ ] Draft pool generation with variable-size pool no slower than fixed-size pool
+
+**UI/UX Tests:**
+- [ ] Declaration phase shows list of underclassmen considering draft
+- [ ] UI displays projected draft position for each underclassman (inform user)
+- [ ] Declaration results show which players declared, which returned
+- [ ] Surprise declarations highlighted ("Projected 5th rounder declares early!")
+- [ ] User can review declaration results before advancing to combine
+- [ ] Draft board updated to reflect actual pool size (not theoretical maximum)
+
+**Regression Tests:**
+- [ ] Draft with only seniors (no underclassmen) still runs correctly
+- [ ] PreDraftProcess with 500-player pool (all declare) behaves as before
+- [ ] Seasons without draft-eligible underclassmen don't crash declaration phase
+- [ ] Player lifecycle (aging, retirement) unaffected by declaration logic
+- [ ] Existing draft tests pass with dynamic pool size (no hardcoded 500 assumptions)
+
 ---
 
 ### DRAFT-003: Medical/Character Red Flag Integration
@@ -2294,6 +2402,61 @@ func _run_medical_rechecks(draft_pool: Array, rng: RandomNumberGenerator) -> voi
 - `scripts/world/PreDraftProcess.gd` - Add red flag adjustments
 - `scripts/core/models/Team.gd` - Add `risk_tolerance` attribute
 - Draft scoring functions - Amplify medical/character penalties
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `_apply_red_flag_adjustments()` returns 0.0 penalty for player with no red flags
+- [ ] Player with `injury_eval="concern"` receives 0.5-2.0 round penalty
+- [ ] Player with `injury_eval="failed"` receives ≥3.0 round penalty
+- [ ] Player with `interview_score < 30` receives 0.5-1.5 round penalty
+- [ ] Player with `drug_screen="positive"` receives ≥1.0 round penalty
+- [ ] Team with `risk_tolerance=1.0` applies minimum penalties (risk-tolerant)
+- [ ] Team with `risk_tolerance=0.0` applies maximum penalties (risk-averse)
+- [ ] `_get_team_medical_risk_penalty()` returns value in [0.5, 2.0] range
+- [ ] `_get_team_character_risk_penalty()` returns value in [0.5, 1.5] range
+- [ ] Multiple red flags compound (failed physical + positive drug screen = 4.0+ rounds)
+- [ ] Edge case: Player with interview_score=29 vs 31 has measurably different penalty
+- [ ] Edge case: Team with undefined `risk_tolerance` uses default (0.5)
+
+**Integration Tests:**
+- [ ] Player ranked 15th overall with failed physical drops to ~30-45th in team boards
+- [ ] Player with character concerns drafted later than projected (compare to no-concern clone)
+- [ ] Team board with 50 players correctly applies penalties to all flagged players
+- [ ] `_run_medical_rechecks()` updates ~5% of players with new medical concerns
+- [ ] Medical recheck phase runs after combine, before draft
+- [ ] Player with `medical_grade_updated=true` has modified draft position
+- [ ] Team boards recalculated after medical rechecks (not using stale data)
+- [ ] Red flag adjustments persist through save/load (penalties don't reset)
+
+**Determinism Tests:**
+- [ ] Medical recheck with seed 5000 updates same players every run
+- [ ] 100 players, seed 5000 → exactly 5 medical rechecks (5% of 100)
+- [ ] Same player, same red flags, same team → identical penalty every time
+- [ ] Penalty calculation never uses `randf()` (deterministic formula)
+- [ ] Different teams evaluate same player → penalties vary by `risk_tolerance` only
+
+**Performance Tests:**
+- [ ] `_apply_red_flag_adjustments()` completes in < 5ms per player
+- [ ] `_run_medical_rechecks()` for 300 players completes in < 100ms
+- [ ] Red flag adjustments don't significantly impact PreDraftProcess runtime (< 10% increase)
+- [ ] Team board generation with red flags completes in < 500ms per team
+
+**UI/UX Tests:**
+- [ ] Player card displays medical red flags (icon or text indicator)
+- [ ] Player card displays character concerns (interview score, drug test)
+- [ ] Draft board highlights players with red flags (color coding or badge)
+- [ ] Player comparison tool shows red flags side-by-side
+- [ ] Mock draft reflects red flag penalties (players drop in projections)
+- [ ] Medical recheck notification shown to user ("Player X failed physical with Team Y")
+- [ ] Scouting report includes risk assessment section
+
+**Regression Tests:**
+- [ ] Players with no red flags draft at same positions as before (no unintended penalties)
+- [ ] Draft with 0 red flag players completes successfully
+- [ ] Existing PreDraftProcess tests pass (red flag logic doesn't break core scoring)
+- [ ] Team board generation determinism maintained (same seed = same boards)
+- [ ] Player evaluation without `injury_eval` field doesn't crash (graceful defaults)
 
 ---
 
@@ -2386,6 +2549,60 @@ func _make_ai_pick(pick_assignment: Dictionary) -> void:
 
 #### Files to Modify
 - `scripts/world/InteractiveDraft.gd` - Integrate trend analyzer
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `record_pick()` correctly appends pick number to position's pick history
+- [ ] `is_position_run_active()` returns false when < 3 picks in window
+- [ ] `is_position_run_active()` returns true when ≥ 3 picks at same position within 10-pick window
+- [ ] Run detection ignores picks outside window (pick 5 doesn't count toward pick 20 window)
+- [ ] `get_urgency_multiplier()` returns 1.0 when no run active (baseline)
+- [ ] `get_urgency_multiplier()` returns 2.0 when ≤2 quality players remain (panic)
+- [ ] `get_urgency_multiplier()` returns 1.5 when ≤5 quality players remain (elevated)
+- [ ] `get_urgency_multiplier()` returns 1.2 when >5 quality players remain (mild concern)
+- [ ] `should_team_panic_trade()` returns true for team with urgent need during run
+- [ ] `should_team_panic_trade()` returns false for team without need at run position
+- [ ] Edge case: Three consecutive QB picks (1, 2, 3) triggers QB run at pick 4
+- [ ] Edge case: Run at multiple positions simultaneously (QB run + CB run)
+
+**Integration Tests:**
+- [ ] QB run (3 QBs in 5 picks) causes team needing QB to boost QB scores
+- [ ] Team with QB need during QB run applies 1.5-2.0x multiplier to remaining QBs
+- [ ] Panic trade triggered when 3 CBs drafted and only 1 elite CB remains
+- [ ] Team boards dynamically re-scored mid-draft (not static pre-computed boards)
+- [ ] InteractiveDraft calls `_trend_analyzer.record_pick()` after every pick
+- [ ] Urgency multipliers affect AI pick decisions (urgent team drafts needed position earlier)
+- [ ] Non-urgent team ignores run (doesn't panic-draft position they don't need)
+- [ ] Panic trade attempt uses DraftTradeEngine integration (requires DRAFT-001)
+
+**Determinism Tests:**
+- [ ] Same draft sequence (same picks) produces identical urgency multipliers every time
+- [ ] Run detection deterministic (no random elements in is_position_run_active)
+- [ ] Panic trade decision deterministic with same seed (same team, same situation)
+- [ ] Board re-scoring with urgency multipliers deterministic (no random score adjustments)
+
+**Performance Tests:**
+- [ ] `record_pick()` completes in < 1ms (simple array append)
+- [ ] `is_position_run_active()` completes in < 5ms (window filter + count)
+- [ ] `get_urgency_multiplier()` completes in < 10ms (count remaining players)
+- [ ] Board re-scoring with urgency multipliers completes in < 50ms (multiply 50 scores)
+- [ ] Trend analysis doesn't slow down draft picks (AI pick still < 100ms target)
+
+**UI/UX Tests:**
+- [ ] Draft UI shows "Positional Run Alert: QB" when run detected
+- [ ] User's board highlights affected players (urgency indicator)
+- [ ] Panic trade offer popup appears for user when they're in panic situation
+- [ ] Draft commentary mentions run ("Four cornerbacks off the board in the last 10 picks")
+- [ ] Team need panel shows urgency level (green/yellow/red indicator)
+- [ ] User can see which teams are in panic mode for each position
+
+**Regression Tests:**
+- [ ] Draft without runs (balanced positional distribution) completes normally
+- [ ] Static team boards (no runs) produce same picks as before
+- [ ] InteractiveDraft determinism maintained (urgency system doesn't break reproduction)
+- [ ] Draft with trend analyzer disabled still functions (graceful degradation)
+- [ ] Existing AI pick logic works without trend analyzer integration
 
 ---
 
@@ -2543,6 +2760,76 @@ Features:
 - `scenes/ui/draft_day/DraftWarRoomUI.gd`
 - `scenes/ui/draft_day/DraftWarRoomUI.tscn`
 
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `generate_mock_draft()` produces 262 picks (full 7-round draft)
+- [ ] Mock draft results include all required fields (pick, team, player_id, position, reasoning)
+- [ ] Mock draft with same seed produces identical results every time
+- [ ] Mock draft with different seed produces different but valid results
+- [ ] `generate_consensus_board()` averages 10 mock drafts correctly
+- [ ] Consensus board includes avg_pick, range [min, max], and variance for each player
+- [ ] Player with picks [1, 3, 2, 4, 1] has avg_pick=2.2, range=[1,4], variance calculated
+- [ ] `generate_report()` returns dictionary with all required fields
+- [ ] `_identify_strengths()` returns top 3 attributes (highest values)
+- [ ] `_identify_weaknesses()` returns bottom 3 attributes (lowest values)
+- [ ] `_find_player_comparison()` returns non-empty string comparison
+- [ ] Edge case: Player with all equal stats returns balanced strengths/weaknesses
+
+**Integration Tests:**
+- [ ] MockDraftSimulator runs actual InteractiveDraft simulation (AI-only)
+- [ ] Mock draft respects team needs (team needing QB drafts QB highly)
+- [ ] Mock draft includes trade probability (some mocks have trades, some don't)
+- [ ] Consensus board aggregates multiple mocks without duplicating players
+- [ ] Scouting report generator accesses player stats from world_state correctly
+- [ ] DraftWarRoomUI loads and displays all tabs (Big Board, Mocks, Reports, Needs, Compare)
+- [ ] User-customizable big board persists rankings through save/load
+- [ ] Mock draft accuracy improves as draft approaches (less variance in consensus)
+
+**Determinism Tests:**
+- [ ] Run 10 consensus boards with same seed → identical avg_pick for all players
+- [ ] Mock draft #1 with seed 1000 identical to mock draft #2 with seed 1000
+- [ ] Scouting report generation deterministic (same player → same report)
+- [ ] Player comparison tool shows identical data for same player selected twice
+
+**Performance Tests:**
+- [ ] Single mock draft completes in < 5 seconds (fast AI simulation)
+- [ ] Consensus board (10 mocks) completes in < 30 seconds (acceptable for one-time generation)
+- [ ] Scouting report generation completes in < 100ms per player
+- [ ] Player comparison tool renders in < 200ms (responsive UI)
+- [ ] Adding/removing player from comparison updates in < 50ms (smooth UX)
+- [ ] Draft War Room UI loads in < 500ms (all tabs initialized)
+
+**UI/UX Tests:**
+- [ ] **Comparison tool displays 3-4 players side-by-side**
+- [ ] **Color-coded cells: green=best, red=worst, gradient for middle values**
+- [ ] **User can add player via "Add Player" button with source selection**
+- [ ] **User can remove player via [Remove] button in player column**
+- [ ] **Context-aware action buttons: [DRAFT] for draft prospects when user's turn**
+- [ ] **Context-aware action buttons: [SIGN] for free agents**
+- [ ] **Context-aware action buttons: [TRADE] for league players (if tradeable)**
+- [ ] **Context-aware action buttons: [VIEW] for any player**
+- [ ] **Context-aware action buttons: [★ WATCH] to add to shortlist**
+- [ ] **Unavailable players show "UNAVAIL." status with grayed styling**
+- [ ] **Unavailable players have disabled action button: [───]**
+- [ ] **Shortlisted players show ★ indicator in comparison tool**
+- [ ] **User can draft player directly from comparison (no navigation required)**
+- [ ] **Comparison supports mixed sources: roster + league + draft + FA**
+- [ ] **Filter by position for relevant comparisons**
+- [ ] Big Board allows drag-and-drop ranking
+- [ ] Mock drafts show variance bars (wide bar = high variance)
+- [ ] Scouting reports display strengths/weaknesses/comparison clearly
+- [ ] Team needs panel shows depth chart gaps with severity (critical/moderate/minor)
+- [ ] Comparison tool export to clipboard works (paste into spreadsheet)
+
+**Regression Tests:**
+- [ ] Mock drafts don't interfere with actual draft execution
+- [ ] Player stats unchanged by scouting report generation (read-only operation)
+- [ ] Draft War Room doesn't block draft progression (view-only UI)
+- [ ] Comparison tool works with players missing optional stats (graceful degradation)
+- [ ] User-edited big board doesn't affect AI draft boards (independent data)
+- [ ] Mock drafts with incomplete player data don't crash (validation/fallbacks)
+
 ---
 
 ### DRAFT-006: Undrafted Free Agent Bidding War
@@ -2597,6 +2884,60 @@ func _run_udfa_signing_rush(world_state: Dictionary, user_team_id: String) -> Di
 #### Files to Modify
 - `scripts/world/InteractiveDraft.gd` - Add post-draft UDFA phase
 - `scenes/ui/draft_day/DraftDayUI.gd` - Add UDFA signing UI
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `_get_undrafted_players()` returns all players not in draft results (500 eligible - 262 drafted = 238 undrafted)
+- [ ] `_rank_udfas()` sorts undrafted players by talent/potential correctly
+- [ ] Top 50 UDFAs include only highest-rated undrafted players
+- [ ] UDFA ranking deterministic with same seed (same order every time)
+- [ ] User priority targets respected (user's top 3-5 evaluated first)
+- [ ] AI team bidding based on roster needs (team needing WR targets undrafted WRs)
+- [ ] UDFA contract structure: 3 years, minimum salary, $0 guaranteed
+- [ ] Drafted rookie contract vs UDFA contract distinguishable (different terms)
+- [ ] Edge case: 0 undrafted players (all 500 eligible players drafted) doesn't crash
+- [ ] Edge case: User selects 10 priority targets but only 5 available (graceful handling)
+
+**Integration Tests:**
+- [ ] UDFA signing phase runs immediately after pick 262 (Mr. Irrelevant)
+- [ ] User receives priority selection window before AI bidding
+- [ ] User's top 3 priority targets signed before AI teams compete
+- [ ] AI teams sign UDFAs deterministically with same seed
+- [ ] UDFA signings distributed across all 32 teams (some teams sign 0-3 UDFAs)
+- [ ] Signed UDFAs added to team rosters with correct contract terms
+- [ ] UDFA signing results persist through save/load
+- [ ] Unsigned UDFAs remain in free agent pool (available for camp invites later)
+
+**Determinism Tests:**
+- [ ] UDFA phase with seed 7000 produces identical signing results every run
+- [ ] User selects same 3 priority targets → same outcome with same seed
+- [ ] AI bidding order deterministic (Team A signs Player X, Team B signs Player Y)
+- [ ] 50 UDFAs with same seed → same distribution across teams
+
+**Performance Tests:**
+- [ ] `_rank_udfas()` for 238 undrafted players completes in < 200ms
+- [ ] UDFA signing simulation (AI bidding for 50 players) completes in < 1 second
+- [ ] UDFA UI loads priority selection screen in < 300ms
+- [ ] Results screen displays all signings in < 200ms (table rendering)
+
+**UI/UX Tests:**
+- [ ] UDFA signing UI shows top 50 available UDFAs ranked by talent
+- [ ] User can select 3-5 priority targets via checkbox or drag-to-priority-list
+- [ ] User's selections highlighted (visual confirmation)
+- [ ] Results screen shows three categories: user signings, AI signings, available
+- [ ] Each signing displays team, player, position, contract terms
+- [ ] Option to add unsigned UDFAs to practice squad shown
+- [ ] "View All UDFAs" button shows complete undrafted list (not just top 50)
+- [ ] User can skip UDFA phase (auto-simulate) if not interested
+
+**Regression Tests:**
+- [ ] Draft completion without UDFA phase still works (phase is optional addon)
+- [ ] Drafted players never appear in UDFA pool (proper exclusion)
+- [ ] UDFA contracts don't break salary cap calculations
+- [ ] Team rosters after UDFA signings respect position limits (no 10 QBs)
+- [ ] UDFA signing phase doesn't block season advancement
+- [ ] Player contract types (drafted vs UDFA vs veteran) remain distinguishable
 
 ---
 
@@ -2665,6 +3006,61 @@ func identify_reaches(draft_results: Array) -> Array[Dictionary]:
 - `scenes/ui/draft_day/DraftAnalysisScreen.gd`
 - `scenes/ui/draft_day/DraftAnalysisScreen.tscn`
 
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `calculate_team_grade()` returns grade in valid range (A+, A, A-, B+, ..., F)
+- [ ] `value_score` in range [0.0, 100.0] (clamped if formula exceeds)
+- [ ] `need_score` in range [0.0, 100.0] (clamped if formula exceeds)
+- [ ] Team drafting all high-value picks receives A/A+ grade
+- [ ] Team drafting all reaches receives D/F grade
+- [ ] Team addressing critical needs receives high `need_score` (≥80)
+- [ ] Team ignoring needs receives low `need_score` (≤50)
+- [ ] `_grade_individual_picks()` assigns letter grade to each pick
+- [ ] `identify_steals()` returns players drafted ≥15 picks below projected value
+- [ ] `identify_reaches()` returns players drafted ≥15 picks above projected value
+- [ ] Edge case: Team trades away all picks receives N/A or F grade (no picks to evaluate)
+- [ ] Edge case: Team with 0 needs (perfect roster) still gets reasonable grade
+
+**Integration Tests:**
+- [ ] All 32 teams receive grades after draft completion
+- [ ] Grade calculation uses actual draft results (correct pick numbers and players)
+- [ ] Grade considers trades (value of acquired picks vs given picks)
+- [ ] Steal identification compares actual pick to consensus mock draft projection
+- [ ] Reach identification uses same projection baseline as steals
+- [ ] `analysis` text mentions specific players and team needs
+- [ ] Post-draft analysis screen displays all team grades in sortable table
+- [ ] User can view detailed breakdown for each team (click team row)
+
+**Determinism Tests:**
+- [ ] Same draft results produce identical grades every time (no randomness in grading)
+- [ ] Grade calculation never uses RNG (purely deterministic formula)
+- [ ] Steal/reach identification deterministic (same thresholds applied consistently)
+
+**Performance Tests:**
+- [ ] `calculate_team_grade()` for one team completes in < 50ms
+- [ ] Grade all 32 teams completes in < 2 seconds (acceptable for end-of-draft)
+- [ ] `identify_steals()` and `identify_reaches()` complete in < 100ms (scan 262 picks)
+- [ ] Analysis screen renders in < 300ms (display 32 rows of grades)
+
+**UI/UX Tests:**
+- [ ] Draft analysis screen shows team grades in sortable table (by grade, value, need)
+- [ ] User's team highlighted in results (distinct color or border)
+- [ ] "Steal of the Draft" displayed prominently with player details
+- [ ] "Biggest Reach" displayed with player and team context
+- [ ] User can click team to see detailed grade breakdown
+- [ ] Grade breakdown shows pick-by-pick analysis (each pick's grade)
+- [ ] Analysis text readable and informative ("Team X addressed QB need with Pick 10")
+- [ ] Option to export grades to CSV or share (screenshot/copy)
+- [ ] Color-coded grades (A/B = green, C/D = yellow, F = red)
+
+**Regression Tests:**
+- [ ] Draft grades don't affect game simulation (cosmetic feature only)
+- [ ] Grades remain consistent across save/load (calculation reproducible)
+- [ ] Draft without grades still completes normally (grades are optional)
+- [ ] Grade calculation doesn't modify draft results data (read-only operation)
+- [ ] Analysis screen accessible from draft history (review past drafts)
+
 ---
 
 ### DRAFT-008: Conditional Draft Picks (Post-1.0)
@@ -2710,6 +3106,59 @@ func evaluate_conditional_picks(world_state: Dictionary) -> Array[Dictionary]:
 - [ ] Pick round updates when condition met
 - [ ] Trade UI supports conditional pick creation
 - [ ] History tracks condition resolution
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Conditional pick data model validates all required fields (base_round, upgrade_round, condition_type, etc.)
+- [ ] `base_round` must be lower value than `upgrade_round` (5th → 4th valid, 4th → 5th invalid)
+- [ ] Condition types enum includes all supported types (pro_bowl, snap_percentage, playoffs, games_started)
+- [ ] `evaluate_conditional_picks()` returns picks that met conditions
+- [ ] Pro Bowl condition: Player makes Pro Bowl → pick upgrades (5th → 4th)
+- [ ] Snap percentage condition: Player plays ≥50% snaps → pick upgrades
+- [ ] Playoffs condition: Team makes playoffs → pick upgrades
+- [ ] Games started condition: Player starts ≥10 games → pick upgrades
+- [ ] Condition not met: Pick remains at base round (5th stays 5th)
+- [ ] Edge case: Condition met in year 1 of multi-year evaluation window
+- [ ] Edge case: Player traded mid-season, condition still evaluates correctly
+- [ ] Edge case: Player injured (0% snaps), snap percentage condition fails
+
+**Integration Tests:**
+- [ ] Conditional pick created in trade, stored in draft_pick_ownership
+- [ ] Evaluation service runs at end of each season automatically
+- [ ] Pick round updated in draft_pick_ownership when condition met
+- [ ] Updated pick reflects correctly in next year's draft
+- [ ] Trade involving conditional pick displays condition in trade UI
+- [ ] Trade history shows condition and resolution status (pending/met/failed)
+- [ ] Multiple conditional picks in same trade evaluate independently
+- [ ] Conditional pick persists through save/load with status intact
+
+**Determinism Tests:**
+- [ ] Conditional pick evaluation deterministic (same player stats → same outcome)
+- [ ] No RNG in condition evaluation (purely rule-based)
+- [ ] Multiple evaluations of same condition produce identical results
+
+**Performance Tests:**
+- [ ] `evaluate_conditional_picks()` for 5 conditional picks completes in < 100ms
+- [ ] Condition evaluation doesn't slow down season advancement (< 1% overhead)
+- [ ] Trade UI with conditional picks renders in < 300ms (no lag)
+
+**UI/UX Tests:**
+- [ ] Trade UI shows conditional pick creation option (checkbox or dropdown)
+- [ ] User can select condition type from dropdown (Pro Bowl, Snap %, Playoffs, etc.)
+- [ ] User can set condition threshold (50% snaps, 1 Pro Bowl, etc.)
+- [ ] Trade preview shows conditional pick clearly ("5th → 4th if player makes Pro Bowl")
+- [ ] Draft pick list shows conditional picks with badge or indicator
+- [ ] Condition status displayed (pending/met/failed) with icon
+- [ ] Notification when condition met ("Conditional pick upgraded to 4th round!")
+- [ ] Trade history displays condition resolution with timestamp
+
+**Regression Tests:**
+- [ ] Trades without conditional picks still work (non-conditional path unaffected)
+- [ ] Draft with no conditional picks completes normally
+- [ ] Conditional pick system doesn't break standard pick ownership
+- [ ] Game saves with 0 conditional picks load correctly (empty array)
+- [ ] Legacy saves without conditional pick data load with defaults (graceful migration)
 
 ---
 
@@ -2834,6 +3283,69 @@ Category Tabs: [Draft Prospects (3)] [Trade Targets (5)] [FA Watch (2)] [All (10
 - `scripts/core/models/GameSession.gd` - Add shortlist persistence
 - `scenes/ui/common/PlayerComparisonTool.gd` - Add shortlist integration
 - `scenes/ui/draft_day/DraftDayUI.gd` - Add shortlist panel/filter
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] `add_player()` successfully adds player to shortlist with all required fields
+- [ ] `add_player()` with duplicate player_id doesn't create duplicate entry (idempotent)
+- [ ] `remove_player()` successfully removes player from shortlist
+- [ ] `remove_player()` with non-existent player_id doesn't throw error (graceful)
+- [ ] `get_by_category()` returns only entries matching specified category
+- [ ] `get_by_category(DRAFT_PROSPECTS)` excludes TRADE_TARGETS and FA_WATCH
+- [ ] `is_on_shortlist()` returns true for added player, false for others
+- [ ] `to_dict()` serializes shortlist to dictionary with all entries
+- [ ] ShortlistEntry stores `added_date` in parseable format
+- [ ] ShortlistEntry `priority` clamped to [0, 5] range (0=none, 5=critical)
+- [ ] Edge case: Empty shortlist `get_by_category()` returns empty array (not null)
+- [ ] Edge case: Shortlist with 100+ entries performs well (no O(n²) operations)
+
+**Integration Tests:**
+- [ ] Shortlist persisted with GameSession (survives save/load cycle)
+- [ ] Player added to shortlist via draft UI appears in shortlist panel
+- [ ] Player added to shortlist via comparison tool shows ★ indicator
+- [ ] Player removed from shortlist via shortlist panel removes ★ indicator everywhere
+- [ ] Draft board filtered to show only shortlisted players excludes non-shortlisted
+- [ ] "Compare All" in category sends all category players to comparison tool
+- [ ] Shortlist integrates with PlayerComparisonTool (★ WATCH action available)
+- [ ] Status updates when shortlisted player drafted (★ → ✓ Acquired or ✗ Unavailable)
+- [ ] Status updates when shortlisted player signs with another team
+- [ ] Draft prospects auto-archive after draft completes (moved to separate category or flagged)
+
+**Determinism Tests:**
+- [ ] Shortlist operations deterministic (add/remove produce consistent state)
+- [ ] Shortlist doesn't use RNG (no random sorting or filtering)
+- [ ] Shortlist state identical after save/load/save/load (no data loss)
+
+**Performance Tests:**
+- [ ] `add_player()` completes in < 5ms (simple array append + validation)
+- [ ] `remove_player()` completes in < 10ms (filter operation)
+- [ ] `get_by_category()` completes in < 20ms for 100-entry shortlist (filter)
+- [ ] `is_on_shortlist()` completes in < 10ms for 100-entry shortlist (any() check)
+- [ ] Shortlist panel renders in < 200ms with 50 entries (smooth UI)
+- [ ] Filtering draft board by shortlist completes in < 100ms (fast response)
+
+**UI/UX Tests:**
+- [ ] Shortlist panel displays all entries with player names, positions, categories
+- [ ] Category filter dropdown shows counts (Draft Prospects (3), Trade Targets (5))
+- [ ] User can edit notes inline (click to edit, save on blur)
+- [ ] User can adjust priority via star rating or slider (1-5 stars)
+- [ ] [★ WATCH] button on player detail panel adds player to shortlist
+- [ ] [★ WATCH] button disabled if player already on shortlist (or shows [★ REMOVE])
+- [ ] ★ indicator appears on shortlisted players in all list views (draft board, roster, league)
+- [ ] Compare All button sends all category players to comparison tool simultaneously
+- [ ] Draft board "Show Shortlist Only" toggle filters board dynamically
+- [ ] Status indicators update in real-time (player drafted → ✗ Unavailable)
+- [ ] Optional notifications when shortlisted player becomes available
+- [ ] Export shortlist to CSV/clipboard works correctly
+
+**Regression Tests:**
+- [ ] Shortlist doesn't affect draft simulation (tracking only, no gameplay impact)
+- [ ] Game saves without shortlist still load correctly (backward compatibility)
+- [ ] Shortlist with invalid player IDs (deleted players) doesn't crash (validation)
+- [ ] Shortlist operations don't modify player data (read-only access)
+- [ ] Multiple categories work independently (changes in one don't affect others)
+- [ ] Shortlist accessible year-round (not just during draft season)
 
 ---
 
