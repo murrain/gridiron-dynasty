@@ -3519,7 +3519,734 @@ func _on_user_pick_submitted(player_id: String) -> void:
 
 ---
 
+### DRAFT-011: Scheme Fit Analysis
+
+**Priority:** HIGH
+**Estimated Effort:** 8-10 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Analyze how well a prospect fits your team's offensive/defensive scheme. A zone-blocking offense values different OL traits than a power scheme. A Cover-3 defense needs different CB skills than a man-heavy scheme. This helps both user and AI make smarter draft decisions.
+
+#### Scheme Types
+
+**Offensive Schemes:**
+| Scheme | Key Traits | Position Priorities |
+|--------|------------|---------------------|
+| West Coast | Short accuracy, route running, YAC | Slot WR, Pass-catching RB |
+| Air Raid | Deep accuracy, arm strength | Outside WR, Pass-pro OL |
+| Power Run | Run blocking, physicality | FB, Guard, TE |
+| Zone Run | Athleticism, reach blocks | Center, Tackle, athletic RB |
+| Spread RPO | Mobility, quick decisions | Dual-threat QB, versatile WR |
+
+**Defensive Schemes:**
+| Scheme | Key Traits | Position Priorities |
+|--------|------------|---------------------|
+| 4-3 Under | Run-stuffing DT, coverage LB | 3-tech DT, WILL LB |
+| 3-4 | Versatile OLB, nose tackle | Edge rusher, NT |
+| Cover-3 | Range, ball skills | FS, outside CB |
+| Cover-2 | Zone awareness, tackling | SS, LB coverage |
+| Man/Press | Press technique, speed | CB, slot defender |
+
+#### Target State
+```gdscript
+# scripts/world/SchemeFitAnalyzer.gd (NEW FILE)
+extends RefCounted
+class_name SchemeFitAnalyzer
+
+func calculate_scheme_fit(player: Dictionary, team: Dictionary) -> Dictionary:
+    var offense_scheme = team.get("offensive_scheme", "balanced")
+    var defense_scheme = team.get("defensive_scheme", "4-3")
+
+    var fit_score = _evaluate_fit(player, offense_scheme, defense_scheme)
+    var fit_grade = _score_to_grade(fit_score)  # A+ to F
+
+    return {
+        "score": fit_score,           # 0-100
+        "grade": fit_grade,           # "A+", "B-", etc.
+        "scheme": _get_relevant_scheme(player, offense_scheme, defense_scheme),
+        "strengths": _identify_scheme_strengths(player, fit_score),
+        "concerns": _identify_scheme_concerns(player, fit_score),
+        "projection": _project_role_in_scheme(player, team),
+        "comparison": _find_scheme_comparison(player, team)  # "Fits like Tyreek Hill in KC"
+    }
+
+func get_scheme_priorities(scheme: String, position: String) -> Array[String]:
+    # Return weighted stats for this scheme/position combo
+    # E.g., Zone Run + OT = ["athleticism", "reach_blocking", "footwork"]
+```
+
+#### UI Integration
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  SCHEME FIT: J. Williams (QB) → Your Team (West Coast)               ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  Overall Fit: A-  (88/100)                                          ║
+║  ══════════════════════════════════════════════════                 ║
+║                                                                      ║
+║  ✓ STRENGTHS                    ✗ CONCERNS                          ║
+║  ─────────────────              ─────────────────                    ║
+║  • Elite short accuracy (94)    • Limited deep ball (78)            ║
+║  • Quick release fits timing    • May struggle on 9-routes          ║
+║  • Great anticipation           • Arm strength adequate, not elite  ║
+║                                                                      ║
+║  PROJECTED ROLE: Day 1 starter, franchise QB                        ║
+║  COMP: "Fits like Joe Montana in Walsh's system"                    ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Create `SchemeFitAnalyzer.gd` with fit calculation logic
+- [ ] Define scheme-specific trait weights for all positions
+- [ ] Scheme fit score (0-100) and grade (A+ to F) per player
+- [ ] Identify strengths/concerns specific to scheme fit
+- [ ] Project player role in team's system
+- [ ] Historical player comparison for scheme fit
+- [ ] AI teams use scheme fit in draft evaluation (weighted factor)
+- [ ] Scheme fit displayed in player comparison tool
+- [ ] Scheme fit displayed in scouting reports
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Fit score calculation correct for each scheme type
+- [ ] Zone-blocking OL valued differently than power-blocking OL
+- [ ] Man-coverage CB valued differently in Cover-3 vs Man schemes
+- [ ] Fit grade boundaries correct (90+ = A, 80-89 = B, etc.)
+
+**Integration Tests:**
+- [ ] AI draft boards influenced by scheme fit
+- [ ] Scheme fit displays correctly in comparison tool
+- [ ] Scheme fit persists in scouting reports
+
+**Determinism Tests:**
+- [ ] Same player + same scheme = same fit score (no RNG in calculation)
+
+---
+
+### DRAFT-012: Trade Value Calculator UI
+
+**Priority:** MEDIUM
+**Estimated Effort:** 4-6 hours
+**Risk:** LOW
+**Dependencies:** DRAFT-001 (uses pick value chart)
+
+#### Description
+
+Expose the draft pick value chart to users with an interactive calculator. Helps users understand if a proposed trade is fair before accepting/proposing. Shows value differential and historical trade comparisons.
+
+#### Pick Value Chart (Traditional)
+```
+Pick 1:  3000    Pick 17:  950    Pick 33:  580
+Pick 2:  2600    Pick 18:  900    Pick 40:  500
+Pick 3:  2200    Pick 19:  875    Pick 50:  400
+Pick 4:  1800    Pick 20:  850    Pick 64:  300
+Pick 5:  1700    Pick 21:  800    Pick 100: 150
+...
+```
+
+#### Target State
+```gdscript
+# Enhancement to DraftTradeEngine.gd
+
+func get_trade_analysis(offer: Dictionary) -> Dictionary:
+    var giving_value = _sum_pick_values(offer["giving"])
+    var receiving_value = _sum_pick_values(offer["receiving"])
+    var differential = receiving_value - giving_value
+
+    return {
+        "giving_total": giving_value,
+        "receiving_total": receiving_value,
+        "differential": differential,
+        "verdict": _get_verdict(differential),  # "Fair", "You Win", "You Lose"
+        "historical_comp": _find_similar_trade(offer),
+        "recommendation": _get_recommendation(differential, team_needs)
+    }
+```
+
+#### UI: Trade Calculator
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  TRADE VALUE CALCULATOR                                              ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  YOU GIVE                          YOU RECEIVE                       ║
+║  ──────────────────                ──────────────────                ║
+║  [Pick 8 - 1400 pts    ]  ←→      [Pick 15 - 1050 pts   ]           ║
+║  [                     ]          [Pick 47 - 430 pts    ]           ║
+║  [+ Add Pick]                     [Pick 112 - 90 pts    ]           ║
+║                                   [+ Add Pick]                       ║
+║  ──────────────────                ──────────────────                ║
+║  TOTAL: 1400 pts                   TOTAL: 1570 pts                   ║
+║                                                                      ║
+║  ════════════════════════════════════════════════════════════════   ║
+║  VERDICT: GOOD TRADE (+170 pts in your favor)                       ║
+║                                                                      ║
+║  Similar Trade: 2034 - Bills traded #9 for #14, #46, #108           ║
+║                                                                      ║
+║  [Propose Trade]  [Reset]  [Save for Later]                         ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Interactive pick value calculator UI
+- [ ] Add/remove picks from either side
+- [ ] Real-time value calculation as picks added
+- [ ] Verdict: Fair (±5%), You Win (>5%), You Lose (<-5%)
+- [ ] Historical trade comparison from past drafts
+- [ ] "Propose Trade" button sends to DraftTradeEngine
+- [ ] AI teams use same value chart for consistency
+- [ ] Future picks discounted (2026 1st worth less than 2025 1st)
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Pick value chart values correct for all 262 picks
+- [ ] Future pick discount calculation correct (10% per year?)
+- [ ] Verdict thresholds correct (±5% = fair)
+
+**UI Tests:**
+- [ ] Add/remove picks updates totals correctly
+- [ ] Propose button disabled when trade is empty
+- [ ] Historical comparison displays relevant trade
+
+---
+
+### DRAFT-013: Rookie Wage Scale Display
+
+**Priority:** MEDIUM
+**Estimated Effort:** 3-4 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Display the rookie wage scale so users understand the financial implications of each draft pick. Higher picks cost more cap space. Helps with draft strategy - sometimes trading down saves cap room for free agency.
+
+#### Rookie Wage Scale (Approximate)
+```
+Pick 1:  $40M total / 4 years = $10M/yr cap hit
+Pick 5:  $28M total / 4 years = $7M/yr cap hit
+Pick 10: $20M total / 4 years = $5M/yr cap hit
+Pick 32: $12M total / 4 years = $3M/yr cap hit
+Pick 64: $6M total / 4 years = $1.5M/yr cap hit
+...
+Round 7: $4M total / 4 years = $1M/yr cap hit
+```
+
+#### Target State
+```gdscript
+# scripts/core/contracts/RookieWageScale.gd (NEW FILE)
+extends RefCounted
+class_name RookieWageScale
+
+func get_contract_for_pick(pick_number: int, year: int) -> Dictionary:
+    var slot_value = _get_slot_value(pick_number, year)
+    return {
+        "pick_number": pick_number,
+        "total_value": slot_value,
+        "years": 4,
+        "annual_cap_hit": slot_value / 4.0,
+        "signing_bonus": slot_value * 0.6,  # ~60% signing bonus
+        "fifth_year_option": pick_number <= 32,  # 1st rounders only
+        "fifth_year_value": _get_fifth_year_option_value(pick_number) if pick_number <= 32 else 0
+    }
+```
+
+#### UI Integration
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  PICK #8 - ROOKIE CONTRACT                                           ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  Total Value:     $24.2M over 4 years                               ║
+║  Annual Cap Hit:  $6.05M average                                    ║
+║  Signing Bonus:   $14.5M (prorated over 4 years)                    ║
+║                                                                      ║
+║  Year 1: $5.8M    Year 3: $6.1M                                     ║
+║  Year 2: $5.9M    Year 4: $6.4M                                     ║
+║                                                                      ║
+║  ✓ 5th Year Option Available (est. $18M if exercised)               ║
+║                                                                      ║
+║  CONTEXT: This pick costs $2.1M/yr MORE than Pick #15               ║
+║           Trading down could save $8.4M over 4 years                ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Create `RookieWageScale.gd` with slot values
+- [ ] Display contract details for any pick number
+- [ ] Show 5th year option value for 1st round picks
+- [ ] Compare cost to other picks (context for trade decisions)
+- [ ] Integrate with trade calculator (show cap implications)
+- [ ] Display in draft UI when hovering/selecting picks
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Slot values follow realistic NFL scale
+- [ ] 5th year option only for picks 1-32
+- [ ] Cap hit calculation correct
+
+---
+
+### DRAFT-014: Draft Day Rumors & Intel
+
+**Priority:** MEDIUM
+**Estimated Effort:** 6-8 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Generate dynamic draft day rumors and intel to add immersion. "The Patriots are reportedly high on J. Williams", "Sources say the Giants are shopping pick #7", "BREAKING: Medical concern surfaces for D. Carter". Mix of accurate intel, misleading rumors, and smoke screens.
+
+#### Rumor Types
+
+| Type | Example | Accuracy |
+|------|---------|----------|
+| Team Interest | "Ravens showing strong interest in CB Smith" | 70% accurate |
+| Trade Buzz | "Multiple teams calling about pick #12" | 50% accurate |
+| Medical Flag | "Concern about Jones' knee surfaces" | 90% accurate |
+| Smoke Screen | "Team X 'loves' Player Y" (actually want Z) | 20% accurate |
+| Surprise Pick | "Don't be shocked if Team X goes off board" | 40% accurate |
+| Position Run | "Teams in 10-15 range targeting WRs heavily" | 80% accurate |
+
+#### Target State
+```gdscript
+# scripts/world/DraftRumorMill.gd (NEW FILE)
+extends RefCounted
+class_name DraftRumorMill
+
+signal rumor_generated(rumor: Dictionary)
+
+func generate_pre_draft_rumors(world_state: Dictionary, count: int, rng: RandomNumberGenerator) -> Array[Dictionary]:
+    var rumors: Array[Dictionary] = []
+    for i in range(count):
+        var rumor_type = _pick_rumor_type(rng)
+        var rumor = _generate_rumor(rumor_type, world_state, rng)
+        rumors.append(rumor)
+    return rumors
+
+func generate_live_rumor(world_state: Dictionary, current_pick: int, rng: RandomNumberGenerator) -> Dictionary:
+    # Generate rumor based on current draft state
+    # More accurate as draft progresses (less time to deceive)
+    return {
+        "type": "trade_buzz",
+        "text": "BREAKING: Broncos and Dolphins discussing swap at #%d" % current_pick,
+        "accuracy": 0.6,  # 60% chance this is real
+        "source": "League Source",
+        "timestamp": _get_draft_time(current_pick),
+        "is_accurate": rng.randf() < 0.6  # Actual truth for simulation
+    }
+
+func _generate_smoke_screen(team: Dictionary, actual_target: Dictionary, decoy: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+    return {
+        "type": "smoke_screen",
+        "text": "%s 'absolutely love' %s, could be target at #%d" % [team["name"], decoy["name"], team["pick"]],
+        "accuracy": 0.2,  # Intentionally misleading
+        "source": "Team Source",
+        "actual_target": actual_target["id"],  # Who they really want
+        "is_accurate": false
+    }
+```
+
+#### Rumor Feed UI
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  📰 DRAFT CENTRAL - LIVE RUMORS                          [Settings]  ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  🔴 LIVE  12:34 PM                                                   ║
+║  ──────────────────────────────────────────────────────────────────  ║
+║  [12:34] BREAKING: Multiple teams calling Jaguars about #2 pick     ║
+║          Source: League Insider  │  ⚡ High confidence              ║
+║                                                                      ║
+║  [12:31] Patriots "extremely high" on QB Marcus Williams            ║
+║          Source: Team Source  │  ⚠️ Could be smokescreen            ║
+║                                                                      ║
+║  [12:28] Medical: Concerns surface about T. Johnson's shoulder      ║
+║          Source: Medical Staff  │  ⚡ Verified                       ║
+║                                                                      ║
+║  [12:25] Buzz: 5-6 teams targeting WR in top 15                     ║
+║          Source: Scout Network  │  📊 Moderate confidence           ║
+║                                                                      ║
+║  [12:20] Giants may go "off the board" - surprise pick brewing      ║
+║          Source: Anonymous  │  ❓ Unverified                        ║
+║                                                                      ║
+║  ──────────────────────────────────────────────────────────────────  ║
+║  💡 TIP: Rumors marked "Team Source" may be intentional misdirection║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Post-Draft Rumor Accuracy Report
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  📊 RUMOR ACCURACY REPORT - 2035 Draft                               ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  Total Rumors: 47      Accurate: 28 (60%)     Smoke Screens: 8      ║
+║                                                                      ║
+║  BEST INTEL:                                                         ║
+║  ✓ "Patriots targeting Williams at #8" - CORRECT                    ║
+║  ✓ "Medical concern for Johnson" - Led to 2-round drop              ║
+║                                                                      ║
+║  WORST MISDIRECTION:                                                 ║
+║  ✗ "Giants love QB Carter" - Actually took DE Smith                 ║
+║  ✗ "Browns shopping #4" - Never made a call                         ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Create `DraftRumorMill.gd` with rumor generation
+- [ ] Pre-draft rumors generated during draft week
+- [ ] Live rumors during draft based on current state
+- [ ] Smoke screen generation (teams mislead about intentions)
+- [ ] Accuracy varies by source type (Medical > Scout > Team > Anonymous)
+- [ ] Rumor feed UI with confidence indicators
+- [ ] Post-draft accuracy report reveals truth
+- [ ] AI teams generate smoke screens for players they want
+- [ ] User can enable/disable rumor feed (preference)
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Rumor type distribution matches expected frequencies
+- [ ] Smoke screens have low accuracy (10-30%)
+- [ ] Medical rumors have high accuracy (80-95%)
+- [ ] Rumor text generation produces valid strings
+
+**Integration Tests:**
+- [ ] Rumors reference actual players/teams in draft
+- [ ] Live rumors update as draft progresses
+- [ ] Smoke screens align with team's actual targets
+
+**Determinism Tests:**
+- [ ] Same seed produces same rumor sequence
+
+---
+
+### DRAFT-015: BPA vs Need Board Toggle
+
+**Priority:** MEDIUM
+**Estimated Effort:** 3-4 hours
+**Risk:** LOW
+**Dependencies:** DRAFT-005 (uses draft board)
+
+#### Description
+
+Allow users to toggle their draft board view between "Best Player Available" (pure talent ranking) and "Team Need" (prioritized by positional need). Helps users evaluate draft strategy options.
+
+#### Target State
+```gdscript
+# Enhancement to DraftWarRoomUI.gd
+
+enum BoardMode { BPA, NEED, HYBRID, SCHEME_FIT }
+
+func _sort_board(mode: BoardMode) -> void:
+    match mode:
+        BoardMode.BPA:
+            _draft_board.sort_custom(_sort_by_talent)
+        BoardMode.NEED:
+            _draft_board.sort_custom(_sort_by_need)
+        BoardMode.HYBRID:
+            _draft_board.sort_custom(_sort_by_weighted_hybrid)
+        BoardMode.SCHEME_FIT:
+            _draft_board.sort_custom(_sort_by_scheme_fit)
+```
+
+#### UI: Board View Toggle
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  MY DRAFT BOARD          [BPA ▼] [Need] [Hybrid] [Scheme Fit]       ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  RK  PLAYER              POS   TALENT  NEED   FIT   YOUR RANK       ║
+║  ─────────────────────────────────────────────────────────────────  ║
+║   1  J. Williams         QB      98     --    A-      ↑ 1           ║
+║   2  M. Harrison         QB      95     --    B+      ↓ 4           ║
+║   3  T. Smith            OT      94    ★★★    A       = 3           ║
+║   4  D. Johnson          EDGE    93    ★★     A+      ↑ 2           ║
+║   5  K. Brown            CB      92    ★★★★   B       = 5           ║
+║                                                                      ║
+║  ★ = Need level (★★★★ = Critical, ★ = Low)                          ║
+║  Your Rank = Your custom ranking vs calculated                       ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Toggle between BPA, Need, Hybrid, Scheme Fit views
+- [ ] BPA: Pure talent/overall rating sort
+- [ ] Need: Prioritize positions team lacks depth
+- [ ] Hybrid: Weighted combination (configurable)
+- [ ] Scheme Fit: Sort by fit score with user's team
+- [ ] Show need level indicators (★ system)
+- [ ] User can set custom rankings (drag-drop reorder)
+- [ ] Custom rankings persist across sessions
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] BPA sort matches pure talent order
+- [ ] Need sort prioritizes critical needs
+- [ ] Hybrid weighting configurable and correct
+
+---
+
+### DRAFT-016: Historical Draft Review
+
+**Priority:** LOW
+**Estimated Effort:** 4-6 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Review past drafts and see how players have developed. "The 2033 draft class produced 4 Pro Bowlers" - helps users learn from history and adds immersion.
+
+#### Target State
+```gdscript
+# scripts/world/DraftHistoryAnalyzer.gd (NEW FILE)
+extends RefCounted
+class_name DraftHistoryAnalyzer
+
+func get_draft_class_summary(year: int, world_state: Dictionary) -> Dictionary:
+    var draft_history = world_state.get("draft_history", {}).get(str(year), {})
+    var players_now = _get_current_player_status(draft_history, world_state)
+
+    return {
+        "year": year,
+        "total_picks": draft_history.get("picks", []).size(),
+        "pro_bowlers": _count_pro_bowlers(players_now),
+        "all_pros": _count_all_pros(players_now),
+        "busts": _identify_busts(players_now),
+        "steals": _identify_steals(players_now),
+        "best_pick": _find_best_pick(players_now),
+        "worst_pick": _find_worst_pick(players_now),
+        "picks_by_round": _get_picks_by_round(draft_history)
+    }
+```
+
+#### UI: Historical Draft View
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  📜 DRAFT HISTORY: 2033 CLASS (3 Years Later)                       ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  CLASS OVERVIEW                                                      ║
+║  ─────────────────────────────────────────────────────────────────  ║
+║  Total Picks: 262    Pro Bowlers: 12    All-Pro: 4    Busts: 18     ║
+║                                                                      ║
+║  🏆 BEST PICK: Marcus Williams (QB, Pick #3 → 2x Pro Bowl, 1x MVP)  ║
+║  💔 BIGGEST BUST: T. Johnson (DE, Pick #7 → Out of league)          ║
+║  💎 STEAL: K. Davis (WR, Pick #87 → Pro Bowler, 1200 yds/yr)        ║
+║                                                                      ║
+║  ROUND BREAKDOWN                                                     ║
+║  ─────────────────────────────────────────────────────────────────  ║
+║  R1: 8 starters, 3 Pro Bowls   │   R5: 4 starters, 0 Pro Bowls     ║
+║  R2: 6 starters, 2 Pro Bowls   │   R6: 2 starters, 0 Pro Bowls     ║
+║  R3: 5 starters, 1 Pro Bowl    │   R7: 1 starter,  1 Pro Bowl      ║
+║  R4: 4 starters, 1 Pro Bowl    │                                    ║
+║                                                                      ║
+║  [View Full Draft Board]  [Compare to 2034]  [Export]               ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Create `DraftHistoryAnalyzer.gd`
+- [ ] Track all draft picks in world_state history
+- [ ] Calculate Pro Bowler/All-Pro counts per class
+- [ ] Identify busts (high pick, poor career)
+- [ ] Identify steals (late pick, great career)
+- [ ] Compare draft classes across years
+- [ ] View any player's career from draft history
+- [ ] Available from main menu (not just during draft)
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Pro Bowler counting correct
+- [ ] Bust identification (top 50 pick, <2 years starter)
+- [ ] Steal identification (pick 100+, Pro Bowl)
+
+---
+
+### DRAFT-017: Private Workouts & Team Visits
+
+**Priority:** LOW
+**Estimated Effort:** 5-7 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Schedule private workouts and team facility visits with prospects during the pre-draft process. Provides additional intel beyond combine - can reveal character, scheme fit, and hidden traits. Limited to 30 visits per team (NFL rule).
+
+#### Target State
+```gdscript
+# scripts/world/PrivateWorkoutSystem.gd (NEW FILE)
+extends RefCounted
+class_name PrivateWorkoutSystem
+
+const MAX_VISITS = 30  # NFL rule
+
+func schedule_visit(team_id: String, player_id: String, world_state: Dictionary) -> Dictionary:
+    var visits = _get_team_visits(team_id, world_state)
+    if visits.size() >= MAX_VISITS:
+        return {"success": false, "reason": "Visit limit reached (30)"}
+
+    # Visit reveals additional information
+    return {
+        "success": true,
+        "intel": _generate_visit_intel(player_id, team_id, world_state)
+    }
+
+func _generate_visit_intel(player_id: String, team_id: String, world_state: Dictionary) -> Dictionary:
+    var player = _get_player(player_id, world_state)
+    return {
+        "character_grade": _evaluate_character_in_person(player),  # More accurate than interview
+        "scheme_fit_detail": _detailed_scheme_evaluation(player, team_id),
+        "hidden_trait_reveal": _maybe_reveal_hidden_trait(player),  # 30% chance
+        "medical_detail": _private_medical_evaluation(player),
+        "personality_notes": _generate_personality_notes(player),
+        "coachability": _evaluate_coachability(player)
+    }
+```
+
+#### UI: Pre-Draft Visit Scheduler
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  🏟️ PRIVATE WORKOUTS & VISITS                    Used: 12/30        ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  SCHEDULED VISITS                                                    ║
+║  ─────────────────────────────────────────────────────────────────  ║
+║  J. Williams (QB) - Mar 15  │  Intel: ✓ Character A+, Scheme A-    ║
+║  T. Smith (OT) - Mar 18     │  Intel: ✓ Medical cleared, Coachable ║
+║  D. Johnson (EDGE) - Mar 20 │  Intel: ⏳ Pending                     ║
+║                                                                      ║
+║  AVAILABLE PROSPECTS                    [Filter: Position ▼]        ║
+║  ─────────────────────────────────────────────────────────────────  ║
+║  M. Harrison (QB, Ohio St)          [Schedule Visit]                ║
+║  K. Brown (CB, Alabama)             [Schedule Visit]                ║
+║  R. Davis (WR, Georgia)             [Schedule Visit]                ║
+║                                                                      ║
+║  💡 Visits reveal character, scheme fit, and may expose hidden traits║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Visit Intel Report
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  📋 PRIVATE VISIT REPORT: J. Williams (QB)                          ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  CHARACTER EVALUATION: A+                                           ║
+║  "Extremely mature, film junkie, first one in last one out"         ║
+║                                                                      ║
+║  SCHEME FIT (West Coast): A-                                        ║
+║  "Quick release, excellent timing, may need work on deep ball"      ║
+║                                                                      ║
+║  🔓 HIDDEN TRAIT REVEALED: "Clutch Performer"                       ║
+║  "Thrives in pressure situations, ice in his veins"                 ║
+║                                                                      ║
+║  MEDICAL: All clear                                                 ║
+║  "No concerns, passed all physicals"                                ║
+║                                                                      ║
+║  COACHABILITY: High                                                 ║
+║  "Receptive to feedback, asked great questions about our system"    ║
+║                                                                      ║
+║  SCOUT RECOMMENDATION: Strong fit, prioritize in draft              ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Create `PrivateWorkoutSystem.gd`
+- [ ] Limit 30 visits per team (NFL rule)
+- [ ] Visits provide more accurate character/medical intel
+- [ ] 30% chance to reveal hidden trait during visit
+- [ ] Detailed scheme fit evaluation from in-person workout
+- [ ] AI teams also schedule visits (influences their boards)
+- [ ] Visit intel persists and displays in scouting reports
+- [ ] Pre-draft phase for scheduling visits (before combine)
+
+#### Testing Requirements
+
+**Unit Tests:**
+- [ ] Visit limit enforced (31st visit rejected)
+- [ ] Hidden trait reveal rate ~30%
+- [ ] Intel accuracy higher than combine-only
+
+**Integration Tests:**
+- [ ] AI teams schedule visits and use intel in boards
+- [ ] Visit intel appears in scouting reports
+- [ ] Visits occur during correct pre-draft phase
+
+---
+
 ## Draft System Dependency Graph
+
+```
+DRAFT-001 (Trading) ─────────────────────┐
+                                         │
+DRAFT-002 (Underclassmen) ───────────────┤
+                                         │
+DRAFT-003 (Red Flags) ───────────────────┤
+                                         │
+DRAFT-004 (Positional Runs) ←── DRAFT-001│
+                                         │
+DRAFT-005 (Mock Drafts) ─────────────────┤
+                                         │
+DRAFT-006 (UDFA) ────────────────────────┤
+                                         │
+DRAFT-007 (Grades) ──────────────────────┤
+                                         │
+DRAFT-009 (Shortlist) ───────────────────┤
+                                         │
+DRAFT-010 (Speculative Picks) ───────────┤
+                                         │
+DRAFT-011 (Scheme Fit) ──────────────────┤
+                                         │
+DRAFT-012 (Trade Calculator) ←── DRAFT-001
+                                         │
+DRAFT-013 (Rookie Wages) ────────────────┤
+                                         │
+DRAFT-014 (Rumors) ──────────────────────┤
+                                         │
+DRAFT-015 (BPA vs Need) ←── DRAFT-005    │
+                                         │
+DRAFT-016 (Draft History) ───────────────┤
+                                         │
+DRAFT-017 (Private Workouts) ────────────┘
+
+DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
+```
+
+## Draft System Summary
+
+| Ticket | Priority | Hours | Risk | Status |
+|--------|----------|-------|------|--------|
+| DRAFT-001: Draft Day Trading | CRITICAL | 12-16 | MEDIUM | PLANNED |
+| DRAFT-002: Underclassman Entry | HIGH | 8-10 | MEDIUM | PLANNED |
+| DRAFT-003: Medical/Character Red Flags | HIGH | 6-8 | LOW | PLANNED |
+| DRAFT-004: Positional Runs | MEDIUM | 6-8 | LOW | PLANNED |
+| DRAFT-005: Mock Drafts/Scouting/Comparison | MEDIUM | 10-12 | LOW | PLANNED |
+| DRAFT-006: UDFA Bidding | LOW | 4-6 | LOW | PLANNED |
+| DRAFT-007: Draft Grades | LOW | 3-4 | LOW | PLANNED |
+| DRAFT-008: Conditional Picks | VERY LOW | 8-10 | MEDIUM | POST-1.0 |
+| DRAFT-009: Player Shortlist/Watchlist | MEDIUM | 6-8 | LOW | PLANNED |
+| DRAFT-010: Speculative AI Pre-computation | MEDIUM | 4-6 | LOW | PLANNED |
+| DRAFT-011: Scheme Fit Analysis | HIGH | 8-10 | LOW | PLANNED |
+| DRAFT-012: Trade Value Calculator | MEDIUM | 4-6 | LOW | PLANNED |
+| DRAFT-013: Rookie Wage Scale | MEDIUM | 3-4 | LOW | PLANNED |
+| DRAFT-014: Draft Day Rumors | MEDIUM | 6-8 | LOW | PLANNED |
+| DRAFT-015: BPA vs Need Toggle | MEDIUM | 3-4 | LOW | PLANNED |
+| DRAFT-016: Historical Draft Review | LOW | 4-6 | LOW | PLANNED |
+| DRAFT-017: Private Workouts | LOW | 5-7 | LOW | PLANNED |
+| **Total** | - | **102-133** | - | - |
 
 ```
 DRAFT-001 (Trading) ─────────────────────┐
@@ -3585,9 +4312,9 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 | Phase 2: Decomposition | ARCH-008 to ARCH-016 | 24-32 hours | MEDIUM |
 | Phase 3: Persistence | ARCH-017 to ARCH-022 | 28-38 hours | MEDIUM |
 | Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
-| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-010 | 67-88 hours | LOW-MEDIUM |
+| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-017 | 102-133 hours | LOW-MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
-| **Total** | **37 tickets** | **240-306 hours** | - |
+| **Total** | **44 tickets** | **275-351 hours** | - |
 
 > **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
 
