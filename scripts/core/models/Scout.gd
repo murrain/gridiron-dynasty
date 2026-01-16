@@ -1,6 +1,22 @@
 extends "res://scripts/core/models/Person.gd"
 class_name Scout
 
+## Scout - Rich Entity with Pure Methods
+##
+## Architectural Pattern: Rich Entity
+## Scout is a "rich entity" that contains both data and behavior. Unlike pure data
+## models, Scout includes methods (score_player, estimate_stat) that operate on its
+## own state plus passed parameters. This is acceptable because:
+##
+## 1. Methods are PURE FUNCTIONS - they don't modify Scout's state, only read it
+## 2. Methods don't have external dependencies - they only use passed parameters
+## 3. The behavior is tightly coupled to the entity's identity (a scout's skill determines scoring)
+## 4. Keeping methods on Scout improves code locality and discoverability
+##
+## This pattern differs from extracting a separate ScoutingService because Scout's
+## methods are stateless computations that depend heavily on Scout's configuration
+## (skills, biases, weights). Keeping them together maintains cohesion.
+
 const RecruitRater = preload("res://scripts/core/rating/RecruitRater.gd")
 
 # --- Identity (inherited from Person: id, first_name, last_name, get_full_name()) ---

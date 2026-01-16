@@ -2,9 +2,17 @@ extends Resource
 class_name Roster
 
 const DepthChart = preload("res://scripts/core/models/DepthChart.gd")
+const RosterEntry = preload("res://scripts/core/models/RosterEntry.gd")
 
-# Roster entries are plain dictionaries to keep persistence explicit and stable.
-# Expected shape:
+# Roster entries are currently plain dictionaries for backward compatibility.
+# RosterEntry resource is available for typed access (see add_player_typed()).
+#
+# ARCHITECTURAL NOTE (ARCH-016):
+# Roster.entries remains Array[Dictionary] to maintain compatibility with existing
+# codebase. RosterEntry provides typed wrappers and is used for new code. Future
+# migration to Array[RosterEntry] can be done incrementally without breaking changes.
+#
+# Expected dictionary shape:
 # {
 #   "player_id": "player-123",
 #   "status": "active", # e.g. active, practice_squad, ir, suspended
@@ -63,6 +71,8 @@ func get_cap_used() -> float:
 	return total
 
 func from_dict(d: Dictionary) -> void:
+	var format_version = int(d.get("format_version", 1))
+	# Future: version-specific migration logic can be added here
 	entries = (d.get("entries", entries) as Array).duplicate(true)
 
 	# Load depth chart if present (backward compatibility: may be null in old saves)
@@ -75,6 +85,7 @@ func from_dict(d: Dictionary) -> void:
 
 func to_dict() -> Dictionary:
 	var result := {
+		"format_version": 2,  # Track format for future typed Array[RosterEntry] migration
 		"entries": entries.duplicate(true)
 	}
 	if depth_chart != null:
