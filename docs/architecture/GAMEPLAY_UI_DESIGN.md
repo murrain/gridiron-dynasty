@@ -214,11 +214,39 @@ CRITICAL - Game day decision
 │   [SET LINEUP]                                      │
 └─────────────────────────────────────────────────────┘
 
-INJURY - Player injured
+INJURY - Season-ending (forced IR, backup available)
 ┌─────────────────────────────────────────────────────┐
-│ + QB Smith out 4-6 weeks (ACL sprain)       [⤢] [×] │
-│   Backup: J. Wilson (72 OVR)                        │
+│ + QB Smith out for season (torn ACL)        [⤢] [×] │
+│   Moved to IR • J. Wilson (72 OVR) now starting     │
+│   [View Depth Chart]                                │
+└─────────────────────────────────────────────────────┘
+
+INJURY - Season-ending (forced IR, NO BACKUP)
+┌─────────────────────────────────────────────────────┐
+│ !! QB Smith out for season (torn ACL)       [⤢] [×] │
+│   ⚠️ No backup QB available!                        │
+│   [SIGN FREE AGENT]  [PROMOTE FROM PS]              │
+└─────────────────────────────────────────────────────┘
+
+INJURY - Multi-week (auto-benched, backup available)
+┌─────────────────────────────────────────────────────┐
+│ + RB Johnson out 4-6 weeks (high ankle sprain) [⤢] [×] │
+│   T. Davis (68 OVR) promoted to starter             │
 │   [MOVE TO IR]  [View Depth Chart]                  │
+└─────────────────────────────────────────────────────┘
+
+INJURY - Multi-week (auto-benched, NO BACKUP)
+┌─────────────────────────────────────────────────────┐
+│ !! RB Johnson out 4-6 weeks (high ankle)    [⤢] [×] │
+│   ⚠️ No backup RB available!                        │
+│   [SIGN FREE AGENT]  [PROMOTE FROM PS]              │
+└─────────────────────────────────────────────────────┘
+
+INJURY - Questionable (player choice to start or bench)
+┌─────────────────────────────────────────────────────┐
+│ + WR Williams questionable (hamstring)      [⤢] [×] │
+│   Can play at reduced effectiveness (-15 OVR)       │
+│   [START ANYWAY]  [BENCH HIM]                       │
 └─────────────────────────────────────────────────────┘
 
 CONTRACT - Offer received
@@ -335,25 +363,78 @@ func _on_action_pressed(action: MessageAction) -> void:
 # MessageAction factory methods
 class_name MessageActionFactory
 
-static func create_injury_actions(player: Player, injury: Dictionary) -> Array[MessageAction]:
-    return [
-        MessageAction.new({
+static func create_injury_actions(player: Player, injury: Dictionary, has_backup: bool) -> Array[MessageAction]:
+    # Different actions based on whether a backup exists
+    if has_backup:
+        return _create_injury_actions_with_backup(player, injury)
+    else:
+        return _create_injury_actions_no_backup(player, injury)
+
+static func _create_injury_actions_with_backup(player: Player, injury: Dictionary) -> Array[MessageAction]:
+    var actions: Array[MessageAction] = []
+
+    # For multi-week injuries, offer IR option
+    if injury.get("severity") == "multi_week":
+        actions.append(MessageAction.new({
             "id": "move_to_ir",
             "label": "MOVE TO IR",
             "is_primary": true,
             "action_type": "roster_move",
             "action_data": { "player_id": player.id, "destination": "IR" }
-        }),
+        }))
+
+    actions.append(MessageAction.new({
+        "id": "view_depth",
+        "label": "View Depth Chart",
+        "action_type": "navigate",
+        "action_data": { "view": "depth_chart", "position": player.position }
+    }))
+
+    return actions
+
+static func _create_injury_actions_no_backup(player: Player, injury: Dictionary) -> Array[MessageAction]:
+    return [
         MessageAction.new({
-            "id": "view_depth",
-            "label": "View Depth",
+            "id": "sign_fa",
+            "label": "SIGN FREE AGENT",
+            "is_primary": true,
             "action_type": "navigate",
-            "action_data": { "view": "depth_chart", "position": player.position }
+            "action_data": {
+                "view": "injury_replacement",
+                "position": player.position,
+                "injured_player_id": player.id,
+                "focus": "free_agents"
+            }
         }),
         MessageAction.new({
-            "id": "dismiss",
-            "label": "Dismiss",
-            "action_type": "dismiss"
+            "id": "promote_ps",
+            "label": "PROMOTE FROM PS",
+            "action_type": "navigate",
+            "action_data": {
+                "view": "injury_replacement",
+                "position": player.position,
+                "injured_player_id": player.id,
+                "focus": "practice_squad"
+            }
+        }),
+    ]
+
+static func create_questionable_injury_actions(player: Player, penalty: int) -> Array[MessageAction]:
+    return [
+        MessageAction.new({
+            "id": "start_injured",
+            "label": "START ANYWAY",
+            "is_primary": true,
+            "requires_confirmation": true,
+            "confirmation_text": "Start %s at -%d OVR penalty?" % [player.display_name, penalty],
+            "action_type": "lineup_decision",
+            "action_data": { "player_id": player.id, "decision": "start" }
+        }),
+        MessageAction.new({
+            "id": "bench_injured",
+            "label": "BENCH HIM",
+            "action_type": "lineup_decision",
+            "action_data": { "player_id": player.id, "decision": "bench" }
         }),
     ]
 
@@ -404,6 +485,108 @@ static func create_free_agent_actions(player: Player, estimated_cost: int) -> Ar
             "action_type": "dismiss"
         }),
     ]
+```
+
+### Injury Replacement Flow (No Backup Available)
+
+When an injury occurs and no backup exists in the depth chart, the detail panel shows replacement options:
+
+**Detail Panel: Injury Replacement**
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  ⚠️ URGENT: QB Smith Out for Season                                    │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│                                                                        │
+│  Torn ACL • Moved to IR • No backup available at QB                    │
+│                                                                        │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  PRACTICE SQUAD OPTIONS                                                │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  M. Thompson, QB    OVR: 62    Age: 24    $0.8M              [+] │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  TOP FREE AGENTS (QB)                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  J. Garner, QB      OVR: 74    Age: 31    ~$3.2M            [+]  │  │
+│  │  Former starter • 12 years exp • Available immediately           │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  D. Hayes, QB       OVR: 71    Age: 27    ~$2.1M            [+]  │  │
+│  │  Solid backup • 5 years exp • Available immediately              │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  R. Mitchell, QB    OVR: 68    Age: 25    ~$1.4M            [+]  │  │
+│  │  Young developmental • 3 years exp • Available immediately       │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │  T. Brooks, QB      OVR: 65    Age: 29    ~$0.9M            [+]  │  │
+│  │  Camp arm • 6 years exp • Available immediately                  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│  [Browse All Free Agent QBs]                        [Skip for Now]     │
+└────────────────────────────────────────────────────────────────────────┘
+
+[+] = Quick sign button (opens contract offer immediately)
+```
+
+**Clicking [+] Quick Sign Button**:
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  SIGN J. GARNER (QB)                                                   │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│                                                                        │
+│  Contract Terms                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Length:     [1yr ▼]                                             │  │
+│  │  Total:      $3.2M                                               │  │
+│  │  Guaranteed: $1.6M                                               │  │
+│  │  Cap Hit:    $3.2M (Cap Space: $12.4M → $9.2M)                   │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│  Player's asking price: $3.0M - $3.5M                                  │
+│  ✓ Within budget                                                       │
+│                                                                        │
+│  [SIGN HIM]                                             [Cancel]       │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**InjuryReplacementService Logic**:
+```gdscript
+class_name InjuryReplacementService extends RefCounted
+
+func get_replacement_options(team: Team, position: String) -> Dictionary:
+    return {
+        "practice_squad": _get_practice_squad_at_position(team, position),
+        "free_agents": _get_top_free_agents(position, 4),
+        "has_backup": _check_depth_chart_backup(team, position),
+    }
+
+func _get_practice_squad_at_position(team: Team, position: String) -> Array[Player]:
+    return team.practice_squad.filter(func(p): return p.position == position)
+
+func _get_top_free_agents(position: String, count: int) -> Array[Dictionary]:
+    var fas = FreeAgentQueries.get_available_at_position(position)
+    fas.sort_custom(func(a, b): return a.overall > b.overall)
+    return fas.slice(0, count).map(func(p): return {
+        "player": p,
+        "estimated_salary": _estimate_salary(p),
+        "experience": p.years_pro,
+        "description": _get_player_description(p),
+    })
+
+func _estimate_salary(player: Player) -> int:
+    # Rough estimate based on overall and age
+    var base = player.overall * 50000  # $50k per OVR point
+    var age_modifier = max(0.5, 1.0 - (player.age - 25) * 0.05)
+    return int(base * age_modifier)
+
+func _get_player_description(player: Player) -> String:
+    if player.overall >= 75:
+        return "Former starter"
+    elif player.overall >= 70:
+        return "Solid backup"
+    elif player.age <= 26:
+        return "Young developmental"
+    else:
+        return "Camp arm"
 ```
 
 ### Confirmation for Destructive Actions
@@ -548,6 +731,7 @@ const VIEW_SCENES = {
     "message": "res://scenes/ui/gameplay/detail_panel/views/message_detail_view.tscn",
     "player": "res://scenes/ui/gameplay/detail_panel/views/player_detail_view.tscn",
     "roster": "res://scenes/ui/gameplay/detail_panel/views/roster_view.tscn",
+    "injury_replacement": "res://scenes/ui/gameplay/detail_panel/views/injury_replacement_view.tscn",
     # ... etc
 }
 
@@ -989,7 +1173,8 @@ scenes/ui/gameplay/
         ├── division_standings_view.tscn
         ├── league_leaders_view.tscn
         ├── player_comparison_view.tscn
-        └── matchup_view.tscn
+        ├── matchup_view.tscn
+        └── injury_replacement_view.tscn  # Emergency signing flow
 
 scripts/services/
 ├── message_manager/
@@ -1003,10 +1188,12 @@ scripts/services/
 │   ├── DraftBoardEntry.gd
 │   ├── TeamNeeds.gd
 │   └── MockDraftSimulator.gd
-└── assistant_coach/
-    ├── AssistantCoach.gd
-    ├── DraftRecommendation.gd
-    └── AssistantCoachSettings.gd
+├── assistant_coach/
+│   ├── AssistantCoach.gd
+│   ├── DraftRecommendation.gd
+│   └── AssistantCoachSettings.gd
+└── injury/
+    └── InjuryReplacementService.gd  # Practice squad + FA options
 ```
 
 ---
