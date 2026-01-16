@@ -18,12 +18,20 @@ const IR_SEVERITY_THRESHOLD := 0.7
 @export var recovery_timeline: Dictionary = {}
 @export var long_term_penalty: Dictionary = {}
 
+## Persistence fields for tracking when and where injury occurred
+@export var week_occurred: int = 0      ## Week number when injury occurred (0 = not tracked)
+@export var season_year: int = 0        ## Season year when injury occurred (0 = not tracked)
+@export var is_active: bool = true      ## Whether injury is currently active (true) or healed (false)
+
 func from_dict(data: Dictionary) -> void:
 	type = String(data.get("type", type))
 	severity = float(data.get("severity", severity))
 	affected_stats = (data.get("affected_stats", affected_stats) as Array).duplicate()
 	recovery_timeline = (data.get("recovery_timeline", recovery_timeline) as Dictionary).duplicate(true)
 	long_term_penalty = (data.get("long_term_penalty", long_term_penalty) as Dictionary).duplicate(true)
+	week_occurred = int(data.get("week_occurred", week_occurred))
+	season_year = int(data.get("season_year", season_year))
+	is_active = bool(data.get("is_active", is_active))
 
 func to_dict() -> Dictionary:
 	return {
@@ -31,7 +39,10 @@ func to_dict() -> Dictionary:
 		"severity": severity,
 		"affected_stats": affected_stats.duplicate(),
 		"recovery_timeline": recovery_timeline.duplicate(true),
-		"long_term_penalty": long_term_penalty.duplicate(true)
+		"long_term_penalty": long_term_penalty.duplicate(true),
+		"week_occurred": week_occurred,
+		"season_year": season_year,
+		"is_active": is_active
 	}
 
 ## Determines if this injury is severe enough to require IR placement

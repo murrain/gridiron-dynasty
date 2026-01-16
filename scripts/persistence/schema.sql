@@ -148,6 +148,23 @@ CREATE INDEX IF NOT EXISTS idx_injury_active ON player_injury(is_active, player_
 CREATE INDEX IF NOT EXISTS idx_injury_season ON player_injury(season_year);
 
 -- =========================
+-- League Tables
+-- =========================
+
+-- League entity (must be defined before team table due to foreign key constraint)
+CREATE TABLE IF NOT EXISTS league (
+    id TEXT PRIMARY KEY,                    -- "nfl", "college", "high_school"
+    name TEXT NOT NULL,
+    level INTEGER NOT NULL,                 -- Hierarchy level (0=pro, 1=college, 2=hs)
+    salary_cap_enabled INTEGER DEFAULT 0
+);
+
+-- Insert default leagues
+INSERT OR IGNORE INTO league (id, name, level, salary_cap_enabled) VALUES ('nfl', 'National Football League', 0, 1);
+INSERT OR IGNORE INTO league (id, name, level, salary_cap_enabled) VALUES ('college', 'College Football', 1, 0);
+INSERT OR IGNORE INTO league (id, name, level, salary_cap_enabled) VALUES ('high_school', 'High School Football', 2, 0);
+
+-- =========================
 -- Team Tables
 -- =========================
 
@@ -203,22 +220,6 @@ CREATE TABLE IF NOT EXISTS roster_contract (
     dead_money REAL DEFAULT 0.0,            -- Dead cap charge (excluded from active cap)
     FOREIGN KEY (roster_entry_id) REFERENCES roster_entry(id) ON DELETE CASCADE
 );
-
--- =========================
--- League/Conference Tables (Optional - for future expansion)
--- =========================
-
-CREATE TABLE IF NOT EXISTS league (
-    id TEXT PRIMARY KEY,                    -- "nfl", "college", "high_school"
-    name TEXT NOT NULL,
-    level INTEGER NOT NULL,                 -- Hierarchy level (0=pro, 1=college, 2=hs)
-    salary_cap_enabled INTEGER DEFAULT 0
-);
-
--- Insert default leagues
-INSERT OR IGNORE INTO league (id, name, level, salary_cap_enabled) VALUES ('nfl', 'National Football League', 0, 1);
-INSERT OR IGNORE INTO league (id, name, level, salary_cap_enabled) VALUES ('college', 'College Football', 1, 0);
-INSERT OR IGNORE INTO league (id, name, level, salary_cap_enabled) VALUES ('high_school', 'High School Football', 2, 0);
 
 -- =========================
 -- Historical Data Tables (Future)

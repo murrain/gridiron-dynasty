@@ -445,8 +445,8 @@ func _save_injuries(player: Player) -> bool:
 			player.id,
 			injury.type,
 			injury.severity,
-			injury.week_occurred if injury.has("week_occurred") else null,
-			injury.season_year if injury.has("season_year") else null,
+			injury.week_occurred if injury.week_occurred > 0 else null,
+			injury.season_year if injury.season_year > 0 else null,
 			1 if injury.is_active else 0
 		]
 
@@ -623,10 +623,9 @@ func _load_injuries(player: Player) -> void:
 		var injury = Injury.new()
 		injury.type = row["injury_type"]
 		injury.severity = float(row["severity"])
-		if row.has("week_occurred") and row["week_occurred"] != null:
-			injury.week_occurred = int(row["week_occurred"])
-		if row.has("season_year") and row["season_year"] != null:
-			injury.season_year = int(row["season_year"])
+		# Set persistence tracking fields (default to 0 if null in database)
+		injury.week_occurred = int(row["week_occurred"]) if row["week_occurred"] != null else 0
+		injury.season_year = int(row["season_year"]) if row["season_year"] != null else 0
 		injury.is_active = bool(row["is_active"])
 
 		player.health.injuries.append(injury)
