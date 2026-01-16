@@ -2498,10 +2498,13 @@ The comparison tool is a **general-purpose component** reusable across the game:
 **Context-Aware Actions:**
 | Source | Available Actions |
 |--------|-------------------|
-| Draft Pool | [DRAFT] (when user's turn) |
-| Free Agents | [SIGN] (opens contract negotiation) |
-| League Players | [VIEW] (read-only, or [TRADE] if tradeable) |
+| Draft Pool | [DRAFT] (when user's turn), [★ WATCH] |
+| Free Agents | [SIGN] (opens contract negotiation), [★ WATCH] |
+| League Players | [VIEW], [TRADE] (if tradeable), [★ WATCH] |
 | My Roster | [VIEW] (opens player card) |
+
+All players (except your roster) can be added to your shortlist via [★ WATCH].
+Players already on shortlist show ★ indicator and [★ REMOVE] action.
 
 Features:
 - Compare 3-4 players simultaneously (same position recommended)
@@ -2512,6 +2515,7 @@ Features:
 - Filter by position for relevant comparisons
 - **Unavailable players visually indicated** (grayed out, action disabled)
 - **Context-aware action buttons** (Draft/Sign/View/Trade based on player source)
+- **Shortlist integration** - [★ WATCH] action on any player, ★ indicator for shortlisted
 - Export comparison to clipboard
 
 #### Acceptance Criteria
@@ -2528,6 +2532,7 @@ Features:
 - [ ] **Compare players from mixed sources (roster, league, draft, FA)**
 - [ ] **Unavailable players clearly indicated with disabled actions**
 - [ ] **Context-aware action buttons based on player source**
+- [ ] **Shortlist action [★ WATCH] available on all players (integrates with DRAFT-009)**
 - [ ] Team needs analysis based on depth chart
 
 #### Files to Create
@@ -2708,6 +2713,130 @@ func evaluate_conditional_picks(world_state: Dictionary) -> Array[Dictionary]:
 
 ---
 
+### DRAFT-009: Player Shortlist / Watchlist
+
+**Priority:** MEDIUM
+**Estimated Effort:** 6-8 hours
+**Risk:** LOW
+**Dependencies:** None (enhances DRAFT-005 comparison tool)
+
+#### Description
+
+Persistent watchlist for tracking players of interest across different contexts. Works year-round for strategic roster building - not just draft day. Integrates with the PlayerComparisonTool for quick comparisons.
+
+#### Use Cases
+- **Draft Prep**: Track prospects months before the draft
+- **Trade Targets**: Monitor players on other teams you want to acquire
+- **Free Agency Watch**: Track players whose contracts expire soon
+- **Prospect Development**: Follow college players across multiple seasons
+
+#### Target State
+```gdscript
+# scripts/core/models/PlayerShortlist.gd (NEW FILE)
+extends Resource
+class_name PlayerShortlist
+
+enum ListCategory { DRAFT_PROSPECTS, TRADE_TARGETS, FA_WATCH, GENERAL }
+
+var entries: Array[ShortlistEntry] = []
+
+func add_player(player_id: String, category: ListCategory, notes: String = "") -> void:
+    var entry = ShortlistEntry.new()
+    entry.player_id = player_id
+    entry.category = category
+    entry.notes = notes
+    entry.added_date = Time.get_date_string_from_system()
+    entries.append(entry)
+
+func remove_player(player_id: String) -> void:
+    entries = entries.filter(func(e): return e.player_id != player_id)
+
+func get_by_category(category: ListCategory) -> Array[ShortlistEntry]:
+    return entries.filter(func(e): return e.category == category)
+
+func is_on_shortlist(player_id: String) -> bool:
+    return entries.any(func(e): return e.player_id == player_id)
+
+func to_dict() -> Dictionary:
+    # Persisted with game session
+```
+
+```gdscript
+# scripts/core/models/ShortlistEntry.gd (NEW FILE)
+extends Resource
+class_name ShortlistEntry
+
+@export var player_id: String = ""
+@export var category: PlayerShortlist.ListCategory = PlayerShortlist.ListCategory.GENERAL
+@export var notes: String = ""  # User notes: "Great zone coverage, watch 40 time"
+@export var added_date: String = ""
+@export var priority: int = 0  # 1-5 stars or ranking within category
+@export var alert_on_available: bool = false  # Notify when FA/tradeable
+```
+
+#### Shortlist UI
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  MY SHORTLIST                    [Draft Prospects ▼]   [+ Add Player]║
+╠══════════════════════════════════════════════════════════════════════╣
+║  ★★★★★  J. Williams (QB, Alabama)           DRAFT PROSPECT           ║
+║         "Elite arm talent, best QB in class"         [Compare][Remove]║
+║  ────────────────────────────────────────────────────────────────────║
+║  ★★★★☆  M. Harrison (QB, Ohio State)        DRAFT PROSPECT           ║
+║         "More mobile, watch decision making"         [Compare][Remove]║
+║  ────────────────────────────────────────────────────────────────────║
+║  ★★★☆☆  D. Carter (QB, Georgia)             DRAFT PROSPECT           ║
+║         "Solid floor, limited ceiling"               [Compare][Remove]║
+╠══════════════════════════════════════════════════════════════════════╣
+║  [Compare All]  [Clear Category]  [Export]                            ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Category Tabs: [Draft Prospects (3)] [Trade Targets (5)] [FA Watch (2)] [All (10)]
+```
+
+**Integration Points:**
+- **Player Detail Panel**: [★ WATCH] button on every player detail view (universal access point)
+- **Comparison Tool**: [★ WATCH] action per player column, ★ indicator for shortlisted players
+- **Draft UI**: Shortlist panel sidebar, filter draft board to show only shortlisted
+- **Roster/League Views**: ★ indicator on shortlisted players in any list
+- **Notifications**: "Player X is now available" when watched player hits FA or trade block
+- **Season Rollover**: Draft prospects auto-archive after drafted/undrafted
+
+**Status Indicators:**
+| Status | Display |
+|--------|---------|
+| On shortlist | ★ icon on player in any list |
+| Drafted (by you) | ✓ Acquired |
+| Drafted (by other) | ✗ Unavailable |
+| Signed elsewhere | ✗ Signed with [Team] |
+| Still available | ● Available |
+
+#### Acceptance Criteria
+- [ ] Create `PlayerShortlist.gd` and `ShortlistEntry.gd` models
+- [ ] Shortlist persisted with GameSession (survives save/load)
+- [ ] Categories: Draft Prospects, Trade Targets, FA Watch, General
+- [ ] User can add notes and priority (1-5 stars) per entry
+- [ ] "Add to Shortlist" button on all player views
+- [ ] Shortlist panel accessible from main UI and draft war room
+- [ ] Compare All: send entire category to PlayerComparisonTool
+- [ ] Filter draft board to show only shortlisted players
+- [ ] Status updates when player availability changes
+- [ ] Optional notifications when watched player becomes available
+- [ ] Draft prospects auto-archive after draft completes
+
+#### Files to Create
+- `scripts/core/models/PlayerShortlist.gd`
+- `scripts/core/models/ShortlistEntry.gd`
+- `scenes/ui/common/ShortlistPanel.gd`
+- `scenes/ui/common/ShortlistPanel.tscn`
+
+#### Files to Modify
+- `scripts/core/models/GameSession.gd` - Add shortlist persistence
+- `scenes/ui/common/PlayerComparisonTool.gd` - Add shortlist integration
+- `scenes/ui/draft_day/DraftDayUI.gd` - Add shortlist panel/filter
+
+---
+
 ## Draft System Dependency Graph
 
 ```
@@ -2723,7 +2852,9 @@ DRAFT-005 (Mock Drafts) ─────────────────┤
                                          │
 DRAFT-006 (UDFA) ────────────────────────┤
                                          │
-DRAFT-007 (Grades) ──────────────────────┘
+DRAFT-007 (Grades) ──────────────────────┤
+                                         │
+DRAFT-009 (Shortlist) ───────────────────┘
 
 DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 ```
@@ -2736,11 +2867,12 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 | DRAFT-002: Underclassman Entry | HIGH | 8-10 | MEDIUM | PLANNED |
 | DRAFT-003: Medical/Character Red Flags | HIGH | 6-8 | LOW | PLANNED |
 | DRAFT-004: Positional Runs | MEDIUM | 6-8 | LOW | PLANNED |
-| DRAFT-005: Mock Drafts/Scouting | MEDIUM | 10-12 | LOW | PLANNED |
+| DRAFT-005: Mock Drafts/Scouting/Comparison | MEDIUM | 10-12 | LOW | PLANNED |
 | DRAFT-006: UDFA Bidding | LOW | 4-6 | LOW | PLANNED |
 | DRAFT-007: Draft Grades | LOW | 3-4 | LOW | PLANNED |
 | DRAFT-008: Conditional Picks | VERY LOW | 8-10 | MEDIUM | POST-1.0 |
-| **Total** | - | **57-74** | - | - |
+| DRAFT-009: Player Shortlist/Watchlist | MEDIUM | 6-8 | LOW | PLANNED |
+| **Total** | - | **63-82** | - | - |
 
 ### Recommended Implementation Order
 
@@ -2768,9 +2900,9 @@ DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
 | Phase 2: Decomposition | ARCH-008 to ARCH-016 | 24-32 hours | MEDIUM |
 | Phase 3: Persistence | ARCH-017 to ARCH-022 | 28-38 hours | MEDIUM |
 | Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
-| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-008 | 57-74 hours | LOW-MEDIUM |
+| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-009 | 63-82 hours | LOW-MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
-| **Total** | **35 tickets** | **230-292 hours** | - |
+| **Total** | **36 tickets** | **236-300 hours** | - |
 
 > **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
 
