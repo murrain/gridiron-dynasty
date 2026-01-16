@@ -2480,6 +2480,8 @@ extends Control
 ║  Projected Pick   │    #1-3     │    #5-10    │   #8-15   │  #12-20   ║
 ║  Scout Grade      │     A       │     B+      │    B+     │    B      ║
 ║  Risk Level       │    LOW      │   MEDIUM    │    LOW    │   HIGH    ║
+╠════════════════════════════════════════════════════════════════════════╣
+║                  │  [DRAFT]    │  [DRAFT]    │  [DRAFT]  │  [DRAFT]  ║
 ╚════════════════════════════════════════════════════════════════════════╝
    [Add Player]  [Remove]  [Export]  [Clear All]
 ```
@@ -2491,6 +2493,7 @@ Features:
 - Add/remove players dynamically
 - Filter by position for relevant comparisons
 - Export comparison to clipboard
+- **Draft directly from comparison** - each player column has a [DRAFT] button when it's user's turn (no need to back out to main draft UI)
 
 #### Acceptance Criteria
 - [ ] Create `MockDraftSimulator.gd` to generate projections
@@ -2502,6 +2505,7 @@ Features:
 - [ ] **Player comparison supports 3-4 players simultaneously**
 - [ ] **Color-coded cells highlight best/worst in each category**
 - [ ] **Dynamic add/remove players from comparison**
+- [ ] **Draft player directly from comparison view (no back-navigation required)**
 - [ ] Team needs analysis based on depth chart
 
 #### Files to Create
