@@ -152,6 +152,15 @@ func evaluate(ctx: EvaluationContext) -> StackResult:
 		# Calculate modifier value
 		var mod_result: EvaluationModifier.ModifierResult = m.calculate(ctx)
 
+		# Defensive null check - if calculate() returns null, skip this modifier
+		if mod_result == null:
+			result.skipped_modifiers.append({
+				"id": mod_id,
+				"reason": "calculate_returned_null"
+			})
+			push_warning("EvaluationModifierStack: Modifier '%s' returned null from calculate()" % mod_id)
+			continue
+
 		# Apply per-modifier bounds enforcement
 		var bounds := m.get_bounds()
 		var min_bound := float(bounds.get("min", 0.0))

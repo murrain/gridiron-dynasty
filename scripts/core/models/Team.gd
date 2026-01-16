@@ -33,8 +33,33 @@ var cap_space: float:
 	get:
 		return league_cap - cap_used
 
-# Roster scaffolding
-@export var player_ids: Array[String] = []
+## Get all player IDs from the roster
+## @param include_inactive: If true, includes practice squad, IR, and suspended players
+## @return: Array of player IDs from roster entries
+func get_player_ids(include_inactive: bool = false) -> Array[String]:
+	var ids: Array[String] = []
+	if roster == null:
+		return ids
+
+	for entry in roster.entries:
+		if include_inactive:
+			# Include all players regardless of status
+			ids.append(String(entry.get("player_id", "")))
+		else:
+			# Only include active roster players
+			var status = String(entry.get("status", "active"))
+			if status == "active":
+				ids.append(String(entry.get("player_id", "")))
+
+	return ids
+
+## Get only active roster player IDs (convenience method)
+func get_active_player_ids() -> Array[String]:
+	return get_player_ids(false)
+
+## Get all player IDs including inactive (convenience method)
+func get_all_player_ids() -> Array[String]:
+	return get_player_ids(true)
 
 # --- Scouting state ---
 # Team-specific scouting data: player_id -> scouting_report_dict
@@ -68,7 +93,7 @@ func from_dict(d: Dictionary) -> void:
 		roster = Roster.new()
 	roster.from_dict(roster_payload)
 
-	player_ids = (d.get("player_ids", player_ids) as Array).duplicate()
+	# player_ids is now derived from roster.entries - no longer loaded from save files
 
 	# Scouting state
 	scouting_data = (d.get("scouting_data", scouting_data) as Dictionary).duplicate(true)
@@ -92,7 +117,7 @@ func to_dict() -> Dictionary:
 		},
 		"is_over_cap": is_over_cap,
 		"roster": roster_dict,
-		"player_ids": player_ids.duplicate(),
+		# player_ids is now derived from roster.entries - no longer saved
 		"scouting_data": scouting_data.duplicate(true),
 		"scouting_budget": scouting_budget.duplicate(true)
 	}

@@ -38,7 +38,7 @@ const YEAR_20 := 20    ## Load 20-year snapshot
 
 ## Schema version - MUST match SnapshotGenerator.SNAPSHOT_SCHEMA_VERSION
 ## If mismatch detected, snapshots must be regenerated
-const SNAPSHOT_SCHEMA_VERSION := 1
+const SNAPSHOT_SCHEMA_VERSION := 2
 
 ## Cache loaded snapshots to avoid re-parsing JSON.
 static var _cache: Dictionary = {}

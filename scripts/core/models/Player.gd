@@ -5,6 +5,12 @@ class_name Player
 
 const Contract = preload("res://scripts/core/models/Contract.gd")
 const Injury = preload("res://scripts/core/models/Injury.gd")
+const PlayerPhysicals = preload("res://scripts/core/models/PlayerPhysicals.gd")
+const CombineResults = preload("res://scripts/core/models/CombineResults.gd")
+const TraitSet = preload("res://scripts/core/models/TraitSet.gd")
+const CareerRecord = preload("res://scripts/core/models/CareerRecord.gd")
+const HealthStatus = preload("res://scripts/core/models/HealthStatus.gd")
+const StatsProfile = preload("res://scripts/core/models/StatsProfile.gd")
 
 ## Player lifecycle stages
 ## Provides type-level discrimination of player state
@@ -26,62 +32,34 @@ enum PlayerStage {
 @export var jersey_number: int = 0  # Player's jersey number (0 = unassigned)
 
 # --- Physical Attributes ---
-# Keep raw measurements in native units; you can format/UI-convert elsewhere.
-@export var height_in: float = 72.0        # inches
-@export var weight_lb: float = 200.0       # pounds
-@export var hand_size_in: float = 9.5
-@export var arm_length_in: float = 32.0
-@export var wingspan_in: float = 78.0
+# Extracted to PlayerPhysicals resource for better organization
+@export var physicals: PlayerPhysicals = null
 
 # --- Combine / Testing Metrics ---
-# Timed drills (seconds)
-@export var forty_sec: float
-@export var shuttle20_sec: float
-@export var cone3_sec: float
-@export var shuttle60_sec: float
-
-@export var vertical_in: float
-@export var broad_in: float
-@export var bench_225_reps: int
-
-@export var wonderlic: int
-@export var cybex_index: float
-
-@export var injury_eval: String
-@export var drug_screen: String
+# Extracted to CombineResults resource
+# Nullable - null means player hasn't done a combine yet
+@export var combine: CombineResults = null
 
 # --- Stats (gameplay ratings) ---
-# Use 0–100 scale (or whatever your engine expects). Derived stats can be recomputed from base.
-var stats: Dictionary = {}        # current playable ratings (HS/college/NFL depending on context)
-var potential: Dictionary = {}    # prime caps (finished product ceiling)
-var derived: Dictionary = {}      # cached computed values (e.g., catch_radius, burst)
+# Extracted to StatsProfile resource for better organization
+@export var stats_profile: StatsProfile = null
 
 # --- Traits ---
-@export var traits: Array[String] = []         # visible traits: ["Ball Hawk", "Sure Hands", ...]
-var hidden_traits: Array[String] = []          # hidden: ["Freak:speed", "InjuryFlag:Hamstring", ...]
+# Extracted to TraitSet resource for better encapsulation
+@export var trait_set: TraitSet = null
 
 # --- Provenance / Flags ---
 @export var gen_mode: String = ""              # "quota" | "gauss" | "chaos" | etc.
 @export var school_tag: String = ""            # where they currently are (optional)
 @export var notes: String = ""                 # debug or scout notes
 
-# --- Career Achievements ---
-# Track cumulative awards and honors earned throughout a player's career
-@export var career_awards: Dictionary = {
-	"opoy": 0,              # Offensive Player of the Year
-	"dpoy": 0,              # Defensive Player of the Year
-	"all_pro_first": 0,     # First-team All-Pro selections
-	"all_pro_second": 0,    # Second-team All-Pro selections
-	"pro_bowl": 0,          # Pro Bowl selections
-	"rookie_of_year": 0,    # Rookie of the Year (should be 0 or 1)
-	"championships": 0      # Championship wins
-}
+# --- Career Record ---
+# Extracted to CareerRecord resource for better encapsulation
+@export var career: CareerRecord = null
 
-# --- Wear / Development ---
-@export var wear: Dictionary = {"snaps": 0, "collisions": 0, "injury_count": 0}
-@export var development_report: Array = []
-# --- Health / Lifecycle ---
-var injuries: Array[Injury] = []
+# --- Health Status ---
+# Extracted to HealthStatus resource for better encapsulation
+@export var health: HealthStatus = null
 
 # --- Contract ---
 # Typed contract resource for type safety and validation
@@ -100,6 +78,12 @@ var injuries: Array[Injury] = []
 
 func _init() -> void:
 	contract = Contract.new()
+	physicals = PlayerPhysicals.new()
+	combine = CombineResults.new()
+	trait_set = TraitSet.new()
+	career = CareerRecord.new()
+	health = HealthStatus.new()
+	stats_profile = StatsProfile.new()
 
 func from_dict(d: Dictionary) -> void:
 	# Load person fields first
@@ -120,47 +104,87 @@ func from_dict(d: Dictionary) -> void:
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
-	wear = (d.get("wear", wear) as Dictionary).duplicate(true)
-	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
 
-	# Physicals
-	var phys: Dictionary = d.get("physicals", {})
-	height_in = float(phys.get("height_in", height_in))
-	weight_lb = float(phys.get("weight_lb", weight_lb))
-	hand_size_in = float(phys.get("hand_size_in", hand_size_in))
-	arm_length_in = float(phys.get("arm_length_in", arm_length_in))
-	wingspan_in = float(phys.get("wingspan_in", wingspan_in))
+	# Physicals - Support both nested and flat format (backward compatibility)
+	if physicals == null:
+		physicals = PlayerPhysicals.new()
 
-	# Combine
-	var cmb: Dictionary = d.get("combine", {})
-	forty_sec = float(cmb.get("forty_sec", forty_sec))
-	shuttle20_sec = float(cmb.get("shuttle20_sec", shuttle20_sec))
-	cone3_sec = float(cmb.get("cone3_sec", cone3_sec))
-	shuttle60_sec = float(cmb.get("shuttle60_sec", shuttle60_sec))
-	vertical_in = float(cmb.get("vertical_in", vertical_in))
-	broad_in = float(cmb.get("broad_in", broad_in))
-	bench_225_reps = int(cmb.get("bench_225_reps", bench_225_reps))
-	wonderlic = int(cmb.get("wonderlic", wonderlic))
-	cybex_index = float(cmb.get("cybex_index", cybex_index))
-	injury_eval = String(cmb.get("injury_eval", injury_eval))
-	drug_screen = String(cmb.get("drug_screen", drug_screen))
+	if d.has("physicals") and d["physicals"] is Dictionary:
+		# New nested format
+		physicals.from_dict(d["physicals"])
+	else:
+		# Legacy flat format - read directly from player dict
+		physicals.height_in = float(d.get("height_in", physicals.height_in))
+		physicals.weight_lb = float(d.get("weight_lb", physicals.weight_lb))
+		physicals.hand_size_in = float(d.get("hand_size_in", physicals.hand_size_in))
+		physicals.arm_length_in = float(d.get("arm_length_in", physicals.arm_length_in))
+		physicals.wingspan_in = float(d.get("wingspan_in", physicals.wingspan_in))
 
-	# Ratings & traits
-	stats = (d.get("stats", stats) as Dictionary).duplicate(true)
-	potential = (d.get("potential", potential) as Dictionary).duplicate(true)
-	derived = (d.get("derived", derived) as Dictionary).duplicate(true)
-	traits = (d.get("traits", traits) as Array).duplicate()
-	hidden_traits = (d.get("hidden_traits", hidden_traits) as Array).duplicate()
+	# Combine - Support both nested and flat format (backward compatibility)
+	if combine == null:
+		combine = CombineResults.new()
 
-	# Injuries - backward compatible with Dictionary array
-	injuries.clear()
-	for injury_data in d.get("injuries", []):
-		var injury = Injury.new()
-		if injury_data is Dictionary:
-			injury.from_dict(injury_data)
-		injuries.append(injury)
+	if d.has("combine") and d["combine"] is Dictionary:
+		# New nested format
+		combine.from_dict(d["combine"])
+	else:
+		# Legacy flat format - read directly from player dict
+		combine.forty_sec = float(d.get("forty_sec", combine.forty_sec))
+		combine.shuttle20_sec = float(d.get("shuttle20_sec", combine.shuttle20_sec))
+		combine.cone3_sec = float(d.get("cone3_sec", combine.cone3_sec))
+		combine.shuttle60_sec = float(d.get("shuttle60_sec", combine.shuttle60_sec))
+		combine.vertical_in = float(d.get("vertical_in", combine.vertical_in))
+		combine.broad_in = float(d.get("broad_in", combine.broad_in))
+		combine.bench_225_reps = int(d.get("bench_225_reps", combine.bench_225_reps))
+		combine.wonderlic = int(d.get("wonderlic", combine.wonderlic))
+		combine.cybex_index = float(d.get("cybex_index", combine.cybex_index))
+		combine.injury_eval = String(d.get("injury_eval", combine.injury_eval))
+		combine.drug_screen = String(d.get("drug_screen", combine.drug_screen))
 
-	development_report = (d.get("development_report", development_report) as Array).duplicate(true)
+	# Stats Profile - Support both nested and flat format (backward compatibility)
+	if stats_profile == null:
+		stats_profile = StatsProfile.new()
+
+	if d.has("stats_profile") and d["stats_profile"] is Dictionary:
+		# New nested format
+		stats_profile.from_dict(d["stats_profile"])
+	else:
+		# Legacy flat format - read stats/potential/derived directly
+		stats_profile.current = (d.get("stats", {}) as Dictionary).duplicate(true)
+		stats_profile.potential = (d.get("potential", {}) as Dictionary).duplicate(true)
+		stats_profile.derived = (d.get("derived", {}) as Dictionary).duplicate(true)
+
+	# Traits - Support both nested and flat format (backward compatibility)
+	if trait_set == null:
+		trait_set = TraitSet.new()
+
+	if d.has("trait_set") and d["trait_set"] is Dictionary:
+		# New nested format
+		trait_set.from_dict(d["trait_set"])
+	else:
+		# Legacy flat format - read directly from player dict
+		trait_set.visible.clear()
+		trait_set.hidden.clear()
+		for t in d.get("traits", []):
+			trait_set.visible.append(String(t))
+		for t in d.get("hidden_traits", []):
+			trait_set.hidden.append(String(t))
+
+	# Health - Support both nested and flat format (backward compatibility)
+	if health == null:
+		health = HealthStatus.new()
+
+	if d.has("health") and d["health"] is Dictionary:
+		# New nested format
+		health.from_dict(d["health"])
+	else:
+		# Legacy flat format - read injuries directly from player dict
+		health.injuries.clear()
+		for injury_data in d.get("injuries", []):
+			var injury = Injury.new()
+			if injury_data is Dictionary:
+				injury.from_dict(injury_data)
+			health.injuries.append(injury)
 
 	# Contract - backward compatible with both Dictionary and Contract
 	var contract_data: Dictionary = d.get("contract", {}) as Dictionary
@@ -168,12 +192,29 @@ func from_dict(d: Dictionary) -> void:
 		contract = Contract.new()
 	contract.from_dict(contract_data)
 
-	# Career awards
-	var awards_data: Dictionary = d.get("career_awards", {}) as Dictionary
-	if not awards_data.is_empty():
-		for award_key in awards_data.keys():
-			# Ensure non-negative integers
-			career_awards[award_key] = max(0, int(awards_data[award_key]))
+	# Career - Support both nested and flat format (backward compatibility)
+	if career == null:
+		career = CareerRecord.new()
+
+	if d.has("career") and d["career"] is Dictionary:
+		# New nested format
+		career.from_dict(d["career"])
+	else:
+		# Legacy flat format - read career_awards, wear, development_report directly
+		var awards_data: Dictionary = d.get("career_awards", {}) as Dictionary
+		if not awards_data.is_empty():
+			for award_key in awards_data.keys():
+				career.awards[award_key] = max(0, int(awards_data[award_key]))
+
+		var wear_data: Dictionary = d.get("wear", {}) as Dictionary
+		if not wear_data.is_empty():
+			career.wear["snaps"] = int(wear_data.get("snaps", 0))
+			career.wear["collisions"] = int(wear_data.get("collisions", 0))
+			career.wear["injury_count"] = int(wear_data.get("injury_count", 0))
+
+		career.development_history.clear()
+		for entry in d.get("development_report", []):
+			career.development_history.append(entry)
 
 func to_dict() -> Dictionary:
 	# Start with person fields
@@ -187,41 +228,13 @@ func to_dict() -> Dictionary:
 	result["gen_mode"] = gen_mode
 	result["school_tag"] = school_tag
 	result["notes"] = notes
-	result["wear"] = wear.duplicate(true)
-	result["development_report"] = development_report.duplicate(true)
 	result["contract"] = contract.to_dict() if contract != null else {}
-	result["career_awards"] = career_awards.duplicate(true)
-	result["physicals"] = {
-		"height_in": height_in,
-		"weight_lb": weight_lb,
-		"hand_size_in": hand_size_in,
-		"arm_length_in": arm_length_in,
-		"wingspan_in": wingspan_in
-	}
-	result["combine"] = {
-		"forty_sec": forty_sec,
-		"bench_225_reps": bench_225_reps,
-		"vertical_in": vertical_in,
-		"broad_in": broad_in,
-		"shuttle20_sec": shuttle20_sec,
-		"cone3_sec": cone3_sec,
-		"shuttle60_sec": shuttle60_sec,
-		"injury_eval": injury_eval,
-		"drug_screen": drug_screen,
-		"cybex_index": cybex_index,
-		"wonderlic": wonderlic
-	}
-	result["stats"] = stats.duplicate(true)
-	result["potential"] = potential.duplicate(true)
-	result["derived"] = derived.duplicate(true)
-	result["traits"] = traits.duplicate()
-	result["hidden_traits"] = hidden_traits.duplicate()
-
-	# Serialize injuries
-	var injuries_array: Array = []
-	for injury in injuries:
-		injuries_array.append(injury.to_dict())
-	result["injuries"] = injuries_array
+	result["career"] = career.to_dict() if career != null else {}
+	result["physicals"] = physicals.to_dict() if physicals != null else {}
+	result["combine"] = combine.to_dict() if combine != null else {}
+	result["stats_profile"] = stats_profile.to_dict() if stats_profile != null else {}
+	result["trait_set"] = trait_set.to_dict() if trait_set != null else {}
+	result["health"] = health.to_dict() if health != null else {}
 
 	return result
 
@@ -284,27 +297,23 @@ func transition_to(new_stage: PlayerStage) -> bool:
 # =========================
 # Pass in your stats.json "derived formulas" (pre-parsed into tokens or safe eval).
 func recompute_derived(derived_specs: Array[Dictionary]) -> void:
-	# expected spec: [{name:"catch_radius", formula:"(wingspan * 0.5) + (hand_size * 5.0)"}, ...]
-	# This example supports a limited variable set: stats + physicals; replace with your own safe-eval.
+	# Delegate to stats_profile with scope built from player's resources
+	if stats_profile == null:
+		return
 	var scope := _build_formula_scope()
-	for spec in derived_specs:
-		var name := String(spec.get("name", ""))
-		var formula := String(spec.get("formula", ""))
-		if name.is_empty() or formula.is_empty():
-			continue
-		# Implement a real safe expression evaluator in your project.
-		# Placeholder: interpret known symbols manually (you can swap this with your StatCalculator).
-		var val := _eval_simple_formula(formula, scope)
-		derived[name] = clamp(val, 0.0, 100000.0) # some derived can exceed 100 (e.g., radius in inches)
+	stats_profile.recompute_derived(derived_specs, scope)
 
 func get_stat(name: String, trait_defs: Dictionary = {}) -> float:
 	# Return current stat with trait modifiers applied at read-time
-	var base := float(stats.get(name, 0.0))
+	if stats_profile == null:
+		return 0.0
+	var base := stats_profile.get_stat(name)
 	var mod := _accumulate_trait_mods(name, trait_defs)
 	return base * mod.mult + mod.add
 
 func set_stat(name: String, value: float) -> void:
-	stats[name] = value
+	if stats_profile != null:
+		stats_profile.set_stat(name, value)
 
 # =========================
 # Internals
@@ -312,59 +321,50 @@ func set_stat(name: String, value: float) -> void:
 
 func _build_formula_scope() -> Dictionary:
 	return {
-		# physicals
-		"height": height_in,
-		"weight": weight_lb,
-		"hand_size": hand_size_in,
-		"arm_length": arm_length_in,
-		"wingspan": wingspan_in,
-		# combine (expose some under simpler names if you like)
-		"forty": forty_sec,
-		"bench_reps": bench_225_reps,
-		"vert": vertical_in,
-		"broad": broad_in,
-		"shuttle20": shuttle20_sec,
-		"cone3": cone3_sec,
-		"shuttle60": shuttle60_sec,
-		# stats (merge)
-		"stats": stats
+		# physicals - use resource fields
+		"height": physicals.height_in if physicals != null else 72.0,
+		"weight": physicals.weight_lb if physicals != null else 200.0,
+		"hand_size": physicals.hand_size_in if physicals != null else 9.5,
+		"arm_length": physicals.arm_length_in if physicals != null else 32.0,
+		"wingspan": physicals.wingspan_in if physicals != null else 78.0,
+		# combine - use resource fields (expose under simpler names)
+		"forty": combine.forty_sec if combine != null else 0.0,
+		"bench_reps": combine.bench_225_reps if combine != null else 0,
+		"vert": combine.vertical_in if combine != null else 0.0,
+		"broad": combine.broad_in if combine != null else 0.0,
+		"shuttle20": combine.shuttle20_sec if combine != null else 0.0,
+		"cone3": combine.cone3_sec if combine != null else 0.0,
+		"shuttle60": combine.shuttle60_sec if combine != null else 0.0,
+		# stats (merge) - use stats_profile.current
+		"stats": stats_profile.current if stats_profile != null else {}
 	}
 
-# Very tiny formula interpreter just for placeholders; replace with your own expression engine.
-func _eval_simple_formula(formula: String, scope: Dictionary) -> float:
-	# Supports tokens like 'wingspan', 'hand_size', '+-*/()' and 'stats["speed"]'
-	# Implement properly for production; here we only handle a couple common derived examples.
-	var f := formula
-	f = f.replace("wingspan", str(scope["wingspan"]))
-	f = f.replace("hand_size", str(scope["hand_size"]))
-	f = f.replace("acceleration", str(float(scope["stats"].get("acceleration", 0.0))))
-	f = f.replace("agility", str(float(scope["stats"].get("agility", 0.0))))
-	# Very naive fallback: try to evaluate using Expression (Godot’s built-in safe evaluator)
-	var expr := Expression.new()
-	var parse_err := expr.parse(f, [])
-	if parse_err != OK:
-		return 0.0
-	var result = expr.execute([])
-	return float(result)
 
 # Trait modifiers: expect a data-driven trait definition dict, e.g.:
 # { "Ball Hawk": {"add": {"coverage": 2}, "mult": {"reaction_time": 1.05}}, ... }
 func _accumulate_trait_mods(stat_name: String, trait_defs: Dictionary) -> Dictionary:
 	var total_add := 0.0
 	var total_mult := 1.0
-	for t in traits:
+
+	if trait_set == null:
+		return {"add": total_add, "mult": total_mult}
+
+	# Apply visible traits
+	for t in trait_set.visible:
 		var def: Dictionary = trait_defs.get(t, {})
 		if def.has("add"):
 			total_add += float((def["add"] as Dictionary).get(stat_name, 0.0))
 		if def.has("mult"):
 			total_mult *= float((def["mult"] as Dictionary).get(stat_name, 1.0))
-	# Hidden traits can also apply:
-	for ht in hidden_traits:
+
+	# Apply hidden traits
+	for ht in trait_set.hidden:
 		var defh: Dictionary = trait_defs.get(ht, {})
 		if defh.has("add"):
 			total_add += float((defh["add"] as Dictionary).get(stat_name, 0.0))
 		if defh.has("mult"):
 			total_mult *= float((defh["mult"] as Dictionary).get(stat_name, 1.0))
+
 	return {"add": total_add, "mult": total_mult}
 
 ## Infer player stage from context fields (for backward compatibility)
