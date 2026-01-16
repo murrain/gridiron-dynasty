@@ -17,8 +17,6 @@
 extends RefCounted
 class_name MigrateSaveToDatabase
 
-const SQLite = preload("res://addons/godot-sqlite/godot-sqlite.gd")
-
 # Import DAOs for entity persistence
 const PlayerDAO = preload("res://scripts/persistence/PlayerDAO.gd")
 const TeamDAO = preload("res://scripts/persistence/TeamDAO.gd")
@@ -294,12 +292,12 @@ func _execute_schema(db: SQLite, schema_sql: String, result: Dictionary) -> bool
 
 		db.query(trimmed)
 
-		# Check for errors (godot-sqlite uses query_result_error for error messages)
-		if db.query_result_error != null and not db.query_result_error.is_empty():
+		# Check for errors (godot-sqlite uses error_message for error messages)
+		if db.error_message != "not an error":
 			# Some "errors" are actually warnings or info - filter actual failures
-			var error_lower = db.query_result_error.to_lower()
+			var error_lower = db.error_message.to_lower()
 			if error_lower.contains("error") or error_lower.contains("fail"):
-				result.error = "Schema creation failed: %s" % db.query_result_error
+				result.error = "Schema creation failed: %s" % db.error_message
 				return false
 
 	return true

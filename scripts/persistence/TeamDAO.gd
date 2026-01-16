@@ -14,8 +14,6 @@
 extends RefCounted
 class_name TeamDAO
 
-const SQLite = preload("res://addons/godot-sqlite/godot-sqlite.gd")
-
 # Preload Team and Roster models
 const Team = preload("res://scripts/core/models/Team.gd")
 const Roster = preload("res://scripts/core/models/Roster.gd")
@@ -93,7 +91,7 @@ func load(team_id: String) -> Team:
 func load_with_players(team_id: String) -> Team:
 	if not _player_dao:
 		push_warning("TeamDAO.load_with_players: PlayerDAO not provided, loading IDs only")
-		return load(team_id)
+		return self.load(team_id)
 
 	var team = _load_team_main(team_id)
 	if not team:
@@ -111,7 +109,8 @@ func load_with_players(team_id: String) -> Team:
 func load_batch(team_ids: Array, with_players: bool = false) -> Array:
 	var teams = []
 	for team_id in team_ids:
-		var team = load_with_players(team_id) if with_players else load(team_id)
+		# Use self. to disambiguate from global load() function
+		var team = self.load_with_players(team_id) if with_players else self.load(team_id)
 		if team:
 			teams.append(team)
 	return teams
@@ -125,7 +124,8 @@ func load_all(with_players: bool = false) -> Array:
 
 	var teams = []
 	for row in result:
-		var team = load_with_players(row["id"]) if with_players else load(row["id"])
+		# Use self. to disambiguate from global load() function
+		var team = self.load_with_players(row["id"]) if with_players else self.load(row["id"])
 		if team:
 			teams.append(team)
 	return teams
@@ -171,7 +171,8 @@ func query(filters: Dictionary) -> Array:
 	var with_players = filters.get("with_players", false)
 	var teams = []
 	for row in result:
-		var team = load_with_players(row["id"]) if with_players else load(row["id"])
+		# Use self. to disambiguate from global load() function
+		var team = self.load_with_players(row["id"]) if with_players else self.load(row["id"])
 		if team:
 			teams.append(team)
 
@@ -222,8 +223,8 @@ func add_player_to_roster(team_id: String, player_id: String, status: int = 0) -
 	"""
 
 	_db.query_with_bindings(sql, [team_id, player_id, status])
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("TeamDAO.add_player_to_roster: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("TeamDAO.add_player_to_roster: %s" % _db.error_message)
 		return false
 
 	return true
@@ -252,8 +253,8 @@ func delete(team_id: String) -> bool:
 		return false
 
 	_db.query_with_bindings("DELETE FROM team WHERE id = ?", [team_id])
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("TeamDAO.delete: Failed to delete team %s: %s" % [team_id, _db.query_result_error])
+	if _db.error_message != "not an error":
+		push_error("TeamDAO.delete: Failed to delete team %s: %s" % [team_id, _db.error_message])
 		return false
 
 	return true
@@ -281,22 +282,26 @@ func _save_team_main(team: Team) -> bool:
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	"""
 
+	# Note: Team model currently only has: id, name, offensive_scheme, defensive_scheme, cap_limit
+	# Other fields (abbreviation, league_level, conference, division, is_user_controlled) are
+	# in the database schema but not in the Team resource. We use defaults for these.
+	# TODO: Add these fields to Team model or remove from schema
 	var params = [
 		team.id,
 		team.name,
-		team.abbreviation if team.has("abbreviation") else "",
-		team.league_level if team.has("league_level") else "nfl",
-		team.conference if team.has("conference") else "",
-		team.division if team.has("division") else "",
-		team.offensive_scheme if team.has("offensive_scheme") else "",
-		team.defensive_scheme if team.has("defensive_scheme") else "",
-		team.cap_limit if team.has("cap_limit") else 0.0,
-		1 if (team.get("is_user_controlled") if team.has("is_user_controlled") else false) else 0
+		"",  # abbreviation - not in Team model, use empty default
+		"nfl",  # league_level - not in Team model, assume NFL
+		"",  # conference - not in Team model, use empty default
+		"",  # division - not in Team model, use empty default
+		team.offensive_scheme,
+		team.defensive_scheme,
+		team.cap_limit,
+		0  # is_user_controlled - not in Team model, use false default
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("TeamDAO._save_team_main: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("TeamDAO._save_team_main: %s" % _db.error_message)
 		return false
 	return true
 
@@ -408,24 +413,22 @@ func _load_team_main(team_id: String) -> Team:
 	var row = result[0]
 	var team = Team.new()
 
+	# Load only fields that exist in Team model
+	# Team model has: id, name, offensive_scheme, defensive_scheme, cap_limit, league_cap, is_over_cap, roster, scouting_data, scouting_budget
 	team.id = row["id"]
 	team.name = row["name"]
-	if row.has("abbreviation"):
-		team.abbreviation = row["abbreviation"]
-	if row.has("league_level"):
-		team.league_level = row["league_level"]
-	if row.has("conference"):
-		team.conference = row["conference"]
-	if row.has("division"):
-		team.division = row["division"]
+
+	# These fields exist in Team model
 	if row.has("offensive_scheme"):
 		team.offensive_scheme = row["offensive_scheme"]
 	if row.has("defensive_scheme"):
 		team.defensive_scheme = row["defensive_scheme"]
 	if row.has("cap_limit"):
 		team.cap_limit = float(row["cap_limit"])
-	if row.has("is_user_controlled"):
-		team.set("is_user_controlled", bool(row["is_user_controlled"]))
+
+	# Note: abbreviation, league_level, conference, division, is_user_controlled
+	# are in the database schema but not in the Team resource model.
+	# These are ignored during load. If needed in the future, add to Team model.
 
 	return team
 

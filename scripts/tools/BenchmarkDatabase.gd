@@ -14,8 +14,6 @@
 extends RefCounted
 class_name BenchmarkDatabase
 
-const SQLite = preload("res://addons/godot-sqlite/godot-sqlite.gd")
-
 # Benchmark configuration
 const DEFAULT_ITERATIONS = 10          # Number of times to run each benchmark
 const WARM_UP_ITERATIONS = 3           # Warm-up runs (discarded from results)

@@ -15,8 +15,6 @@
 extends RefCounted
 class_name PlayerDAO
 
-const SQLite = preload("res://addons/godot-sqlite/godot-sqlite.gd")
-
 # Preload Player model and all component resources
 const Player = preload("res://scripts/core/models/Player.gd")
 const PlayerPhysicals = preload("res://scripts/core/models/PlayerPhysicals.gd")
@@ -216,8 +214,8 @@ func delete(player_id: String) -> bool:
 		return false
 
 	_db.query_with_bindings("DELETE FROM player WHERE id = ?", [player_id])
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO.delete: Failed to delete player %s: %s" % [player_id, _db.query_result_error])
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO.delete: Failed to delete player %s: %s" % [player_id, _db.error_message])
 		return false
 
 	return true
@@ -260,8 +258,8 @@ func _save_player_main(player: Player) -> bool:
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO._save_player_main: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO._save_player_main: %s" % _db.error_message)
 		return false
 	return true
 
@@ -286,8 +284,8 @@ func _save_physicals(player: Player) -> bool:
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO._save_physicals: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO._save_physicals: %s" % _db.error_message)
 		return false
 	return true
 
@@ -319,8 +317,8 @@ func _save_combine(player: Player) -> bool:
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO._save_combine: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO._save_combine: %s" % _db.error_message)
 		return false
 	return true
 
@@ -343,8 +341,8 @@ func _save_stats(player: Player) -> bool:
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO._save_stats: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO._save_stats: %s" % _db.error_message)
 		return false
 	return true
 
@@ -398,8 +396,8 @@ func _save_contract(player: Player) -> bool:
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO._save_contract: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO._save_contract: %s" % _db.error_message)
 		return false
 	return true
 
@@ -422,8 +420,8 @@ func _save_career(player: Player) -> bool:
 	]
 
 	_db.query_with_bindings(sql, params)
-	if _db.query_result_error != null and not _db.query_result_error.is_empty():
-		push_error("PlayerDAO._save_career: %s" % _db.query_result_error)
+	if _db.error_message != "not an error":
+		push_error("PlayerDAO._save_career: %s" % _db.error_message)
 		return false
 	return true
 
