@@ -16,11 +16,13 @@ Implement a complete game save system with a unified UI architecture that suppor
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Stats Storage** | Hybrid (JSON + queryable columns) | Flexibility for all 49 stats + efficient queries on ~15-20 key stats |
+| **Runtime Queries** | In-memory with `OptimizedPlayerQueries` | No I/O during gameplay; O(1) indexed lookups |
+| **Inspection Queries** | Database SQL (World Explorer only) | Complex queries on saved games; I/O latency acceptable |
 | **Information Asymmetry** | Player-coach only | AI coaches use true stats; only player-coach sees revealed stats |
-| **Query Strategy** | Query true stats, filter by knowledge | Simple implementation; filter results by scouting data |
+| **Query Strategy** | Query in-memory, filter by scouting knowledge | Simple implementation; filter results by scouting data |
 | **UI Architecture** | Shared components, ViewContext enum | One codebase, two modes (omniscient vs player-coach) |
 | **Query Interface** | Builder UI + Raw SQL mode | Accessible for casual players, powerful for advanced users |
+| **Persistence** | Save on explicit action only | No database writes during simulation ticks |
 
 ---
 
@@ -64,32 +66,50 @@ This allows developers/testers to:
 - Verify data integrity across save/load cycles
 - Test query systems with full data visibility
 
-### Data Flow Architecture
+### Data Flow Architecture (Dual-Mode)
+
+The system uses two distinct query modes to balance performance and flexibility:
+
+**Runtime Mode (In-Memory)** - Used during active gameplay for player-coach and AI queries
+**Inspection Mode (Database)** - Used by World Explorer to examine saved games
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         DATABASE LAYER                              │
+│                      RUNTIME MODE (Active Gameplay)                 │
 │                                                                     │
-│   player table ──┬── player_stat_queryable (indexed columns)        │
-│                  └── player_stats (JSON blobs for all 49 stats)     │
+│   WorldState (in-memory) ──► OptimizedPlayerQueries                 │
+│                                │                                    │
+│                                ├── player_by_id: Dictionary[id → Player]
+│                                ├── players_by_position: Dictionary[pos → Array]
+│                                ├── players_by_team: Dictionary[team_id → Array]
+│                                └── players_by_stage: Dictionary[stage → Array]
 │                                                                     │
-│   team table ────── player_scouting_reports (player-coach only)     │
+│   ✓ O(1) indexed lookups                                           │
+│   ✓ No I/O during gameplay                                         │
+│   ✓ Fresh data after every simulation tick                         │
+│   ✓ Player-coach filters results by scouting knowledge             │
+│   ✓ AI coaches query true stats directly                           │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         QUERY LAYER                                 │
+│                   INSPECTION MODE (World Explorer)                  │
 │                                                                     │
-│   1. PlayerQueryBuilder / Raw SQL                                   │
-│      └── Queries TRUE stats from player_stat_queryable              │
+│   SQLite Database ──► PlayerQueryBuilder / Raw SQL                  │
+│        │                                                            │
+│        ├── player table                                             │
+│        ├── player_stat_queryable (indexed columns)                  │
+│        ├── player_stats (JSON blobs for all 49 stats)              │
+│        └── player_scouting_reports (player-coach data)              │
 │                                                                     │
-│   2. Post-Query Filter (Game UI only)                               │
-│      └── Removes players where required stats aren't revealed       │
+│   ✓ Complex SQL queries on saved games                             │
+│   ✓ Visual query builder + raw SQL mode                            │
+│   ✓ I/O latency acceptable (not in gameplay loop)                  │
+│   ✓ Read-only inspection of any save file                          │
+│   ✓ OMNISCIENT mode only - no scouting filter                      │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      PRESENTATION LAYER                             │
 │                                                                     │
@@ -101,6 +121,14 @@ This allows developers/testers to:
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+**Data Flow by Context**:
+
+| Context | Data Source | Filtering | Use Case |
+|---------|-------------|-----------|----------|
+| Game UI (Runtime) | In-memory `OptimizedPlayerQueries` | By scouting knowledge | Player searching for trades |
+| AI Coach (Runtime) | In-memory `OptimizedPlayerQueries` | None (true stats) | AI evaluating roster needs |
+| World Explorer | Database SQL | None (omniscient) | Developer inspecting saves |
 
 ---
 
@@ -141,17 +169,262 @@ This allows developers/testers to:
 
 ## Implementation Plan
 
-### Phase 0: Data Model Enhancement (6-8 hours)
+### Phase 0: Query Systems (8-10 hours)
 
-**Goal**: Enable efficient database queries on player stats
+**Goal**: Implement dual-mode query architecture - in-memory for runtime, database for inspection
 
-#### 0.1: Add Queryable Stats Table
+#### 0.1: Create OptimizedPlayerQueries (Runtime Mode - CRITICAL)
+
+**File**: New - `scripts/queries/OptimizedPlayerQueries.gd`
+
+This is the **primary query system** used during active gameplay. All player-coach and AI queries go through this system for O(1) indexed lookups with no I/O.
+
+```gdscript
+class_name OptimizedPlayerQueries
+extends RefCounted
+
+## In-memory indexed player queries for runtime performance
+##
+## This is the PRIMARY query system during gameplay.
+## - O(1) lookups via pre-built indexes
+## - No I/O during gameplay - operates on in-memory WorldState
+## - Rebuilt from WorldState after each simulation tick
+## - Player-coach filters results by scouting knowledge post-query
+## - AI coaches use results directly (true stats)
+##
+## Usage:
+##   var queries = OptimizedPlayerQueries.new()
+##   queries.rebuild_indexes(world_state)
+##   var fast_cbs = queries.by_position("CB").filter(func(p): return p.stats.speed >= 90)
+
+# Primary indexes - rebuilt after each tick
+var _player_by_id: Dictionary = {}        # id -> Player
+var _players_by_position: Dictionary = {} # position -> Array[Player]
+var _players_by_team: Dictionary = {}     # team_id -> Array[Player]
+var _players_by_stage: Dictionary = {}    # PlayerStage -> Array[Player]
+
+# Secondary indexes for common queries
+var _free_agents: Array = []              # Players without team
+var _players_by_age_bucket: Dictionary = {} # "young"|"prime"|"veteran" -> Array
+
+signal indexes_rebuilt
+
+## Rebuild all indexes from world state
+## Call this after simulation tick or when world state changes
+func rebuild_indexes(world_state: Dictionary) -> void:
+    _clear_indexes()
+
+    # Index NFL players
+    var nfl_rosters: Dictionary = world_state.get("nfl_rosters", {})
+    for team_id in nfl_rosters.keys():
+        var roster_data: Dictionary = nfl_rosters[team_id]
+        var players: Array = roster_data.get("players", [])
+        for player in players:
+            _index_player(player, team_id)
+
+    # Index college players
+    var college_rosters: Dictionary = world_state.get("college_rosters", {})
+    for college_id in college_rosters.keys():
+        var roster: Dictionary = college_rosters[college_id]
+        var players: Array = roster.get("players", [])
+        for player in players:
+            _index_player(player, college_id)
+
+    # Index free agents
+    var free_agents: Array = world_state.get("free_agents", [])
+    for player in free_agents:
+        _index_player(player, "")
+        _free_agents.append(player)
+
+    indexes_rebuilt.emit()
+
+func _clear_indexes() -> void:
+    _player_by_id.clear()
+    _players_by_position.clear()
+    _players_by_team.clear()
+    _players_by_stage.clear()
+    _players_by_age_bucket.clear()
+    _free_agents.clear()
+
+func _index_player(player: Variant, team_id: String) -> void:
+    var id: String = player.id if player is Player else player.get("id", "")
+    var position: String = player.position if player is Player else player.get("position", "")
+    var stage: int = player.stage if player is Player else player.get("stage", 0)
+    var age: int = player.age if player is Player else player.get("age", 0)
+
+    # Primary indexes
+    _player_by_id[id] = player
+
+    if not _players_by_position.has(position):
+        _players_by_position[position] = []
+    _players_by_position[position].append(player)
+
+    if not team_id.is_empty():
+        if not _players_by_team.has(team_id):
+            _players_by_team[team_id] = []
+        _players_by_team[team_id].append(player)
+
+    if not _players_by_stage.has(stage):
+        _players_by_stage[stage] = []
+    _players_by_stage[stage].append(player)
+
+    # Age bucket index
+    var bucket := _get_age_bucket(age)
+    if not _players_by_age_bucket.has(bucket):
+        _players_by_age_bucket[bucket] = []
+    _players_by_age_bucket[bucket].append(player)
+
+func _get_age_bucket(age: int) -> String:
+    if age <= 24:
+        return "young"
+    elif age <= 30:
+        return "prime"
+    else:
+        return "veteran"
+
+## O(1) lookup by ID
+func by_id(player_id: String) -> Variant:
+    return _player_by_id.get(player_id, null)
+
+## O(1) lookup by position
+func by_position(pos: String) -> Array:
+    return _players_by_position.get(pos, [])
+
+## O(1) lookup by team
+func by_team(team_id: String) -> Array:
+    return _players_by_team.get(team_id, [])
+
+## O(1) lookup by stage
+func by_stage(stage: int) -> Array:
+    return _players_by_stage.get(stage, [])
+
+## Get all free agents
+func get_free_agents() -> Array:
+    return _free_agents
+
+## Get players by age category
+func by_age_bucket(bucket: String) -> Array:
+    return _players_by_age_bucket.get(bucket, [])
+
+## Get all indexed players (for iteration)
+func all_players() -> Array:
+    return _player_by_id.values()
+
+## Get total indexed count
+func count() -> int:
+    return _player_by_id.size()
+```
+
+#### 0.2: Create AITeamNeedsCache (Runtime Mode)
+
+**File**: New - `scripts/queries/AITeamNeedsCache.gd`
+
+```gdscript
+class_name AITeamNeedsCache
+extends RefCounted
+
+## Caches AI team roster needs queries
+##
+## AI teams maintain pre-built queries for their roster needs.
+## Cache is invalidated when roster changes (via RosterEvent).
+## This prevents 32 teams from re-evaluating 10,000+ players every tick.
+
+var _team_needs: Dictionary = {}  # team_id -> { "positions": [...], "criteria": {...} }
+var _cached_results: Dictionary = {} # team_id -> Array[Player]
+var _dirty_teams: Dictionary = {}  # team_id -> bool (needs rebuild)
+
+signal cache_invalidated(team_id: String)
+
+## Register a team's roster needs
+func set_team_needs(team_id: String, positions: Array, criteria: Dictionary) -> void:
+    _team_needs[team_id] = {
+        "positions": positions,
+        "criteria": criteria
+    }
+    _mark_dirty(team_id)
+
+## Mark a team's cache as needing rebuild
+func _mark_dirty(team_id: String) -> void:
+    _dirty_teams[team_id] = true
+    cache_invalidated.emit(team_id)
+
+## Handle roster event - invalidate affected team caches
+func on_roster_event(event: Dictionary) -> void:
+    var team_id: String = event.get("team_id", "")
+    if not team_id.is_empty():
+        _mark_dirty(team_id)
+
+    # Also invalidate teams that might be interested in the player
+    var player_position: String = event.get("player_position", "")
+    if not player_position.is_empty():
+        for tid in _team_needs.keys():
+            var needs: Dictionary = _team_needs[tid]
+            if player_position in needs.get("positions", []):
+                _mark_dirty(tid)
+
+## Get cached results for team, rebuilding if dirty
+func get_candidates(team_id: String, queries: OptimizedPlayerQueries) -> Array:
+    if _dirty_teams.get(team_id, true):
+        _rebuild_cache(team_id, queries)
+    return _cached_results.get(team_id, [])
+
+func _rebuild_cache(team_id: String, queries: OptimizedPlayerQueries) -> void:
+    var needs: Dictionary = _team_needs.get(team_id, {})
+    var positions: Array = needs.get("positions", [])
+    var criteria: Dictionary = needs.get("criteria", {})
+
+    var candidates: Array = []
+    for pos in positions:
+        var players := queries.by_position(pos)
+        for player in players:
+            if _meets_criteria(player, criteria):
+                candidates.append(player)
+
+    _cached_results[team_id] = candidates
+    _dirty_teams[team_id] = false
+
+func _meets_criteria(player: Variant, criteria: Dictionary) -> bool:
+    # Check minimum stats
+    var min_stats: Dictionary = criteria.get("min_stats", {})
+    for stat_name in min_stats.keys():
+        var player_stat := _get_player_stat(player, stat_name)
+        if player_stat < min_stats[stat_name]:
+            return false
+
+    # Check age range
+    var max_age: int = criteria.get("max_age", 99)
+    var player_age: int = player.age if player is Player else player.get("age", 0)
+    if player_age > max_age:
+        return false
+
+    # Check trade availability (loyalty-based)
+    var require_available: bool = criteria.get("require_available", true)
+    if require_available:
+        var loyalty := _get_player_stat(player, "loyalty")
+        if loyalty > 80:  # High loyalty = unlikely to be available
+            return false
+
+    return true
+
+func _get_player_stat(player: Variant, stat_name: String) -> float:
+    if player is Player:
+        return player.stats_profile.current.get(stat_name, 0.0) if player.stats_profile else 0.0
+    elif player is Dictionary:
+        var stats: Dictionary = player.get("stats", {})
+        return float(stats.get(stat_name, 0.0))
+    return 0.0
+```
+
+#### 0.3: Add Queryable Stats Table (Inspection Mode)
 
 **File**: Modify - `scripts/persistence/schema.sql`
 
+> **Note**: This table is used for **Inspection Mode only** (World Explorer querying saved games). Runtime queries use `OptimizedPlayerQueries` on in-memory data.
+
 ```sql
--- Queryable subset of player stats for efficient filtering
--- JSON blob still stores all 49 stats for flexibility
+-- Queryable subset of player stats for inspection mode (World Explorer)
+-- Used for complex SQL queries on saved games
+-- Runtime gameplay uses in-memory OptimizedPlayerQueries instead
 CREATE TABLE IF NOT EXISTS player_stat_queryable (
     player_id TEXT PRIMARY KEY,
 
@@ -203,9 +476,11 @@ CREATE INDEX IF NOT EXISTS idx_cb_search ON player_stat_queryable(coverage, spee
 CREATE INDEX IF NOT EXISTS idx_wr_search ON player_stat_queryable(catching, speed, route_running);
 ```
 
-#### 0.2: Create PlayerQueryBuilder
+#### 0.4: Create PlayerQueryBuilder (Inspection Mode)
 
 **File**: New - `scripts/persistence/PlayerQueryBuilder.gd`
+
+> **Note**: Used for **Inspection Mode only** (World Explorer). Runtime queries use `OptimizedPlayerQueries`.
 
 ```gdscript
 class_name PlayerQueryBuilder
@@ -355,7 +630,7 @@ func _is_valid_stat(stat_name: String) -> bool:
     return stat_name in VALID_STATS
 ```
 
-#### 0.3: Create SafeQueryExecutor for Raw SQL
+#### 0.5: Create SafeQueryExecutor for Raw SQL (Inspection Mode)
 
 **File**: New - `scripts/persistence/SafeQueryExecutor.gd`
 
@@ -546,7 +821,7 @@ func _extract_limit(upper_sql: String) -> int:
     return int(limit_str) if not limit_str.is_empty() else 0
 ```
 
-#### 0.4: Update PlayerDAO to Persist Queryable Stats
+#### 0.6: Update PlayerDAO to Persist Queryable Stats (Inspection Mode)
 
 **File**: Modify - `scripts/persistence/PlayerDAO.gd`
 
@@ -596,12 +871,23 @@ func _save_queryable_stats(player: Player) -> bool:
 ```
 
 **Acceptance Criteria**:
+
+*Runtime Mode (Primary)*:
+- [ ] `OptimizedPlayerQueries` provides O(1) indexed lookups by id, position, team, stage
+- [ ] `AITeamNeedsCache` caches team roster needs with event-driven invalidation
+- [ ] Indexes rebuild correctly from world state after simulation tick
+
+*Inspection Mode (World Explorer)*:
 - [ ] `player_stat_queryable` table created with indexes
-- [ ] `PlayerQueryBuilder` provides fluent query API
+- [ ] `PlayerQueryBuilder` provides fluent query API for database
 - [ ] `SafeQueryExecutor` validates and executes raw SQL safely
 - [ ] PlayerDAO persists queryable stats on save
 - [ ] Query templates provided for user learning
-- [ ] Unit tests for query builder and safe executor
+
+*Testing*:
+- [ ] Unit tests for runtime queries (OptimizedPlayerQueries)
+- [ ] Unit tests for inspection queries (PlayerQueryBuilder, SafeQueryExecutor)
+- [ ] Performance test: 10,000 players indexed in < 100ms
 
 ---
 
@@ -1428,7 +1714,9 @@ func _load_save_for_inspection(save_name: String) -> void:
 #### 5.3: Testing
 
 **Unit Tests**:
-- [ ] PlayerQueryBuilder constructs correct SQL
+- [ ] OptimizedPlayerQueries indexes players correctly by id, position, team, stage
+- [ ] AITeamNeedsCache invalidates on roster events
+- [ ] PlayerQueryBuilder constructs correct SQL (inspection mode)
 - [ ] SafeQueryExecutor blocks dangerous queries
 - [ ] ViewContext/PlayerDataProvider return correct values
 - [ ] ScoutingDAO saves/loads correctly
@@ -1436,9 +1724,15 @@ func _load_save_for_inspection(save_name: String) -> void:
 
 **Integration Tests**:
 - [ ] Full save/load cycle preserves all data
+- [ ] Runtime queries return same results as database queries
 - [ ] Scouting data persists across sessions
 - [ ] Query results filtered correctly in PLAYER_COACH mode
 - [ ] Same components work in both view modes
+
+**Performance Tests**:
+- [ ] OptimizedPlayerQueries rebuilds 10,000 players in < 100ms
+- [ ] AITeamNeedsCache serves cached results in < 1ms
+- [ ] Save/load cycle completes in < 5 seconds
 
 **Manual Testing**:
 - [ ] New Game → Generate → Save → Exit → Continue → Load
@@ -1475,13 +1769,18 @@ gridiron-dynasty/
 │           └── world_explorer.tscn (MODIFIED)
 │
 ├── scripts/
-│   ├── persistence/
+│   ├── queries/ (NEW - Runtime Mode)
+│   │   ├── OptimizedPlayerQueries.gd   # Primary runtime query system
+│   │   └── AITeamNeedsCache.gd         # Event-driven AI cache
+│   │
+│   ├── persistence/ (Inspection Mode)
 │   │   ├── schema.sql (MODIFIED)
 │   │   ├── PlayerDAO.gd (MODIFIED)
 │   │   ├── SaveMetadata.gd (NEW)
 │   │   ├── ScoutingDAO.gd (NEW)
-│   │   ├── PlayerQueryBuilder.gd (NEW)
-│   │   └── SafeQueryExecutor.gd (NEW)
+│   │   ├── PlayerQueryBuilder.gd (NEW) # World Explorer queries
+│   │   └── SafeQueryExecutor.gd (NEW)  # Raw SQL validation
+│   │
 │   └── ui/
 │       ├── main_menu/ (NEW)
 │       │   ├── MainMenu.gd
@@ -1506,16 +1805,31 @@ gridiron-dynasty/
 
 This plan implements:
 
-1. **Hybrid Stats Storage** - Queryable columns + JSON blobs for flexibility
-2. **Information Asymmetry** - Player-coach sees revealed stats; AI uses true stats
+1. **Dual-Mode Query Architecture**
+   - **Runtime Mode**: In-memory `OptimizedPlayerQueries` with O(1) indexed lookups (no I/O during gameplay)
+   - **Inspection Mode**: Database SQL queries for World Explorer (examining saved games)
+
+2. **Information Asymmetry** - Player-coach sees revealed stats; AI uses true stats directly
+
 3. **Unified UI Architecture** - Shared components, two viewing modes (ViewContext)
-4. **Powerful Query System** - Visual builder + raw SQL for advanced users
+   - OMNISCIENT: World Explorer - sees all data, loads any save
+   - PLAYER_COACH: Game UI - filtered by scouting knowledge
+
+4. **Powerful Query System**
+   - Runtime: Dictionary-based indexes rebuilt after simulation ticks
+   - Inspection: Visual builder + raw SQL for advanced users
+   - Event-driven cache invalidation for AI team needs
+
 5. **Complete Save System** - Metadata, scouting data, and world state persistence
 
 The architecture ensures:
-- **Code reuse** between World Explorer and Game UI
-- **Clean separation** between data and presentation
-- **Security** through SQL validation and whitelisting
-- **Extensibility** for future features
+- **Performance**: No database I/O during gameplay loop
+- **Code reuse**: Shared components between World Explorer and Game UI
+- **Clean separation**: Data layer (queries) vs presentation layer (ViewContext)
+- **Security**: SQL validation and whitelisting for inspection mode
+- **Scalability**: O(1) lookups for 10,000+ players
 
-**Estimated Total Effort**: 38-50 hours
+**Estimated Total Effort**: 42-54 hours
+
+**Related Documents**:
+- `SIMULATION_LOOP_DESIGN.md` - Tick-based simulation architecture (separate document)
