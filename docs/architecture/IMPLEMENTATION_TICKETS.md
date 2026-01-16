@@ -2071,6 +2071,667 @@ ARCH-025 (Persistence) <── Phase 3
 
 ---
 
+## Phase 5: Draft System Realism
+
+### DRAFT-001: Draft Day Trading System
+
+**Priority:** CRITICAL
+**Estimated Effort:** 12-16 hours
+**Risk:** MEDIUM
+**Dependencies:** None
+
+#### Description
+
+Implement draft-day trading, allowing both AI teams and users to propose/execute trades during the live draft. NFL drafts average 20-30 trades per year - without this, draft behavior is unrealistic (no trading up for QBs, no trading back for value).
+
+#### Current State
+- Pick ownership infrastructure exists (`draft_pick_ownership`)
+- `value_draft_pick()` function exists but is unused
+- No execution layer for trades during draft
+
+#### Target State
+```gdscript
+# scripts/world/DraftTradeEngine.gd (NEW FILE)
+extends RefCounted
+class_name DraftTradeEngine
+
+signal trade_proposed(proposing_team_id: String, receiving_team_id: String, offer: Dictionary)
+signal trade_executed(trade: Dictionary)
+signal trade_rejected(proposing_team_id: String, reason: String)
+
+func propose_trade(from_team: String, to_team: String, offer: Dictionary) -> bool:
+    # Validate trade legality
+    # Calculate value differential
+    # Return acceptance likelihood
+
+func evaluate_trade_value(offer: Dictionary) -> float:
+    # Use pick value chart
+    # Consider team needs
+    # Factor in draft position desperation
+
+func execute_trade(trade: Dictionary) -> void:
+    # Update draft_pick_ownership
+    # Log trade to history
+    # Emit signal for UI update
+
+func get_ai_trade_interest(team_id: String, current_pick: int) -> Array[Dictionary]:
+    # AI teams wanting to trade up/down
+    # Based on player availability and needs
+```
+
+#### Components Needed
+- **DraftTradeEngine** - Core trade logic and validation
+- **TradeProposalDialog.gd** - UI for user trade proposals
+- **AI Trade Logic** - Team willingness to trade up/down based on needs
+- **Pick Value Chart Integration** - Use existing `value_draft_pick()`
+- **Trade History Tracking** - `draft_trades[year]` in world_state
+
+#### Acceptance Criteria
+- [ ] Create `scripts/world/DraftTradeEngine.gd` with trade validation
+- [ ] Add `TradeProposalDialog` UI component to DraftDayUI
+- [ ] AI teams propose trades when they want to move up for specific players
+- [ ] AI teams accept/reject user trade proposals based on value
+- [ ] Pick ownership updates correctly after trades
+- [ ] Trade history persisted in world_state
+- [ ] InteractiveDraft has injection points for trade opportunities
+- [ ] User can initiate trades during draft (not just when it's their pick)
+
+#### Files to Create
+- `scripts/world/DraftTradeEngine.gd`
+- `scenes/ui/draft_day/TradeProposalDialog.gd`
+- `scenes/ui/draft_day/TradeProposalDialog.tscn`
+
+#### Files to Modify
+- `scripts/world/InteractiveDraft.gd` - Add trade injection points
+- `scenes/ui/draft_day/DraftDayUI.gd` - Add trade UI trigger
+- World state schema - Add `draft_trades` history
+
+---
+
+### DRAFT-002: Underclassman Draft Entry System
+
+**Priority:** HIGH
+**Estimated Effort:** 8-10 hours
+**Risk:** MEDIUM
+**Dependencies:** None
+
+#### Description
+
+Implement player decision to declare early for the draft vs return to school. Currently all eligible players automatically enter. Real NFL draft pools vary dramatically (200-300 players vs current fixed ~500). Elite players declaring early is a major storyline.
+
+#### Current State
+- All draft-eligible players automatically enter draft pool
+- No declaration process or deadline
+- No withdrawal mechanism
+
+#### Target State
+```gdscript
+# scripts/world/DraftDecisionEngine.gd (NEW FILE)
+extends RefCounted
+class_name DraftDecisionEngine
+
+enum DeclarationStatus { UNDECLARED, DECLARED, WITHDRAWN, RETURNING }
+
+func evaluate_declaration(player: Dictionary, rng: RandomNumberGenerator) -> DeclarationStatus:
+    # Factors:
+    # - Projected draft position (1st round = likely declare)
+    # - Years remaining eligibility
+    # - Player development trajectory
+    # - Risk tolerance (injury concerns)
+    # - Family financial situation (hidden trait)
+
+func get_declaration_probability(player: Dictionary) -> float:
+    # Higher projected pick = higher declare chance
+    # Senior = 100% declare
+    # Redshirt junior with 1st round grade = 85%+
+    # True junior with day 3 grade = 30%
+
+func process_declaration_window(world_state: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+    # Run between bowl games and combine
+    # Returns: declared_players, returning_players, withdrawal_list
+```
+
+#### New World Calendar Phase
+```gdscript
+# Add to WorldCalendar phases (between bowl_games and combine)
+"draft_declaration": {
+    "name": "Draft Declaration Window",
+    "start_week": 18,  # Mid-January
+    "end_week": 19,
+    "handler": "_process_draft_declarations"
+}
+```
+
+#### Acceptance Criteria
+- [ ] Create `scripts/world/DraftDecisionEngine.gd`
+- [ ] Add `draft_declaration` phase to WorldCalendar
+- [ ] Players have `draft_eligible` flag and `years_remaining` counter
+- [ ] Junior/Sophomore players make declaration decisions
+- [ ] Declaration probability based on projected draft position
+- [ ] Players can withdraw before draft (medical, returning to school)
+- [ ] Draft pool size varies realistically year-to-year (200-350 players)
+- [ ] Integration with PreDraftProcess (runs after declarations)
+
+#### Files to Create
+- `scripts/world/DraftDecisionEngine.gd`
+
+#### Files to Modify
+- `scripts/core/models/Player.gd` - Add `draft_eligible`, `years_remaining`
+- `scripts/world/WorldCalendar.gd` - Add declaration phase
+- `scripts/pipelines/Advance.gd` - Wire up declaration phase handler
+- `scripts/world/PreDraftProcess.gd` - Use declared pool only
+
+---
+
+### DRAFT-003: Medical/Character Red Flag Integration
+
+**Priority:** HIGH
+**Estimated Effort:** 6-8 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Amplify the impact of medical and character concerns on draft stock. Currently this data exists but has minimal draft impact. Failed physicals, interview bombs, and character concerns cause 1-3 round drops in real drafts (Laremy Tunsil, Randy Gregory).
+
+#### Current State
+- Medical evaluation data exists (`injury_eval`, `drug_screen`)
+- Character interview scores exist
+- Minimal impact on draft board positioning
+
+#### Target State
+```gdscript
+# Enhancement to PreDraftProcess.gd
+
+func _apply_red_flag_adjustments(player: Dictionary, team: Dictionary) -> float:
+    var penalty := 0.0
+
+    # Medical red flags
+    if player.get("injury_eval") == "concern":
+        penalty += _get_team_medical_risk_penalty(team)  # 0.5-2.0 rounds
+    if player.get("injury_eval") == "failed":
+        penalty += 3.0  # Some teams remove from board entirely
+
+    # Character red flags
+    var interview_score = player.get("interview_score", 50)
+    if interview_score < 30:
+        penalty += _get_team_character_risk_penalty(team)  # 0.5-1.5 rounds
+
+    # Drug screen
+    if player.get("drug_screen") == "positive":
+        penalty += 1.0 + _get_team_character_risk_penalty(team)
+
+    return penalty
+
+func _get_team_medical_risk_penalty(team: Dictionary) -> float:
+    # Some teams are risk-tolerant (Patriots historically)
+    # Some teams are risk-averse
+    var risk_tolerance = team.get("risk_tolerance", 0.5)
+    return remap(risk_tolerance, 0.0, 1.0, 2.0, 0.5)
+```
+
+#### Post-Combine Medical Re-evaluation
+```gdscript
+func _run_medical_rechecks(draft_pool: Array, rng: RandomNumberGenerator) -> void:
+    for player in draft_pool:
+        # 5% chance of medical concern surfacing post-combine
+        if rng.randf() < 0.05:
+            player["medical_grade_updated"] = true
+            player["injury_eval"] = "concern"
+            # Creates storyline: "Player X fails physical with Team Y"
+```
+
+#### Acceptance Criteria
+- [ ] Medical concerns cause 0.5-3 round drops depending on severity
+- [ ] Character/interview bombs cause 0.5-1.5 round drops
+- [ ] Teams have `risk_tolerance` attribute affecting penalties
+- [ ] Post-combine medical re-evaluation phase (5% chance of new concerns)
+- [ ] Failed physicals can remove players from team boards entirely
+- [ ] Drug screen positives have compounding penalty
+- [ ] Add `medical_grade_updated` field to track post-combine changes
+
+#### Files to Modify
+- `scripts/world/PreDraftProcess.gd` - Add red flag adjustments
+- `scripts/core/models/Team.gd` - Add `risk_tolerance` attribute
+- Draft scoring functions - Amplify medical/character penalties
+
+---
+
+### DRAFT-004: Positional Runs and Draft Psychology
+
+**Priority:** MEDIUM
+**Estimated Effort:** 6-8 hours
+**Risk:** LOW
+**Dependencies:** DRAFT-001 (for panic trade-ups)
+
+#### Description
+
+Implement awareness of positional runs during the draft. When 3+ teams draft the same position in a short span, remaining teams with that need should feel urgency and potentially panic-draft or trade up. Creates realistic draft dynamics (2018 QB run, 2021 CB run).
+
+#### Current State
+- AI picks independently based on static pre-computed boards
+- No awareness of draft trends
+- Boards don't adjust to run dynamics
+
+#### Target State
+```gdscript
+# scripts/world/DraftTrendAnalyzer.gd (NEW FILE)
+extends RefCounted
+class_name DraftTrendAnalyzer
+
+var _position_picks: Dictionary = {}  # position -> [pick_numbers]
+var _run_threshold: int = 3  # Picks at same position to trigger "run"
+
+func record_pick(position: String, pick_number: int) -> void:
+    if not _position_picks.has(position):
+        _position_picks[position] = []
+    _position_picks[position].append(pick_number)
+
+func is_position_run_active(position: String, current_pick: int, window: int = 10) -> bool:
+    var recent_picks = _position_picks.get(position, [])
+    var in_window = recent_picks.filter(func(p): return current_pick - p <= window)
+    return in_window.size() >= _run_threshold
+
+func get_urgency_multiplier(team_id: String, position: String, current_pick: int) -> float:
+    if not is_position_run_active(position, current_pick):
+        return 1.0
+
+    # Count remaining quality players at position
+    var remaining = _count_remaining_at_position(position)
+    if remaining <= 2:
+        return 2.0  # Panic mode
+    elif remaining <= 5:
+        return 1.5  # Elevated urgency
+    return 1.2  # Mild concern
+
+func should_team_panic_trade(team_id: String, position: String) -> bool:
+    # Returns true if team should consider trading up
+    # Based on: position need, run active, remaining players, draft capital
+```
+
+#### Integration with InteractiveDraft
+```gdscript
+# In InteractiveDraft._make_ai_pick()
+func _make_ai_pick(pick_assignment: Dictionary) -> void:
+    var team_id = pick_assignment["team_id"]
+
+    # Check for panic trade opportunity first
+    if _trade_engine and _trend_analyzer:
+        var panic_position = _get_team_panic_need(team_id)
+        if panic_position and _trend_analyzer.should_team_panic_trade(team_id, panic_position):
+            var trade_result = _attempt_panic_trade_up(team_id, panic_position)
+            if trade_result:
+                return  # Trade executed, pick handled
+
+    # Normal pick with urgency adjustments
+    var board = _team_boards.get(team_id, [])
+    for entry in board:
+        var urgency = _trend_analyzer.get_urgency_multiplier(team_id, entry["position"], _current_pick)
+        entry["adjusted_score"] = entry["score"] * urgency
+
+    board.sort_custom(func(a, b): return a["adjusted_score"] > b["adjusted_score"])
+    # ... continue with pick
+```
+
+#### Acceptance Criteria
+- [ ] Create `scripts/world/DraftTrendAnalyzer.gd`
+- [ ] Detect positional runs (3+ picks at same position in 10-pick window)
+- [ ] Apply urgency multiplier to team boards when run active
+- [ ] Teams consider panic trades when position depleted (requires DRAFT-001)
+- [ ] Dynamic board re-scoring mid-draft based on trends
+- [ ] Makes draft less predictable and more realistic
+
+#### Files to Create
+- `scripts/world/DraftTrendAnalyzer.gd`
+
+#### Files to Modify
+- `scripts/world/InteractiveDraft.gd` - Integrate trend analyzer
+
+---
+
+### DRAFT-005: Mock Drafts and Scouting Reports
+
+**Priority:** MEDIUM
+**Estimated Effort:** 10-12 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Add pre-draft intelligence including mock drafts, detailed scouting reports, and a user-customizable big board. Enhances user immersion and strategic planning without affecting core draft mechanics.
+
+#### Target State
+```gdscript
+# scripts/world/MockDraftSimulator.gd (NEW FILE)
+extends RefCounted
+class_name MockDraftSimulator
+
+func generate_mock_draft(world_state: Dictionary, seed: int) -> Array[Dictionary]:
+    # Run AI-only draft simulation
+    # Returns projected picks with explanations
+    # [{"pick": 1, "team": "JAX", "player_id": "...", "position": "QB", "reasoning": "..."}]
+
+func generate_consensus_board(world_state: Dictionary, num_mocks: int = 10) -> Array[Dictionary]:
+    # Run multiple mocks with different seeds
+    # Return average draft position for each player
+    # [{"player_id": "...", "avg_pick": 4.2, "range": [1, 8], "variance": 2.1}]
+```
+
+```gdscript
+# scripts/world/ScoutingReportGenerator.gd (NEW FILE)
+extends RefCounted
+class_name ScoutingReportGenerator
+
+func generate_report(player: Dictionary, team_scouts: Array) -> Dictionary:
+    return {
+        "player_id": player["id"],
+        "grade": _calculate_grade(player),
+        "strengths": _identify_strengths(player),
+        "weaknesses": _identify_weaknesses(player),
+        "comparison": _find_player_comparison(player),
+        "projection": _project_nfl_role(player),
+        "risk_factors": _assess_risks(player),
+        "scout_notes": _generate_scout_notes(player, team_scouts)
+    }
+
+func _identify_strengths(player: Dictionary) -> Array[String]:
+    # Return top 3 strengths based on above-average stats
+
+func _identify_weaknesses(player: Dictionary) -> Array[String]:
+    # Return areas of concern based on below-average stats
+
+func _find_player_comparison(player: Dictionary) -> String:
+    # "Plays like a young Patrick Mahomes" style comparison
+```
+
+#### Draft War Room UI
+```gdscript
+# scenes/ui/draft_day/DraftWarRoomUI.gd (NEW FILE)
+extends Control
+
+# Tabs:
+# - Big Board (user-customizable rankings)
+# - Mock Drafts (consensus projections)
+# - Scouting Reports (detailed player analysis)
+# - Team Needs (depth chart gaps by position)
+# - Player Comparison (side-by-side compare 3-4 players)
+```
+
+#### Player Comparison Tool
+```
+╔════════════════════════════════════════════════════════════════════════╗
+║                    PLAYER COMPARISON (3-4 Players)                     ║
+╠════════════════════════════════════════════════════════════════════════╣
+║  ATTRIBUTE        │ J. Williams │ M. Harrison │ D. Carter │ T. Young  ║
+║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
+║  Position         │     QB      │     QB      │    QB     │    QB     ║
+║  School           │   Alabama   │   Ohio St   │  Georgia  │   USC     ║
+║  Height           │   6'4"      │   6'2"      │   6'3"    │   6'5"    ║
+║  Weight           │   228 lb    │   215 lb    │   221 lb  │   235 lb  ║
+║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
+║  Arm Strength     │     92      │     85      │    88     │    94     ║
+║  Accuracy         │     88      │     91      │    86     │    82     ║
+║  Pocket Presence  │     85      │     78      │    90     │    75     ║
+║  Mobility         │     72      │     88      │    80     │    68     ║
+║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
+║  40-Yard Dash     │   4.68s     │   4.52s     │   4.61s   │   4.75s   ║
+║  Wonderlic        │     32      │     28      │    35     │    24     ║
+║  ─────────────────┼─────────────┼─────────────┼───────────┼───────────║
+║  Projected Pick   │    #1-3     │    #5-10    │   #8-15   │  #12-20   ║
+║  Scout Grade      │     A       │     B+      │    B+     │    B      ║
+║  Risk Level       │    LOW      │   MEDIUM    │    LOW    │   HIGH    ║
+╚════════════════════════════════════════════════════════════════════════╝
+   [Add Player]  [Remove]  [Export]  [Clear All]
+```
+
+Features:
+- Compare 3-4 players simultaneously (same position recommended)
+- Color-coded cells (green = best, red = worst in category)
+- Stat bars for visual comparison
+- Add/remove players dynamically
+- Filter by position for relevant comparisons
+- Export comparison to clipboard
+
+#### Acceptance Criteria
+- [ ] Create `MockDraftSimulator.gd` to generate projections
+- [ ] Create `ScoutingReportGenerator.gd` for detailed reports
+- [ ] Create `DraftWarRoomUI` with multiple tabs
+- [ ] User can create/edit custom big board rankings
+- [ ] Mock drafts show projected picks with variance
+- [ ] Scouting reports include strengths, weaknesses, comparisons
+- [ ] **Player comparison supports 3-4 players simultaneously**
+- [ ] **Color-coded cells highlight best/worst in each category**
+- [ ] **Dynamic add/remove players from comparison**
+- [ ] Team needs analysis based on depth chart
+
+#### Files to Create
+- `scripts/world/MockDraftSimulator.gd`
+- `scripts/world/ScoutingReportGenerator.gd`
+- `scenes/ui/draft_day/DraftWarRoomUI.gd`
+- `scenes/ui/draft_day/DraftWarRoomUI.tscn`
+
+---
+
+### DRAFT-006: Undrafted Free Agent Bidding War
+
+**Priority:** LOW
+**Estimated Effort:** 4-6 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Implement the post-draft UDFA signing frenzy. Top undrafted players sign within minutes of Mr. Irrelevant being selected. Creates post-draft excitement and allows discovery of UDFA gems (Tony Romo, Wes Welker, etc.).
+
+#### Target State
+```gdscript
+# Enhancement to post-draft flow
+
+func _run_udfa_signing_rush(world_state: Dictionary, user_team_id: String) -> Dictionary:
+    var undrafted = _get_undrafted_players(world_state)
+    var top_udfas = _rank_udfas(undrafted)[:50]  # Top 50 UDFAs
+
+    var signing_results = {
+        "user_signings": [],
+        "ai_signings": [],
+        "available": []
+    }
+
+    # User gets first crack at their priority targets
+    # Then AI teams bid based on need and interest
+    # UDFA contracts: 3 years, minimum salary, no guaranteed money
+
+    return signing_results
+```
+
+#### UDFA Signing UI
+```gdscript
+# Post-draft popup showing:
+# - Top available UDFAs ranked by talent
+# - "Priority UDFA" selection (user picks 3-5 targets)
+# - Results showing who signed where
+# - Option to add UDFAs to practice squad
+```
+
+#### Acceptance Criteria
+- [ ] Post-draft UDFA signing phase runs immediately after draft ends
+- [ ] Top 50 UDFAs ranked and available for signing
+- [ ] User can select priority targets before AI bidding
+- [ ] AI teams sign UDFAs based on roster needs
+- [ ] UDFA contracts differ from drafted rookies (no guaranteed money)
+- [ ] UI shows signing results with team destinations
+
+#### Files to Modify
+- `scripts/world/InteractiveDraft.gd` - Add post-draft UDFA phase
+- `scenes/ui/draft_day/DraftDayUI.gd` - Add UDFA signing UI
+
+---
+
+### DRAFT-007: Draft Grades and Analysis
+
+**Priority:** LOW
+**Estimated Effort:** 3-4 hours
+**Risk:** LOW
+**Dependencies:** None
+
+#### Description
+
+Generate post-draft analysis including team grades, best picks ("steals"), and reaches. Provides flavor and immersion without affecting simulation mechanics.
+
+#### Target State
+```gdscript
+# scripts/world/DraftGradeCalculator.gd (NEW FILE)
+extends RefCounted
+class_name DraftGradeCalculator
+
+func calculate_team_grade(team_id: String, draft_results: Array) -> Dictionary:
+    return {
+        "team_id": team_id,
+        "overall_grade": "B+",  # A+ to F scale
+        "value_score": 85.5,    # 0-100 based on pick value vs player value
+        "need_score": 78.0,     # How well they addressed needs
+        "picks": _grade_individual_picks(team_id, draft_results),
+        "analysis": _generate_analysis_text(team_id, draft_results)
+    }
+
+func identify_steals(draft_results: Array) -> Array[Dictionary]:
+    # Players drafted significantly later than projected value
+    # [{"player_id": "...", "pick": 45, "projected": 15, "value_diff": 30}]
+
+func identify_reaches(draft_results: Array) -> Array[Dictionary]:
+    # Players drafted significantly earlier than projected value
+```
+
+#### Post-Draft Analysis Screen
+```
+╔══════════════════════════════════════════════════════╗
+║                  2035 NFL DRAFT GRADES               ║
+╠══════════════════════════════════════════════════════╣
+║  TEAM          GRADE   VALUE   NEED   BEST PICK     ║
+║  ────────────  ─────   ─────   ────   ────────────  ║
+║  Jacksonville    A-     92.3   88.5   T. Williams   ║
+║  Houston         B+     85.1   91.2   M. Johnson    ║
+║  ...                                                 ║
+╠══════════════════════════════════════════════════════╣
+║  STEAL OF THE DRAFT: RB Marcus Cole (Pick 87)       ║
+║  BIGGEST REACH: CB Devon Smith (Pick 22)            ║
+╚══════════════════════════════════════════════════════╝
+```
+
+#### Acceptance Criteria
+- [ ] Create `DraftGradeCalculator.gd`
+- [ ] Generate A+ to F grades for each team
+- [ ] Calculate value score (pick value vs player value)
+- [ ] Calculate need score (how well team addressed needs)
+- [ ] Identify steals (drafted 15+ picks later than value)
+- [ ] Identify reaches (drafted 15+ picks earlier than value)
+- [ ] Post-draft analysis screen displays grades
+
+#### Files to Create
+- `scripts/world/DraftGradeCalculator.gd`
+- `scenes/ui/draft_day/DraftAnalysisScreen.gd`
+- `scenes/ui/draft_day/DraftAnalysisScreen.tscn`
+
+---
+
+### DRAFT-008: Conditional Draft Picks (Post-1.0)
+
+**Priority:** VERY LOW
+**Estimated Effort:** 8-10 hours
+**Risk:** MEDIUM
+**Dependencies:** DRAFT-001
+
+#### Description
+
+Implement conditional draft picks that convert based on performance criteria. Rare in NFL (1-2 per year) so high complexity for low return. Consider for post-1.0 polish.
+
+#### Examples
+- "5th round pick becomes 4th if player makes Pro Bowl"
+- "7th round pick becomes 6th if player plays 50%+ snaps"
+- "2026 3rd becomes 2nd if team makes playoffs"
+
+#### Target State
+```gdscript
+# Data model for conditional picks
+var conditional_pick = {
+    "base_round": 5,
+    "upgrade_round": 4,
+    "condition_type": "pro_bowl",  # pro_bowl, snap_percentage, playoffs, games_started
+    "condition_target": "player_id_123",
+    "condition_threshold": 1,  # 1 Pro Bowl
+    "evaluation_year": 2026,
+    "status": "pending"  # pending, upgraded, base
+}
+
+# Service to evaluate conditions
+func evaluate_conditional_picks(world_state: Dictionary) -> Array[Dictionary]:
+    # Run at end of each season
+    # Check conditions for all pending conditional picks
+    # Update pick round if condition met
+```
+
+#### Acceptance Criteria
+- [ ] Data model for conditional picks with criteria
+- [ ] Conditions: Pro Bowl, snap percentage, playoffs, games started
+- [ ] Evaluation service runs at season end
+- [ ] Pick round updates when condition met
+- [ ] Trade UI supports conditional pick creation
+- [ ] History tracks condition resolution
+
+---
+
+## Draft System Dependency Graph
+
+```
+DRAFT-001 (Trading) ─────────────────────┐
+                                         │
+DRAFT-002 (Underclassmen) ───────────────┤
+                                         │
+DRAFT-003 (Red Flags) ───────────────────┤
+                                         │
+DRAFT-004 (Positional Runs) ←── DRAFT-001│
+                                         │
+DRAFT-005 (Mock Drafts) ─────────────────┤
+                                         │
+DRAFT-006 (UDFA) ────────────────────────┤
+                                         │
+DRAFT-007 (Grades) ──────────────────────┘
+
+DRAFT-008 (Conditional) ←── DRAFT-001 [Post-1.0]
+```
+
+## Draft System Summary
+
+| Ticket | Priority | Hours | Risk | Status |
+|--------|----------|-------|------|--------|
+| DRAFT-001: Draft Day Trading | CRITICAL | 12-16 | MEDIUM | PLANNED |
+| DRAFT-002: Underclassman Entry | HIGH | 8-10 | MEDIUM | PLANNED |
+| DRAFT-003: Medical/Character Red Flags | HIGH | 6-8 | LOW | PLANNED |
+| DRAFT-004: Positional Runs | MEDIUM | 6-8 | LOW | PLANNED |
+| DRAFT-005: Mock Drafts/Scouting | MEDIUM | 10-12 | LOW | PLANNED |
+| DRAFT-006: UDFA Bidding | LOW | 4-6 | LOW | PLANNED |
+| DRAFT-007: Draft Grades | LOW | 3-4 | LOW | PLANNED |
+| DRAFT-008: Conditional Picks | VERY LOW | 8-10 | MEDIUM | POST-1.0 |
+| **Total** | - | **57-74** | - | - |
+
+### Recommended Implementation Order
+
+**MVP Realism** (must-have for believable drafts):
+1. DRAFT-001: Draft Day Trading
+2. DRAFT-003: Medical/Character Red Flags
+3. DRAFT-002: Underclassman Entry System
+
+**Complete Realism** (polished draft experience):
+4. DRAFT-004: Positional Runs
+5. DRAFT-005: Mock Drafts/Scouting Reports
+6. DRAFT-006: UDFA Bidding
+
+**Maximum Polish** (nice-to-have):
+7. DRAFT-007: Draft Grades
+8. DRAFT-008: Conditional Picks (post-1.0)
+
+---
+
 ## Summary
 
 | Phase | Tickets | Estimated Hours | Risk |
@@ -2079,8 +2740,9 @@ ARCH-025 (Persistence) <── Phase 3
 | Phase 2: Decomposition | ARCH-008 to ARCH-016 | 24-32 hours | MEDIUM |
 | Phase 3: Persistence | ARCH-017 to ARCH-022 | 28-38 hours | MEDIUM |
 | Phase 4: Testing Infrastructure | ARCH-026 to ARCH-027 | 97-114 hours | MEDIUM |
+| Phase 5: Draft System Realism | DRAFT-001 to DRAFT-008 | 57-74 hours | LOW-MEDIUM |
 | Documentation | ARCH-023 to ARCH-025 | 6-9 hours | NONE |
-| **Total** | **27 tickets** | **173-218 hours** | - |
+| **Total** | **35 tickets** | **230-292 hours** | - |
 
 > **Note:** Phase 4 (Testing Infrastructure) can run **in parallel** with Phases 1-3 as it has no dependencies on model or persistence changes. However, bulk migration (Phase 4.2) should wait for Phase 1 model renames to stabilize to avoid merge conflicts.
 
