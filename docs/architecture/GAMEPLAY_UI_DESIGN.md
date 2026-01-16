@@ -157,14 +157,14 @@ var example_fa_message = {
 ```
 
 **Actionable Message Pattern**:
+
+Messages show inline action buttons so users can act immediately without navigating to a detail view:
+
 ```
 ┌─────────────────────────────────────────┐
-│ 📡 LEAGUE                    2 hours ago│
-│                                         │
-│ WR Marcus Johnson released by Cowboys   │
-│ 78 OVR • Cap casualty • High interest   │
-│                                         │
-│ [View Player]  [Make Offer]  [Dismiss]  │
+│ 📡 WR Marcus Johnson released by Cowboys│
+│    78 OVR • Cap casualty • High interest│
+│    [SIGN HIM $2.1M]  [View]  [Dismiss]  │
 └─────────────────────────────────────────┘
 ```
 
@@ -178,6 +178,233 @@ var league_message_filters = {
     "show_trade_rumors": true,     # Trade availability rumors
     "show_all_transactions": false, # Or just relevant ones
 }
+```
+
+---
+
+## Inline Actions Design
+
+**Core Principle**: Every actionable message has its primary action available directly in the inbox - no extra clicks to navigate, then find the action, then click again.
+
+### Message Inline Actions by Category
+
+```
+CRITICAL - Game day decision
+┌─────────────────────────────────────────┐
+│ ! Set starting lineup for Week 6       │
+│   vs Cowboys • Kickoff in 2 days        │
+│   [SET LINEUP]              [View Game] │
+└─────────────────────────────────────────┘
+
+INJURY - Player injured
+┌─────────────────────────────────────────┐
+│ + QB Smith out 4-6 weeks (ACL sprain)   │
+│   Backup: J. Wilson (72 OVR)            │
+│   [MOVE TO IR]  [View Depth]  [Dismiss] │
+└─────────────────────────────────────────┘
+
+CONTRACT - Offer received
+┌─────────────────────────────────────────┐
+│ $ Contract offer from Ravens for WR Lee │
+│   3yr/$24M • $12M guaranteed            │
+│   [ACCEPT]  [COUNTER]  [DECLINE]        │
+└─────────────────────────────────────────┘
+
+CONTRACT - Expiring soon
+┌─────────────────────────────────────────┐
+│ $ CB Davis contract expires in 3 days   │
+│   Current: 2yr/$8M • Asking: 3yr/$15M   │
+│   [EXTEND $15M]  [Let Walk]  [Negotiate]│
+└─────────────────────────────────────────┘
+
+SCOUT - Report ready
+┌─────────────────────────────────────────┐
+│ 🔍 Scout report: Marcus Hall, CB        │
+│   Alabama • Projected: Round 1          │
+│   [ADD TO BOARD]  [View Report]         │
+└─────────────────────────────────────────┘
+
+DRAFT - Your pick approaching
+┌─────────────────────────────────────────┐
+│ 📋 Pick #14 coming up (3 picks away)    │
+│   Best available: Hall CB, Porter OT    │
+│   [OPEN DRAFT ROOM]  [Ask Coach]        │
+└─────────────────────────────────────────┘
+
+LEAGUE - Free agent available
+┌─────────────────────────────────────────┐
+│ 📡 WR Marcus Johnson released by Cowboys│
+│   78 OVR • Cap casualty • High interest │
+│   [SIGN $2.1M]  [View Player]  [Dismiss]│
+└─────────────────────────────────────────┘
+
+LEAGUE - Trade rumor
+┌─────────────────────────────────────────┐
+│ 📡 Bears shopping DE Williams           │
+│   85 OVR • 2yr/$12M remaining           │
+│   [MAKE OFFER]  [View Player]  [Dismiss]│
+└─────────────────────────────────────────┘
+
+PERSONNEL - Waiver claim available
+┌─────────────────────────────────────────┐
+│ 👤 RB Thompson on waivers (Waiver #8)   │
+│   76 OVR • $1.2M salary                 │
+│   [CLAIM]  [Pass]  [View Player]        │
+└─────────────────────────────────────────┘
+```
+
+### MessageItem Component
+
+```gdscript
+class_name MessageItem extends Control
+
+signal action_executed(message: GameMessage, action_id: String)
+signal message_clicked(message: GameMessage)
+signal message_dismissed(message: GameMessage)
+
+var _message: GameMessage
+
+func populate(message: GameMessage) -> void:
+    _message = message
+    _update_display()
+    _create_action_buttons()
+
+func _create_action_buttons() -> void:
+    # Clear existing buttons
+    for child in _action_container.get_children():
+        child.queue_free()
+
+    # Add primary action (highlighted)
+    var primary = _message.get_primary_action()
+    if primary:
+        var btn = _create_action_button(primary, true)
+        _action_container.add_child(btn)
+
+    # Add secondary actions
+    for action in _message.get_secondary_actions():
+        var btn = _create_action_button(action, false)
+        _action_container.add_child(btn)
+
+func _create_action_button(action: MessageAction, is_primary: bool) -> Button:
+    var btn = Button.new()
+    btn.text = action.label
+    btn.pressed.connect(_on_action_pressed.bind(action))
+    if is_primary:
+        btn.add_theme_stylebox_override("normal", _primary_style)
+    return btn
+
+func _on_action_pressed(action: MessageAction) -> void:
+    if action.requires_confirmation:
+        _show_confirmation_dialog(action)
+    else:
+        action_executed.emit(_message, action.id)
+```
+
+### Action Definitions per Message Type
+
+```gdscript
+# MessageAction factory methods
+class_name MessageActionFactory
+
+static func create_injury_actions(player: Player, injury: Dictionary) -> Array[MessageAction]:
+    return [
+        MessageAction.new({
+            "id": "move_to_ir",
+            "label": "MOVE TO IR",
+            "is_primary": true,
+            "action_type": "roster_move",
+            "action_data": { "player_id": player.id, "destination": "IR" }
+        }),
+        MessageAction.new({
+            "id": "view_depth",
+            "label": "View Depth",
+            "action_type": "navigate",
+            "action_data": { "view": "depth_chart", "position": player.position }
+        }),
+        MessageAction.new({
+            "id": "dismiss",
+            "label": "Dismiss",
+            "action_type": "dismiss"
+        }),
+    ]
+
+static func create_contract_offer_actions(offer: Dictionary) -> Array[MessageAction]:
+    return [
+        MessageAction.new({
+            "id": "accept",
+            "label": "ACCEPT",
+            "is_primary": true,
+            "requires_confirmation": true,
+            "action_type": "contract_respond",
+            "action_data": { "response": "accept", "offer_id": offer.id }
+        }),
+        MessageAction.new({
+            "id": "counter",
+            "label": "COUNTER",
+            "action_type": "navigate",
+            "action_data": { "view": "contract_negotiation", "offer_id": offer.id }
+        }),
+        MessageAction.new({
+            "id": "decline",
+            "label": "DECLINE",
+            "requires_confirmation": true,
+            "action_type": "contract_respond",
+            "action_data": { "response": "decline", "offer_id": offer.id }
+        }),
+    ]
+
+static func create_free_agent_actions(player: Player, estimated_cost: int) -> Array[MessageAction]:
+    var cost_str = "$%.1fM" % (estimated_cost / 1000000.0)
+    return [
+        MessageAction.new({
+            "id": "sign",
+            "label": "SIGN %s" % cost_str,
+            "is_primary": true,
+            "action_type": "sign_player",
+            "action_data": { "player_id": player.id, "offer_amount": estimated_cost }
+        }),
+        MessageAction.new({
+            "id": "view",
+            "label": "View Player",
+            "action_type": "navigate",
+            "action_data": { "view": "player_detail", "player_id": player.id }
+        }),
+        MessageAction.new({
+            "id": "dismiss",
+            "label": "Dismiss",
+            "action_type": "dismiss"
+        }),
+    ]
+```
+
+### Confirmation for Destructive Actions
+
+Some actions show a quick inline confirmation rather than a modal dialog:
+
+```
+Before clicking DECLINE:
+┌─────────────────────────────────────────┐
+│ $ Contract offer from Ravens for WR Lee │
+│   3yr/$24M • $12M guaranteed            │
+│   [ACCEPT]  [COUNTER]  [DECLINE]        │
+└─────────────────────────────────────────┘
+
+After clicking DECLINE (inline confirmation):
+┌─────────────────────────────────────────┐
+│ $ Contract offer from Ravens for WR Lee │
+│   ⚠️ Decline this offer?                │
+│   [YES, DECLINE]  [Cancel]              │
+└─────────────────────────────────────────┘
+```
+
+```gdscript
+func _show_inline_confirmation(action: MessageAction) -> void:
+    _normal_content.visible = false
+    _confirmation_content.visible = true
+    _confirm_label.text = action.confirmation_text
+    _confirm_button.text = "YES, %s" % action.label
+    _confirm_button.pressed.connect(_on_confirm.bind(action), CONNECT_ONE_SHOT)
+    _cancel_button.pressed.connect(_cancel_confirmation, CONNECT_ONE_SHOT)
 ```
 
 **Message Model**:
@@ -1113,19 +1340,27 @@ When the draft begins, the UI transforms into a dedicated **Draft Day Experience
 │  │ 16. Seahawks (waiting)  │  │                                                 │
 │  └─────────────────────────┘  │  ─────────────────────────────────────────────  │
 │                               │                                                 │
-│  YOUR REMAINING PICKS         │  SELECTED: Marcus Hall, CB                      │
+│  YOUR PICKS                   │  SELECTED: Marcus Hall, CB                      │
 │  ┌─────────────────────────┐  │  ┌─────────────────────────────────────────────┐│
-│  │ Rd 1, #14 ◀ NOW         │  │  │                                             ││
-│  │ Rd 2, #46               │  │  │  Height: 6'1" | Weight: 195 lbs             ││
-│  │ Rd 3, #78               │  │  │  College: Alabama | Age: 22                 ││
-│  │ Rd 4, #110              │  │  │                                             ││
-│  └─────────────────────────┘  │  │  Strengths: Ball skills, Recovery speed     ││
-│                               │  │  Concerns: Run support, Physicality         ││
-│  ┌─────────────────────────┐  │  │                                             ││
-│  │  🧠 Ask Assistant Coach │  │  │  Scout Grade: 91 | Your Tier: 1 (Elite)     ││
+│  │ Rd 1, #14 ◀ NOW         │  │  │  Height: 6'1" | Weight: 195 lbs             ││
+│  │ Rd 2, #46               │  │  │  College: Alabama | Age: 22                 ││
+│  │ Rd 3, #78               │  │  │  Strengths: Ball skills, Recovery speed     ││
+│  │ Rd 4, #110              │  │  │  Scout Grade: 91 | Your Tier: 1 (Elite)     ││
 │  └─────────────────────────┘  │  │                                             ││
-│                               │  │  [DRAFT THIS PLAYER]    [Compare]  [Pass]   ││
-│                               │  └─────────────────────────────────────────────┘│
+│                               │  │  [DRAFT HIM]         [Compare]              ││
+│  ┌─────────────────────────┐  │  └─────────────────────────────────────────────┘│
+│  │ [TRADE UP] [TRADE DOWN] │  │                                                 │
+│  └─────────────────────────┘  │                                                 │
+│  ┌─────────────────────────┐  │                                                 │
+│  │  🧠 Ask Assistant Coach │  │                                                 │
+│  └─────────────────────────┘  │                                                 │
+│                               │                                                 │
+│  INCOMING OFFERS (1)          │                                                 │
+│  ┌─────────────────────────┐  │                                                 │
+│  │ 🔔 Broncos want #14     │  │                                                 │
+│  │    Offer: #18 + #50     │  │                                                 │
+│  │    [ACCEPT] [COUNTER]   │  │                                                 │
+│  └─────────────────────────┘  │                                                 │
 └───────────────────────────────┴─────────────────────────────────────────────────┘
 ```
 
@@ -1143,8 +1378,237 @@ scenes/ui/gameplay/
     ├── prospect_detail_card.tscn
     ├── ProspectDetailCard.gd
     ├── assistant_coach_panel.tscn
-    └── AssistantCoachPanel.gd
+    ├── AssistantCoachPanel.gd
+    ├── trade_panel.tscn
+    ├── TradePanel.gd
+    ├── trade_offer_item.tscn
+    └── TradeOfferItem.gd
 ```
+
+---
+
+## Draft Day Trading
+
+### Trade Up/Down Buttons
+
+The left panel includes trade buttons that open a trade panel:
+
+```
+┌─────────────────────────┐
+│ [TRADE UP] [TRADE DOWN] │
+└─────────────────────────┘
+```
+
+**TRADE UP**: Opens panel to offer a package for an earlier pick
+**TRADE DOWN**: Shows teams interested in your current/upcoming picks
+
+### Trade Up Panel
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  📞 TRADE UP - Acquire Earlier Pick                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  TARGET PICK                                                    │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Pick #10 (Broncos)  ◀ ▶  Pick #11 (Giants)               │  │
+│  │  2 picks until selection                                  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  YOUR OFFER                        TRADE VALUE                  │
+│  ┌─────────────────────────┐      ┌─────────────────────────┐  │
+│  │ ☑ Rd 1, #14 (1100 pts)  │      │  Your offer:  1400 pts  │  │
+│  │ ☑ Rd 3, #78 (200 pts)   │      │  Target pick: 1300 pts  │  │
+│  │ ☐ Rd 4, #110 (80 pts)   │      │  ─────────────────────  │  │
+│  │ ☐ WR T.Smith (150 pts)  │      │  ✓ Fair trade (+100)    │  │
+│  └─────────────────────────┘      └─────────────────────────┘  │
+│                                                                 │
+│  Broncos interest: HIGH (they want to trade back)               │
+│                                                                 │
+│  [SEND OFFER]                              [Cancel]             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Trade Down Panel
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  📞 TRADE DOWN - Move Back for Compensation                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  INTERESTED TEAMS                                               │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Broncos want #14 → Offering #18 + #82         [DETAILS]  │  │
+│  │  Jets want #14    → Offering #17 + 2025 3rd    [DETAILS]  │  │
+│  │  Raiders want #14 → Offering #20 + #52         [DETAILS]  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  Or propose your own trade:                                     │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Trade #14 to: [Select Team ▼]                            │  │
+│  │  Request:      [Build Package...]                         │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  [Close]                                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Incoming Trade Offers (Left Panel)
+
+Trade offers appear in the left panel with inline actions:
+
+```
+INCOMING OFFERS (2)
+┌─────────────────────────────────────┐
+│ 🔔 Broncos want #14                 │
+│    Offer: #18 + #82                 │
+│    Value: +150 pts                  │
+│    [ACCEPT]  [COUNTER]  [DECLINE]   │
+├─────────────────────────────────────┤
+│ 🔔 Jets want #46                    │
+│    Offer: #52 + 2025 4th            │
+│    Value: +80 pts                   │
+│    [ACCEPT]  [COUNTER]  [DECLINE]   │
+└─────────────────────────────────────┘
+```
+
+### TradeOffer Model
+
+```gdscript
+class_name DraftTradeOffer extends RefCounted
+
+var id: String
+var offering_team_id: String
+var created_at_pick: int      # When offer was generated
+var expires_at_pick: int      # Auto-expire if not responded
+
+# What they want
+var requested_picks: Array[DraftPick]
+var requested_players: Array[String]  # Player IDs
+
+# What they're offering
+var offered_picks: Array[DraftPick]
+var offered_players: Array[String]
+
+# Computed
+var value_delta: int          # Positive = good for user
+var is_fair: bool             # Within acceptable range
+
+func get_summary() -> String:
+    # "Broncos want #14 → Offering #18 + #82"
+    pass
+
+func is_still_valid(current_pick: int, ownership: Dictionary) -> bool:
+    if current_pick > expires_at_pick:
+        return false
+    # Validate picks haven't been traded/executed
+    for pick in requested_picks:
+        if pick.pick_number <= current_pick:
+            return false
+    return true
+
+func to_dict() -> Dictionary
+static func from_dict(data: Dictionary) -> DraftTradeOffer
+```
+
+### Trade Value Chart
+
+```gdscript
+class_name DraftPickValueChart extends RefCounted
+
+# Standard NFL draft value chart (simplified)
+const PICK_VALUES = {
+    1: 3000, 2: 2600, 3: 2200, 4: 1800, 5: 1700,
+    6: 1600, 7: 1500, 8: 1400, 9: 1350, 10: 1300,
+    11: 1250, 12: 1200, 13: 1150, 14: 1100, 15: 1050,
+    16: 1000, 17: 950, 18: 900, 19: 875, 20: 850,
+    # ... continues through pick 256
+    32: 590,   # End of round 1
+    64: 270,   # End of round 2
+    96: 116,   # End of round 3
+    128: 54,   # End of round 4
+    160: 29,   # End of round 5
+    192: 15,   # End of round 6
+    224: 5,    # End of round 7
+}
+
+static func get_value(pick_number: int) -> int:
+    if pick_number in PICK_VALUES:
+        return PICK_VALUES[pick_number]
+    # Interpolate for missing values
+    return _interpolate_value(pick_number)
+
+static func get_player_trade_value(player: Player) -> int:
+    # Based on overall rating, age, contract
+    var base = player.overall * 15
+    var age_modifier = max(0, 30 - player.age) * 10
+    return base + age_modifier
+
+static func evaluate_trade(give: Array, receive: Array) -> Dictionary:
+    var give_value = _sum_values(give)
+    var receive_value = _sum_values(receive)
+    return {
+        "give_value": give_value,
+        "receive_value": receive_value,
+        "delta": receive_value - give_value,
+        "is_fair": abs(receive_value - give_value) < 200,
+    }
+```
+
+---
+
+## Draft Day Action Taxonomy
+
+### Blocking Actions (Draft Waits for User)
+
+| Action | Trigger | Resolution |
+|--------|---------|------------|
+| **Make Pick** | Your turn starts | Select player and confirm |
+| **Accept Trade** | Trade offer for current pick | Execute trade, skip turn |
+| **Auto-Pick** | Timeout (60s) or user request | System selects from board |
+
+### Non-Blocking Actions (Parallel to Draft)
+
+| Action | When Available | Effect |
+|--------|----------------|--------|
+| Reorder Draft Board | Anytime | Update rankings |
+| View Player Detail | Anytime | Modal overlay |
+| Compare Prospects | Anytime | Side-by-side view |
+| Filter/Sort Table | Anytime | UI state only |
+| Consult Coach | Anytime | Show recommendations |
+| Respond to Trade Offer | Anytime (unless for current pick) | Queue response |
+
+### Action State Machine
+
+```gdscript
+enum DraftActionState {
+    WAITING_FOR_TURN,      # AI picks happening, non-blocking only
+    ON_CLOCK_DECIDING,     # Your pick, all actions available
+    ON_CLOCK_TRADING,      # Negotiating trade, pick paused
+    PICK_CONFIRMED,        # Executing pick
+    TRADE_CONFIRMED,       # Executing trade
+}
+
+# State transitions
+# WAITING → ON_CLOCK_DECIDING (your pick starts)
+# ON_CLOCK_DECIDING → ON_CLOCK_TRADING (open trade panel)
+# ON_CLOCK_DECIDING → PICK_CONFIRMED (click Draft)
+# ON_CLOCK_TRADING → TRADE_CONFIRMED (accept trade)
+# ON_CLOCK_TRADING → ON_CLOCK_DECIDING (cancel trade)
+# PICK_CONFIRMED → WAITING (pick executes, next team)
+# TRADE_CONFIRMED → WAITING (trade executes, other team picks)
+```
+
+### Incoming Events During Draft
+
+| Event | Trigger | User Response Required? |
+|-------|---------|------------------------|
+| Pick Approaching | 3 picks before your turn | No (advisory) |
+| Your Pick Started | Clock starts | **Yes** - must act or timeout |
+| Trade Offer Received | AI team wants your pick | No (can respond later) |
+| Target Player Drafted | AI takes player you wanted | No (adjust strategy) |
+| Trade Offer Expired | Pick passed or target drafted | No (informational) |
+| Round Complete | Last pick of round | No (natural break) |
 
 ### View Toggle: League Board vs Your Rankings
 
@@ -1247,48 +1711,32 @@ The **Assistant Coach** is an algorithmic advisor that analyzes your team's need
 
 ### Assistant Coach Panel
 
+Each recommendation card has a **DRAFT** button that immediately makes the pick - no confirmation dialog, no extra clicks.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  🧠 ASSISTANT COACH RECOMMENDATIONS                             │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  🧠 ASSISTANT COACH - Pick #14                                  │
+├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  #1 RECOMMENDATION                                              │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Marcus Hall, CB (Alabama)                                │  │
-│  │  OVR: 91 | Your Tier: 1 (Elite) | Fit: ★★★★★              │  │
-│  │                                                           │  │
-│  │  ✓ Fills critical need (CB - Priority 1)                  │  │
-│  │  ✓ Best player available at #14                           │  │
-│  │  ✓ Great value (Tier 1 prospect at pick #14)              │  │
-│  │                                                           │  │
-│  │  [Select This Pick]                                       │  │
+│  │  #1  Marcus Hall, CB                         [DRAFT HIM]  │  │
+│  │      Alabama | OVR: 91 | Tier: Elite | Fit: ★★★★★         │  │
+│  │      ✓ Critical need  ✓ Best available  ✓ Great value     │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
-│  #2 RECOMMENDATION                                              │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  James Porter, OT (Ohio State)                            │  │
-│  │  OVR: 89 | Your Tier: 2 (Day 1 Starter) | Fit: ★★★★       │  │
-│  │                                                           │  │
-│  │  ✓ Fills need (OT - Priority 2)                           │  │
-│  │  ○ Slight reach (Tier 2 at pick #14)                      │  │
-│  │  ✓ Premium position                                       │  │
-│  │                                                           │  │
-│  │  [Select This Pick]                                       │  │
+│  │  #2  James Porter, OT                        [DRAFT HIM]  │  │
+│  │      Ohio State | OVR: 89 | Tier: Day 1 | Fit: ★★★★       │  │
+│  │      ✓ Key need  ○ Slight reach  ✓ Premium position       │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
-│  #3 RECOMMENDATION                                              │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │  DeShawn Miles, WR (Georgia)                              │  │
-│  │  OVR: 88 | Your Tier: 2 (Day 1 Starter) | Fit: ★★★        │  │
-│  │                                                           │  │
-│  │  ✓ Best pure talent available                             │  │
-│  │  ○ Not a critical need (WR - Priority 3)                  │  │
-│  │  ✓ Good value (Tier 2 at pick #14)                        │  │
-│  │                                                           │  │
-│  │  [Select This Pick]                                       │  │
+│  │  #3  DeShawn Miles, WR                       [DRAFT HIM]  │  │
+│  │      Georgia | OVR: 88 | Tier: Day 1 | Fit: ★★★           │  │
+│  │      ✓ Best talent  ○ Not critical need  ✓ Good value     │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
-│  [Close]                                    [Ignore All Advice] │
+│  [Close - I'll pick myself]                                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
