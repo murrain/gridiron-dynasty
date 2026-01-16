@@ -29,6 +29,8 @@ const GameSession = preload("res://scripts/core/models/GameSession.gd")
 
 signal draft_completed(session: GameSession)
 signal view_world_requested()
+signal user_turn_started(pick_number: int, round_number: int)
+signal user_turn_ended()
 
 ## References
 var _draft: InteractiveDraft = null
@@ -130,6 +132,9 @@ func _on_user_pick_requested(pick_number: int, round_number: int, available: Arr
 
 	draft_button.disabled = true
 	_clear_detail_panel()
+
+	# Notify that it's the user's turn (for external notification systems)
+	user_turn_started.emit(pick_number, round_number)
 
 
 ## Populate prospect list
@@ -233,6 +238,9 @@ func _on_draft_button_pressed() -> void:
 func _make_pick(player_id: String) -> void:
 	draft_button.disabled = true
 	status_label.text = "Making pick..."
+
+	# Notify that the user's turn is ending
+	user_turn_ended.emit()
 
 	var success := _draft.make_user_pick(player_id)
 	if not success:
