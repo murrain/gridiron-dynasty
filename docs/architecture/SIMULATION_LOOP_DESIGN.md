@@ -2878,3 +2878,893 @@ The architecture separates concerns cleanly:
 - `OptimizedPlayerQueries`: Runtime queries
 - `AITeamNeedsCache`: AI optimization
 - `PersistenceLayer`: Save/load
+
+---
+
+## System Boundaries and Interfaces
+
+### Architectural Boundary Map
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        SIMULATION LOOP                               │
+│  (Orchestration Layer - Owns Tick Lifecycle)                        │
+│                                                                      │
+│  Responsibilities:                                                   │
+│  • Advance game clock                                               │
+│  • Coordinate phase transitions                                     │
+│  • Manage player-coach turn state                                   │
+│  • Emit lifecycle signals                                           │
+│                                                                      │
+│  MUST NOT:                                                           │
+│  • Process event logic directly                                     │
+│  • Execute AI decision logic                                        │
+│  • Perform persistence operations during tick                       │
+│  • Rebuild indexes directly                                         │
+└──────────────────────────────────────────────────────────────────────┘
+           │                    │                    │
+           │ schedules          │ invalidates        │ delegates
+           │ events             │ caches             │ to
+           ▼                    ▼                    ▼
+┌────────────────────┐  ┌───────────────────┐  ┌─────────────────────┐
+│  EventScheduler    │  │ AITeamNeedsCache  │  │ OptimizedPlayer     │
+│  (Event Timeline)  │  │ (AI State)        │  │ Queries             │
+│                    │  │                   │  │ (Runtime Indexes)   │
+│  Responsibilities: │  │ Responsibilities: │  │                     │
+│  • Store scheduled │  │ • Cache team      │  │ Responsibilities:   │
+│    events by tick  │  │   roster needs    │  │ • Index players by  │
+│  • Return events   │  │ • Invalidate on   │  │   id/pos/team/stage │
+│    for tick N      │  │   roster changes  │  │ • Provide O(1)      │
+│  • Handle          │  │ • Generate        │  │   lookups           │
+│    recurring       │  │   candidate lists │  │ • Rebuild from      │
+│    patterns        │  │ • Filter by       │  │   world_state       │
+│                    │  │   criteria        │  │                     │
+│  MUST NOT:         │  │                   │  │ MUST NOT:           │
+│  • Process events  │  │ MUST NOT:         │  │ • Modify world      │
+│  • Modify world    │  │ • Execute trades  │  │   state directly    │
+│    state           │  │ • Modify rosters  │  │ • Persist data      │
+│  • Validate event  │  │ • Persist state   │  │ • Execute business  │
+│    legality        │  │ • Know about ticks│  │   logic             │
+└────────────────────┘  └───────────────────┘  └─────────────────────┘
+           │                    │                    │
+           │ emits              │ queries            │ reads
+           │ events             │ player data        │ world_state
+           ▼                    ▼                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        WORLD STATE                                   │
+│  (Single Source of Truth - In-Memory Dictionary)                    │
+│                                                                      │
+│  Structure:                                                          │
+│  {                                                                   │
+│    "current_year": int,                                             │
+│    "current_tick": int,                                             │
+│    "nfl_teams": Array[Team],                                        │
+│    "nfl_rosters": Dictionary,  # team_id -> roster_data            │
+│    "college_rosters": Dictionary,                                   │
+│    "free_agents": Array[Player],                                    │
+│    "scheduled_events": Dictionary  # Serialized EventScheduler      │
+│  }                                                                   │
+│                                                                      │
+│  Modification Rules:                                                 │
+│  • ONLY SimulationLoop writes during tick processing                │
+│  • All subsystems READ-ONLY during tick                            │
+│  • Rebuilds trigger index reconstruction                            │
+└──────────────────────────────────────────────────────────────────────┘
+           │
+           │ saves/loads
+           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    PERSISTENCE LAYER                                 │
+│  (Autoload - Pluggable Backend)                                     │
+│                                                                      │
+│  Responsibilities:                                                   │
+│  • Save world_state on demand (NOT during tick)                     │
+│  • Load world_state for restoration                                 │
+│  • Manage RNG state preservation                                    │
+│  • Handle backend switching (JSON/SQLite)                           │
+│                                                                      │
+│  MUST NOT:                                                           │
+│  • Auto-save during tick execution                                  │
+│  • Modify world_state structure                                     │
+│  • Maintain stateful connections across ticks                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Interface: SimulationLoop ↔ EventScheduler
+
+**Contract**: EventScheduler maintains a timeline of events and returns events for requested ticks. It has NO knowledge of how events are processed.
+
+```gdscript
+## EventScheduler Interface (RefCounted)
+class_name EventScheduler
+
+## Schedule an event for a specific tick or calculated date
+## @param event: GameEvent to schedule
+## @param tick: Target tick (-1 = calculate from event.scheduled_date)
+func schedule(event: GameEvent, tick: int = -1) -> void
+
+## Retrieve all events scheduled for a specific tick
+## @param tick: Current tick number
+## @return: Array[GameEvent] (may be empty)
+func get_events_for_tick(tick: int) -> Array
+
+## Serialize scheduler state for persistence
+## @return: Dictionary with scheduled_events and recurring_events
+func serialize() -> Dictionary
+
+## Restore scheduler state from saved data
+## @param data: Dictionary from serialize()
+func deserialize(data: Dictionary) -> void
+
+## Remove events before specified tick (memory management)
+## @param current_tick: Events before this tick are cleared
+func clear_past_events(current_tick: int) -> void
+```
+
+**Data Flow**:
+1. SimulationLoop calls `get_events_for_tick(current_tick)`
+2. EventScheduler returns Array of GameEvent instances
+3. SimulationLoop processes each event via `_process_event()`
+4. Event processing MAY schedule new events via `scheduler.schedule()`
+
+**Boundary Enforcement**:
+- EventScheduler NEVER calls back into SimulationLoop
+- EventScheduler has zero knowledge of event processing logic
+- Event instances are immutable after scheduling
+
+### Interface: SimulationLoop ↔ AITeamNeedsCache
+
+**Contract**: Cache provides candidate players for AI teams based on roster needs. Cache invalidation is event-driven, not tick-driven.
+
+```gdscript
+## AITeamNeedsCache Interface (RefCounted)
+class_name AITeamNeedsCache
+
+## Signal emitted when team cache is invalidated
+signal cache_invalidated(team_id: String)
+
+## Register a team's roster needs criteria
+## @param team_id: NFL team identifier
+## @param positions: Array of position strings ["CB", "WR"]
+## @param criteria: Dictionary with filters (min_stats, max_age, etc.)
+func set_team_needs(team_id: String, positions: Array, criteria: Dictionary) -> void
+
+## Handle roster event - invalidates affected team caches
+## @param event: Dictionary with keys: team_id, player_id, player_position, event_type
+func on_roster_event(event: Dictionary) -> void
+
+## Get candidate players for team (rebuilds if dirty)
+## @param team_id: NFL team identifier
+## @param queries: OptimizedPlayerQueries instance for data access
+## @return: Array of Player/Dictionary candidates
+func get_candidates(team_id: String, queries: OptimizedPlayerQueries) -> Array
+```
+
+**Data Flow**:
+1. SimulationLoop detects roster-affecting event during processing
+2. Calls `cache.on_roster_event(event_dict)` to invalidate affected teams
+3. Later in tick, calls `cache.get_candidates(team_id, queries)` for each AI team
+4. Cache rebuilds only if invalidated, otherwise returns cached results
+
+**Boundary Enforcement**:
+- AITeamNeedsCache NEVER modifies world_state
+- Cache only READS from OptimizedPlayerQueries
+- Cache does NOT execute trades/signings/cuts
+- SimulationLoop owns decision to act on candidates
+
+### Interface: SimulationLoop ↔ OptimizedPlayerQueries
+
+**Contract**: Provides O(1) indexed read-only queries on world_state. Rebuilt after roster changes.
+
+```gdscript
+## OptimizedPlayerQueries Interface (RefCounted)
+class_name OptimizedPlayerQueries
+
+## Signal emitted after index rebuild completes
+signal indexes_rebuilt
+
+## Rebuild all indexes from world state
+## Called after roster changes or on restore from save
+## @param world_state: Dictionary containing all player data
+func rebuild_indexes(world_state: Dictionary) -> void
+
+## O(1) player lookup by unique identifier
+## @param player_id: Unique player identifier
+## @return: Player instance or Dictionary, null if not found
+func by_id(player_id: String) -> Variant
+
+## O(1) position lookup
+## @param pos: Position code (QB, RB, WR, etc.)
+## @return: Array[Player] or Array[Dictionary]
+func by_position(pos: String) -> Array
+
+## O(1) team roster lookup
+## @param team_id: NFL team or college identifier
+## @return: Array[Player] or Array[Dictionary]
+func by_team(team_id: String) -> Array
+
+## O(1) stage lookup
+## @param stage: PlayerStage enum value
+## @return: Array[Player] or Array[Dictionary]
+func by_stage(stage: int) -> Array
+
+## Get all free agents
+## @return: Array[Player] or Array[Dictionary]
+func get_free_agents() -> Array
+
+## Get all indexed players (for full iteration)
+## @return: Array[Player] or Array[Dictionary]
+func all_players() -> Array
+
+## Total indexed player count
+## @return: Integer count
+func count() -> int
+```
+
+**Data Flow**:
+1. SimulationLoop detects roster_changed flag during event processing
+2. After all events processed, calls `queries.rebuild_indexes(world_state)`
+3. Query instance discards old indexes, rebuilds from current world_state
+4. AI systems and UI query via `by_position()`, `by_team()`, etc.
+
+**Boundary Enforcement**:
+- OptimizedPlayerQueries is IMMUTABLE (RefCounted, read-only)
+- NEVER modifies world_state
+- Rebuilds are FULL rebuilds, not incremental (simplicity > premature optimization)
+- Returns references to world_state data, not copies (performance)
+
+### Interface: SimulationLoop ↔ PersistenceLayer
+
+**Contract**: PersistenceLayer saves/loads world_state on explicit request. NO automatic persistence during ticks.
+
+```gdscript
+## PersistenceLayer Interface (Autoload)
+## save_world_state() and load_world_state() match existing implementation
+```
+
+**Data Flow**:
+1. **Save Path**: User requests save → UI triggers → SimulationLoop prepares save_dict → Calls `PersistenceLayer.save_world_state()`
+2. **Load Path**: User selects save → UI triggers load → `PersistenceLayer.load_world_state()` → SimulationLoop restores state
+3. **Auto-Checkpoint**: After tick_completed signal, if `tick % AUTO_SAVE_INTERVAL == 0`, initiate save
+
+**Boundary Enforcement**:
+- PersistenceLayer NEVER initiates saves autonomously
+- PersistenceLayer does NOT modify world_state structure
+- All persistence happens BETWEEN ticks, never during tick processing
+- RNG state MUST be included in save_dict for determinism
+
+### Signal Contracts and Data Flow
+
+**Primary Signals**:
+
+```gdscript
+## SimulationLoop signals
+signal tick_started(tick_data: TickData)
+signal tick_completed(tick_data: TickData)
+signal phase_changed(old_phase: int, new_phase: int)
+signal player_action_required(action_type: String, context: Dictionary)
+signal save_requested(reason: String)  # "checkpoint", "manual", "phase_end"
+signal critical_error(reason: String, context: Dictionary)
+signal tick_errors(errors: Array[Dictionary])
+
+## EventScheduler signals
+# None - pull-based interface
+
+## AITeamNeedsCache signals
+signal cache_invalidated(team_id: String)
+
+## OptimizedPlayerQueries signals
+signal indexes_rebuilt
+```
+
+**Signal Flow During Tick**:
+
+```
+1. TICK START
+   SimulationLoop emits: tick_started(tick_data)
+     ↓
+   UI listens: Update tick counter, show loading indicator
+
+2. EVENT PROCESSING
+   SimulationLoop processes events internally
+     ↓
+   AITeamNeedsCache emits: cache_invalidated(team_id)
+     ↓
+   AI subsystem listens: Mark team for re-evaluation
+
+3. INDEX REBUILD
+   SimulationLoop calls: queries.rebuild_indexes(world_state)
+     ↓
+   OptimizedPlayerQueries emits: indexes_rebuilt
+     ↓
+   UI listens: Refresh player lists if visible
+
+4. PLAYER-COACH TURN
+   SimulationLoop emits: player_action_required("trade_opportunity", context)
+     ↓
+   UI listens: Show action dialog, pause simulation
+
+5. TICK END
+   SimulationLoop emits: tick_completed(tick_data)
+     ↓
+   Statistics system listens: Record tick metrics
+     ↓
+   UI listens: Hide loading indicator
+
+6. CHECKPOINT (Optional)
+   SimulationLoop emits: save_requested("checkpoint")
+     ↓
+   Save system listens: Call PersistenceLayer.save_world_state()
+```
+
+---
+
+## Dependency Injection Strategy
+
+### Injection Philosophy
+
+The simulation loop uses **constructor injection** for mandatory dependencies and **property injection** for optional/configurable components. This enables clean testing, modular design, and runtime reconfiguration.
+
+**Principle**: Dependencies flow inward. SimulationLoop depends on abstractions (interfaces), not concrete implementations.
+
+### Constructor Injection (Mandatory Dependencies)
+
+```gdscript
+class_name SimulationLoop
+extends Node
+
+## Core dependencies injected at construction
+var _event_scheduler: EventScheduler
+var _player_queries: OptimizedPlayerQueries
+var _ai_needs_cache: AITeamNeedsCache
+
+## Optional configuration
+var _config: SimulationConfig = null
+
+## Constructor with dependency injection
+## @param scheduler: EventScheduler instance
+## @param queries: OptimizedPlayerQueries instance
+## @param ai_cache: AITeamNeedsCache instance
+## @param config: Optional SimulationConfig (defaults to default config)
+func _init(
+	scheduler: EventScheduler,
+	queries: OptimizedPlayerQueries,
+	ai_cache: AITeamNeedsCache,
+	config: SimulationConfig = null
+) -> void:
+	_event_scheduler = scheduler
+	_player_queries = queries
+	_ai_needs_cache = ai_cache
+	_config = config if config else SimulationConfig.new()
+
+## Alternative factory method for default setup
+static func create_default() -> SimulationLoop:
+	var scheduler := EventScheduler.new()
+	var queries := OptimizedPlayerQueries.new()
+	var ai_cache := AITeamNeedsCache.new()
+	return SimulationLoop.new(scheduler, queries, ai_cache)
+```
+
+**Why Constructor Injection**:
+- Makes dependencies explicit and non-negotiable
+- Impossible to construct invalid SimulationLoop
+- Dependencies immutable after construction (no accidental reassignment)
+- Testing: Inject mocks via constructor
+
+### Property Injection (Optional/Configurable)
+
+```gdscript
+class_name SimulationLoop
+extends Node
+
+## Optional dependencies set after construction
+var _save_handler: Callable = Callable()  # Called for checkpoint saves
+var _ai_evaluator: Callable = Callable()  # Called for AI team decisions
+
+## Set checkpoint save callback
+## @param handler: Callable(world_state: Dictionary, reason: String) -> bool
+func set_save_handler(handler: Callable) -> void:
+	_save_handler = handler
+
+## Set AI evaluation callback
+## @param evaluator: Callable(team_id: String, candidates: Array) -> void
+func set_ai_evaluator(evaluator: Callable) -> void:
+	_ai_evaluator = evaluator
+
+## Example: Calling optional dependency
+func _attempt_checkpoint_save() -> void:
+	if _save_handler.is_valid():
+		var success := _save_handler.call(_world_state, "checkpoint")
+		if not success:
+			push_warning("SimulationLoop: Checkpoint save failed")
+	else:
+		# No save handler configured - skip silently
+		pass
+```
+
+**Why Property Injection**:
+- Features are optional (simulation can run without saves)
+- Callbacks can be reconfigured at runtime
+- Testing: Can test simulation logic without persistence
+
+### Interface Definitions
+
+Rather than abstract base classes, we use **structural typing** (duck typing) and document expected interfaces:
+
+```gdscript
+## EventScheduler Interface
+## Any class providing these methods can be used as event scheduler:
+##
+## Required Methods:
+##   func schedule(event: GameEvent, tick: int = -1) -> void
+##   func get_events_for_tick(tick: int) -> Array
+##   func serialize() -> Dictionary
+##   func deserialize(data: Dictionary) -> void
+##   func clear_past_events(current_tick: int) -> void
+##
+## Optional Methods:
+##   func get_event_count() -> int
+##   func has_events_for_tick(tick: int) -> bool
+```
+
+**Why Structural Typing**:
+- GDScript doesn't have formal interfaces
+- Duck typing is idiomatic in Godot
+- Easier to mock (no inheritance required)
+- Clear documentation of contracts
+
+---
+
+## Error Handling and Recovery
+
+### Error Categories
+
+The simulation loop must handle three categories of errors:
+
+1. **Recoverable Errors**: Event processing failures, AI decision failures
+2. **Critical Errors**: Save corruption, world state corruption, index rebuild failures
+3. **Transient Errors**: Temporary resource issues, RNG state issues
+
+### Strategy: Continue on Recoverable, Halt on Critical
+
+```gdscript
+class_name SimulationLoop
+extends Node
+
+## Error tracking
+var _errors_this_tick: Array[Dictionary] = []
+var _critical_error: String = ""
+
+## Advance simulation by one tick (with error handling)
+func advance_tick() -> void:
+	if not _critical_error.is_empty():
+		push_error("SimulationLoop: Cannot advance - critical error: %s" % _critical_error)
+		return
+
+	if _paused or _awaiting_player_action:
+		return
+
+	_current_tick += 1
+	_errors_this_tick.clear()
+
+	var tick_data := TickData.new(_current_tick, _get_current_date())
+	tick_started.emit(tick_data)
+
+	# PHASE 1: Event Processing (recoverable errors)
+	var events := _event_scheduler.get_events_for_tick(_current_tick)
+	var roster_changed := false
+
+	for event in events:
+		var result := _process_event_safe(event)
+		if result.has("error"):
+			_handle_event_error(event, result.error)
+			continue  # Skip this event, continue with others
+
+		if result.get("roster_changed", false):
+			roster_changed = true
+			tick_data.roster_changes += 1
+
+		tick_data.events_processed += 1
+
+	# PHASE 2: AI Evaluation (recoverable errors)
+	if roster_changed:
+		_invalidate_ai_caches(events)
+		_run_ai_evaluation_safe(tick_data)
+
+	# PHASE 3: Index Rebuild (critical if fails)
+	if roster_changed:
+		if not _rebuild_indexes_safe():
+			_enter_critical_error("Index rebuild failed")
+			return  # Halt simulation
+
+	# PHASE 4: Player-coach notifications (recoverable)
+	var player_notifications := _get_player_notifications(events)
+	if not player_notifications.is_empty():
+		_notify_player_coach(player_notifications)
+
+	# PHASE 5: Complete tick
+	tick_completed.emit(tick_data)
+	_check_phase_transition()
+
+	# PHASE 6: Log errors if any occurred
+	if not _errors_this_tick.is_empty():
+		_log_tick_errors()
+```
+
+### Event Processing Errors
+
+**Scenario**: An event's implication processing throws an error (e.g., invalid player ID, stat doesn't exist).
+
+**Recovery Strategy**: Log error, skip event, continue with remaining events.
+
+```gdscript
+## Safe event processing with error recovery
+func _process_event_safe(event: GameEvent) -> Dictionary:
+	var result := {"roster_changed": false}
+
+	for implication in event.implications:
+		match implication.type:
+			"stat_modifier":
+				if not _apply_stat_modifier_safe(implication):
+					result["error"] = "Stat modifier failed: %s" % implication
+					return result
+
+			"roster_change":
+				if not _apply_roster_change_safe(implication):
+					result["error"] = "Roster change failed: %s" % implication
+					return result
+				result.roster_changed = true
+
+			"generate_event":
+				# Safe to fail - just don't schedule the event
+				_event_scheduler.schedule(implication.event)
+
+	return result
+
+func _handle_event_error(event: GameEvent, error: String) -> void:
+	_errors_this_tick.append({
+		"type": "event_processing",
+		"event_type": event.event_type,
+		"event_id": event.event_id,
+		"error": error,
+		"tick": _current_tick
+	})
+
+	push_warning("SimulationLoop: Event error (continuing): %s" % error)
+```
+
+**Result**: Individual event failures don't crash the simulation. Player sees notification: "Warning: 2 events failed to process this tick."
+
+### Index Rebuild Failures
+
+**Scenario**: Rebuilding OptimizedPlayerQueries indexes fails (corrupted world_state, out of memory).
+
+**Recovery Strategy**: This is CRITICAL - halt simulation, enter safe mode.
+
+```gdscript
+func _rebuild_indexes_safe() -> bool:
+	# Index rebuild failure is critical - simulation cannot continue
+	# without valid queries
+
+	# Validate world_state before rebuild
+	if not _validate_world_state():
+		push_error("SimulationLoop: World state validation failed")
+		return false
+
+	# Attempt rebuild
+	_player_queries.rebuild_indexes(_world_state)
+
+	# Verify rebuild succeeded
+	var expected_count := _count_players_in_world_state()
+	var actual_count := _player_queries.count()
+
+	if actual_count != expected_count:
+		push_error("SimulationLoop: Index rebuild mismatch (expected %d, got %d)" % [expected_count, actual_count])
+		return false
+
+	return true
+
+func _enter_critical_error(reason: String) -> void:
+	_critical_error = reason
+	_paused = true
+
+	push_error("CRITICAL ERROR: %s" % reason)
+
+	# Emit signal for UI
+	critical_error.emit(reason, {
+		"tick": _current_tick,
+		"world_state_valid": _validate_world_state(),
+		"can_save": _can_save_current_state()
+	})
+
+	# Attempt emergency save
+	if _can_save_current_state():
+		var emergency_save := "emergency_tick_%d" % _current_tick
+		_save_handler.call(_prepare_save_data(), "emergency")
+```
+
+**Result**: Critical errors halt simulation immediately. Player sees: "CRITICAL ERROR: Index rebuild failed. Emergency save created. Please report this bug."
+
+---
+
+## Architectural Constraints
+
+### MUST DO (Invariants)
+
+These are non-negotiable requirements that the simulation loop MUST enforce:
+
+1. **Single Source of Truth**
+   - `world_state` Dictionary is the ONLY authoritative source of game state
+   - All queries read from world_state (via indexes)
+   - All modifications write to world_state
+   - No component maintains parallel/shadow state
+
+2. **Deterministic RNG**
+   - ALL random operations MUST use `Rand` autoload
+   - RNG state MUST be included in every save
+   - Seed derivation MUST use `Rand.splitmix64()` for year/tick seeds
+   - No `randomize()` calls or `randf()` usage anywhere in simulation
+
+3. **Immutable Event Processing**
+   - Events scheduled for tick N MUST execute at tick N (no skipping)
+   - Event processing order MUST be deterministic (same seed = same order)
+   - Events MUST NOT modify other events in the queue
+   - EventScheduler MUST be serializable for save/load
+
+4. **Atomicity of Tick**
+   - A tick is ALL-OR-NOTHING for world_state modifications
+   - If index rebuild fails, tick is invalid (enter error state)
+   - No partial tick commits
+   - `tick_completed` signal ONLY emits after all phases succeed
+
+5. **Index Consistency**
+   - OptimizedPlayerQueries MUST be rebuilt after ANY roster change
+   - Queries MUST return references to world_state data (not copies)
+   - Index count MUST equal player count in world_state after rebuild
+   - Queries are IMMUTABLE during tick processing
+
+6. **Signal Ordering**
+   - `tick_started` MUST emit before ANY event processing
+   - `tick_completed` MUST emit AFTER all processing (events, AI, indexes)
+   - `phase_changed` MUST emit BEFORE next tick starts
+   - `save_requested` MUST emit AFTER `tick_completed`
+
+### MUST NOT DO (Anti-Patterns)
+
+These patterns will lead to bugs, performance issues, or architectural rot:
+
+1. **NO Auto-Persistence**
+   - SimulationLoop MUST NOT call `PersistenceLayer.save_world_state()` directly
+   - Saves ONLY occur via explicit signals or callbacks
+   - NO database writes during tick processing
+   - Checkpoint saves happen AFTER tick_completed, not during
+
+2. **NO Circular Dependencies**
+   - EventScheduler MUST NOT reference SimulationLoop
+   - AITeamNeedsCache MUST NOT reference SimulationLoop
+   - OptimizedPlayerQueries MUST NOT reference SimulationLoop
+   - All communication is signal-based (outward) or method-based (inward)
+
+3. **NO Direct World State Access by Subsystems**
+   - Only SimulationLoop modifies world_state
+   - OptimizedPlayerQueries reads world_state only during `rebuild_indexes()`
+   - AITeamNeedsCache queries via OptimizedPlayerQueries, never world_state directly
+   - EventScheduler has ZERO knowledge of world_state structure
+
+4. **NO Premature Optimization**
+   - NO incremental index updates in v1 (full rebuild is fine)
+   - NO caching of event processing results
+   - NO background threads for AI evaluation (single-threaded for now)
+   - NO custom serialization formats (use JSON/SQLite backends)
+
+5. **NO UI Logic in Simulation**
+   - SimulationLoop MUST NOT import any UI scenes or scripts
+   - NO direct calls to UI methods (use signals only)
+   - NO UI state storage in world_state
+   - UI subscribes to signals; simulation doesn't know UI exists
+
+6. **NO Exception Swallowing**
+   - Errors MUST be logged (push_warning/push_error)
+   - Critical errors MUST halt simulation
+   - NO silent failures (every error adds to _errors_this_tick)
+   - Players MUST be notified of errors via signals
+
+### SHOULD DO (Best Practices)
+
+These practices enhance maintainability and extensibility:
+
+1. **Validate Inputs at Boundaries**
+   ```gdscript
+   func schedule_event(event: GameEvent, tick: int) -> void:
+       if event == null:
+           push_error("EventScheduler: Cannot schedule null event")
+           return
+       if tick < 0:
+           push_error("EventScheduler: Invalid tick: %d" % tick)
+           return
+       # Proceed with scheduling
+   ```
+
+2. **Document State Transitions**
+   ```gdscript
+   ## Transition simulation to new phase
+   ## State before: _current_phase = old_phase
+   ## State after: _current_phase = new_phase, tick_frequency adjusted
+   ## Signals emitted: phase_changed(old_phase, new_phase)
+   func _transition_to_phase(new_phase: SeasonPhase) -> void:
+   ```
+
+3. **Use Type Hints**
+   ```gdscript
+   func get_events_for_tick(tick: int) -> Array[GameEvent]:
+       var events: Array[GameEvent] = []
+       # ...
+       return events
+   ```
+
+4. **Emit Signals for All State Changes**
+   ```gdscript
+   func _set_paused(paused: bool) -> void:
+       if _paused == paused:
+           return
+       _paused = paused
+       paused_changed.emit(paused)
+   ```
+
+5. **Provide Diagnostic Methods**
+   ```gdscript
+   ## Get diagnostic information for debugging
+   func get_diagnostics() -> Dictionary:
+       return {
+           "current_tick": _current_tick,
+           "current_phase": _current_phase,
+           "paused": _paused,
+           "awaiting_player_action": _awaiting_player_action,
+           "scheduled_event_count": _event_scheduler.get_event_count(),
+           "indexed_player_count": _player_queries.count(),
+           "errors_this_tick": _errors_this_tick.size()
+       }
+   ```
+
+---
+
+## Future-Proofing Considerations
+
+### Extension Points (By Design)
+
+These are intentional hooks for future expansion:
+
+1. **Event System Extensibility**
+   ```gdscript
+   ## EventScheduler supports custom event types via duck typing
+   ## Future events can add new implication types:
+   ##   - "weather_effect": Modify game conditions
+   ##   - "media_attention": Affect team morale
+   ##   - "draft_declaration": Player enters NFL draft
+   ##
+   ## SimulationLoop processes implications via match statement,
+   ## making it easy to add new types:
+   func _process_event(event: GameEvent) -> EventResult:
+       for implication in event.implications:
+           match implication.type:
+               "stat_modifier":
+                   _apply_stat_modifier(implication)
+               "roster_change":
+                   _apply_roster_change(implication)
+               # EXTENSION POINT: Add new types here
+               "weather_effect":
+                   _apply_weather_effect(implication)
+               _:
+                   push_warning("Unknown implication type: %s" % implication.type)
+   ```
+
+2. **Query System Expansion**
+   ```gdscript
+   ## OptimizedPlayerQueries can add new indexes without breaking existing code
+   ## Future indexes might include:
+   ##   - by_contract_status: Dictionary  # "franchise_tag", "free_agent", etc.
+   ##   - by_injury_status: Dictionary    # "healthy", "questionable", "out"
+   ##   - by_draft_year: Dictionary       # year -> Array[Player]
+   ```
+
+3. **AI Complexity Scaling**
+   ```gdscript
+   ## AITeamNeedsCache criteria can grow without changing interface
+   ## Current criteria: {"min_stats": {...}, "max_age": 30}
+   ## Future criteria:
+   ##   - "preferred_traits": ["leader", "clutch"]
+   ##   - "scheme_fit": {"defense": "4-3", "offense": "spread"}
+   ##   - "cap_constraints": {"max_salary": 15000000}
+   ```
+
+### What NOT to Prematurely Abstract
+
+**AVOID these abstractions until proven necessary**:
+
+1. **Plugin/Mod System**
+   - Don't create abstract "Plugin" interface
+   - Don't implement hot-reloading of game logic
+   - Don't expose scripting API for custom events
+   - **Why**: Adds massive complexity, rarely used, breaks determinism
+   - **When**: Only if community requests modding support (post-v1.0)
+
+2. **Network Multiplayer**
+   - Don't add client/server architecture
+   - Don't implement tick synchronization protocols
+   - Don't design for latency compensation
+   - **Why**: Completely different execution model, conflicts with determinism
+   - **When**: If multiplayer becomes a goal (major architecture pivot)
+
+3. **Undo/Redo System**
+   - Don't implement command pattern for all actions
+   - Don't store tick history for rewind
+   - Don't create memento snapshots
+   - **Why**: Massive memory overhead, complex state management
+   - **When**: If "simulate to date X" feature is requested (post-v1.0)
+
+4. **Event Sourcing**
+   - Don't store every event in a log
+   - Don't replay events to rebuild state
+   - Don't implement CQRS pattern
+   - **Why**: Over-engineering for single-player game
+   - **When**: Only if audit trail becomes critical (unlikely)
+
+### Known Limitations (Acceptable Trade-offs)
+
+1. **Full Index Rebuild on Roster Changes**
+   - **Limitation**: Rebuilding all indexes when one player moves is inefficient
+   - **Trade-off**: Simplicity > performance until proven bottleneck
+   - **Mitigation**: Profile before optimizing; 10k players rebuild in <100ms is acceptable
+   - **Future**: Incremental index updates if rebuild exceeds 250ms in practice
+
+2. **Single-Threaded Simulation**
+   - **Limitation**: AI evaluation for 32 teams runs sequentially
+   - **Trade-off**: Determinism > parallelism; easier debugging
+   - **Mitigation**: Optimize hot paths; target <40ms for all AI evaluations
+   - **Future**: Parallel AI if sequential exceeds 100ms consistently
+
+3. **No Transaction Rollback**
+   - **Limitation**: If tick fails mid-processing, state may be inconsistent
+   - **Trade-off**: Complexity of transaction system not justified
+   - **Mitigation**: Halt on critical errors; rely on autosaves
+   - **Future**: Snapshot system if corruption becomes common (unlikely)
+
+### Versioning Strategy
+
+```gdscript
+## Save data includes version for future migrations
+func _prepare_save_data() -> Dictionary:
+	return {
+		"save_format_version": 1,
+		"simulation_loop_version": "1.0.0",
+		"created_at": Time.get_unix_time_from_system(),
+		"current_tick": _current_tick,
+		"world_state": _world_state,
+		# ...
+	}
+
+## Load validates version and can migrate if needed
+func restore_from_save(save_name: String) -> bool:
+	var save_data := PersistenceLayer.load_world_state(save_name)
+	if save_data.is_empty():
+		return false
+
+	var version := save_data.get("save_format_version", 0)
+	if version > 1:
+		push_error("SimulationLoop: Save format too new (version %d)" % version)
+		return false
+
+	if version < 1:
+		# EXTENSION POINT: Migrate old saves
+		save_data = _migrate_save_v0_to_v1(save_data)
+
+	_world_state = save_data.world_state
+	_current_tick = save_data.current_tick
+	# Restore other state...
+
+	return true
+```
+
+---
+
+**End of Architectural Expansion - Architecture Guardian Review Complete**
