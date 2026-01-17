@@ -6,7 +6,7 @@
 ## on draft position. It follows the NFL's slotted rookie wage scale where:
 ## - Pick 1 gets the highest contract value
 ## - Each subsequent pick gets progressively less
-## - First-round picks (1-32) get a 5th year team option
+## - First-round picks get a 5th year team option (round determined by picks_per_round)
 ## - UDFAs get minimum contracts with no bonus or options
 ##
 ## Contract Types:
@@ -37,7 +37,6 @@ const UDFA_SALARY_PCT := 0.001      # UDFA = 0.1% of cap (~$200K on $200M cap)
 
 const DRAFTED_ROOKIE_YEARS := 4
 const UDFA_ROOKIE_YEARS := 3
-const FIRST_ROUND_CUTOFF := 32
 
 
 ## Get the full contract details for a specific draft pick
@@ -45,15 +44,20 @@ const FIRST_ROUND_CUTOFF := 32
 ## @param pick_number: Overall pick number (1-262)
 ## @param cap_limit: Salary cap in millions (e.g., 200.0 for $200M)
 ## @param year: The year the contract is signed (optional, defaults to 2035)
+## @param picks_per_round: Number of picks per round (default 32)
 ## @return: Contract dictionary with all details
 static func get_contract_for_pick(
 	pick_number: int,
 	cap_limit: float,
-	year: int = 2035
+	year: int = 2035,
+	picks_per_round: int = 32
 ) -> Dictionary:
 	if pick_number < 1:
 		push_error("RookieWageScale: Invalid pick number %d" % pick_number)
 		return {}
+
+	# Calculate which round this pick is in
+	var round := ((pick_number - 1) / picks_per_round) + 1
 
 	var slot_value := get_slot_value(pick_number, cap_limit)
 	var years := DRAFTED_ROOKIE_YEARS
@@ -62,19 +66,20 @@ static func get_contract_for_pick(
 	var bonus_per_year := signing_bonus / float(years)
 	var annual_cap_hit := base_salary_per_year + bonus_per_year
 
-	var has_fifth_year_option := pick_number <= FIRST_ROUND_CUTOFF
+	# First round picks (round 1) get a 5th year team option
+	var has_fifth_year_option := round == 1
 	var fifth_year_value := _estimate_fifth_year_value(slot_value) if has_fifth_year_option else 0.0
 
 	# Calculate guaranteed money (signing bonus + portion of base salary)
 	# Earlier picks get more guaranteed base salary
-	var gtd_base_pct := _get_guaranteed_base_pct(pick_number)
+	var gtd_base_pct := _get_guaranteed_base_pct(pick_number, picks_per_round)
 	var gtd_remaining := signing_bonus + (base_salary_per_year * years * gtd_base_pct)
 
 	return {
 		# Contract identification
 		"type": "drafted_rookie",
 		"pick_number": pick_number,
-		"round": _pick_to_round(pick_number),
+		"round": _pick_to_round(pick_number, picks_per_round),
 		"signed_year": year,
 
 		# Value breakdown
@@ -163,10 +168,11 @@ static func create_udfa_contract(year: int, cap_limit: float) -> Dictionary:
 ## @param pick_a: First pick number
 ## @param pick_b: Second pick number
 ## @param cap_limit: Salary cap in millions
+## @param picks_per_round: Number of picks per round (default 32)
 ## @return: Comparison dictionary with savings information
-static func compare_picks(pick_a: int, pick_b: int, cap_limit: float) -> Dictionary:
-	var contract_a := get_contract_for_pick(pick_a, cap_limit)
-	var contract_b := get_contract_for_pick(pick_b, cap_limit)
+static func compare_picks(pick_a: int, pick_b: int, cap_limit: float, picks_per_round: int = 32) -> Dictionary:
+	var contract_a := get_contract_for_pick(pick_a, cap_limit, 2035, picks_per_round)
+	var contract_b := get_contract_for_pick(pick_b, cap_limit, 2035, picks_per_round)
 
 	if contract_a.is_empty() or contract_b.is_empty():
 		return {"error": "Invalid pick numbers"}
@@ -203,13 +209,14 @@ static func compare_picks(pick_a: int, pick_b: int, cap_limit: float) -> Diction
 ##
 ## @param cap_limit: Salary cap in millions
 ## @param max_picks: Number of picks to export (default 262 for full draft)
+## @param picks_per_round: Number of picks per round (default 32)
 ## @return: CSV string with all pick contracts
-static func export_to_csv(cap_limit: float, max_picks: int = 262) -> String:
+static func export_to_csv(cap_limit: float, max_picks: int = 262, picks_per_round: int = 32) -> String:
 	var lines := PackedStringArray()
 	lines.append("Pick,Round,Total Value ($M),Annual Cap Hit ($M),Signing Bonus ($M),Base Salary/Yr ($M),5th Year Option,5th Year Value ($M)")
 
 	for pick in range(1, max_picks + 1):
-		var contract := get_contract_for_pick(pick, cap_limit)
+		var contract := get_contract_for_pick(pick, cap_limit, 2035, picks_per_round)
 		var fifth_year_str := "Yes" if contract.get("fifth_year_option", false) else "No"
 		var fifth_year_val := float(contract.get("fifth_year_value", 0))
 
@@ -246,7 +253,7 @@ static func get_round_contracts(
 	var end_pick := round_number * picks_per_round
 
 	for pick in range(start_pick, end_pick + 1):
-		contracts.append(get_contract_for_pick(pick, cap_limit))
+		contracts.append(get_contract_for_pick(pick, cap_limit, 2035, picks_per_round))
 
 	return contracts
 
@@ -254,22 +261,23 @@ static func get_round_contracts(
 ## Get summary statistics for the wage scale
 ##
 ## @param cap_limit: Salary cap in millions
+## @param picks_per_round: Number of picks per round (default 32)
 ## @return: Dictionary with summary stats
-static func get_wage_scale_summary(cap_limit: float) -> Dictionary:
-	var pick_1 := get_contract_for_pick(1, cap_limit)
-	var pick_32 := get_contract_for_pick(32, cap_limit)
-	var pick_64 := get_contract_for_pick(64, cap_limit)
-	var pick_224 := get_contract_for_pick(224, cap_limit)
+static func get_wage_scale_summary(cap_limit: float, picks_per_round: int = 32) -> Dictionary:
+	var pick_1 := get_contract_for_pick(1, cap_limit, 2035, picks_per_round)
+	var pick_last_round_1 := get_contract_for_pick(picks_per_round, cap_limit, 2035, picks_per_round)
+	var pick_last_round_2 := get_contract_for_pick(picks_per_round * 2, cap_limit, 2035, picks_per_round)
+	var pick_224 := get_contract_for_pick(224, cap_limit, 2035, picks_per_round)
 
 	var total_round_1 := 0.0
-	for pick in range(1, 33):
+	for pick in range(1, picks_per_round + 1):
 		total_round_1 += get_slot_value(pick, cap_limit)
 
 	return {
 		"cap_limit": cap_limit,
 		"pick_1_value": pick_1.get("total_value", 0),
-		"pick_32_value": pick_32.get("total_value", 0),
-		"pick_64_value": pick_64.get("total_value", 0),
+		"pick_last_round_1_value": pick_last_round_1.get("total_value", 0),
+		"pick_last_round_2_value": pick_last_round_2.get("total_value", 0),
 		"pick_224_value": pick_224.get("total_value", 0),
 		"round_1_total": total_round_1,
 		"udfa_value": cap_limit * UDFA_SALARY_PCT * UDFA_ROOKIE_YEARS
@@ -283,13 +291,15 @@ static func get_wage_scale_summary(cap_limit: float) -> Dictionary:
 ## @param pick_number: Overall pick number
 ## @param cap_limit: Salary cap in millions
 ## @param year: Contract year
+## @param picks_per_round: Number of picks per round (default 32)
 ## @return: Contract in legacy format
 static func to_legacy_contract_format(
 	pick_number: int,
 	cap_limit: float,
-	year: int
+	year: int,
+	picks_per_round: int = 32
 ) -> Dictionary:
-	var contract := get_contract_for_pick(pick_number, cap_limit, year)
+	var contract := get_contract_for_pick(pick_number, cap_limit, year, picks_per_round)
 	if contract.is_empty():
 		return {}
 
@@ -320,14 +330,16 @@ static func _pick_to_round(pick_number: int, picks_per_round: int = 32) -> int:
 ## Get the guaranteed base salary percentage based on pick position
 ##
 ## Earlier picks get more guaranteed base salary.
-static func _get_guaranteed_base_pct(pick_number: int) -> float:
+static func _get_guaranteed_base_pct(pick_number: int, picks_per_round: int = 32) -> float:
+	var round := ((pick_number - 1) / picks_per_round) + 1
+
 	if pick_number <= 10:
 		return 0.50  # Top 10 picks: 50% of base guaranteed
-	elif pick_number <= 32:
+	elif round == 1:
 		return 0.35  # Rest of round 1: 35% guaranteed
-	elif pick_number <= 64:
+	elif round == 2:
 		return 0.20  # Round 2: 20% guaranteed
-	elif pick_number <= 100:
+	elif round == 3:
 		return 0.10  # Round 3: 10% guaranteed
 	else:
 		return 0.0   # Rounds 4-7: No base salary guaranteed
