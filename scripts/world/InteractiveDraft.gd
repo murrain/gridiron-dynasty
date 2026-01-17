@@ -113,6 +113,10 @@ var _drafted_players: Dictionary = {}
 ## Player lookup by ID for O(1) access
 var _player_by_id: Dictionary = {}
 
+## Track which round boards were last precomputed for
+## Used to detect round changes and invalidate boards for position need recalculation
+var _last_precomputed_round: int = 0
+
 ## User's player shortlist/watchlist
 var _shortlist: PlayerShortlist = null
 
@@ -229,6 +233,9 @@ func initialize(
 	_precompute_team_boards()
 	var board_elapsed := (Time.get_ticks_usec() - board_start) / 1000.0
 	print("[InteractiveDraft] Draft boards computed in %.1fms" % board_elapsed)
+
+	# Track that we've precomputed for round 1
+	_last_precomputed_round = 1
 
 	# Initialize user's shortlist
 	_shortlist = PlayerShortlist.new()
@@ -456,11 +463,22 @@ func make_user_pick(player_id: String) -> bool:
 ##
 ## If boards were invalidated (e.g., after a trade), this will lazily
 ## recompute them before making the pick.
+##
+## CRITICAL FIX: Boards are also invalidated at the start of each new round
+## to ensure teams re-evaluate position needs based on players already drafted.
 func _make_ai_pick(pick_assignment: Dictionary) -> void:
 	var team_id := String(pick_assignment.get("current_owner_id", ""))
+	var round_num := int(pick_assignment.get("round", 1))
 
 	if _remaining_pool.is_empty():
 		return
+
+	# Check if we've started a new round since last precomputation
+	# If so, invalidate boards to force recalculation with updated rosters
+	if round_num != _last_precomputed_round:
+		print("[InteractiveDraft] New round %d detected - invalidating boards for position need recalculation" % round_num)
+		_invalidate_draft_boards()
+		_last_precomputed_round = round_num
 
 	# Lazy recomputation: If boards were invalidated, recompute them
 	if _team_boards.is_empty():
@@ -529,7 +547,9 @@ func _execute_pick(pick_assignment: Dictionary, player: Dictionary, player_index
 	var composite := float(player.get("composite_score", 50.0))
 	player["eval_score"] = composite
 
-	# Add to roster
+	# Add to roster and update by_position index
+	# CRITICAL: _rosters[team_id] is updated immediately so that when boards are
+	# recomputed at the start of the next round, position needs reflect current roster state
 	var roster: Dictionary = _rosters.get(team_id, {"players": [], "by_position": {}})
 	var players: Array = roster.get("players", [])
 	players.append(player)

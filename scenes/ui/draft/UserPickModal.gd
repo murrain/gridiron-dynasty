@@ -47,6 +47,9 @@ var _render_start_time: int = 0
 @onready var draft_button: Button = $VBoxContainer/Footer/DraftButton
 @onready var auto_button: Button = $VBoxContainer/Footer/AutoButton
 
+## Background overlay for modal effect
+var _background_overlay: ColorRect = null
+
 
 func _ready() -> void:
 	# Validate critical UI nodes
@@ -58,6 +61,9 @@ func _ready() -> void:
 		push_error("[UserPickModal] draft_button node not found - cannot draft players")
 		return
 
+	# Create background overlay for modal effect
+	_create_background_overlay()
+
 	# Connect signals
 	player_list.item_selected.connect(_on_player_selected)
 
@@ -67,6 +73,9 @@ func _ready() -> void:
 
 	if auto_button:
 		auto_button.pressed.connect(_on_auto_pick_pressed)
+
+	# Ensure this modal blocks input to elements behind it
+	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	# Start hidden
 	visible = false
@@ -102,6 +111,10 @@ func show_pick(round_num: int, pick_num: int, available_players: Array) -> void:
 		draft_button.disabled = true
 		draft_button.text = "DRAFT"
 
+	# Show the background overlay
+	if _background_overlay:
+		_background_overlay.visible = true
+
 	# Show the modal
 	visible = true
 
@@ -116,6 +129,11 @@ func show_pick(round_num: int, pick_num: int, available_players: Array) -> void:
 ## Hide the modal
 func hide_modal() -> void:
 	visible = false
+
+	# Hide the background overlay
+	if _background_overlay:
+		_background_overlay.visible = false
+
 	_clear_detail_panel()
 
 
@@ -355,3 +373,36 @@ func get_current_pick() -> int:
 ## Check if modal is visible
 func is_showing() -> bool:
 	return visible
+
+
+## Create a semi-transparent background overlay
+## This provides visual feedback that the modal is active and blocks clicks to background UI
+func _create_background_overlay() -> void:
+	if _background_overlay != null:
+		return  # Already created
+
+	_background_overlay = ColorRect.new()
+	_background_overlay.name = "BackgroundOverlay"
+
+	# Set to cover entire parent area
+	_background_overlay.anchors_preset = Control.PRESET_FULL_RECT
+	_background_overlay.anchor_left = 0.0
+	_background_overlay.anchor_top = 0.0
+	_background_overlay.anchor_right = 1.0
+	_background_overlay.anchor_bottom = 1.0
+
+	# Semi-transparent dark overlay
+	_background_overlay.color = Color(0.0, 0.0, 0.0, 0.6)
+
+	# Block mouse input
+	_background_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Lower z_index so it appears behind the modal content
+	_background_overlay.z_index = -1
+
+	# Add as first child so content appears on top
+	add_child(_background_overlay)
+	move_child(_background_overlay, 0)
+
+	# Start hidden
+	_background_overlay.visible = false

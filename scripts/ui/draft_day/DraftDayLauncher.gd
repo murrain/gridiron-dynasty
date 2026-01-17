@@ -142,6 +142,14 @@ static func launch_with_team(world_state: Dictionary, current_year: int, user_te
 		push_error("[DraftDayLauncher] Failed to load positions config")
 		return {}
 
+	# Store configs in world_state for DraftDayUI access
+	# DraftDayUI expects to find configs here for PreDraftRosterView initialization
+	world_state["positions_cfg"] = positions_cfg
+	world_state["main_cfg"] = main_cfg
+	world_state["league_cfg"] = league_cfg
+	world_state["stats_cfg"] = stats_cfg
+	world_state["scouts_cfg"] = scouts_cfg
+
 	# Create GameSession
 	var session := GameSession.new()
 	session.world_state = world_state
