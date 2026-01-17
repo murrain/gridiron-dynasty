@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "phases": [
     {
       "id": "hs_generation",
@@ -81,38 +81,50 @@
       "label": "NFL draft",
       "start_tick": 9,
       "end_tick": 9,
-      "tags": ["nfl"],
+      "tags": ["nfl", "draft"],
       "placeholder": false
+    },
+    {
+      "id": "udfa_signing",
+      "label": "UDFA signing period",
+      "description": "Undrafted free agents sign with NFL teams. User can select priority targets.",
+      "start_tick": 10,
+      "end_tick": 10,
+      "tags": ["nfl", "draft"],
+      "placeholder": false,
+      "handler": "UDFABiddingEngine.run",
+      "rng_seed_suffix": "0xUDFA0001",
+      "skippable": true
     },
     {
       "id": "roster_management",
       "label": "Roster management",
-      "start_tick": 10,
-      "end_tick": 10,
+      "start_tick": 11,
+      "end_tick": 11,
       "tags": ["nfl", "cap"],
       "placeholder": false
     },
     {
       "id": "nfl_free_agency",
       "label": "NFL free agency",
-      "start_tick": 11,
-      "end_tick": 11,
+      "start_tick": 12,
+      "end_tick": 12,
       "tags": ["nfl"],
       "placeholder": false
     },
     {
       "id": "cap_validation",
       "label": "Cap validation",
-      "start_tick": 12,
-      "end_tick": 12,
+      "start_tick": 13,
+      "end_tick": 13,
       "tags": ["nfl", "cap"],
       "placeholder": false
     },
     {
       "id": "nfl_season",
       "label": "NFL season",
-      "start_tick": 13,
-      "end_tick": 13,
+      "start_tick": 14,
+      "end_tick": 14,
       "tags": ["nfl"],
       "placeholder": false
     }

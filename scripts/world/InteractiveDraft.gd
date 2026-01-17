@@ -1,22 +1,8 @@
-## InteractiveDraft - Stateful Draft Coordinator
+## InteractiveDraft - Draft system with user participation
 ##
-## ARCHITECTURAL PATTERN: Stateful Coordinator (NOT a stateless service)
-##
-## This class manages the interactive draft session lifecycle, coordinating
-## between stateless services (DraftTradeEngine, DraftDecisionEngine) and
-## maintaining session state. It differs from stateless services by:
-##
-## Responsibilities:
-##   - Session lifecycle management (initialize -> start -> complete)
-##   - Draft state machine (NOT_STARTED, RUNNING, WAITING_FOR_USER, etc.)
-##   - Service orchestration (delegates to DraftTradeEngine for trades)
-##   - Signal emission for UI synchronization
-##   - World state persistence on session completion
-##
-## State Mutation:
-##   - Holds mutable session state (_current_pick, _team_boards, etc.)
-##   - Mutates world_state during lifecycle (pick ownership, rosters)
-##   - This is INTENTIONAL and appropriate for the coordinator pattern
+## This extends the NflDraft system to support a human user controlling
+## one team's picks. The draft proceeds pick-by-pick, pausing when
+## it's the user's turn to make a selection.
 ##
 ## Usage:
 ##   var draft = InteractiveDraft.new()
@@ -39,7 +25,7 @@ const RecruitingScoreCache = preload("res://scripts/core/scouting/RecruitingScor
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
 const NflDraft = preload("res://scripts/world/NflDraft.gd")
-const DraftTradeEngine = preload("res://scripts/world/DraftTradeEngine.gd")
+const PlayerShortlist = preload("res://scripts/core/models/PlayerShortlist.gd")
 
 ## Emitted when the user needs to make a pick
 ## Parameters: pick_number, round_number, available_players, recommendations
@@ -57,17 +43,17 @@ signal draft_ticker_update(pick_number: int, team_id: String, player_name: Strin
 ## Emitted when round changes
 signal round_changed(round_number: int)
 
-## Emitted when trade window opens (between picks)
-signal trade_window_opened(current_pick: int, user_tradeable_picks: Array)
+## Emitted when a shortlisted player is drafted
+signal shortlisted_player_drafted(player_id: String, player_name: String, position: String, team_id: String, pick_number: int)
 
-## Emitted when trade is executed
-signal trade_executed(trade_record: Dictionary)
-
-## Emitted when trade is rejected
-signal trade_rejected(reason: String)
+## Emitted when shortlist changes
+signal shortlist_changed()
 
 ## Draft state
-enum DraftState { NOT_STARTED, RUNNING, WAITING_FOR_USER, TRADE_WINDOW, COMPLETED }
+enum DraftState { NOT_STARTED, RUNNING, WAITING_FOR_USER, COMPLETED }
+
+## Board sort modes for BPA vs Need toggle
+enum BoardSortMode { BPA, NEED, SCHEME_FIT }
 
 var _state: DraftState = DraftState.NOT_STARTED
 var _world_state: Dictionary = {}
@@ -116,6 +102,12 @@ var _drafted_players: Dictionary = {}
 
 ## Player lookup by ID for O(1) access
 var _player_by_id: Dictionary = {}
+
+## User's player shortlist/watchlist
+var _shortlist: PlayerShortlist = null
+
+## Current board sort mode for user display
+var _board_sort_mode: BoardSortMode = BoardSortMode.BPA
 
 
 ## Initialize the draft with world state and configs
@@ -218,6 +210,12 @@ func initialize(
 	_precompute_team_boards()
 	var board_elapsed := (Time.get_ticks_usec() - board_start) / 1000.0
 	print("[InteractiveDraft] Draft boards computed in %.1fms" % board_elapsed)
+
+	# Initialize user's shortlist
+	_shortlist = PlayerShortlist.new()
+	_shortlist.initialize(user_team_id)
+	_shortlist.shortlisted_player_drafted.connect(_on_shortlisted_player_drafted)
+	_shortlist.shortlist_changed.connect(_on_shortlist_changed)
 
 	_state = DraftState.NOT_STARTED
 
@@ -512,6 +510,10 @@ func _execute_pick(pick_assignment: Dictionary, player: Dictionary, player_index
 	# Mark player as drafted (for fast lookup in board iteration)
 	_drafted_players[player_id] = true
 
+	# Notify shortlist if this player was on user's watchlist
+	if _shortlist and _shortlist.is_shortlisted(player_id):
+		_shortlist.mark_as_drafted(player_id, team_id, overall_pick)
+
 	# Record pick
 	var pick_record := {
 		"round": round_num,
@@ -743,13 +745,13 @@ func _create_rookie_contract(round_num: int, overall_pick: int) -> Dictionary:
 	var max_rookie_pct := 0.05
 	var min_rookie_pct := 0.002
 	var decay := pow(0.97, float(overall_pick - 1))
-	var pct := clamp(max_rookie_pct * decay, min_rookie_pct, max_rookie_pct)
-	var base_salary := cap_limit * pct
+	var pct: float = clamp(max_rookie_pct * decay, min_rookie_pct, max_rookie_pct)
+	var base_salary: float = cap_limit * pct
 
-	var signing_bonus := base_salary * (0.8 - (float(round_num - 1) * 0.1))
+	var signing_bonus: float = base_salary * (0.8 - (float(round_num - 1) * 0.1))
 	signing_bonus = max(signing_bonus, 0.1)
 
-	var annual_value := base_salary + (signing_bonus / float(years))
+	var annual_value: float = base_salary + (signing_bonus / float(years))
 
 	return {
 		"type": "rookie",
@@ -836,229 +838,212 @@ func get_total_picks() -> int:
 
 
 # =============================================================================
-# TRADE SYSTEM METHODS
+# SHORTLIST MANAGEMENT (DRAFT-009)
 # =============================================================================
 
-## Enter trade window (called between picks)
-## User can propose trades during this window
-func enter_trade_window() -> void:
-	if _state != DraftState.RUNNING:
-		push_warning("[InteractiveDraft] Cannot enter trade window from state %d" % _state)
-		return
-
-	_state = DraftState.TRADE_WINDOW
-	var user_picks := _get_user_tradeable_picks()
-	trade_window_opened.emit(_current_pick, user_picks)
-
-
-## Exit trade window and resume draft
-func exit_trade_window() -> void:
-	if _state != DraftState.TRADE_WINDOW:
-		push_warning("[InteractiveDraft] Not in trade window")
-		return
-
-	_state = DraftState.RUNNING
-	_advance_draft()
-
-
-## Propose trade (user-initiated)
-## Returns true if trade was accepted and executed
-func propose_trade(offer: Dictionary) -> bool:
-	if _state != DraftState.TRADE_WINDOW:
-		push_error("[InteractiveDraft] Trades only allowed in trade window")
+## Add a player to the user's shortlist
+func add_to_shortlist(player_id: String, priority: int = PlayerShortlist.Priority.MEDIUM) -> bool:
+	if _shortlist == null:
 		return false
 
-	# Validate trade
-	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
-	var validation := DraftTradeEngine.validate_trade(
-		offer,
-		ownership,
-		_year,
-		_current_pick
-	)
-
-	if not validation.get("valid", false):
-		trade_rejected.emit(String(validation.get("reason", "Invalid trade")))
+	var player: Dictionary = _player_by_id.get(player_id, {})
+	if player.is_empty():
 		return false
 
-	# Evaluate acceptance (AI decision)
-	var receiving_team_id := String(offer.get("receiving_team_id", ""))
-	var receiving_roster: Dictionary = _rosters.get(receiving_team_id, {})
-	var receiving_needs := _calculate_position_needs(receiving_roster)
-
-	var accepted := DraftTradeEngine.should_accept_trade(
-		offer,
-		receiving_team_id,
-		receiving_roster,
-		receiving_needs,
-		_year,
-		_current_pick,
-		_seed,
-		_league_cfg
+	return _shortlist.add_player(
+		player_id,
+		String(player.get("name", "Unknown")),
+		String(player.get("position", "")),
+		String(player.get("college_team_id", "")),
+		priority
 	)
 
-	if not accepted:
-		trade_rejected.emit("Trade declined by %s" % receiving_team_id)
+
+## Remove a player from the user's shortlist
+func remove_from_shortlist(player_id: String) -> bool:
+	if _shortlist == null:
 		return false
-
-	# Execute trade
-	_execute_trade(offer)
-	return true
+	return _shortlist.remove_player(player_id)
 
 
-## Execute trade (internal helper)
-func _execute_trade(offer: Dictionary) -> void:
-	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
-
-	# Use engine to update ownership and create record (stateless)
-	var result := DraftTradeEngine.execute_trade(
-		offer, ownership, _year, _current_pick
-	)
-
-	var trade_record: Dictionary = result.get("trade_record", {})
-	var updated_ownership: Dictionary = result.get("updated_ownership", {})
-
-	# Update world state with new ownership
-	_world_state["draft_pick_ownership"] = updated_ownership
-
-	# Add to trade history
-	if not _world_state.has("draft_trades"):
-		_world_state["draft_trades"] = {}
-	var trade_history: Dictionary = _world_state["draft_trades"]
-	if not trade_history.has(_year):
-		trade_history[_year] = []
-	(trade_history[_year] as Array).append(trade_record)
-
-	# Emit signal
-	trade_executed.emit(trade_record)
-
-	# Rebuild draft order (ownership changed)
-	_build_draft_order()
+## Check if a player is on the shortlist
+func is_on_shortlist(player_id: String) -> bool:
+	if _shortlist == null:
+		return false
+	return _shortlist.is_shortlisted(player_id)
 
 
-## Get user's tradeable picks (picks not yet used)
-func _get_user_tradeable_picks() -> Array:
-	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
-	var user_picks: Array = []
-
-	var year_ownership: Dictionary = ownership.get(_year, {}) as Dictionary
-
-	for round_num in range(_current_round, _rounds + 1):
-		var round_ownership: Dictionary = year_ownership.get(round_num, {}) as Dictionary
-
-		for orig_team_id in round_ownership.keys():
-			var current_owner := String(round_ownership.get(orig_team_id, ""))
-			if current_owner == _user_team_id:
-				# Determine pick_in_round from original team's draft order
-				var pick_in_round := _get_pick_in_round_for_team(orig_team_id, round_num)
-				var overall := (round_num - 1) * _picks_per_round + pick_in_round
-
-				# Only tradeable if not yet used
-				if overall > _current_pick:
-					user_picks.append({
-						"year": _year,
-						"round": round_num,
-						"pick_in_round": pick_in_round,
-						"overall": overall,
-						"original_team_id": orig_team_id,
-						"pick_id": "%d_%d_%d" % [_year, round_num, pick_in_round]
-					})
-
-	return user_picks
+## Get all shortlist entries
+func get_shortlist() -> Array:
+	if _shortlist == null:
+		return []
+	return _shortlist.get_all_entries()
 
 
-## Get pick_in_round for a team's original pick
-func _get_pick_in_round_for_team(team_id: String, round_num: int) -> int:
-	var team: Dictionary = _team_index.get(team_id, {})
-	var draft_order := int(team.get("draft_order", 16))
-	return draft_order
+## Get available shortlist entries (not yet drafted)
+func get_available_shortlist() -> Array:
+	if _shortlist == null:
+		return []
+	return _shortlist.get_available_entries()
 
 
-## Process AI-initiated trade opportunities (called during _advance_draft)
-func _process_ai_trade_opportunities() -> void:
-	# Only process trades occasionally (every 5th pick or so)
-	if _current_pick % 5 != 0:
-		return
+## Set shortlist priority for a player
+func set_shortlist_priority(player_id: String, priority: int) -> bool:
+	if _shortlist == null:
+		return false
+	return _shortlist.set_priority(player_id, priority)
 
-	# Generate AI trade proposals for current pick
-	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
-	var proposals := DraftTradeEngine.generate_ai_trade_proposals(
-		_current_pick,
-		_teams,
-		_rosters,
-		ownership,
-		_remaining_pool,
-		_year,
-		_seed,
-		_league_cfg
-	)
 
-	# Execute first accepted trade (if any)
-	for proposal in proposals:
-		var p: Dictionary = proposal
-		var receiving_team_id := String(p.get("receiving_team_id", ""))
-		var receiving_roster: Dictionary = _rosters.get(receiving_team_id, {})
-		var receiving_needs := _calculate_position_needs(receiving_roster)
+## Get the shortlist model for direct access
+func get_shortlist_model() -> PlayerShortlist:
+	return _shortlist
 
-		var accepted := DraftTradeEngine.should_accept_trade(
-			p,
-			receiving_team_id,
-			receiving_roster,
-			receiving_needs,
-			_year,
-			_current_pick,
-			_seed,
-			_league_cfg
+
+## Load shortlist from save data
+func load_shortlist_data(data: Dictionary) -> void:
+	if _shortlist == null:
+		_shortlist = PlayerShortlist.new()
+	_shortlist.from_dict(data)
+	_shortlist.shortlisted_player_drafted.connect(_on_shortlisted_player_drafted)
+	_shortlist.shortlist_changed.connect(_on_shortlist_changed)
+
+
+## Get shortlist data for saving
+func get_shortlist_data() -> Dictionary:
+	if _shortlist == null:
+		return {}
+	return _shortlist.to_dict()
+
+
+## Signal handler for shortlist player drafted notification
+func _on_shortlisted_player_drafted(player_id: String, player_name: String, position: String, team_id: String, pick_number: int) -> void:
+	shortlisted_player_drafted.emit(player_id, player_name, position, team_id, pick_number)
+
+
+## Signal handler for shortlist changed notification
+func _on_shortlist_changed() -> void:
+	shortlist_changed.emit()
+
+
+# =============================================================================
+# BOARD SORT MODE (DRAFT-015: BPA vs Need Toggle)
+# =============================================================================
+
+## Set the board sort mode
+func set_board_sort_mode(mode: BoardSortMode) -> void:
+	assert(mode in [BoardSortMode.BPA, BoardSortMode.NEED, BoardSortMode.SCHEME_FIT],
+		"Invalid board sort mode: %d" % mode)
+	_board_sort_mode = mode
+
+
+## Get the current board sort mode
+func get_board_sort_mode() -> BoardSortMode:
+	return _board_sort_mode
+
+
+## Get available players sorted by current mode
+## This is a client-side sort that does not modify underlying data
+## Performance target: <50ms for 250 players
+## NOTE: Does NOT include shortlist state - UI must query separately via is_on_shortlist()
+func get_sorted_available_players() -> Array:
+	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
+	var result: Array = []
+
+	# Build list with all needed data (excluding shortlist state for separation of concerns)
+	for player in _remaining_pool:
+		var p: Dictionary = player
+		var player_id := String(p.get("player_id", p.get("id", "")))
+
+		var overall := PlayerRatingCalculator.calculate_overall_rating(
+			p, _positions_cfg, class_rules
 		)
 
-		if accepted:
-			_execute_trade(p)
-			break  # Only execute one trade per pick
+		result.append({
+			"player_id": player_id,
+			"name": String(p.get("name", "Unknown")),
+			"position": String(p.get("position", "")),
+			"college": String(p.get("college_team_id", "")),
+			"overall": overall,
+			"age": int(p.get("age", 22)),
+			"height": String(p.get("height", "")),
+			"weight": int(p.get("weight", 0)),
+		})
+
+	# Sort based on current mode
+	match _board_sort_mode:
+		BoardSortMode.BPA:
+			_sort_by_bpa(result)
+		BoardSortMode.NEED:
+			_sort_by_need(result)
+		BoardSortMode.SCHEME_FIT:
+			_sort_by_scheme_fit(result)
+
+	return result
 
 
-## Check if trade window is available (between picks, not on user's turn)
-func can_open_trade_window() -> bool:
-	return _state == DraftState.RUNNING
+## Sort by Best Player Available (pure overall rating)
+func _sort_by_bpa(players: Array) -> void:
+	players.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("overall", 0.0)) > float(b.get("overall", 0.0))
+	)
 
 
-## Get all teams available for trading (excludes user team)
-func get_trade_partner_teams() -> Array:
-	var partners: Array = []
-	for team in _teams:
-		var t: Dictionary = team
-		if String(t.get("id", "")) != _user_team_id:
-			partners.append(t)
-	return partners
+## Sort by Need (weight position scarcity + team depth)
+func _sort_by_need(players: Array) -> void:
+	var roster: Dictionary = _rosters.get(_user_team_id, {})
+	var needs := _calculate_position_needs(roster)
+
+	# Calculate need-weighted score for each player
+	for player in players:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
+		var overall := float(p.get("overall", 50.0))
+		var need_mult := float(needs.get(position, 1.0))
+
+		# Need score: overall * need multiplier
+		# Higher need positions get higher scores
+		p["need_score"] = overall * need_mult
+
+	players.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("need_score", 0.0)) > float(b.get("need_score", 0.0))
+	)
 
 
-## Get picks owned by a specific team
-func get_team_picks(team_id: String) -> Array:
-	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
-	var year_ownership: Dictionary = ownership.get(_year, {}) as Dictionary
-	var picks: Array = []
+## Sort by Scheme Fit (weight scheme compatibility scores)
+func _sort_by_scheme_fit(players: Array) -> void:
+	var team_data: Dictionary = _team_index.get(_user_team_id, {})
+	var offensive_scheme := String(team_data.get("offensive_scheme", "pro_style"))
+	var defensive_scheme := String(team_data.get("defensive_scheme", "cover_2"))
 
-	for round_num in range(1, _rounds + 1):
-		var round_ownership: Dictionary = year_ownership.get(round_num, {}) as Dictionary
+	# Calculate scheme fit score for each player
+	for player in players:
+		var p: Dictionary = player
+		var player_id := String(p.get("player_id", ""))
+		var position := String(p.get("position", ""))
+		var overall := float(p.get("overall", 50.0))
 
-		for orig_team_id in round_ownership.keys():
-			var owner := String(round_ownership.get(orig_team_id, ""))
-			if owner == team_id:
-				var pick_in_round := _get_pick_in_round_for_team(orig_team_id, round_num)
-				var overall := (round_num - 1) * _picks_per_round + pick_in_round
+		# Get player data for scheme fit
+		var player_data: Dictionary = _player_by_id.get(player_id, {})
+		var scheme_fit: Dictionary = player_data.get("scheme_fit", {})
 
-				if overall > _current_pick:
-					picks.append({
-						"year": _year,
-						"round": round_num,
-						"pick_in_round": pick_in_round,
-						"overall": overall,
-						"original_team_id": orig_team_id,
-						"pick_id": "%d_%d_%d" % [_year, round_num, pick_in_round]
-					})
+		# Determine which scheme to check based on position
+		var scheme_to_check := offensive_scheme
+		var defensive_positions := ["DL", "EDGE", "LB", "CB", "S"]
+		if position in defensive_positions:
+			scheme_to_check = defensive_scheme
 
-	return picks
+		# Get fit rating (default to 75 if not specified)
+		var fit_rating := float(scheme_fit.get(scheme_to_check, 75.0))
+
+		# Scheme score: weighted combination of overall and fit
+		# 60% overall + 40% scheme fit (normalized to 0-100)
+		p["scheme_score"] = (overall * 0.6) + (fit_rating * 0.4)
+
+	players.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("scheme_score", 0.0)) > float(b.get("scheme_score", 0.0))
+	)
 
 
-## Check if we're in trade window state
-func is_in_trade_window() -> bool:
-	return _state == DraftState.TRADE_WINDOW
+## Get player data by ID (for UI lookups)
+func get_player_by_id(player_id: String) -> Dictionary:
+	return _player_by_id.get(player_id, {})

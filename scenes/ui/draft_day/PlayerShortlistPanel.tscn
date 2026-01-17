@@ -1,0 +1,66 @@
+[gd_scene load_steps=2 format=3 uid="uid://bksh0rtl1st"]
+
+[ext_resource type="Script" path="res://scenes/ui/draft_day/PlayerShortlistPanel.gd" id="1_shortlist"]
+
+[node name="PlayerShortlistPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(280, 200)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_shortlist")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "My Watchlist"
+theme_override_font_sizes/font_size = 14
+
+[node name="CountLabel" type="Label" parent="VBoxContainer/Header"]
+layout_mode = 2
+text = "(0)"
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ShortlistContainer" type="VBoxContainer" parent="VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EmptyLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "No players on watchlist.
+Click the star icon on a player
+to add them to your watchlist."
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+
+[node name="AlertPanel" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="AlertPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 4
+
+[node name="AlertLabel" type="Label" parent="AlertPanel/MarginContainer"]
+layout_mode = 2
+text = "ALERT: Player drafted!"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
