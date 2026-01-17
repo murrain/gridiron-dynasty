@@ -188,9 +188,9 @@ static func launch_with_team(world_state: Dictionary, current_year: int, user_te
 	)
 
 	# Load and instantiate DraftDayUI scene
-	var draft_ui_scene := load("res://scenes/ui/draft_day/DraftDayUI.tscn")
+	var draft_ui_scene := load("res://scenes/ui/draft_day/draft_day_ui.tscn")
 	if not draft_ui_scene:
-		push_error("[DraftDayLauncher] Failed to load DraftDayUI scene at res://scenes/ui/draft_day/DraftDayUI.tscn")
+		push_error("[DraftDayLauncher] Failed to load DraftDayUI scene at res://scenes/ui/draft_day/draft_day_ui.tscn")
 		return {}
 
 	var ui: Node = draft_ui_scene.instantiate()
