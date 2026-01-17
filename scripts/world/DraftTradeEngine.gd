@@ -11,18 +11,27 @@
 ##
 ## RNG Pattern:
 ##   - Trade acceptance: Rand.splitmix64(base_seed ^ hash(receiving_team_id) ^ year ^ current_pick)
-##   - AI proposal generation: Rand.splitmix64(base_seed ^ current_pick ^ 0x7ADE0)
+##   - AI proposal generation: Rand.splitmix64(base_seed ^ current_pick ^ 0x7ADE00)
+##   - QB urgency check: Rand.splitmix64(base_seed ^ hash(team_id) ^ 0xQB00)
 ##
 ## Integration Points:
 ##   - InteractiveDraft: TRADE_WINDOW state management, execution
 ##   - NflDraft: value_draft_pick() for pick valuation
+##   - EvaluationContext: QB urgency checks
 ##   - TradeProposalDialog: UI for user-initiated trades
+##
+## QB Urgency Integration:
+##   Teams with QB urgency level "desperate" (2.8x multiplier) are aggressive traders:
+##   - 70%+ of QB-desperate teams propose trades when elite QB (75+) available
+##   - QB urgency boosts acceptance rate for trades that move up for QB
+##   - Target: 15-25 trades per draft year (realistic NFL range)
 ##
 extends RefCounted
 class_name DraftTradeEngine
 
 const Rand = preload("res://autoloads/Rand.gd")
 const NflDraft = preload("res://scripts/world/NflDraft.gd")
+const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 
 ## Schema version for trade records (enables future migration)
 const TRADE_SCHEMA_VERSION := 1
@@ -31,13 +40,26 @@ const TRADE_SCHEMA_VERSION := 1
 const BASE_ACCEPTANCE_RATE := 0.3
 
 ## Maximum acceptance probability (never 100% certain)
-const MAX_ACCEPTANCE_RATE := 0.95
+const MAX_ACCEPTANCE_RATE := 0.90
+
+## Minimum acceptance probability (always some chance)
+const MIN_ACCEPTANCE_RATE := 0.10
 
 ## Value differential threshold for AI to consider trade (within 20%)
 const AI_VALUE_DIFFERENTIAL_THRESHOLD := 0.20
 
 ## Maximum trades generated per pick by AI
 const MAX_AI_PROPOSALS_PER_PICK := 3
+
+## QB urgency multiplier for trade aggression (from PR #149)
+const QB_DESPERATE_MULTIPLIER := 2.8
+const QB_MODERATE_MULTIPLIER := 1.6
+
+## Threshold for elite QB prospects that trigger trade-up behavior
+const ELITE_QB_THRESHOLD := 75.0
+
+## Probability that QB-desperate team proposes trade when elite QB available
+const QB_DESPERATE_TRADE_PROBABILITY := 0.70
 
 
 ## Validate trade legality
@@ -731,3 +753,533 @@ static func format_trade_summary(
 	return "[TRADE] %s sends (%s) to %s for (%s)" % [
 		offering, offered_str, receiving, requested_str
 	]
+
+
+# =============================================================================
+# PHASE 3A API: QB URGENCY-AWARE TRADING
+# =============================================================================
+
+## Generate AI trade proposals for current pick (DRAFT-001 API)
+##
+## This is the main entry point for AI trade proposal generation.
+## Integrates with QB urgency system (PR #149) to create realistic draft behavior:
+##   - QB-desperate teams (2.8x urgency) propose trades 70%+ of the time when elite QB available
+##   - Teams trade up when (target_player_value - cost_to_trade_up) > threshold
+##   - Limited to 3 proposals per pick to prevent runaway complexity
+##
+## RNG consumption pattern:
+##   - Seed: Rand.splitmix64(base_seed ^ hash(team_id) ^ year ^ pick_number)
+##   - 1 randf() per team for trade consideration
+##   - 1-3 randf() calls per actual proposal generation
+##
+## @param draft_context: Dictionary containing:
+##   - year: int - Draft year
+##   - teams: Array - All NFL teams
+##   - rosters: Dictionary - Team rosters (team_id -> roster)
+##   - ownership: Dictionary - draft_pick_ownership ledger
+##   - league_cfg: Dictionary - League configuration
+##   - positions_cfg: Dictionary - Position configuration
+##   - class_rules: Dictionary - Class rules with draft_qb_urgency section
+## @param current_pick: int - Current overall pick number (1-224)
+## @param picking_team: String - Team currently on the clock
+## @param available_players: Array - Remaining draft pool
+## @param base_seed: int - Seed for deterministic generation
+## @return Array[Dictionary]: Array of trade offers (max 3)
+static func generate_trade_proposals(
+	draft_context: Dictionary,
+	current_pick: int,
+	picking_team: String,
+	available_players: Array,
+	base_seed: int
+) -> Array:
+	var proposals: Array = []
+
+	var year := int(draft_context.get("year", 2025))
+	var teams: Array = draft_context.get("teams", []) as Array
+	var rosters: Dictionary = draft_context.get("rosters", {}) as Dictionary
+	var ownership: Dictionary = draft_context.get("ownership", {}) as Dictionary
+	var league_cfg: Dictionary = draft_context.get("league_cfg", {}) as Dictionary
+	var positions_cfg: Dictionary = draft_context.get("positions_cfg", {}) as Dictionary
+	var class_rules: Dictionary = draft_context.get("class_rules", {}) as Dictionary
+
+	# Find elite QBs available in the pool
+	var elite_qbs := _find_elite_qbs_in_pool(available_players, positions_cfg, class_rules)
+	var has_elite_qb := not elite_qbs.is_empty()
+
+	# Get top prospect at current pick (BPA)
+	var top_prospect: Dictionary = {}
+	if not available_players.is_empty():
+		top_prospect = available_players[0] as Dictionary
+
+	# Analyze each team's trade interest
+	for team in teams:
+		if proposals.size() >= MAX_AI_PROPOSALS_PER_PICK:
+			break
+
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+
+		# Skip the team currently on the clock (they don't need to trade up)
+		if team_id == picking_team:
+			continue
+
+		var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
+
+		# Create deterministic RNG for this team's trade consideration
+		# RNG seed: base_seed XOR team_id hash XOR year XOR current_pick
+		var team_seed := Rand.splitmix64(base_seed ^ hash(team_id) ^ year ^ current_pick)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = team_seed
+
+		# Evaluate QB urgency for this team
+		var qb_urgency := _evaluate_qb_urgency_for_trading(roster, positions_cfg, class_rules)
+		var urgency_level := String(qb_urgency.get("level", "stable"))
+		var urgency_multiplier := float(qb_urgency.get("multiplier", 1.0))
+
+		# Determine if team wants to trade
+		var trade_probability := _calculate_trade_probability(
+			team_id,
+			picking_team,
+			urgency_level,
+			has_elite_qb,
+			top_prospect,
+			current_pick,
+			ownership,
+			year
+		)
+
+		# RNG consumption: 1 randf() to decide if team considers trading
+		if rng.randf() > trade_probability:
+			continue
+
+		# Team wants to trade - generate a proposal
+		var proposal := _generate_urgency_aware_proposal(
+			team_id,
+			picking_team,
+			ownership,
+			year,
+			current_pick,
+			urgency_level,
+			urgency_multiplier,
+			elite_qbs,
+			league_cfg,
+			rng
+		)
+
+		if not proposal.is_empty():
+			# Validate proposal before adding
+			var validation := validate_trade(proposal, ownership, year, current_pick)
+			if bool(validation.get("valid")):
+				# Check value differential is acceptable
+				var value_diff: float = calculate_value_differential(proposal, league_cfg, year)
+				# More generous threshold for QB-desperate teams
+				var threshold: float = AI_VALUE_DIFFERENTIAL_THRESHOLD
+				if urgency_level == "desperate":
+					threshold = 0.35  # Desperate teams accept worse deals
+
+				var relative_diff: float = abs(value_diff) / max(1.0, abs(value_diff) + 500.0)
+				if relative_diff <= threshold:
+					proposal["qb_urgency_level"] = urgency_level
+					proposal["target_player_type"] = "elite_qb" if has_elite_qb else "bpa"
+					proposals.append(proposal)
+
+	return proposals
+
+
+## Calculate trade value using Jimmy Johnson chart (DRAFT-001 API)
+##
+## Wrapper around NflDraft.value_draft_pick() for array of picks.
+## Accounts for future year discounting (already in value_draft_pick).
+##
+## RNG: None (pure calculation)
+##
+## @param picks_array: Array[Dictionary] - Each: {year, round, pick_number}
+## @param current_year: int - Current simulation year
+## @return float: Total trade value points
+static func calculate_trade_value(
+	picks_array: Array,
+	current_year: int
+) -> float:
+	var total_value := 0.0
+	var config := {}  # Empty config uses default chart values
+
+	for pick in picks_array:
+		var p: Dictionary = pick
+		var pick_year := int(p.get("year", current_year))
+		var round_num := int(p.get("round", 1))
+		var pick_in_round := int(p.get("pick_number", p.get("pick_in_round", 1)))
+
+		total_value += NflDraft.value_draft_pick(
+			pick_year, round_num, pick_in_round, current_year, config
+		)
+
+	return total_value
+
+
+## Evaluate if receiving team accepts trade offer (DRAFT-001 API)
+##
+## Enhanced acceptance logic that integrates QB urgency from PR #149:
+##   - Base formula: BASE_ACCEPTANCE_RATE + (value_difference * 0.5)
+##   - QB urgency modifier for receiving team (if giving up pick for QB-needy team)
+##   - Cap at 0.90 (always some chance of rejection)
+##   - Floor at 0.10 (always some chance of acceptance)
+##
+## RNG consumption:
+##   - 1 randf() call per evaluation (deterministic via seed)
+##
+## @param trade_offer: Dictionary - Trade offer structure
+## @param receiving_team: String - Team evaluating offer
+## @param draft_context: Dictionary - Context including rosters, configs
+## @param base_seed: int - Seed for determinism
+## @return bool: True if trade accepted
+static func evaluate_trade_acceptance(
+	trade_offer: Dictionary,
+	receiving_team: String,
+	draft_context: Dictionary,
+	base_seed: int
+) -> bool:
+	var year := int(draft_context.get("year", 2025))
+	var current_pick := int(draft_context.get("current_pick", 0))
+	var rosters: Dictionary = draft_context.get("rosters", {}) as Dictionary
+	var league_cfg: Dictionary = draft_context.get("league_cfg", {}) as Dictionary
+	var positions_cfg: Dictionary = draft_context.get("positions_cfg", {}) as Dictionary
+	var class_rules: Dictionary = draft_context.get("class_rules", {}) as Dictionary
+
+	var roster: Dictionary = rosters.get(receiving_team, {}) as Dictionary
+
+	# Calculate value differential (positive = receiving team benefits)
+	var value_diff := calculate_value_differential(trade_offer, league_cfg, year)
+
+	# Evaluate receiving team's QB urgency (affects their willingness to trade away picks)
+	var qb_urgency := _evaluate_qb_urgency_for_trading(roster, positions_cfg, class_rules)
+	var urgency_level := String(qb_urgency.get("level", "stable"))
+
+	# Calculate acceptance probability
+	var acceptance_prob := _calculate_enhanced_acceptance_probability(
+		value_diff,
+		urgency_level,
+		trade_offer,
+		year
+	)
+
+	# Create deterministic RNG
+	# Seed pattern: base_seed XOR receiving_team hash XOR year XOR current_pick
+	var accept_seed := Rand.splitmix64(base_seed ^ hash(receiving_team) ^ year ^ current_pick)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = accept_seed
+
+	# RNG consumption: 1 randf() call
+	return rng.randf() < acceptance_prob
+
+
+# =============================================================================
+# PRIVATE HELPERS: QB URGENCY INTEGRATION
+# =============================================================================
+
+## Find elite QB prospects in the draft pool
+##
+## Returns QBs with overall rating >= ELITE_QB_THRESHOLD (75.0)
+## These are the prospects that trigger QB-desperate teams to trade up.
+##
+## RNG: None (pure filtering)
+static func _find_elite_qbs_in_pool(
+	available_players: Array,
+	positions_cfg: Dictionary,
+	class_rules: Dictionary
+) -> Array:
+	var elite_qbs: Array = []
+
+	for player in available_players:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
+
+		if position != "QB":
+			continue
+
+		var rating := PlayerRatingCalculator.calculate_overall_rating(
+			p, positions_cfg, class_rules
+		)
+
+		if rating >= ELITE_QB_THRESHOLD:
+			elite_qbs.append({
+				"player": p,
+				"rating": rating,
+				"player_id": String(p.get("player_id", p.get("id", "")))
+			})
+
+	return elite_qbs
+
+
+## Evaluate QB urgency for trade decision-making
+##
+## Simplified version of NflDraft._evaluate_qb_urgency() for trading context.
+## Returns urgency level and multiplier that affects trade aggression.
+##
+## RNG: None (pure analysis)
+static func _evaluate_qb_urgency_for_trading(
+	roster: Dictionary,
+	positions_cfg: Dictionary,
+	class_rules: Dictionary
+) -> Dictionary:
+	var qb_cfg: Dictionary = class_rules.get("draft_qb_urgency", {}) as Dictionary
+	if not bool(qb_cfg.get("enabled", true)):
+		return {"level": "stable", "multiplier": 1.0}
+
+	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
+	var qb_ids: Array = by_position.get("QB", []) as Array
+	var all_players: Array = roster.get("players", []) as Array
+
+	# No QB = desperate
+	if qb_ids.is_empty():
+		return {
+			"level": "desperate",
+			"multiplier": float(qb_cfg.get("desperate_multiplier", QB_DESPERATE_MULTIPLIER)),
+			"reason": "no_qb"
+		}
+
+	# Find best QB
+	var best_rating := 0.0
+	var best_age := 40
+
+	for player in all_players:
+		var p: Dictionary = player
+		var pid := String(p.get("player_id", p.get("id", "")))
+		if pid not in qb_ids:
+			continue
+
+		var rating := PlayerRatingCalculator.calculate_overall_rating(
+			p, positions_cfg, class_rules
+		)
+		var age := int(p.get("age", 25))
+
+		if rating > best_rating:
+			best_rating = rating
+			best_age = age
+
+	var franchise_threshold := float(qb_cfg.get("franchise_qb_threshold", 65.0))
+	var aging_threshold := int(qb_cfg.get("aging_qb_age", 32))
+
+	# No franchise QB = desperate
+	if best_rating < franchise_threshold:
+		return {
+			"level": "desperate",
+			"multiplier": float(qb_cfg.get("desperate_multiplier", QB_DESPERATE_MULTIPLIER)),
+			"reason": "no_franchise_qb"
+		}
+
+	# Aging QB without young backup = moderate
+	if best_age >= aging_threshold:
+		return {
+			"level": "moderate",
+			"multiplier": float(qb_cfg.get("moderate_multiplier", QB_MODERATE_MULTIPLIER)),
+			"reason": "aging_qb"
+		}
+
+	return {"level": "stable", "multiplier": 1.0, "reason": "qb_set"}
+
+
+## Calculate probability that a team wants to make a trade
+##
+## Factors:
+##   - QB urgency level (desperate teams trade more)
+##   - Elite QB availability
+##   - Pick position relative to team's current pick
+##   - Number of picks team already has
+##
+## RNG: None (pure calculation)
+static func _calculate_trade_probability(
+	team_id: String,
+	picking_team: String,
+	urgency_level: String,
+	has_elite_qb: bool,
+	top_prospect: Dictionary,
+	current_pick: int,
+	ownership: Dictionary,
+	year: int
+) -> float:
+	# Base probability starts low
+	var probability := 0.08  # 8% base chance
+
+	# QB-desperate teams with elite QB available are aggressive
+	if urgency_level == "desperate" and has_elite_qb:
+		probability = QB_DESPERATE_TRADE_PROBABILITY  # 70%
+	elif urgency_level == "desperate":
+		probability = 0.35  # 35% even without elite QB
+	elif urgency_level == "moderate" and has_elite_qb:
+		probability = 0.40  # 40% moderate urgency + elite QB
+	elif urgency_level == "moderate":
+		probability = 0.20  # 20% moderate urgency
+
+	# Early round picks are more valuable - trade probability drops later
+	if current_pick > 64:  # After round 2
+		probability *= 0.7
+	if current_pick > 128:  # After round 4
+		probability *= 0.5
+
+	# If team has multiple early picks, they might trade down
+	var team_picks := _count_team_picks(team_id, ownership, year, current_pick)
+	if int(team_picks.get("early", 0)) >= 2:
+		probability += 0.10  # More likely to be willing to trade
+
+	return clamp(probability, 0.0, 0.95)
+
+
+## Generate a trade proposal with QB urgency awareness
+##
+## QB-desperate teams will overpay to move up for elite QBs.
+## This creates realistic draft behavior where teams sacrifice future picks.
+##
+## RNG consumption:
+##   - 0-2 randf() calls depending on proposal complexity
+static func _generate_urgency_aware_proposal(
+	trading_team: String,  # Team wanting to trade up
+	on_clock_team: String,  # Team currently picking
+	ownership: Dictionary,
+	year: int,
+	current_pick: int,
+	urgency_level: String,
+	urgency_multiplier: float,
+	elite_qbs: Array,
+	league_cfg: Dictionary,
+	rng: RandomNumberGenerator
+) -> Dictionary:
+	# Get picks owned by each team
+	var up_team_picks := _get_team_picks(trading_team, ownership, year, current_pick)
+	var clock_team_picks := _get_team_picks(on_clock_team, ownership, year, current_pick)
+
+	if up_team_picks.is_empty() or clock_team_picks.is_empty():
+		return {}
+
+	# Find the current pick (the one we want to trade for)
+	var target_pick: Dictionary = {}
+	for pick in clock_team_picks:
+		var p: Dictionary = pick
+		var overall := (int(p.get("round", 1)) - 1) * 32 + int(p.get("pick_in_round", 1))
+		if overall == current_pick or overall == current_pick + 1:
+			target_pick = p
+			break
+
+	if target_pick.is_empty():
+		# Fall back to earliest available
+		target_pick = clock_team_picks[0] if not clock_team_picks.is_empty() else {}
+
+	if target_pick.is_empty():
+		return {}
+
+	# Calculate value needed
+	var target_value := NflDraft.value_draft_pick(
+		int(target_pick.get("year", year)),
+		int(target_pick.get("round", 1)),
+		int(target_pick.get("pick_in_round", 1)),
+		year,
+		league_cfg
+	)
+
+	# QB-desperate teams overpay - multiply target value by urgency factor
+	var overpay_factor := 1.0
+	if urgency_level == "desperate" and not elite_qbs.is_empty():
+		overpay_factor = 1.15 + (rng.randf() * 0.15)  # 15-30% overpay
+	elif urgency_level == "moderate":
+		overpay_factor = 1.05 + (rng.randf() * 0.10)  # 5-15% overpay
+
+	var target_to_offer := target_value * overpay_factor
+
+	# Select picks to offer (sorted by value, highest first)
+	var picks_to_offer: Array = []
+	var offered_value := 0.0
+
+	var sorted_picks := up_team_picks.duplicate()
+	sorted_picks.sort_custom(func(a, b):
+		var a_val := NflDraft.value_draft_pick(
+			int((a as Dictionary).get("year", year)),
+			int((a as Dictionary).get("round", 1)),
+			int((a as Dictionary).get("pick_in_round", 1)),
+			year, league_cfg
+		)
+		var b_val := NflDraft.value_draft_pick(
+			int((b as Dictionary).get("year", year)),
+			int((b as Dictionary).get("round", 1)),
+			int((b as Dictionary).get("pick_in_round", 1)),
+			year, league_cfg
+		)
+		return a_val > b_val
+	)
+
+	for pick in sorted_picks:
+		var p: Dictionary = pick
+		var pick_value := NflDraft.value_draft_pick(
+			int(p.get("year", year)),
+			int(p.get("round", 1)),
+			int(p.get("pick_in_round", 1)),
+			year,
+			league_cfg
+		)
+
+		picks_to_offer.append(p)
+		offered_value += pick_value
+
+		# Stop when we've reached target value
+		if offered_value >= target_to_offer * 0.95:
+			break
+
+		# Don't offer more than 4 picks (realistic limit)
+		if picks_to_offer.size() >= 4:
+			break
+
+	# Only create proposal if value is reasonable
+	if offered_value < target_value * 0.80:
+		return {}  # Can't afford it
+
+	return {
+		"offering_team_id": trading_team,
+		"receiving_team_id": on_clock_team,
+		"picks_offered": picks_to_offer,
+		"picks_requested": [target_pick],
+		"initiated_by": "ai"
+	}
+
+
+## Calculate enhanced acceptance probability with QB urgency
+##
+## Base formula: BASE_ACCEPTANCE_RATE + (value_difference * 0.5)
+## Modified by:
+##   - QB urgency of receiving team (QB-desperate teams less willing to trade down)
+##   - Position of picks being traded (early picks = harder to give up)
+##
+## RNG: None (pure calculation)
+static func _calculate_enhanced_acceptance_probability(
+	value_diff: float,
+	receiving_urgency_level: String,
+	offer: Dictionary,
+	year: int
+) -> float:
+	# Start with base rate
+	var acceptance := BASE_ACCEPTANCE_RATE
+
+	# Value multiplier: More value = more likely to accept
+	# Scale: +100 pts = +10% acceptance, +500 pts = +50%
+	var value_multiplier := 1.0 + (value_diff / 1000.0)
+	value_multiplier = clamp(value_multiplier, 0.3, 2.5)
+
+	# QB urgency penalty: QB-desperate teams are LESS willing to trade down
+	# (they want to keep their pick to select a QB)
+	var urgency_penalty := 1.0
+	if receiving_urgency_level == "desperate":
+		urgency_penalty = 0.5  # 50% less likely to accept
+	elif receiving_urgency_level == "moderate":
+		urgency_penalty = 0.75  # 25% less likely
+
+	# Early pick bonus: Getting early picks makes trade more attractive
+	var picks_offered: Array = offer.get("picks_offered", []) as Array
+	var early_pick_bonus := 1.0
+	for pick in picks_offered:
+		var p: Dictionary = pick
+		if int(p.get("round", 7)) <= 2:
+			early_pick_bonus += 0.15  # +15% per early round pick
+	early_pick_bonus = clamp(early_pick_bonus, 1.0, 1.6)
+
+	# Calculate final probability
+	acceptance = acceptance * value_multiplier * urgency_penalty * early_pick_bonus
+
+	# Apply floor and ceiling
+	return clamp(acceptance, MIN_ACCEPTANCE_RATE, MAX_ACCEPTANCE_RATE)

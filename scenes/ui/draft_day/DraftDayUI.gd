@@ -27,6 +27,9 @@ class_name DraftDayUI
 const InteractiveDraft = preload("res://scripts/world/InteractiveDraft.gd")
 const GameSession = preload("res://scripts/core/models/GameSession.gd")
 const PlayerShortlistPanel = preload("res://scenes/ui/draft_day/PlayerShortlistPanel.gd")
+const SchemeFitModifier = preload("res://scripts/core/evaluation/modifiers/SchemeFitModifier.gd")
+const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
+const TradeProposalDialogScript = preload("res://scenes/ui/draft_day/TradeProposalDialog.gd")
 
 signal draft_completed(session: GameSession)
 signal view_world_requested()
@@ -63,6 +66,9 @@ var _showing_teams_popup: bool = false
 @onready var prospect_age_label: Label = $MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer/ProspectAgeLabel
 @onready var draft_button: Button = $MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer/DraftButton
 
+## Scheme fit display label (created dynamically)
+var _scheme_fit_label: Label = null
+
 @onready var coach_panel: PanelContainer = $MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel
 @onready var rec_container: VBoxContainer = $MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer/RecommendationsContainer
 
@@ -70,6 +76,7 @@ var _showing_teams_popup: bool = false
 @onready var view_world_button: Button = $MarginContainer/VBoxContainer/Footer/ViewWorldButton
 @onready var view_roster_button: Button = $MarginContainer/VBoxContainer/Footer/ViewRosterButton
 @onready var view_teams_button: Button = $MarginContainer/VBoxContainer/Footer/ViewTeamsButton
+@onready var propose_trade_button: Button = $MarginContainer/VBoxContainer/Footer/ProposeTradeButton
 
 ## Popup references (created dynamically)
 var _roster_popup: Window = null
@@ -83,6 +90,9 @@ var _board_sort_toggle: OptionButton = null
 
 ## Shortlist button for selected player
 var _shortlist_button: Button = null
+
+## Trade dialog reference (created dynamically)
+var _trade_dialog: Window = null
 
 
 func _ready() -> void:
@@ -136,6 +146,9 @@ func _ready() -> void:
 	# Setup board sort toggle (DRAFT-015)
 	_setup_board_sort_toggle()
 
+	# Setup Propose Trade button (DRAFT-001)
+	_setup_propose_trade_button()
+
 
 ## Initialize with session and draft controller
 func initialize(session: GameSession, draft: InteractiveDraft) -> void:
@@ -151,8 +164,14 @@ func initialize(session: GameSession, draft: InteractiveDraft) -> void:
 	# Connect shortlist signals (DRAFT-009)
 	_draft.shortlisted_player_drafted.connect(_on_shortlisted_player_drafted)
 
+	# Connect trade signals (DRAFT-001)
+	_draft.trade_executed.connect(_on_trade_executed)
+
 	# Initialize shortlist panel if exists
 	_setup_shortlist_panel()
+
+	# Initialize trade dialog
+	_setup_trade_dialog()
 
 	# Update header
 	header_label.text = "%d NFL Draft - %s" % [session.current_year, session.user_team_name]
@@ -294,6 +313,9 @@ func _on_prospect_selected(index: int) -> void:
 	prospect_overall_label.text = "Overall: %.0f" % float(player.get("overall", 50.0))
 	prospect_age_label.text = "Age: %d" % int(player.get("age", 22))
 
+	# Update scheme fit display (DRAFT-011)
+	_update_scheme_fit_display(player)
+
 	draft_button.disabled = false
 	draft_button.text = "DRAFT %s" % String(player.get("name", "Unknown"))
 
@@ -414,6 +436,10 @@ func _clear_detail_panel() -> void:
 	prospect_age_label.text = ""
 	draft_button.text = "DRAFT"
 	draft_button.disabled = true
+
+	# Clear scheme fit display (DRAFT-011)
+	if _scheme_fit_label:
+		_scheme_fit_label.text = ""
 
 
 ## Handle view roster button - NON-BLOCKING action
@@ -841,3 +867,287 @@ func _populate_prospect_list_sorted() -> void:
 		# Color shortlisted players differently
 		if is_shortlisted:
 			prospect_list.set_item_custom_fg_color(idx, Color(0.3, 0.8, 0.3))
+
+
+# =============================================================================
+# DRAFT TRADING SYSTEM (DRAFT-001)
+# =============================================================================
+
+## Setup the Propose Trade button in the footer
+func _setup_propose_trade_button() -> void:
+	# Connect the Propose Trade button from scene
+	if propose_trade_button:
+		propose_trade_button.pressed.connect(_on_propose_trade_pressed)
+	else:
+		push_warning("[DraftDayUI] Cannot setup Propose Trade button - node not found in scene")
+
+
+## Setup the trade proposal dialog
+func _setup_trade_dialog() -> void:
+	if _trade_dialog != null:
+		return  # Already created
+
+	# Load TradeProposalDialog scene
+	var dialog_scene := load("res://scenes/ui/draft_day/TradeProposalDialog.tscn")
+	if dialog_scene:
+		_trade_dialog = dialog_scene.instantiate()
+		add_child(_trade_dialog)
+
+		# Connect signals
+		_trade_dialog.trade_proposed.connect(_on_trade_proposal_submitted)
+		_trade_dialog.trade_cancelled.connect(_on_trade_proposal_cancelled)
+	else:
+		push_warning("[DraftDayUI] Could not load TradeProposalDialog.tscn")
+
+
+## Handle Propose Trade button press
+func _on_propose_trade_pressed() -> void:
+	if _draft == null:
+		push_warning("[DraftDayUI] Cannot propose trade - draft not initialized")
+		return
+
+	if _trade_dialog == null:
+		_setup_trade_dialog()
+
+	if _trade_dialog == null:
+		push_warning("[DraftDayUI] Cannot propose trade - dialog creation failed")
+		return
+
+	# Check if trading is enabled
+	if not _draft.is_trading_enabled():
+		status_label.text = "Trading is disabled for this draft."
+		return
+
+	# Get user's tradeable picks
+	var user_picks := _draft.get_user_tradeable_picks()
+	if user_picks.is_empty():
+		status_label.text = "You have no picks available to trade."
+		return
+
+	# Get list of teams to trade with (exclude user's team)
+	var all_teams: Array = _session.world_state.get("nfl_teams", [])
+	var available_teams: Array = []
+	for team in all_teams:
+		var t: Dictionary = team
+		if String(t.get("id", "")) != _session.user_team_id:
+			available_teams.append(t)
+
+	# Get pick ownership
+	var ownership: Dictionary = _session.world_state.get("draft_pick_ownership", {})
+	var year := _session.current_year
+	var league_cfg: Dictionary = _session.get_config("league", {})
+
+	# Open the dialog
+	_trade_dialog.open_dialog(
+		_session.user_team_id,
+		available_teams,
+		user_picks,
+		ownership,
+		year,
+		league_cfg
+	)
+
+
+## Handle trade proposal submitted from dialog
+func _on_trade_proposal_submitted(offer: Dictionary) -> void:
+	if _draft == null:
+		push_error("[DraftDayUI] Cannot process trade - draft not initialized")
+		return
+
+	# Close the dialog
+	_trade_dialog.hide()
+
+	# Extract trade details
+	var target_team_id := String(offer.get("receiving_team_id", ""))
+	var picks_offered: Array = offer.get("picks_offered", []) as Array
+	var picks_requested: Array = offer.get("picks_requested", []) as Array
+
+	# Get target team name for display
+	var target_team_name := _get_team_name(target_team_id)
+
+	# Submit the trade proposal
+	status_label.text = "Proposing trade to %s..." % target_team_name
+
+	var result := _draft.propose_user_trade(target_team_id, picks_offered, picks_requested)
+
+	if not bool(result.get("success")):
+		# Trade failed (validation error)
+		status_label.text = "Trade failed: %s" % String(result.get("reason", "Unknown error"))
+		_show_trade_result_dialog("Trade Failed", String(result.get("reason", "Unknown error")))
+		return
+
+	if bool(result.get("accepted")):
+		# Trade was accepted
+		var message := "%s accepted your trade offer!" % target_team_name
+		status_label.text = message
+		_show_trade_result_dialog("Trade Accepted!", message)
+	else:
+		# Trade was declined
+		var message := "%s declined your trade offer." % target_team_name
+		status_label.text = message
+		_show_trade_result_dialog("Trade Declined", message)
+
+
+## Handle trade proposal cancelled
+func _on_trade_proposal_cancelled() -> void:
+	status_label.text = "Trade proposal cancelled."
+
+
+## Handle trade executed (from InteractiveDraft signal)
+func _on_trade_executed(trade_record: Dictionary) -> void:
+	var offering_team := String(trade_record.get("offering_team_id", ""))
+	var receiving_team := String(trade_record.get("receiving_team_id", ""))
+	var initiated_by := String(trade_record.get("initiated_by", "ai"))
+
+	var offering_name := _get_team_name(offering_team)
+	var receiving_name := _get_team_name(receiving_team)
+
+	# Add to draft ticker
+	var ticker_text := "[TRADE] %s and %s have completed a trade!" % [offering_name, receiving_name]
+	draft_ticker.add_item(ticker_text)
+	draft_ticker.ensure_current_is_visible()
+
+	# Update status if it was an AI trade
+	if initiated_by == "ai":
+		status_label.text = "Trade completed: %s and %s" % [offering_name, receiving_name]
+
+
+## Show trade result dialog
+func _show_trade_result_dialog(title: String, message: String) -> void:
+	var dialog := AcceptDialog.new()
+	dialog.title = title
+	dialog.dialog_text = message
+	dialog.confirmed.connect(func(): dialog.queue_free())
+	dialog.canceled.connect(func(): dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+## Get team display name from team ID
+func _get_team_name(team_id: String) -> String:
+	var teams: Array = _session.world_state.get("nfl_teams", [])
+	for team in teams:
+		var t: Dictionary = team
+		if String(t.get("id", "")) == team_id:
+			return "%s %s" % [String(t.get("city", "")), String(t.get("name", ""))]
+	return team_id
+
+
+# =============================================================================
+# SCHEME FIT DISPLAY (DRAFT-011)
+# =============================================================================
+
+## Setup scheme fit label in detail panel
+func _setup_scheme_fit_label() -> void:
+	if _scheme_fit_label:
+		return  # Already created
+
+	# Find the detail panel's VBoxContainer
+	var detail_vbox := get_node_or_null("MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer")
+	if detail_vbox == null:
+		push_warning("[DraftDayUI] Cannot setup scheme fit label - detail_vbox node not found")
+		return
+
+	# Create the scheme fit label
+	_scheme_fit_label = Label.new()
+	_scheme_fit_label.text = ""
+	_scheme_fit_label.tooltip_text = "How well this player fits your team's scheme"
+
+	# Insert after prospect_age_label (if it exists)
+	if prospect_age_label and prospect_age_label.get_parent() == detail_vbox:
+		var age_idx := prospect_age_label.get_index()
+		detail_vbox.add_child(_scheme_fit_label)
+		detail_vbox.move_child(_scheme_fit_label, age_idx + 1)
+	else:
+		# Fallback: add at the end
+		detail_vbox.add_child(_scheme_fit_label)
+
+
+## Update scheme fit display for selected player
+## Calculates and displays scheme fit score based on user's team scheme
+func _update_scheme_fit_display(player: Dictionary) -> void:
+	if _session == null or _draft == null:
+		return
+
+	# Ensure label exists
+	_setup_scheme_fit_label()
+
+	if _scheme_fit_label == null:
+		return
+
+	# Get player data
+	var position := String(player.get("position", ""))
+
+	# Special teams don't have scheme fit
+	if position in ["K", "P"]:
+		_scheme_fit_label.text = "Scheme Fit: N/A"
+		_scheme_fit_label.modulate = Color.WHITE
+		return
+
+	# Get full player data from draft (has stats needed for scheme fit calculation)
+	var full_player := _draft.get_player_by_id(String(player.get("player_id", "")))
+	if full_player.is_empty():
+		full_player = player
+
+	# Get user team's schemes
+	var user_team := _get_user_team_data()
+	var offensive_scheme := String(user_team.get("offensive_scheme", "pro_style"))
+	var defensive_scheme := String(user_team.get("defensive_scheme", "cover_2"))
+	var coach: Dictionary = user_team.get("coach", {})
+	var coach_rigidity := float(coach.get("scheme_rigidity", 1.0))
+
+	# Calculate base rating
+	var class_rules: Dictionary = _session.world_state.get("class_rules", {})
+	var positions_cfg: Dictionary = _session.world_state.get("positions_cfg", {})
+	var base_rating := float(player.get("overall", 50.0))
+
+	# Calculate scheme fit score using SchemeFitModifier
+	var scheme_score := SchemeFitModifier.calculate_scheme_fit_score(
+		full_player,
+		position,
+		base_rating,
+		offensive_scheme,
+		defensive_scheme,
+		coach_rigidity
+	)
+
+	# Get grade letter
+	var grade := SchemeFitModifier.get_scheme_fit_grade(scheme_score)
+
+	# Set text with grade
+	_scheme_fit_label.text = "Scheme Fit: %s (%.0f)" % [grade, scheme_score]
+
+	# Color based on fit quality
+	if scheme_score >= 80:
+		_scheme_fit_label.modulate = Color(0.3, 0.9, 0.3)  # Green - excellent fit
+		_scheme_fit_label.tooltip_text = "Excellent scheme fit - this player's attributes match your %s perfectly" % _get_relevant_scheme_name(position, offensive_scheme, defensive_scheme)
+	elif scheme_score >= 60:
+		_scheme_fit_label.modulate = Color(0.9, 0.9, 0.3)  # Yellow - good fit
+		_scheme_fit_label.tooltip_text = "Good scheme fit - this player would work well in your %s" % _get_relevant_scheme_name(position, offensive_scheme, defensive_scheme)
+	elif scheme_score >= 40:
+		_scheme_fit_label.modulate = Color.WHITE  # White - neutral
+		_scheme_fit_label.tooltip_text = "Average scheme fit - this player could adapt to your %s" % _get_relevant_scheme_name(position, offensive_scheme, defensive_scheme)
+	else:
+		_scheme_fit_label.modulate = Color(0.9, 0.3, 0.3)  # Red - poor fit
+		_scheme_fit_label.tooltip_text = "Poor scheme fit - this player's style doesn't match your %s" % _get_relevant_scheme_name(position, offensive_scheme, defensive_scheme)
+
+
+## Get user team data from session
+func _get_user_team_data() -> Dictionary:
+	if _session == null:
+		return {}
+
+	var teams: Array = _session.world_state.get("nfl_teams", [])
+	for team in teams:
+		var t: Dictionary = team
+		if String(t.get("id", "")) == _session.user_team_id:
+			return t
+	return {}
+
+
+## Get relevant scheme name for display (offensive or defensive based on position)
+func _get_relevant_scheme_name(position: String, offensive_scheme: String, defensive_scheme: String) -> String:
+	var offensive_positions := ["QB", "RB", "WR", "TE", "OL"]
+	if position in offensive_positions:
+		return offensive_scheme.replace("_", " ") + " offense"
+	return defensive_scheme.replace("_", " ") + " defense"

@@ -24,50 +24,75 @@ This file defines:
 ## Agent Hierarchy
 
 ```
-                    ┌─────────────┐
-                    │  DIRECTOR   │
-                    │  (Project   │
-                    │  Manager)   │
-                    └──────┬──────┘
-                           │
-                           │ spawns
-                           │
-           ┌───────────────┼───────────────┬───────────────┐
-           │               │               │               │
-     ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
-     │ Architect │   │ Architect │   │ Architect │   │   Test    │
-     │  (Team A) │   │  (Team B) │   │  (Team N) │   │ Engineer  │
-     └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   │  (Infra)  │
-           │               │               │         └───────────┘
-           │ spawns        │ spawns        │ spawns
-           │               │               │
-    ┌──────┼──────┐ ┌──────┼──────┐        │
-    │      │      │ │      │      │        │
-   Eng1  Eng2  Eng3 Eng1  Eng2  ...      ...
-    │      │      │
-    └──────┼──────┘
-           │ assigns
-           │
-    ┌──────▼──────┐
-    │  Reviewer   │
-    └─────────────┘
+                          ┌─────────────┐
+                          │  DIRECTOR   │
+                          │  (Project   │
+                          │  Manager)   │
+                          └──────┬──────┘
+                                 │
+                                 │ spawns for planning
+                                 │
+                 ┌───────────────┼───────────────┬───────────────┐
+                 │               │               │               │
+           ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
+           │Architecture│   │Architecture│   │Architecture│   │   Test    │
+           │ Guardian   │   │ Guardian   │   │ Guardian   │   │ Engineer  │
+           │  (Team A)  │   │  (Team B)  │   │  (Team N)  │   │  (Infra)  │
+           └─────┬──────┘   └─────┬──────┘   └─────┬──────┘   └───────────┘
+                 │                │                │
+                 │ reports ready  │                │
+                 │ for 1-3 engrs  │                │
+                 ▼                ▼                ▼
+           ┌─────────────┐
+           │  DIRECTOR   │ ◄──── Spawns engineers based on
+           │   spawns    │       guardian recommendations
+           │  engineers  │
+           └──────┬──────┘
+                  │
+                  │ spawns 1-3 engineers per team
+                  │
+           ┌──────┼──────┬───────┐
+           │      │      │       │
+         Eng1   Eng2   Eng3    ...
+           │      │      │
+           └──────┼──────┘
+                  │
+                  │ spawns reviewers
+                  ▼
+           ┌─────────────┐
+           │ Reviewers   │
+           │ (Test Infra │
+           │  + Code     │
+           │  Quality)   │
+           └─────────────┘
 ```
 
-**Spawning Chain:**
-- **Director** spawns **Architect(s)** with work packages
-- **Director** spawns **Test Engineer(s)** for cross-cutting infrastructure work
-- **Architect** completes design (CP1) and determines Engineer allocation (1-5 based on work scope)
-- **Director** spawns **Engineer(s)** based on Architect's recommendations and specifications
-- **Architect** monitors Engineer progress and provides guidance
-- **Director** spawns **Test Engineer(s)** for team-specific test work (based on Architect request)
-- **Director** spawns **Reviewer(s)** when code is ready (to avoid bottlenecks)
-- **Reviewers** can be reused across multiple engineer submissions
+**Spawning Chain (NEW WORKFLOW):**
+1. **Director** spawns **Architecture-Guardian(s)** with work packages for architectural planning
+2. **Architecture-Guardian** conducts architectural assessment:
+   - Reviews impact scope and system boundaries
+   - Evaluates fit with existing patterns
+   - Analyzes lifecycle implications and complexity justification
+   - Provides approval/rejection decision with detailed rationale
+3. **Architecture-Guardian** determines engineer allocation (1-3 engineers based on work scope and parallelization opportunities)
+4. **Architecture-Guardian** reports back to **Director**: "Ready for N engineers with specifications X, Y, Z"
+5. **Director** spawns **Engineer(s)** (1-3 per team) based on Guardian's specifications
+6. **Director** spawns **Test Infrastructure Engineer** to review test quality
+7. **Director** spawns **Code Quality Reviewer** to review implementation
+8. **Test Engineer** and **Reviewer** must both approve (≥9.5/10) before merge
 
-**Why Director spawns Engineers:**
+**Why Architecture-Guardians Plan First:**
+- Separates architectural design phase from implementation phase
+- Guardians can explore codebase thoroughly without implementation pressure
+- Ensures architectural soundness before committing engineering resources
+- Director coordinates engineer spawning based on architectural approval
+- Prevents wasted work on architecturally unsound approaches
+
+**Why Director Spawns Engineers (not Guardians):**
 - Claude Code's agent system only allows top-level agents to spawn sub-agents
-- Architects cannot directly spawn Engineer sub-agents due to tool limitations
-- Architects design the work and specify requirements; Director handles the spawning
-- This creates a clear Request → Approval → Spawn workflow
+- Architecture-Guardians cannot directly spawn Engineer sub-agents due to tool limitations
+- Guardians design and approve the work; Director handles the spawning
+- This creates a clear Plan → Approve → Spawn → Implement workflow
 
 **Dynamic Team Scaling:**
 - Architect determines Engineer count based on work decomposition
