@@ -167,8 +167,14 @@ static func generate_chaos_player(
 
 ## Find the position whose core stats best match the player's raw stats.
 ## Uses deterministic iteration order (sorted keys) for reproducibility.
+##
+## Returns empty string if positions_cfg is empty (caller should handle gracefully).
 static func _find_best_fit_position(stats: Dictionary, positions_cfg: Dictionary) -> String:
 	var position_keys = positions_cfg.keys()
+	if position_keys.is_empty():
+		push_warning("_find_best_fit_position: positions_cfg is empty")
+		return ""
+
 	position_keys.sort()  # CRITICAL for determinism: ensure consistent iteration order
 
 	var best_position = ""
