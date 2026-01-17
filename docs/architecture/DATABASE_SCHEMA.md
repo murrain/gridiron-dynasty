@@ -887,16 +887,899 @@ VACUUM;
 ANALYZE;
 ```
 
+---
+
+## Migration Guide: JSON to SQLite
+
+### Overview
+
+The `MigrateSaveToDatabase` tool (`scripts/tools/MigrateSaveToDatabase.gd`) provides transaction-based migration from JSON save files to SQLite database format.
+
+### Migration Features
+
+- **All-or-Nothing Transaction**: Migration rolls back on any error
+- **Backward Compatibility**: Handles both legacy flat format and new nested format
+- **Validation**: Verifies data integrity before writing
+- **Progress Reporting**: Clear error messages and warnings
+- **Dry Run Mode**: Validate without committing changes
+
+### Basic Usage
+
+```gdscript
+# Import migration tool
+const MigrateSaveToDatabase = preload("res://scripts/tools/MigrateSaveToDatabase.gd")
+
+# Create migrator instance
+var migrator = MigrateSaveToDatabase.new()
+
+# Migrate JSON save to SQLite database
+var result = migrator.migrate("save_game_001.json", "save_game_001.db")
+
+# Check results
+if result.success:
+    print("Migration successful!")
+    print("Migrated %d players, %d teams in %d ms" % [
+        result.player_count,
+        result.team_count,
+        result.duration_ms
+    ])
+else:
+    push_error("Migration failed: %s" % result.error)
+    for warning in result.warnings:
+        push_warning(warning)
+```
+
+### Validation-Only Mode
+
+Run validation without creating database:
+
+```gdscript
+var migrator = MigrateSaveToDatabase.new()
+var validation = migrator.validate_only("save_game_001.json")
+
+if validation.valid:
+    print("Save file is valid - ready to migrate")
+    print("Contains %d players, %d teams" % [
+        validation.player_count,
+        validation.team_count
+    ])
+else:
+    push_error("Validation failed: %s" % validation.error)
+
+# Review warnings
+for warning in validation.warnings:
+    print("Warning: %s" % warning)
+```
+
+### Migration Result Structure
+
+```gdscript
+{
+    "success": bool,              # True if migration completed
+    "error": String,              # Error message if failed
+    "player_count": int,          # Number of players migrated
+    "team_count": int,            # Number of teams migrated
+    "warnings": Array[String],    # Non-fatal issues encountered
+    "duration_ms": int            # Migration time in milliseconds
+}
+```
+
+### Migration Process Steps
+
+1. **Load JSON Save**: Parse and validate JSON structure
+2. **Validate Data**: Check for required fields and data integrity
+3. **Create Database**: Initialize SQLite database with schema
+4. **Begin Transaction**: Start atomic transaction
+5. **Migrate Entities**: Convert and save players, then teams
+6. **Verify Results**: Count records and check foreign keys
+7. **Commit Transaction**: Finalize if verification passes, rollback on error
+
+### Handling Legacy Save Formats
+
+The migrator automatically handles both formats:
+
+**Legacy Flat Format** (pre-Phase 2):
+```json
+{
+    "id": "player-123",
+    "first_name": "Tom",
+    "height_in": 76.0,
+    "weight_lb": 225.0,
+    "stats": {"speed": 75},
+    "traits": ["Ball Hawk"]
+}
+```
+
+**New Nested Format** (post-Phase 2):
+```json
+{
+    "id": "player-123",
+    "first_name": "Tom",
+    "physicals": {
+        "height_in": 76.0,
+        "weight_lb": 225.0
+    },
+    "stats_profile": {
+        "current": {"speed": 75}
+    },
+    "trait_set": {
+        "visible": ["Ball Hawk"]
+    }
+}
+```
+
+Both formats migrate correctly through Player.from_dict() backward compatibility.
+
+### Common Migration Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "Failed to load JSON save file" | File not found or invalid path | Verify file exists in `user://saves/` |
+| "JSON validation failed" | Missing required fields (players, teams) | Check save file structure |
+| "Failed to create database" | Permission or disk space issue | Verify write permissions and disk space |
+| "Verification failed" | Entity count mismatch | Check for invalid entity data in source |
+| "Skipped invalid player data" | Player missing required fields | Review warnings for specific player IDs |
+
+### Performance Considerations
+
+**Migration Time Estimates**:
+- Small save (100 players, 10 teams): ~100ms
+- Medium save (1,000 players, 32 teams): ~500ms
+- Large save (10,000 players, 100 teams): ~3,000ms
+
+**Optimization Tips**:
+- Migration uses single transaction for atomicity
+- Batch operations minimize overhead
+- Foreign key checks run once at end
+
+---
+
+## DAO Usage Examples
+
+### PlayerDAO Operations
+
+The `PlayerDAO` class (`scripts/persistence/PlayerDAO.gd`) handles all database operations for Player entities and their 8 component resources.
+
+#### Creating a PlayerDAO
+
+```gdscript
+# PlayerDAO requires active SQLite connection
+var db = SQLite.new()
+db.path = "user://saves/game.db"
+db.open_db()
+
+# Enable foreign keys
+db.query("PRAGMA foreign_keys = ON;")
+
+# Create DAO
+var player_dao = PlayerDAO.new(db)
+```
+
+#### Saving Players
+
+```gdscript
+# Create player
+var player = Player.new()
+player.id = "player-001"
+player.first_name = "Tom"
+player.last_name = "Brady"
+player.position = "QB"
+player.age = 23
+player.stage = Player.PlayerStage.DRAFT_ELIGIBLE
+
+# Configure components
+player.physicals.height_in = 76.0
+player.physicals.weight_lb = 225.0
+player.stats_profile.current["speed"] = 75
+
+# Save to database (INSERT OR REPLACE)
+if player_dao.save(player):
+    print("Player saved successfully")
+else:
+    push_error("Failed to save player")
+```
+
+#### Loading Players
+
+```gdscript
+# Load single player by ID
+var player = player_dao.load("player-001")
+if player:
+    print("Loaded: %s" % player.get_full_name())
+    print("Position: %s" % player.position)
+    print("Height: %s" % player.physicals.get_height_feet_inches())
+
+# Load multiple players
+var player_ids = ["player-001", "player-002", "player-003"]
+var players = player_dao.load_batch(player_ids)
+print("Loaded %d players" % players.size())
+
+# Load all players (use caution on large datasets)
+var all_players = player_dao.load_all()
+```
+
+#### Querying Players
+
+```gdscript
+# Query by position
+var qbs = player_dao.query({"position": "QB"})
+print("Found %d quarterbacks" % qbs.size())
+
+# Query by age range
+var young_players = player_dao.query({
+    "age_min": 18,
+    "age_max": 21
+})
+
+# Query by stage
+var nfl_players = player_dao.query({
+    "stage": Player.PlayerStage.NFL_VETERAN
+})
+
+# Complex query with multiple filters
+var draft_eligible_qbs = player_dao.query({
+    "position": "QB",
+    "stage": Player.PlayerStage.DRAFT_ELIGIBLE,
+    "age_min": 21,
+    "limit": 50
+})
+
+# Query by school (college players)
+var alabama_players = player_dao.query({
+    "school_tag": "Alabama",
+    "stage": Player.PlayerStage.COLLEGE
+})
+```
+
+#### Updating Players
+
+```gdscript
+# Load, modify, save (update pattern)
+var player = player_dao.load("player-001")
+if player:
+    # Modify player
+    player.age += 1
+    player.stats_profile.current["speed"] -= 1
+
+    # Update in database
+    if player_dao.save(player):
+        print("Player updated")
+```
+
+#### Deleting Players
+
+```gdscript
+# Delete single player (CASCADE deletes all components)
+if player_dao.delete("player-001"):
+    print("Player deleted")
+
+# Delete multiple players
+var ids_to_delete = ["player-001", "player-002"]
+var deleted_count = player_dao.delete_batch(ids_to_delete)
+print("Deleted %d players" % deleted_count)
+```
+
+#### Checking Existence
+
+```gdscript
+# Check if player exists before loading
+if player_dao.exists("player-001"):
+    var player = player_dao.load("player-001")
+else:
+    push_warning("Player not found")
+```
+
+---
+
+### TeamDAO Operations
+
+The `TeamDAO` class (`scripts/persistence/TeamDAO.gd`) handles Team entities and Roster with RosterEntry components.
+
+#### Creating a TeamDAO
+
+```gdscript
+var db = SQLite.new()
+db.path = "user://saves/game.db"
+db.open_db()
+db.query("PRAGMA foreign_keys = ON;")
+
+# TeamDAO can optionally receive PlayerDAO for loading full player objects
+var player_dao = PlayerDAO.new(db)
+var team_dao = TeamDAO.new(db, player_dao)
+```
+
+#### Saving Teams
+
+```gdscript
+# Create team
+var team = Team.new()
+team.id = "team-ne"
+team.name = "New England Patriots"
+team.offensive_scheme = "erhardt_perkins"
+team.defensive_scheme = "cover_2"
+team.league_cap = 224_800_000.0
+
+# Add roster entries
+team.roster.add_player_id("player-001", "active")
+team.roster.add_player_id("player-002", "active")
+
+# Save to database
+if team_dao.save(team):
+    print("Team saved successfully")
+```
+
+#### Loading Teams
+
+```gdscript
+# Load team with player IDs only (lightweight)
+var team = team_dao.load("team-ne")
+if team:
+    print("Team: %s" % team.name)
+    print("Roster size: %d" % team.roster.entries.size())
+
+    # Roster entries contain player_id strings
+    for entry in team.roster.entries:
+        print("Player ID: %s" % entry["player_id"])
+
+# Load team with full Player objects (heavyweight)
+var team_with_players = team_dao.load_with_players("team-ne")
+if team_with_players:
+    # Roster entries now contain full Player resources
+    for entry in team_with_players.roster.entries:
+        if entry.has("player"):
+            var player = entry["player"]
+            print("Player: %s (%s)" % [player.get_full_name(), player.position])
+```
+
+#### Querying Teams
+
+```gdscript
+# Query by name pattern
+var afc_teams = team_dao.query({"name_like": "%AFC%"})
+
+# Query by scheme
+var west_coast_teams = team_dao.query({
+    "offensive_scheme": "west_coast"
+})
+
+# Load all teams
+var all_teams = team_dao.load_all()
+```
+
+#### Updating Teams
+
+```gdscript
+# Load, modify roster, save
+var team = team_dao.load("team-ne")
+if team:
+    # Add player to roster
+    team.roster.add_player_id("player-003", "active")
+
+    # Remove player from roster
+    team.roster.remove_player_id("player-002")
+
+    # Update team
+    if team_dao.save(team):
+        print("Team roster updated")
+```
+
+---
+
+## Transaction Management Patterns
+
+### Why Use Transactions
+
+Transactions ensure **atomicity** - either all operations succeed or none do. Critical for maintaining data consistency.
+
+**Use transactions for**:
+- Multi-entity operations (save multiple players + teams)
+- Complex state changes (draft picks, trades, season advance)
+- Batch operations (import/export, migrations)
+- Any operation where partial completion would corrupt world state
+
+### Transaction API
+
+Transactions managed through `PersistenceLayer` autoload:
+
+```gdscript
+# Begin transaction
+if not PersistenceLayer.begin_transaction():
+    push_error("Failed to begin transaction")
+    return
+
+# Perform operations...
+
+# Commit on success
+if success:
+    PersistenceLayer.commit_transaction()
+else:
+    # Rollback on error
+    PersistenceLayer.rollback_transaction()
+```
+
+### Pattern 1: Simple Transaction
+
+```gdscript
+# Save multiple players atomically
+func save_draft_class(players: Array[Player]) -> bool:
+    # Begin transaction
+    if not PersistenceLayer.begin_transaction():
+        return false
+
+    # Save all players
+    var player_dao = _get_player_dao()
+    for player in players:
+        if not player_dao.save(player):
+            push_error("Failed to save player: %s" % player.id)
+            PersistenceLayer.rollback_transaction()
+            return false
+
+    # Commit if all succeeded
+    return PersistenceLayer.commit_transaction()
+```
+
+### Pattern 2: Complex Multi-Entity Transaction
+
+```gdscript
+# Execute draft pick (atomic operation)
+func execute_draft_pick(team_id: String, player_id: String, pick_number: int) -> bool:
+    if not PersistenceLayer.begin_transaction():
+        return false
+
+    var player_dao = _get_player_dao()
+    var team_dao = _get_team_dao()
+
+    # Step 1: Update player stage
+    var player = player_dao.load(player_id)
+    if not player:
+        PersistenceLayer.rollback_transaction()
+        return false
+
+    player.stage = Player.PlayerStage.NFL_ROOKIE
+    if not player_dao.save(player):
+        PersistenceLayer.rollback_transaction()
+        return false
+
+    # Step 2: Add player to team roster
+    var team = team_dao.load(team_id)
+    if not team:
+        PersistenceLayer.rollback_transaction()
+        return false
+
+    team.roster.add_player_id(player_id, "active")
+    if not team_dao.save(team):
+        PersistenceLayer.rollback_transaction()
+        return false
+
+    # Step 3: Record draft pick history
+    if not _record_draft_pick(team_id, player_id, pick_number):
+        PersistenceLayer.rollback_transaction()
+        return false
+
+    # All steps succeeded - commit
+    return PersistenceLayer.commit_transaction()
+```
+
+### Pattern 3: Try-Catch Style Transaction
+
+```gdscript
+func perform_complex_operation() -> bool:
+    var success = false
+
+    # Begin transaction
+    if not PersistenceLayer.begin_transaction():
+        return false
+
+    # Try block equivalent
+    while true:
+        # Operation 1
+        if not _do_operation_1():
+            break
+
+        # Operation 2
+        if not _do_operation_2():
+            break
+
+        # Operation 3
+        if not _do_operation_3():
+            break
+
+        # All operations succeeded
+        success = true
+        break
+
+    # Commit or rollback
+    if success:
+        return PersistenceLayer.commit_transaction()
+    else:
+        PersistenceLayer.rollback_transaction()
+        return false
+```
+
+### Pattern 4: Nested Transaction Simulation
+
+SQLite doesn't support true nested transactions, but you can simulate with savepoints:
+
+```gdscript
+# Manual savepoint management
+func save_with_savepoint() -> bool:
+    var db = _get_database()
+
+    # Begin main transaction
+    db.query("BEGIN TRANSACTION;")
+
+    # Create savepoint
+    db.query("SAVEPOINT before_roster_changes;")
+
+    # Try roster changes
+    if not _update_roster():
+        # Rollback to savepoint (keeps transaction alive)
+        db.query("ROLLBACK TO SAVEPOINT before_roster_changes;")
+        # Try alternative approach
+        if not _update_roster_alternative():
+            db.query("ROLLBACK;")
+            return false
+
+    # Release savepoint
+    db.query("RELEASE SAVEPOINT before_roster_changes;")
+
+    # Commit main transaction
+    db.query("COMMIT;")
+    return true
+```
+
+### Transaction Best Practices
+
+1. **Keep Transactions Short**: Long transactions lock tables and reduce concurrency
+2. **Always Handle Errors**: Check return values and rollback on failure
+3. **Batch Related Operations**: Group logically related changes in one transaction
+4. **Avoid User Input During Transaction**: Don't wait for user actions mid-transaction
+5. **Test Rollback Paths**: Verify rollback correctly restores state
+
+---
+
+## Performance Optimization Tips
+
+### Index Usage Guidelines
+
+**Indexes Improve Performance For**:
+- WHERE clause filters (`WHERE position = 'QB'`)
+- ORDER BY sorting (`ORDER BY age DESC`)
+- JOIN operations (foreign keys)
+
+**Indexes Hurt Performance For**:
+- INSERT/UPDATE/DELETE operations (must update indexes)
+- Wide indexes (many columns = large index size)
+
+**Rule of Thumb**: Index columns used in WHERE/ORDER BY, but keep index count minimal.
+
+### Query Optimization Techniques
+
+#### 1. Use Parameterized Queries
+
+```gdscript
+# GOOD - parameterized (SQLite can cache query plan)
+db.query_with_bindings(
+    "SELECT * FROM player WHERE position = ?",
+    ["QB"]
+)
+
+# BAD - string concatenation (new query plan every time)
+db.query("SELECT * FROM player WHERE position = '%s'" % position)
+```
+
+#### 2. Limit Result Sets
+
+```gdscript
+# GOOD - limit results
+var qbs = player_dao.query({
+    "position": "QB",
+    "limit": 50
+})
+
+# BAD - load all, then slice
+var all_qbs = player_dao.query({"position": "QB"})
+var top_50 = all_qbs.slice(0, 50)  # Wasteful!
+```
+
+#### 3. Use Covering Indexes
+
+```gdscript
+# Query uses index on (position, age) - no table lookup needed
+db.query("SELECT position, age FROM player WHERE position = 'QB'")
+
+# This requires table lookup (first_name not in index)
+db.query("SELECT first_name FROM player WHERE position = 'QB'")
+```
+
+#### 4. Analyze Query Plans
+
+```gdscript
+# Check if query uses index
+db.query("EXPLAIN QUERY PLAN SELECT * FROM player WHERE position = 'QB'")
+var plan = db.query_result
+
+# Look for "USING INDEX" in plan
+for row in plan:
+    print(row)
+# Expected output: "SEARCH player USING INDEX idx_player_position (position=?)"
+```
+
+### Batch Operations
+
+#### Batch Saves
+
+```gdscript
+# GOOD - single transaction for batch
+PersistenceLayer.begin_transaction()
+for player in players:
+    player_dao.save(player)
+PersistenceLayer.commit_transaction()
+
+# BAD - separate transaction per player (slow!)
+for player in players:
+    PersistenceLayer.begin_transaction()
+    player_dao.save(player)
+    PersistenceLayer.commit_transaction()
+```
+
+#### Batch Loads
+
+```gdscript
+# GOOD - batch load with IN clause
+var player_ids = ["p1", "p2", "p3"]
+var players = player_dao.load_batch(player_ids)
+
+# BAD - individual loads (N+1 query problem)
+var players = []
+for player_id in player_ids:
+    players.append(player_dao.load(player_id))
+```
+
+### Database Maintenance
+
+#### Regular VACUUM
+
+Reclaim deleted space and optimize file structure:
+
+```gdscript
+# Run after deleting many records
+db.query("VACUUM;")
+```
+
+#### Regular ANALYZE
+
+Update query optimizer statistics:
+
+```gdscript
+# Run after significant data changes
+db.query("ANALYZE;")
+```
+
+#### Monitoring Database Size
+
+```gdscript
+# Check database file size
+var db_path = "user://saves/game.db"
+var file = FileAccess.open(db_path, FileAccess.READ)
+if file:
+    var size_bytes = file.get_length()
+    var size_mb = size_bytes / 1024.0 / 1024.0
+    print("Database size: %.2f MB" % size_mb)
+    file.close()
+```
+
+### Performance Benchmarks
+
+Use `BenchmarkDatabase.gd` tool for performance testing:
+
+```gdscript
+const BenchmarkDatabase = preload("res://scripts/tools/BenchmarkDatabase.gd")
+
+var benchmark = BenchmarkDatabase.new()
+var results = benchmark.run_full_benchmark("user://saves/game.db")
+
+print("Save 1000 players: %d ms" % results.save_1000_players_ms)
+print("Load 1000 players: %d ms" % results.load_1000_players_ms)
+print("Query 100 QBs: %d ms" % results.query_100_qbs_ms)
+```
+
+**Target Performance** (on typical hardware):
+- Save 1000 players: <500ms
+- Load 1000 players: <300ms
+- Query 100 players: <50ms
+- Complex JOIN query: <100ms
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue: "Foreign key constraint failed"
+
+**Cause**: Attempting to insert roster_entry referencing non-existent player.
+
+**Solution**:
+```gdscript
+# Ensure player exists before adding to roster
+if player_dao.exists(player_id):
+    team.roster.add_player_id(player_id, "active")
+else:
+    push_error("Cannot add non-existent player to roster")
+```
+
+#### Issue: "Database is locked"
+
+**Cause**: Another connection has an active transaction.
+
+**Solutions**:
+```gdscript
+# 1. Enable WAL mode for better concurrency
+db.query("PRAGMA journal_mode = WAL;")
+
+# 2. Set busy timeout (wait up to 5 seconds)
+db.query("PRAGMA busy_timeout = 5000;")
+
+# 3. Ensure transactions are properly closed
+PersistenceLayer.commit_transaction()  # or rollback_transaction()
+```
+
+#### Issue: "Slow queries on large datasets"
+
+**Diagnostic**:
+```gdscript
+# Check if indexes are being used
+db.query("EXPLAIN QUERY PLAN SELECT * FROM player WHERE position = 'QB'")
+var plan = db.query_result
+print(plan)  # Should show "USING INDEX"
+```
+
+**Solutions**:
+```gdscript
+# 1. Ensure indexes exist
+db.query("SELECT name FROM sqlite_master WHERE type='index'")
+var indexes = db.query_result
+print("Indexes: %s" % indexes)
+
+# 2. Run ANALYZE to update statistics
+db.query("ANALYZE;")
+
+# 3. Consider adding composite index for common queries
+db.query("CREATE INDEX idx_player_position_stage ON player(position, stage);")
+```
+
+#### Issue: "Players missing component data after load"
+
+**Cause**: Component table missing data or foreign key mismatch.
+
+**Diagnostic**:
+```gdscript
+# Find players without physicals
+db.query("""
+    SELECT p.id, p.first_name, p.last_name
+    FROM player p
+    LEFT JOIN player_physicals pf ON pf.player_id = p.id
+    WHERE pf.player_id IS NULL
+""")
+var missing = db.query_result
+print("Players missing physicals: %d" % missing.size())
+```
+
+**Solution**:
+```gdscript
+# Re-save player to create missing component records
+var player = player_dao.load(player_id)
+if player.physicals == null:
+    player.physicals = PlayerPhysicals.new()
+player_dao.save(player)  # Will create physicals record
+```
+
+#### Issue: "Migration fails with verification error"
+
+**Diagnostic**:
+```gdscript
+# Run validation-only first
+var migrator = MigrateSaveToDatabase.new()
+var validation = migrator.validate_only("save.json")
+
+if not validation.valid:
+    print("Validation error: %s" % validation.error)
+    for warning in validation.warnings:
+        print("Warning: %s" % warning)
+```
+
+**Solution**: Fix invalid data in source JSON before migrating.
+
+#### Issue: "Cannot delete team due to foreign key constraint"
+
+**Cause**: Roster entries reference team, CASCADE delete may be disabled.
+
+**Solution**:
+```gdscript
+# Ensure foreign keys are enabled
+db.query("PRAGMA foreign_keys = ON;")
+
+# Delete roster entries first (if CASCADE not working)
+db.query_with_bindings("DELETE FROM roster_entry WHERE team_id = ?", [team_id])
+db.query_with_bindings("DELETE FROM team WHERE id = ?", [team_id])
+```
+
+### Debugging Tools
+
+#### Enable SQL Logging
+
+```gdscript
+# Log all SQL queries (verbose!)
+var db = SQLite.new()
+db.verbosity_level = SQLite.VERBOSE
+
+# Execute query
+db.query("SELECT * FROM player WHERE position = 'QB'")
+# Prints: "Executing query: SELECT * FROM player WHERE position = 'QB'"
+```
+
+#### Inspect Database Structure
+
+```gdscript
+# List all tables
+db.query("SELECT name FROM sqlite_master WHERE type='table'")
+var tables = db.query_result
+
+# Show table schema
+db.query("PRAGMA table_info(player)")
+var schema = db.query_result
+
+# List all indexes
+db.query("SELECT name, tbl_name FROM sqlite_master WHERE type='index'")
+var indexes = db.query_result
+```
+
+#### Check Data Integrity
+
+```gdscript
+# Run integrity check
+db.query("PRAGMA integrity_check;")
+var result = db.query_result
+if result.size() == 1 and result[0]["integrity_check"] == "ok":
+    print("Database integrity OK")
+else:
+    push_error("Integrity check failed: %s" % result)
+
+# Check foreign key integrity
+db.query("PRAGMA foreign_key_check;")
+var violations = db.query_result
+if violations.size() > 0:
+    push_error("Foreign key violations found: %s" % violations)
+```
+
+---
+
 ## References
 
 - **Phase 2 Models**: `/main/scripts/core/models/` (Player, Team, Roster, etc.)
+- **Persistence Layer**: `/main/autoloads/PersistenceLayer.gd`
+- **Data Access Objects**: `/main/scripts/persistence/PlayerDAO.gd`, `TeamDAO.gd`
+- **Migration Tool**: `/main/scripts/tools/MigrateSaveToDatabase.gd`
+- **Benchmark Tool**: `/main/scripts/tools/BenchmarkDatabase.gd`
 - **SQLite Plugin**: `addons/godot-sqlite/` (2shady4u/godot-sqlite)
 - **Implementation Tickets**: `/main/docs/architecture/IMPLEMENTATION_TICKETS.md`
+- **Model Hierarchy**: `/main/docs/architecture/MODEL_HIERARCHY.md`
+- **Naming Conventions**: `/main/docs/architecture/NAMING_CONVENTIONS.md`
 - **SQLite Documentation**: https://www.sqlite.org/docs.html
 - **Foreign Keys**: https://www.sqlite.org/foreignkeys.html
 - **FTS5**: https://www.sqlite.org/fts5.html
+- **Query Planning**: https://www.sqlite.org/queryplanner.html
 
 ## Changelog
+
+### Version 1.2 (2026-01-16) - ARCH-025
+- Added Migration Guide section with JSON to SQLite migration instructions
+- Added DAO Usage Examples (PlayerDAO and TeamDAO complete examples)
+- Added Transaction Management Patterns (4 patterns with code examples)
+- Added Performance Optimization Tips (indexing, query optimization, batch operations)
+- Added Troubleshooting section (common issues, solutions, debugging tools)
+- Expanded References section with cross-document links
 
 ### Version 1.1 (2026-01-15) - ARCH-022
 - Added composite performance indexes for common query patterns
@@ -905,7 +1788,7 @@ ANALYZE;
 - Added migration tool (`MigrateSaveToDatabase.gd`) for JSON to SQLite conversion
 - Updated documentation with index strategy guidelines
 
-### Version 1 (2026-01-15)
+### Version 1.0 (2026-01-15)
 - Initial schema design
 - Core player tables (8 component resources)
 - Team and roster tables
