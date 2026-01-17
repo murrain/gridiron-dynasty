@@ -370,6 +370,15 @@
             },
             "generational_threshold": 78.0
         },
+        "draft_qb_urgency": {
+            "enabled": true,
+            "franchise_qb_threshold": 65.0,
+            "aging_qb_age": 32,
+            "succession_plan_age": 28,
+            "desperate_multiplier": 2.8,
+            "moderate_multiplier": 1.6,
+            "elite_prospect_threshold": 75.0
+        },
         "position_quotas": {
             "QB": 110,
             "RB": 220,
