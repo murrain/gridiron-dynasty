@@ -31,6 +31,14 @@ enum PlayerStage {
 @export var class_tag: String = "" # e.g., "CLASS_OF_2033" or recruiting class label
 @export var jersey_number: int = 0  # Player's jersey number (0 = unassigned)
 
+# --- Draft Eligibility (for underclassman declaration system) ---
+# years_remaining: College eligibility years left (4=freshman, 3=sophomore, 2=junior, 1=senior, 0=expired)
+# declared_for_draft: Whether player has declared for NFL draft
+# declaration_year: Year the player declared (for tracking/history)
+@export var years_remaining: int = 4
+@export var declared_for_draft: bool = false
+@export var declaration_year: int = 0
+
 # --- Physical Attributes ---
 # Extracted to PlayerPhysicals resource for better organization
 @export var physicals: PlayerPhysicals = null
@@ -101,6 +109,28 @@ func from_dict(d: Dictionary) -> void:
 	class_tag = String(d.get("class_tag", class_tag))
 	# Valid range: 0-99 (0 = unassigned)
 	jersey_number = clampi(int(d.get("jersey_number", jersey_number)), 0, 99)
+
+	# Draft eligibility fields - with backward compatibility inference
+	if d.has("years_remaining"):
+		years_remaining = clampi(int(d.get("years_remaining", 4)), 0, 5)
+	else:
+		# Backward compatibility: infer from age for old saves
+		# 18-19 = freshman (4 years), 20 = sophomore (3), 21 = junior (2), 22+ = senior (1 or 0)
+		var player_age := int(d.get("age", 18))
+		if player_age <= 19:
+			years_remaining = 4
+		elif player_age == 20:
+			years_remaining = 3
+		elif player_age == 21:
+			years_remaining = 2
+		elif player_age == 22:
+			years_remaining = 1
+		else:
+			years_remaining = 0
+
+	declared_for_draft = bool(d.get("declared_for_draft", false))
+	declaration_year = int(d.get("declaration_year", 0))
+
 	gen_mode = String(d.get("gen_mode", gen_mode))
 	school_tag = String(d.get("school_tag", school_tag))
 	notes = String(d.get("notes", notes))
@@ -225,6 +255,9 @@ func to_dict() -> Dictionary:
 	result["stage"] = stage
 	result["class_tag"] = class_tag
 	result["jersey_number"] = jersey_number
+	result["years_remaining"] = years_remaining
+	result["declared_for_draft"] = declared_for_draft
+	result["declaration_year"] = declaration_year
 	result["gen_mode"] = gen_mode
 	result["school_tag"] = school_tag
 	result["notes"] = notes
@@ -246,9 +279,38 @@ func to_dict() -> Dictionary:
 func is_nfl_player() -> bool:
 	return stage in [PlayerStage.NFL_ROOKIE, PlayerStage.NFL_VETERAN]
 
-## Check if player is draft eligible
+## Check if player is draft eligible (stage-based check)
 func is_available_for_draft() -> bool:
 	return stage == PlayerStage.DRAFT_ELIGIBLE
+
+## Check if player is eligible for NFL draft (derived property)
+## A player is eligible if:
+##   - They have declared for the draft (declared_for_draft = true), OR
+##   - They have exhausted college eligibility (years_remaining <= 0 AND stage = COLLEGE)
+## This is a computed property, not stored state.
+##
+## @return bool: True if player can enter the draft pool
+func is_draft_eligible() -> bool:
+	# Explicit declaration always makes player eligible
+	if declared_for_draft:
+		return true
+
+	# Seniors (exhausted eligibility) are auto-eligible
+	if stage == PlayerStage.COLLEGE and years_remaining <= 0:
+		return true
+
+	# Already in DRAFT_ELIGIBLE stage
+	if stage == PlayerStage.DRAFT_ELIGIBLE:
+		return true
+
+	return false
+
+## Check if player is an underclassman (can choose to declare or return)
+## Returns true for college players with years_remaining > 0
+##
+## @return bool: True if player has remaining eligibility to use
+func is_underclassman() -> bool:
+	return stage == PlayerStage.COLLEGE and years_remaining > 0
 
 ## Check if player is in college
 func is_college_player() -> bool:
