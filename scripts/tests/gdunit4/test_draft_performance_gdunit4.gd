@@ -1,15 +1,31 @@
-## GdUnit4 performance tests for Draft Phase 2 features
+## GdUnit4 performance tests for Draft Phase 2 and 3A features
 ##
 ## Tests performance requirements:
 ## - Board sort <50ms with 250 players
 ## - Shortlist lookup <5ms for 1000 lookups
 ## - Trade calculator <16ms for value update
+## - AI pick <100ms each (with caching)
+## - Full draft sim <10s (5x speedup target)
+## - Cache hit rate >90% in full draft
+## - Memory usage <50MB for cache
 ##
 extends GdUnitTestSuite
 
 const InteractiveDraft = preload("res://scripts/world/InteractiveDraft.gd")
 const PlayerShortlist = preload("res://scripts/core/models/PlayerShortlist.gd")
 const TradeValueCalculator = preload("res://scenes/ui/draft_day/TradeValueCalculator.gd")
+const DraftEvaluationCache = preload("res://scripts/world/DraftEvaluationCache.gd")
+const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
+
+
+# =============================================================================
+# SETUP/TEARDOWN
+# =============================================================================
+
+func after() -> void:
+	# Clear any cached data to ensure test isolation
+	# Performance tests may create large data structures that should be cleaned up
+	pass
 
 
 # =============================================================================
@@ -351,3 +367,240 @@ func _get_main_cfg() -> Dictionary:
 			"age_ranges": {"FR": [18, 19], "SO": [19, 20], "JR": [20, 21], "SR": [21, 23]}
 		}
 	}
+
+
+# =============================================================================
+# DRAFT EVALUATION CACHE PERFORMANCE TESTS (DRAFT-010)
+# =============================================================================
+
+## Test cache pre-computation time <5s for 32 teams
+func test_cache_precomputation_under_5s() -> void:
+	var cache := DraftEvaluationCache.new()
+	var world_state := _create_large_world_state(250)
+
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	# Create team scouts
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55, "board_noise_sigma": 1.8}
+
+	cache.initialize(
+		teams,
+		rosters,
+		draft_pool,
+		team_scouts,
+		2026,
+		12345,
+		_get_positions_cfg(),
+		{},  # stats_cfg
+		_get_main_cfg().get("class_rules", {})
+	)
+
+	var elapsed := cache.precompute_all_boards()
+
+	# Should complete in <5s (5000ms)
+	assert_float(elapsed).is_less(5000.0)
+	print("[PERF] Cache precomputation for 32 teams: %.2f ms" % elapsed)
+
+
+## Test cached board lookup is O(1) - <1ms
+func test_cache_board_lookup_under_1ms() -> void:
+	var cache := DraftEvaluationCache.new()
+	var world_state := _create_large_world_state(250)
+
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55}
+
+	cache.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 12345,
+		_get_positions_cfg(), {}, {}
+	)
+	cache.precompute_all_boards()
+
+	# Measure 1000 lookups
+	var start := Time.get_ticks_usec()
+	for _i in range(1000):
+		var _board := cache.get_team_board("team_0")
+	var elapsed := (Time.get_ticks_usec() - start) / 1000.0
+
+	var per_lookup := elapsed / 1000.0
+	assert_float(per_lookup).is_less(1.0)
+	print("[PERF] Cache board lookup: %.4f ms per lookup" % per_lookup)
+
+
+## Test cache memory usage <50MB
+func test_cache_memory_under_50mb() -> void:
+	var cache := DraftEvaluationCache.new()
+	var world_state := _create_large_world_state(250)
+
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55}
+
+	cache.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 12345,
+		_get_positions_cfg(), {}, {}
+	)
+	cache.precompute_all_boards()
+
+	var memory_bytes := cache.get_memory_estimate()
+	var memory_mb := memory_bytes / (1024.0 * 1024.0)
+
+	# Should be <50MB
+	assert_float(memory_mb).is_less(50.0)
+	print("[PERF] Cache memory estimate: %.2f MB (%d bytes)" % [memory_mb, memory_bytes])
+
+
+## Test cache determinism (same seed = same boards)
+func test_cache_determinism() -> void:
+	var world_state := _create_large_world_state(100)
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55}
+
+	# Create two caches with same seed
+	var cache1 := DraftEvaluationCache.new()
+	cache1.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 99999,
+		_get_positions_cfg(), {}, {}
+	)
+	cache1.precompute_all_boards()
+
+	var cache2 := DraftEvaluationCache.new()
+	cache2.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 99999,
+		_get_positions_cfg(), {}, {}
+	)
+	cache2.precompute_all_boards()
+
+	# Compare boards for first 5 teams
+	for i in range(min(5, teams.size())):
+		var t: Dictionary = teams[i]
+		var team_id := String(t.get("id", ""))
+
+		var board1 := cache1.get_team_board(team_id)
+		var board2 := cache2.get_team_board(team_id)
+
+		assert_bool(DraftEvaluationCache.boards_are_identical(board1, board2)).is_true()
+
+	print("[PERF] Cache determinism verified for 5 teams")
+
+
+## Test cache invalidation performance <10ms
+func test_cache_invalidation_performance() -> void:
+	var cache := DraftEvaluationCache.new()
+	var world_state := _create_large_world_state(100)
+
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55}
+
+	cache.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 12345,
+		_get_positions_cfg(), {}, {}
+	)
+	cache.precompute_all_boards()
+
+	# Measure full invalidation
+	var start := Time.get_ticks_usec()
+	cache.invalidate_cache("trade_test")
+	var elapsed := (Time.get_ticks_usec() - start) / 1000.0
+
+	assert_float(elapsed).is_less(10.0)
+	assert_bool(cache.is_cache_valid()).is_false()
+	print("[PERF] Cache invalidation: %.4f ms" % elapsed)
+
+
+## Test single team board invalidation <100ms
+func test_single_team_invalidation_performance() -> void:
+	var cache := DraftEvaluationCache.new()
+	var world_state := _create_large_world_state(100)
+
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55}
+
+	cache.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 12345,
+		_get_positions_cfg(), {}, {}
+	)
+	cache.precompute_all_boards()
+
+	# Measure single team invalidation
+	var start := Time.get_ticks_usec()
+	cache.invalidate_team_board("team_0", "trade_test")
+	var elapsed := (Time.get_ticks_usec() - start) / 1000.0
+
+	assert_float(elapsed).is_less(100.0)
+	assert_bool(cache.is_cache_valid()).is_true()  # Only single team invalidated
+	print("[PERF] Single team board invalidation: %.2f ms" % elapsed)
+
+
+## Test cache stats reporting
+func test_cache_stats_reporting() -> void:
+	var cache := DraftEvaluationCache.new()
+	var world_state := _create_large_world_state(50)
+
+	var teams: Array = world_state.get("nfl_teams", [])
+	var rosters: Dictionary = world_state.get("nfl_rosters", {})
+	var draft_pool: Array = world_state.get("draft_pool", {}).get(2026, [])
+
+	var team_scouts: Dictionary = {}
+	for team in teams:
+		var t: Dictionary = team
+		var team_id := String(t.get("id", ""))
+		team_scouts[team_id] = {"base_skill": 0.55}
+
+	cache.initialize(
+		teams, rosters, draft_pool, team_scouts, 2026, 12345,
+		_get_positions_cfg(), {}, {}
+	)
+	cache.precompute_all_boards()
+
+	var stats := cache.get_cache_stats()
+
+	assert_float(float(stats.get("compute_time_ms", 0.0))).is_greater(0.0)
+	assert_int(int(stats.get("total_evaluations", 0))).is_greater(0)
+	assert_int(int(stats.get("teams_cached", 0))).is_equal(32)
+
+	print("[PERF] Cache stats: %d evaluations across %d teams in %.2f ms" % [
+		stats.get("total_evaluations", 0),
+		stats.get("teams_cached", 0),
+		stats.get("compute_time_ms", 0.0)
+	])

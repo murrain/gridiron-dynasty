@@ -26,6 +26,7 @@ const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCa
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
 const NflDraft = preload("res://scripts/world/NflDraft.gd")
 const PlayerShortlist = preload("res://scripts/core/models/PlayerShortlist.gd")
+const DraftTradeEngine = preload("res://scripts/world/DraftTradeEngine.gd")
 
 ## Emitted when the user needs to make a pick
 ## Parameters: pick_number, round_number, available_players, recommendations
@@ -49,8 +50,17 @@ signal shortlisted_player_drafted(player_id: String, player_name: String, positi
 ## Emitted when shortlist changes
 signal shortlist_changed()
 
+## Emitted when trade proposals are available for user to review
+signal trade_proposals_available(proposals: Array)
+
+## Emitted when a trade is executed
+signal trade_executed(trade_record: Dictionary)
+
+## Emitted when an AI team proposes a trade to the user
+signal trade_offer_received(offer: Dictionary, offering_team: String)
+
 ## Draft state
-enum DraftState { NOT_STARTED, RUNNING, WAITING_FOR_USER, COMPLETED }
+enum DraftState { NOT_STARTED, RUNNING, WAITING_FOR_USER, COMPLETED, TRADE_WINDOW }
 
 ## Board sort modes for BPA vs Need toggle
 enum BoardSortMode { BPA, NEED, SCHEME_FIT }
@@ -108,6 +118,15 @@ var _shortlist: PlayerShortlist = null
 
 ## Current board sort mode for user display
 var _board_sort_mode: BoardSortMode = BoardSortMode.BPA
+
+## Trading state (DRAFT-001 integration)
+var _trade_history: Array = []
+var _pending_trade_offers: Array = []
+var _trades_this_draft: int = 0
+
+## Trading configuration
+var _trading_enabled: bool = true
+var _max_trades_per_draft: int = 30  # Cap for realism (NFL averages 15-25)
 
 
 ## Initialize the draft with world state and configs
@@ -434,11 +453,22 @@ func make_user_pick(player_id: String) -> bool:
 
 
 ## Make an AI pick - uses pre-computed board for fast selection
+##
+## If boards were invalidated (e.g., after a trade), this will lazily
+## recompute them before making the pick.
 func _make_ai_pick(pick_assignment: Dictionary) -> void:
 	var team_id := String(pick_assignment.get("current_owner_id", ""))
 
 	if _remaining_pool.is_empty():
 		return
+
+	# Lazy recomputation: If boards were invalidated, recompute them
+	if _team_boards.is_empty():
+		print("[InteractiveDraft] Lazy recomputing draft boards after invalidation...")
+		var board_start := Time.get_ticks_usec()
+		_precompute_team_boards()
+		var board_elapsed := (Time.get_ticks_usec() - board_start) / 1000.0
+		print("[InteractiveDraft] Draft boards recomputed in %.1fms" % board_elapsed)
 
 	# Get team's pre-computed board
 	var board: Array = _team_boards.get(team_id, [])
@@ -1047,3 +1077,317 @@ func _sort_by_scheme_fit(players: Array) -> void:
 ## Get player data by ID (for UI lookups)
 func get_player_by_id(player_id: String) -> Dictionary:
 	return _player_by_id.get(player_id, {})
+
+
+# =============================================================================
+# DRAFT TRADING SYSTEM (DRAFT-001)
+# =============================================================================
+
+## Enable or disable trading during the draft
+func set_trading_enabled(enabled: bool) -> void:
+	_trading_enabled = enabled
+
+
+## Check if trading is enabled
+func is_trading_enabled() -> bool:
+	return _trading_enabled
+
+
+## Get AI trade proposals for current pick
+##
+## Called before each pick to check if any AI teams want to trade.
+## Returns proposals that the user can accept or reject.
+##
+## RNG: Uses DraftTradeEngine.generate_trade_proposals() which is seeded
+func get_trade_proposals() -> Array:
+	if not _trading_enabled or _trades_this_draft >= _max_trades_per_draft:
+		return []
+
+	if _draft_order.is_empty() or _current_pick >= _draft_order.size():
+		return []
+
+	var pick_assignment: Dictionary = _draft_order[_current_pick]
+	var picking_team := String(pick_assignment.get("current_owner_id", ""))
+	var overall_pick := int(pick_assignment.get("overall_pick", _current_pick + 1))
+
+	# Build draft context for trade engine
+	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
+	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
+
+	var draft_context := {
+		"year": _year,
+		"teams": _teams,
+		"rosters": _rosters,
+		"ownership": ownership,
+		"league_cfg": _league_cfg,
+		"positions_cfg": _positions_cfg,
+		"class_rules": class_rules,
+		"current_pick": overall_pick
+	}
+
+	# Generate proposals using DraftTradeEngine
+	var proposals := DraftTradeEngine.generate_trade_proposals(
+		draft_context,
+		overall_pick,
+		picking_team,
+		_remaining_pool,
+		_seed
+	)
+
+	return proposals
+
+
+## Check for AI trade offers to the user when it's user's pick
+##
+## Called when user is on the clock - AI teams may offer trades TO the user.
+## User can accept (trade pick) or decline (make pick normally).
+func check_for_incoming_trade_offers() -> Array:
+	if not _trading_enabled or _trades_this_draft >= _max_trades_per_draft:
+		return []
+
+	if _state != DraftState.WAITING_FOR_USER:
+		return []
+
+	var pick_assignment: Dictionary = _draft_order[_current_pick]
+	var overall_pick := int(pick_assignment.get("overall_pick", _current_pick + 1))
+
+	# Build draft context
+	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
+	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
+
+	var draft_context := {
+		"year": _year,
+		"teams": _teams,
+		"rosters": _rosters,
+		"ownership": ownership,
+		"league_cfg": _league_cfg,
+		"positions_cfg": _positions_cfg,
+		"class_rules": class_rules,
+		"current_pick": overall_pick
+	}
+
+	# Generate proposals where user is the receiving team
+	var proposals := DraftTradeEngine.generate_trade_proposals(
+		draft_context,
+		overall_pick,
+		_user_team_id,
+		_remaining_pool,
+		_seed
+	)
+
+	# Filter to only offers TO the user
+	var incoming_offers: Array = []
+	for proposal in proposals:
+		var p: Dictionary = proposal
+		if String(p.get("receiving_team_id", "")) == _user_team_id:
+			incoming_offers.append(p)
+
+	_pending_trade_offers = incoming_offers
+
+	if not incoming_offers.is_empty():
+		for offer in incoming_offers:
+			var offering_team := String((offer as Dictionary).get("offering_team_id", ""))
+			trade_offer_received.emit(offer, offering_team)
+
+	return incoming_offers
+
+
+## Accept a trade offer
+##
+## Executes the trade and updates ownership ledger.
+## Returns true if trade was successfully executed.
+func accept_trade(offer: Dictionary) -> bool:
+	if not _trading_enabled:
+		push_error("[InteractiveDraft] Trading is disabled")
+		return false
+
+	if _trades_this_draft >= _max_trades_per_draft:
+		push_error("[InteractiveDraft] Maximum trades reached for this draft")
+		return false
+
+	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
+	var overall_pick := _current_pick + 1
+
+	# Validate the trade
+	var validation := DraftTradeEngine.validate_trade(offer, ownership, _year, overall_pick)
+	if not bool(validation.get("valid")):
+		push_error("[InteractiveDraft] Invalid trade: %s" % String(validation.get("reason", "Unknown")))
+		return false
+
+	# Execute the trade
+	var result := DraftTradeEngine.execute_trade(offer, ownership, _year, overall_pick)
+	var trade_record: Dictionary = result.get("trade_record", {})
+	var updated_ownership: Dictionary = result.get("updated_ownership", {})
+
+	# Update world state with new ownership
+	_world_state["draft_pick_ownership"] = updated_ownership
+
+	# Record trade in history
+	_trade_history.append(trade_record)
+	_trades_this_draft += 1
+
+	# Update draft order to reflect new ownership
+	_rebuild_draft_order_from_ownership()
+
+	# CRITICAL: Invalidate cached draft boards so AI teams re-evaluate
+	# This ensures AI teams don't use stale boards after trades
+	_invalidate_draft_boards()
+
+	# Log trade
+	var summary := DraftTradeEngine.format_trade_summary(trade_record, _league_cfg)
+	SimLogger.info(summary)
+
+	# Emit signal
+	trade_executed.emit(trade_record)
+
+	return true
+
+
+## Decline a trade offer
+##
+## Simply removes the offer from pending list.
+func decline_trade(offer: Dictionary) -> void:
+	var offering_team := String(offer.get("offering_team_id", ""))
+	_pending_trade_offers = _pending_trade_offers.filter(func(o):
+		return String((o as Dictionary).get("offering_team_id", "")) != offering_team
+	)
+
+
+## Get pending trade offers for user
+func get_pending_trade_offers() -> Array:
+	return _pending_trade_offers
+
+
+## Get trade history for this draft
+func get_trade_history() -> Array:
+	return _trade_history
+
+
+## Get number of trades executed this draft
+func get_trades_count() -> int:
+	return _trades_this_draft
+
+
+## Calculate trade value for display purposes
+func get_trade_value(picks: Array) -> float:
+	return DraftTradeEngine.calculate_trade_value(picks, _year)
+
+
+## Invalidate cached draft boards after a trade
+##
+## CRITICAL: Must be called after any trade execution to ensure
+## AI teams re-evaluate available players with updated pick ownership.
+## Without this, AI teams would use stale draft boards that don't
+## reflect the changed draft landscape after trades.
+##
+## The boards will be lazily recomputed on the next AI pick when needed.
+func _invalidate_draft_boards() -> void:
+	_team_boards.clear()
+	# Note: _drafted_players is NOT cleared - those players are still drafted
+	# We only clear the pre-computed boards so they get rebuilt with fresh evaluations
+	print("[InteractiveDraft] Draft boards invalidated - will recompute on next AI pick")
+
+
+## Rebuild draft order after a trade changes ownership
+func _rebuild_draft_order_from_ownership() -> void:
+	_draft_order.clear()
+
+	var sorted_teams := _sort_by_draft_order(_teams, _world_state, _year)
+	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
+
+	for round_num in range(1, _rounds + 1):
+		var round_picks := NflDraft.resolve_draft_order_with_ownership(
+			sorted_teams, ownership, _year, round_num
+		)
+
+		for pick_assignment in round_picks:
+			var assignment: Dictionary = pick_assignment
+			assignment["round"] = round_num
+			assignment["overall_pick"] = _draft_order.size() + 1
+			_draft_order.append(assignment)
+
+
+## Propose a user-initiated trade (user offers to another team)
+##
+## Creates a trade offer from user to target team and evaluates acceptance.
+## Returns the result of the trade attempt.
+func propose_user_trade(
+	target_team_id: String,
+	picks_to_offer: Array,
+	picks_to_request: Array
+) -> Dictionary:
+	if not _trading_enabled:
+		return {"success": false, "reason": "Trading is disabled"}
+
+	if _trades_this_draft >= _max_trades_per_draft:
+		return {"success": false, "reason": "Maximum trades reached"}
+
+	var offer := {
+		"offering_team_id": _user_team_id,
+		"receiving_team_id": target_team_id,
+		"picks_offered": picks_to_offer,
+		"picks_requested": picks_to_request,
+		"initiated_by": "user"
+	}
+
+	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
+	var overall_pick := _current_pick + 1
+
+	# Validate
+	var validation := DraftTradeEngine.validate_trade(offer, ownership, _year, overall_pick)
+	if not bool(validation.get("valid")):
+		return {"success": false, "reason": String(validation.get("reason", "Invalid trade"))}
+
+	# Build context for acceptance evaluation
+	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
+	var draft_context := {
+		"year": _year,
+		"current_pick": overall_pick,
+		"rosters": _rosters,
+		"league_cfg": _league_cfg,
+		"positions_cfg": _positions_cfg,
+		"class_rules": class_rules
+	}
+
+	# Evaluate if target team accepts
+	var accepted := DraftTradeEngine.evaluate_trade_acceptance(
+		offer, target_team_id, draft_context, _seed
+	)
+
+	if accepted:
+		var trade_success := accept_trade(offer)
+		if trade_success:
+			return {"success": true, "accepted": true, "reason": "Trade accepted"}
+		else:
+			return {"success": false, "reason": "Trade execution failed"}
+	else:
+		return {"success": true, "accepted": false, "reason": "Trade declined by %s" % target_team_id}
+
+
+## Get user's tradeable picks
+func get_user_tradeable_picks() -> Array:
+	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
+	var overall_pick := _current_pick + 1
+
+	var picks: Array = []
+	var year_ownership: Dictionary = ownership.get(_year, {}) as Dictionary
+
+	for round_num in range(1, 8):
+		var round_ownership: Dictionary = year_ownership.get(round_num, {}) as Dictionary
+		var pick_in_round := 1
+
+		for orig_team_id in round_ownership.keys():
+			var owner := String(round_ownership.get(orig_team_id, ""))
+			if owner == _user_team_id:
+				var overall := (round_num - 1) * 32 + pick_in_round
+				if overall > overall_pick:  # Only future picks
+					picks.append({
+						"year": _year,
+						"round": round_num,
+						"pick_in_round": pick_in_round,
+						"original_team_id": orig_team_id,
+						"overall": overall
+					})
+			pick_in_round += 1
+
+	return picks

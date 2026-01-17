@@ -237,6 +237,11 @@ text = "View My Roster"
 layout_mode = 2
 text = "View Teams"
 
+[node name="ProposeTradeButton" type="Button" parent="MarginContainer/VBoxContainer/Footer"]
+layout_mode = 2
+text = "Propose Trade"
+tooltip_text = "Open trade dialog to propose a pick trade with another team"
+
 [node name="ViewWorldButton" type="Button" parent="MarginContainer/VBoxContainer/Footer"]
 visible = false
 layout_mode = 2
