@@ -191,7 +191,7 @@ static func calculate_declaration_probability(
 		years_multiplier = FRESHMAN_YEARS_MULTIPLIER
 
 	# Calculate final probability, clamped to valid range
-	var final_prob := clamp(base_prob * years_multiplier, 0.0, 1.0)
+	var final_prob: float = clamp(base_prob * years_multiplier, 0.0, 1.0)
 
 	return final_prob
 
@@ -297,7 +297,7 @@ static func validate_player_eligibility(player: Dictionary) -> Dictionary:
 			return {"valid": false, "reason": "Player stage is not COLLEGE"}
 
 	# Check years_remaining is valid
-	var years := player.get("years_remaining")
+	var years: Variant = player.get("years_remaining")
 	if years != null:
 		var years_val := int(years)
 		if years_val < 0:

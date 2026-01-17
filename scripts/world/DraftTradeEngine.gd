@@ -11,7 +11,7 @@
 ##
 ## RNG Pattern:
 ##   - Trade acceptance: Rand.splitmix64(base_seed ^ hash(receiving_team_id) ^ year ^ current_pick)
-##   - AI proposal generation: Rand.splitmix64(base_seed ^ current_pick ^ 0x7RADE)
+##   - AI proposal generation: Rand.splitmix64(base_seed ^ current_pick ^ 0x7ADE0)
 ##
 ## Integration Points:
 ##   - InteractiveDraft: TRADE_WINDOW state management, execution
@@ -423,7 +423,7 @@ static func generate_ai_trade_proposals(
 	var proposals: Array = []
 
 	# Create deterministic RNG for proposal generation
-	var proposal_seed := Rand.splitmix64(base_seed ^ current_pick ^ 0x7RADE)
+	var proposal_seed := Rand.splitmix64(base_seed ^ current_pick ^ 0x7ADE00)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = proposal_seed
 
@@ -476,8 +476,8 @@ static func generate_ai_trade_proposals(
 					var validation := validate_trade(proposal, ownership, year, current_pick)
 					if bool(validation.get("valid")):
 						# Check value differential is reasonable
-						var value_diff := calculate_value_differential(proposal, league_cfg, year)
-						var relative_diff := abs(value_diff) / max(1.0, abs(value_diff) + 500.0)
+						var value_diff: float = calculate_value_differential(proposal, league_cfg, year)
+						var relative_diff: float = abs(value_diff) / max(1.0, abs(value_diff) + 500.0)
 
 						if relative_diff <= AI_VALUE_DIFFERENTIAL_THRESHOLD:
 							proposals.append(proposal)
@@ -503,9 +503,9 @@ static func _find_trade_candidates(
 		var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
 
 		# Count team's remaining picks in this draft
-		var team_picks := _count_team_picks(team_id, ownership, year, current_pick)
-		var early_picks := team_picks.get("early", 0)  # Rounds 1-2
-		var total_picks := team_picks.get("total", 0)
+		var team_picks: Dictionary = _count_team_picks(team_id, ownership, year, current_pick)
+		var early_picks: int = int(team_picks.get("early", 0))  # Rounds 1-2
+		var total_picks: int = int(team_picks.get("total", 0))
 
 		# Determine trade intent
 		var wants_to := ""
