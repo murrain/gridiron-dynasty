@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctr4d3pr0p0s41"]
+
+[ext_resource type="Script" path="res://scenes/ui/draft_day/TradeProposalDialog.gd" id="1_dialog"]
+
+[node name="TradeProposalDialog" type="Window"]
+title = "Propose Trade"
+initial_position = 2
+size = Vector2i(650, 500)
+visible = false
+script = ExtResource("1_dialog")

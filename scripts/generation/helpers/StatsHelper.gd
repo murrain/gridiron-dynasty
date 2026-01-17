@@ -130,3 +130,103 @@ static func apply_defaults(
 		applied += 1
 
 	return applied
+
+## ============================================================================
+## CHAOS GENERATION (20% of players)
+## ============================================================================
+## Generate a "chaos" player: stats first with uniform distribution, then
+## find best-fit position based on core stat scores.
+##
+## RNG CONSUMPTION PATTERN:
+##   - 1 call per stat in all_stats array (randf_range for uniform sampling)
+##   - Potentially 1 call per viability-adjusted stat (randf_range for small bump)
+##
+## This creates emergent player types that don't fit standard templates,
+## enabling occasional diamonds-in-the-rough or position converts.
+
+static func generate_chaos_player(
+	all_stats: Array,
+	positions_cfg: Dictionary,
+	rng: RandomNumberGenerator
+) -> Dictionary:
+	var stats := {}
+
+	# Generate ALL stats with uniform distribution [25, 95]
+	# RNG: one randf_range call per stat
+	for stat_name in all_stats:
+		stats[stat_name] = rng.randf_range(25.0, 95.0)
+
+	# Find best-fit position based on core stat scores
+	var position = _find_best_fit_position(stats, positions_cfg)
+
+	# Ensure viability for the chosen position (may bump stats slightly)
+	# RNG: potentially one randf_range call per stat with viability_min
+	stats = _ensure_viability(stats, position, positions_cfg, rng)
+
+	return {"position": position, "stats": stats, "generation_mode": "chaos"}
+
+## Find the position whose core stats best match the player's raw stats.
+## Uses deterministic iteration order (sorted keys) for reproducibility.
+##
+## Returns empty string if positions_cfg is empty (caller should handle gracefully).
+static func _find_best_fit_position(stats: Dictionary, positions_cfg: Dictionary) -> String:
+	var position_keys = positions_cfg.keys()
+	if position_keys.is_empty():
+		push_warning("_find_best_fit_position: positions_cfg is empty")
+		return ""
+
+	position_keys.sort()  # CRITICAL for determinism: ensure consistent iteration order
+
+	var best_position = ""
+	var best_score = -999999.0
+
+	for position in position_keys:
+		var score = _score_position_fit(stats, position, positions_cfg)
+		if score > best_score:
+			best_score = score
+			best_position = position
+
+	# Fallback to first position if somehow no match found
+	return best_position if best_position != "" else position_keys[0]
+
+## Score how well a player's stats fit a position.
+## Simple sum of core stat values - higher is better fit.
+static func _score_position_fit(stats: Dictionary, position: String, positions_cfg: Dictionary) -> float:
+	var pos_cfg = positions_cfg.get(position, {})
+	var core_stats = pos_cfg.get("core_stats", []) as Array
+
+	var score = 0.0
+	for stat in core_stats:
+		if stats.has(stat):
+			score += float(stats[stat])  # Simple sum of core stats
+
+	return score
+
+## Ensure player meets viability minimums for the chosen position.
+## If a stat is below viability_min, bump it up slightly.
+##
+## RNG: one randf_range call per stat that needs adjustment
+static func _ensure_viability(
+	stats: Dictionary,
+	position: String,
+	positions_cfg: Dictionary,
+	rng: RandomNumberGenerator
+) -> Dictionary:
+	var pos_cfg = positions_cfg.get(position, {})
+	var dists = pos_cfg.get("distributions", {}) as Dictionary
+
+	# Sort keys for deterministic iteration order
+	var dist_keys = dists.keys()
+	dist_keys.sort()
+
+	for stat_name in dist_keys:
+		var dist = dists[stat_name] as Dictionary
+		if dist.has("viability_min"):
+			var min_val = float(dist["viability_min"])
+			var current = float(stats.get(stat_name, 0.0))
+			if current < min_val:
+				# Bump to viability_min plus small random offset [0, 10]
+				# This ensures player can function while preserving some variance
+				stats[stat_name] = min_val + rng.randf_range(0.0, 10.0)
+
+	return stats

@@ -26,6 +26,7 @@ class_name DraftDayUI
 
 const InteractiveDraft = preload("res://scripts/world/InteractiveDraft.gd")
 const GameSession = preload("res://scripts/core/models/GameSession.gd")
+const TradeProposalDialog = preload("res://scenes/ui/draft_day/TradeProposalDialog.gd")
 
 signal draft_completed(session: GameSession)
 signal view_world_requested()
@@ -73,6 +74,8 @@ var _showing_teams_popup: bool = false
 ## Popup references (created dynamically)
 var _roster_popup: Window = null
 var _teams_popup: Window = null
+var _trade_dialog: TradeProposalDialog = null
+var _trade_button: Button = null
 
 
 func _ready() -> void:
@@ -90,6 +93,9 @@ func _ready() -> void:
 	# Setup position filter
 	_setup_position_filter()
 
+	# Create trade button and dialog
+	_setup_trade_ui()
+
 
 ## Initialize with session and draft controller
 func initialize(session: GameSession, draft: InteractiveDraft) -> void:
@@ -101,6 +107,11 @@ func initialize(session: GameSession, draft: InteractiveDraft) -> void:
 	_draft.pick_made.connect(_on_pick_made)
 	_draft.draft_completed.connect(_on_draft_completed)
 	_draft.round_changed.connect(_on_round_changed)
+
+	# Connect trade signals
+	_draft.trade_window_opened.connect(_on_trade_window_opened)
+	_draft.trade_executed.connect(_on_trade_executed)
+	_draft.trade_rejected.connect(_on_trade_rejected)
 
 	# Update header
 	header_label.text = "%d NFL Draft - %s" % [session.current_year, session.user_team_name]
@@ -588,3 +599,126 @@ func _on_roster_popup_closed() -> void:
 func _on_teams_popup_closed() -> void:
 	if _teams_popup != null:
 		_teams_popup.hide()
+
+
+# =============================================================================
+# TRADE SYSTEM UI
+# =============================================================================
+
+## Setup trade UI elements
+func _setup_trade_ui() -> void:
+	# Create trade button
+	_trade_button = Button.new()
+	_trade_button.text = "Propose Trade"
+	_trade_button.pressed.connect(_on_trade_button_pressed)
+
+	# Add to footer (next to other action buttons)
+	var footer := $MarginContainer/VBoxContainer/Footer
+	if footer:
+		footer.add_child(_trade_button)
+		footer.move_child(_trade_button, 1)  # Position after status label
+
+	# Create trade dialog
+	_trade_dialog = TradeProposalDialog.new()
+	_trade_dialog.trade_proposed.connect(_on_trade_proposed)
+	_trade_dialog.trade_cancelled.connect(_on_trade_cancelled)
+	add_child(_trade_dialog)
+
+
+## Handle trade button press
+func _on_trade_button_pressed() -> void:
+	if not _draft:
+		return
+
+	if not _draft.can_open_trade_window():
+		_show_notification("Cannot propose trade during a pick", Color.RED, 2.0)
+		return
+
+	# Request trade window from draft
+	_draft.enter_trade_window()
+
+
+## Handle trade window opened
+func _on_trade_window_opened(current_pick: int, user_picks: Array) -> void:
+	if not _trade_dialog:
+		return
+
+	# Get trade partners and ownership
+	var trade_partners := _draft.get_trade_partner_teams()
+	var ownership := _session.world_state.get("draft_pick_ownership", {})
+
+	# Open trade dialog
+	_trade_dialog.open_dialog(
+		_session.user_team_id,
+		trade_partners,
+		user_picks,
+		ownership,
+		_session.current_year,
+		{}  # league_cfg - empty for now, dialog will work without it
+	)
+
+
+## Handle trade proposed by user
+func _on_trade_proposed(offer: Dictionary) -> void:
+	if not _draft:
+		return
+
+	# Propose trade to draft engine
+	var accepted := _draft.propose_trade(offer)
+
+	if accepted:
+		_trade_dialog.hide()
+		_draft.exit_trade_window()
+		_show_notification("Trade accepted!", Color.GREEN, 3.0)
+	# If rejected, stay in dialog (rejection handler shows message)
+
+
+## Handle trade cancelled
+func _on_trade_cancelled() -> void:
+	if not _draft:
+		return
+
+	_draft.exit_trade_window()
+
+
+## Handle trade executed (AI or user)
+func _on_trade_executed(trade_record: Dictionary) -> void:
+	_show_trade_notification(trade_record)
+
+
+## Handle trade rejected
+func _on_trade_rejected(reason: String) -> void:
+	_show_notification("Trade Rejected: %s" % reason, Color.RED, 3.0)
+
+
+## Show trade notification
+func _show_trade_notification(trade: Dictionary) -> void:
+	var offering := String(trade.get("offering_team_id", ""))
+	var receiving := String(trade.get("receiving_team_id", ""))
+	var picks_offered := (trade.get("picks_offered", []) as Array).size()
+	var picks_requested := (trade.get("picks_requested", []) as Array).size()
+
+	var msg := "TRADE: %s sends %d pick(s) to %s for %d pick(s)" % [
+		offering, picks_offered, receiving, picks_requested
+	]
+	_show_notification(msg, Color.YELLOW, 5.0)
+
+	# Add to ticker
+	draft_ticker.add_item("TRADE: %s <-> %s (%d picks exchanged)" % [
+		offering, receiving, picks_offered + picks_requested
+	])
+
+
+## Show notification message
+func _show_notification(message: String, color: Color, duration: float = 3.0) -> void:
+	# Update status label temporarily
+	var original_text := status_label.text
+	var original_color := status_label.modulate
+	status_label.text = message
+	status_label.modulate = color
+
+	# Reset after duration
+	await get_tree().create_timer(duration).timeout
+	if status_label:
+		status_label.text = original_text
+		status_label.modulate = original_color

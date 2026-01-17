@@ -74,20 +74,65 @@ func generate_class(count: int, gaussian_share: float, rng: RandomNumberGenerato
 	return result
 
 ## Creates one player (pure function w.r.t. shared state).
-## Fill in your existing logic (position pick, stats, tags, etc.).
+## Implements 80/20 split: 80% templated (position-first), 20% chaos (stats-first).
+##
+## RNG CONSUMPTION PATTERN:
+##   - 1 randf() call to determine generation mode
+##   - 1 call for name generation
+##   - Then either:
+##     - TEMPLATED: position pick -> physicals -> stats (position-guided distributions)
+##     - CHAOS: uniform stats -> best-fit position -> viability check -> physicals
+##
+## This creates diverse player pools with predictable archetypes (80%) and
+## occasional emergent oddballs (20%) who may excel in unexpected ways.
+const CHAOS_GENERATION_PROBABILITY = 0.20
+
 func _make_single_player(gaussian_share: float, rng: RandomNumberGenerator) -> Dictionary:
 	var p: Dictionary = {}
-	# … your existing player creation steps …
-	# Required skeleton fields:
+
+	# RNG: 1 call to determine generation mode (consumed before branching)
+	var generation_mode_roll = rng.randf()
+	var use_chaos = generation_mode_roll < CHAOS_GENERATION_PROBABILITY
+
+	# Name is generated the same way regardless of mode
 	p["name"] = NamesHelper.random_full(names_cfg, rng)
-	p["position"] = PositionHelper.pick_position(positions_data, class_rules, rng)
-	p["physicals"] = PhysicalsHelper.roll_for_position(p["position"], positions_data, rng)
-	p["stats"] = StatsHelper.roll_all(stats_cfg, p["position"], positions_data, gaussian_share, rng)
+
+	if use_chaos:
+		# CHAOS MODE: Generate stats first with uniform distribution,
+		# then find best-fit position based on core stat scores.
+		var all_stats = _get_all_stat_names()
+		var result = StatsHelper.generate_chaos_player(all_stats, positions_data, rng)
+		p["position"] = result["position"]
+		p["stats"] = result["stats"]
+		p["generation_mode"] = "chaos"
+		# Generate physicals for the determined position
+		p["physicals"] = PhysicalsHelper.roll_for_position(p["position"], positions_data, rng)
+	else:
+		# TEMPLATED MODE: Position first, then stats guided by position distributions.
+		p["position"] = PositionHelper.pick_position(positions_data, class_rules, rng)
+		p["physicals"] = PhysicalsHelper.roll_for_position(p["position"], positions_data, rng)
+		p["stats"] = StatsHelper.roll_all(stats_cfg, p["position"], positions_data, gaussian_share, rng)
+		p["generation_mode"] = "templated"
+
 	StatsHelper.apply_defaults(p["stats"], stats_cfg, true)
 	p["tags"] = []
 	p["wear"] = {"snaps": 0, "collisions": 0, "injury_count": 0}
 	p["development_report"] = []
 	return p
+
+## Get all stat names from stats_cfg, sorted for deterministic iteration.
+## Excludes derived stats (type == "derived") since those are calculated, not rolled.
+func _get_all_stat_names() -> Array:
+	var names = []
+	var stats_list = stats_cfg.get("stats", []) as Array
+	for stat_def in stats_list:
+		if stat_def is Dictionary and stat_def.has("name"):
+			# Skip derived stats - they're computed from other stats
+			var stat_type = stat_def.get("type", "base")
+			if stat_type != "derived":
+				names.append(stat_def["name"])
+	names.sort()  # CRITICAL for determinism
+	return names
 
 ## De-age a class to HS year 1 (threaded wrapper).
 func de_age_players(

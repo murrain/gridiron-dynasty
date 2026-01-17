@@ -7,11 +7,12 @@ class_name PreDraftProcess
 ## pro days, all-star games, and team visits.
 ##
 ## This service handles:
-##   1. NFL Combine invites and performance simulation (~330 players)
-##   2. Pro day simulation for non-combine invitees
-##   3. All-star game invites and performance (Senior Bowl, East-West Shrine)
-##   4. Team visit scheduling (max 30 per player)
-##   5. Interview scoring and evaluations
+##   1. Filtering to declared players (via DraftDecisionEngine)
+##   2. NFL Combine invites and performance simulation (~330 players)
+##   3. Pro day simulation for non-combine invitees
+##   4. All-star game invites and performance (Senior Bowl, East-West Shrine)
+##   5. Team visit scheduling (max 30 per player)
+##   6. Interview scoring and evaluations
 ##
 ## Design Philosophy:
 ##   - Stateless service (all state in world_state)
@@ -27,7 +28,8 @@ class_name PreDraftProcess
 ##   - Interview scores: Gaussian distribution per team-player pair
 ##
 ## Integration Points:
-##   - WorldCalendar: Runs during draft_prep phase (tick 7)
+##   - WorldCalendar: Runs during draft_prep phase (tick 8, after draft_declaration)
+##   - DraftDecisionEngine: Filter to declared players before processing
 ##   - CombineCalculator: Simulate combine performance
 ##   - DraftStockTracker: Update draft stock after each event
 ##   - NflDraft: Use pre_draft_process data in scout evaluation
@@ -35,6 +37,41 @@ class_name PreDraftProcess
 const Rand = preload("res://autoloads/Rand.gd")
 const SimLogger = preload("res://autoloads/SimLogger.gd")
 const CombineCalculator = preload("res://scripts/core/rating/CombineCalculator.gd")
+
+
+## Filters draft pool to only players who have declared for the draft.
+##
+## A player is included in the filtered pool if:
+##   - declared_for_draft == true (underclassman who declared), OR
+##   - years_remaining <= 0 (senior with exhausted eligibility)
+##
+## This function should be called BEFORE pre-draft processing to ensure
+## only draft-eligible players go through combine/pro day evaluation.
+##
+## The DraftDecisionEngine.process_declarations() should have already
+## run during the draft_declaration phase to set declared_for_draft flags.
+##
+## RNG: None (pure filter operation)
+##
+## @param draft_pool: Array of player dictionaries from college_players or draft_pool
+## @return Array: Filtered array of only declared/eligible players
+static func filter_to_declared_players(draft_pool: Array) -> Array:
+	var declared: Array = []
+
+	for player in draft_pool:
+		var p: Dictionary = player
+
+		# Check if player has declared for draft
+		var has_declared := bool(p.get("declared_for_draft", false))
+
+		# Check if player has exhausted eligibility (senior)
+		var years_left := int(p.get("years_remaining", 4))
+
+		# Include if declared OR exhausted eligibility
+		if has_declared or years_left <= 0:
+			declared.append(p)
+
+	return declared
 
 ## Main entry point for pre-draft process simulation.
 ##
@@ -70,7 +107,16 @@ static func run(
 	config: Dictionary
 ) -> Dictionary:
 	var draft_pool_all: Dictionary = world_state.get("draft_pool", {})
-	var draft_pool: Array = draft_pool_all.get(year, [])
+	var draft_pool_raw: Array = draft_pool_all.get(year, [])
+
+	# Filter to only players who have declared for draft or exhausted eligibility
+	# This ensures underclassmen who chose to return to school are excluded
+	var draft_pool: Array = filter_to_declared_players(draft_pool_raw)
+
+	# Update the draft pool in world_state with filtered version
+	# This ensures NflDraft only sees declared players
+	draft_pool_all[year] = draft_pool
+	world_state["draft_pool"] = draft_pool_all
 
 	if draft_pool.is_empty():
 		return {

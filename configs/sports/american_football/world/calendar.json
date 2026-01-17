@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "phases": [
     {
       "id": "hs_generation",
@@ -58,50 +58,61 @@
       "placeholder": false
     },
     {
-      "id": "draft_prep",
-      "label": "Draft prep",
+      "id": "draft_declaration",
+      "label": "Draft declaration",
+      "description": "Underclassmen decide to declare for NFL draft or return to school",
       "start_tick": 7,
       "end_tick": 7,
-      "tags": ["nfl"],
-      "placeholder": false
+      "tags": ["college", "draft"],
+      "placeholder": false,
+      "handler": "DraftDecisionEngine.process_declarations",
+      "rng_seed_suffix": "0xDEC1A4E"
     },
     {
-      "id": "nfl_draft",
-      "label": "NFL draft",
+      "id": "draft_prep",
+      "label": "Draft prep",
       "start_tick": 8,
       "end_tick": 8,
       "tags": ["nfl"],
       "placeholder": false
     },
     {
-      "id": "roster_management",
-      "label": "Roster management",
+      "id": "nfl_draft",
+      "label": "NFL draft",
       "start_tick": 9,
       "end_tick": 9,
+      "tags": ["nfl"],
+      "placeholder": false
+    },
+    {
+      "id": "roster_management",
+      "label": "Roster management",
+      "start_tick": 10,
+      "end_tick": 10,
       "tags": ["nfl", "cap"],
       "placeholder": false
     },
     {
       "id": "nfl_free_agency",
       "label": "NFL free agency",
-      "start_tick": 10,
-      "end_tick": 10,
+      "start_tick": 11,
+      "end_tick": 11,
       "tags": ["nfl"],
       "placeholder": false
     },
     {
       "id": "cap_validation",
       "label": "Cap validation",
-      "start_tick": 11,
-      "end_tick": 11,
+      "start_tick": 12,
+      "end_tick": 12,
       "tags": ["nfl", "cap"],
       "placeholder": false
     },
     {
       "id": "nfl_season",
       "label": "NFL season",
-      "start_tick": 12,
-      "end_tick": 12,
+      "start_tick": 13,
+      "end_tick": 13,
       "tags": ["nfl"],
       "placeholder": false
     }
