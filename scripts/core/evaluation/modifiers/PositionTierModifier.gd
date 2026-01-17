@@ -53,8 +53,10 @@ func calculate(ctx: EvaluationContext) -> ModifierResult:
 
 	# Get position tiers from strategy
 	var tiers: Dictionary = draft_strategy.get("position_tiers", {}) as Dictionary
-	var premium: Array = tiers.get("premium", []) as Array
-	var devalued: Array = tiers.get("devalued", []) as Array
+	var premium_tier: Dictionary = tiers.get("premium", {}) as Dictionary
+	var devalued_tier: Dictionary = tiers.get("devalued", {}) as Dictionary
+	var premium: Array = premium_tier.get("positions", []) as Array
+	var devalued: Array = devalued_tier.get("positions", []) as Array
 
 	var multiplier := 1.0
 	var reason := ""

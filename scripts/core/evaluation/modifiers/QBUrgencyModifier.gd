@@ -87,8 +87,19 @@ func _evaluate_qb_urgency(roster: Dictionary, positions_cfg: Dictionary, class_r
 
 	# Check for franchise QB (starter quality, age < 33)
 	var has_franchise_qb := false
+	var players: Array = roster.get("players", []) as Array
+
 	for qb_id in qbs:
-		var qb: Dictionary = roster.get("players", {}).get(String(qb_id), {}) as Dictionary
+		# Find the player in the players array
+		var qb: Dictionary = {}
+		for player in players:
+			if player.get("player_id") == qb_id:
+				qb = player
+				break
+
+		if qb.is_empty():
+			continue
+
 		var overall := float(qb.get("overall", 0.0))
 		var age := int(qb.get("age", 40))
 
