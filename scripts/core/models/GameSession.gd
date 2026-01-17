@@ -158,9 +158,16 @@ func touch() -> void:
 
 
 ## Generate a unique session ID
-func _generate_session_id() -> String:
+## @param seed: Optional seed for deterministic ID generation (for testing)
+##              If not provided or 0, uses system time for uniqueness
+func _generate_session_id(seed: int = 0) -> String:
 	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+	if seed != 0:
+		# Deterministic mode for testing
+		rng.seed = seed
+	else:
+		# Production mode: use system time for uniqueness
+		rng.randomize()
 	return "%08x-%04x-%04x-%04x-%012x" % [
 		rng.randi(),
 		rng.randi() & 0xFFFF,

@@ -31,6 +31,19 @@ enum PlayerStage {
 @export var class_tag: String = "" # e.g., "CLASS_OF_2033" or recruiting class label
 @export var jersey_number: int = 0  # Player's jersey number (0 = unassigned)
 
+# --- College Academic Year ---
+# Represents college class standing for draft eligibility:
+#   1 = Freshman, 2 = Sophomore, 3 = Junior, 4 = Senior
+# Underclassmen (1-3) can declare early for the draft.
+# Default is 4 (senior) for backward compatibility with existing saves.
+@export var class_year: int = 4
+
+# --- Early Entry Flag ---
+# Indicates whether an underclassman has declared early for the NFL draft.
+# Set by UnderclassmanDeclarationEngine during Phase 0.5 of PreDraftProcess.
+# When true, player transitions to DRAFT_ELIGIBLE stage.
+@export var declared_for_draft: bool = false
+
 # --- Physical Attributes ---
 # Extracted to PlayerPhysicals resource for better organization
 @export var physicals: PlayerPhysicals = null
@@ -234,6 +247,18 @@ func from_dict(d: Dictionary) -> void:
 	else:
 		draft_intelligence = {}
 
+	# Class Year - Support backward compatibility by inferring from age if missing
+	if d.has("class_year"):
+		class_year = clampi(int(d.get("class_year", 4)), 1, 4)
+	else:
+		# Backward compatibility: infer class_year from age
+		# Age 18-19 = Freshman (1), 20 = Sophomore (2), 21 = Junior (3), 22+ = Senior (4)
+		var player_age := int(d.get("age", 22))
+		class_year = clampi(player_age - 17, 1, 4)
+
+	# Declared for Draft - Simple boolean with default false
+	declared_for_draft = bool(d.get("declared_for_draft", false))
+
 func to_dict() -> Dictionary:
 	# Start with person fields
 	var result = to_dict_person()
@@ -243,6 +268,8 @@ func to_dict() -> Dictionary:
 	result["stage"] = stage
 	result["class_tag"] = class_tag
 	result["jersey_number"] = jersey_number
+	result["class_year"] = class_year
+	result["declared_for_draft"] = declared_for_draft
 	result["gen_mode"] = gen_mode
 	result["school_tag"] = school_tag
 	result["notes"] = notes

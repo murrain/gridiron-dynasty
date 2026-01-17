@@ -599,7 +599,14 @@ func _finalize_draft() -> void:
 	draft_completed.emit(results)
 
 
-## Generate assistant coach recommendations using pre-computed board
+## Get top N recommendations for current pick (PUBLIC API)
+## @param count: Number of recommendations to return
+## @return Array of player dictionaries sorted by fit score
+func get_recommendations(count: int) -> Array:
+	return _generate_recommendations(count)
+
+
+## Generate assistant coach recommendations using pre-computed board (PRIVATE)
 func _generate_recommendations(count: int) -> Array:
 	var board: Array = _team_boards.get(_user_team_id, [])
 	var recommendations: Array = []
@@ -1009,6 +1016,39 @@ func get_sorted_available_players() -> Array:
 			_sort_by_scheme_fit(result)
 
 	return result
+
+
+## Get sorted available players WITH shortlist state included
+## @param sort_mode: "overall", "scheme_fit", "position_need" (optional, uses current mode if not specified)
+## @return Array of Dictionaries with "_is_shortlisted" field added
+##
+## PERFORMANCE: O(n) - adds shortlist state in single pass instead of O(n²) UI queries.
+## This method eliminates the need for UI to call is_on_shortlist() for each player.
+func get_sorted_with_shortlist(sort_mode: String = "") -> Array:
+	# If sort_mode specified, temporarily switch mode
+	var original_mode: BoardSortMode = _board_sort_mode
+	if not sort_mode.is_empty():
+		match sort_mode:
+			"overall":
+				_board_sort_mode = BoardSortMode.BPA
+			"scheme_fit":
+				_board_sort_mode = BoardSortMode.SCHEME_FIT
+			"position_need":
+				_board_sort_mode = BoardSortMode.NEED
+
+	# Get sorted players using standard method
+	var sorted_players := get_sorted_available_players()
+
+	# Restore original mode if we changed it
+	if not sort_mode.is_empty():
+		_board_sort_mode = original_mode
+
+	# Add shortlist state in O(n) instead of O(n²)
+	for player in sorted_players:
+		var player_id := String(player.get("player_id", ""))
+		player["_is_shortlisted"] = is_on_shortlist(player_id)
+
+	return sorted_players
 
 
 ## Sort by Best Player Available (pure overall rating)

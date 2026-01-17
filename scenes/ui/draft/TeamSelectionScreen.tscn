@@ -1,0 +1,164 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7team_selection_draft"]
+
+[ext_resource type="Script" path="res://scenes/ui/draft/TeamSelectionScreen.gd" id="1_script"]
+
+[node name="TeamSelectionScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Select Your Team - 2025 NFL Draft"
+horizontal_alignment = 1
+
+[node name="SubtitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Choose which NFL team you want to control during the draft."
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="MainContent" type="HSplitContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 350
+
+[node name="TeamListPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/TeamListPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/TeamListPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="ListTitleLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/TeamListPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Teams by Draft Order"
+theme_override_font_sizes/font_size = 16
+
+[node name="TeamList" type="ItemList" parent="MarginContainer/VBoxContainer/MainContent/TeamListPanel/MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+auto_height = false
+
+[node name="DetailPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.9
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer"]
+layout_mode = 2
+
+[node name="TeamNameLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Select a Team"
+
+[node name="DraftPositionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.3, 0.8, 0.3, 1)
+text = "Draft Position: -"
+
+[node name="DivisionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = ""
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="CoachSectionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Head Coach"
+
+[node name="CoachSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="CoachNameLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Coach: -"
+
+[node name="OffenseSchemeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Offense: -"
+
+[node name="DefenseSchemeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/CoachSection"]
+layout_mode = 2
+text = "Defense: -"
+
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="StatsSectionLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Team Info"
+
+[node name="StatsSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="DraftPicksLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/StatsSection"]
+layout_mode = 2
+text = "Draft Picks: -"
+
+[node name="RosterSizeLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer/StatsSection"]
+layout_mode = 2
+text = "Current Roster: -"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/MainContent/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ButtonBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="RandomButton" type="Button" parent="MarginContainer/VBoxContainer/ButtonBar"]
+layout_mode = 2
+text = "Pick Random Team"
+tooltip_text = "Select a random team to control"
+
+[node name="StartButton" type="Button" parent="MarginContainer/VBoxContainer/ButtonBar"]
+layout_mode = 2
+disabled = true
+text = "Start Draft"
+tooltip_text = "Begin the draft with your selected team"
