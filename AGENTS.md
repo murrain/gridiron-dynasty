@@ -56,10 +56,18 @@ This file defines:
 **Spawning Chain:**
 - **Director** spawns **Architect(s)** with work packages
 - **Director** spawns **Test Engineer(s)** for cross-cutting infrastructure work
-- **Architect** spawns **Engineer(s)** as needed (1-5 based on work scope)
-- **Architect** spawns **Test Engineer(s)** for team-specific test work
-- **Architect** spawns **Reviewer(s)** when code is ready (to avoid bottlenecks)
+- **Architect** completes design (CP1) and determines Engineer allocation (1-5 based on work scope)
+- **Director** spawns **Engineer(s)** based on Architect's recommendations and specifications
+- **Architect** monitors Engineer progress and provides guidance
+- **Director** spawns **Test Engineer(s)** for team-specific test work (based on Architect request)
+- **Director** spawns **Reviewer(s)** when code is ready (to avoid bottlenecks)
 - **Reviewers** can be reused across multiple engineer submissions
+
+**Why Director spawns Engineers:**
+- Claude Code's agent system only allows top-level agents to spawn sub-agents
+- Architects cannot directly spawn Engineer sub-agents due to tool limitations
+- Architects design the work and specify requirements; Director handles the spawning
+- This creates a clear Request → Approval → Spawn workflow
 
 **Dynamic Team Scaling:**
 - Architect determines Engineer count based on work decomposition

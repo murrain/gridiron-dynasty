@@ -26,7 +26,7 @@ class_name DraftDayUI
 
 const InteractiveDraft = preload("res://scripts/world/InteractiveDraft.gd")
 const GameSession = preload("res://scripts/core/models/GameSession.gd")
-const TradeProposalDialog = preload("res://scenes/ui/draft_day/TradeProposalDialog.gd")
+const PlayerShortlistPanel = preload("res://scenes/ui/draft_day/PlayerShortlistPanel.gd")
 
 signal draft_completed(session: GameSession)
 signal view_world_requested()
@@ -74,27 +74,67 @@ var _showing_teams_popup: bool = false
 ## Popup references (created dynamically)
 var _roster_popup: Window = null
 var _teams_popup: Window = null
-var _trade_dialog: TradeProposalDialog = null
-var _trade_button: Button = null
+
+## Shortlist panel reference (if available in scene tree)
+var _shortlist_panel: PlayerShortlistPanel = null
+
+## Board sort mode toggle (created dynamically if not in scene)
+var _board_sort_toggle: OptionButton = null
+
+## Shortlist button for selected player
+var _shortlist_button: Button = null
 
 
 func _ready() -> void:
-	prospect_list.item_selected.connect(_on_prospect_selected)
-	draft_button.pressed.connect(_on_draft_button_pressed)
-	view_world_button.pressed.connect(_on_view_world_pressed)
-	view_roster_button.pressed.connect(_on_view_roster_pressed)
-	view_teams_button.pressed.connect(_on_view_teams_pressed)
-	position_filter.item_selected.connect(_on_position_filter_changed)
+	# Validate critical UI nodes exist
+	if not prospect_list:
+		push_warning("[DraftDayUI] prospect_list node not found - UI may not function correctly")
+		return
 
-	draft_button.disabled = true
-	view_world_button.visible = false
+	if not draft_button:
+		push_warning("[DraftDayUI] draft_button node not found - UI may not function correctly")
+		return
+
+	if not position_filter:
+		push_warning("[DraftDayUI] position_filter node not found - filtering will be disabled")
+
+	if not header_label:
+		push_warning("[DraftDayUI] header_label node not found - header display will be missing")
+
+	if not status_label:
+		push_warning("[DraftDayUI] status_label node not found - status updates will be missing")
+
+	if not draft_ticker:
+		push_warning("[DraftDayUI] draft_ticker node not found - draft ticker will be missing")
+
+	# Connect signals only if nodes exist
+	if prospect_list:
+		prospect_list.item_selected.connect(_on_prospect_selected)
+
+	if draft_button:
+		draft_button.pressed.connect(_on_draft_button_pressed)
+		draft_button.disabled = true
+
+	if view_world_button:
+		view_world_button.pressed.connect(_on_view_world_pressed)
+		view_world_button.visible = false
+
+	if view_roster_button:
+		view_roster_button.pressed.connect(_on_view_roster_pressed)
+
+	if view_teams_button:
+		view_teams_button.pressed.connect(_on_view_teams_pressed)
+
+	if position_filter:
+		position_filter.item_selected.connect(_on_position_filter_changed)
+
 	_clear_detail_panel()
 
 	# Setup position filter
 	_setup_position_filter()
 
-	# Create trade button and dialog
-	_setup_trade_ui()
+	# Setup board sort toggle (DRAFT-015)
+	_setup_board_sort_toggle()
 
 
 ## Initialize with session and draft controller
@@ -108,10 +148,11 @@ func initialize(session: GameSession, draft: InteractiveDraft) -> void:
 	_draft.draft_completed.connect(_on_draft_completed)
 	_draft.round_changed.connect(_on_round_changed)
 
-	# Connect trade signals
-	_draft.trade_window_opened.connect(_on_trade_window_opened)
-	_draft.trade_executed.connect(_on_trade_executed)
-	_draft.trade_rejected.connect(_on_trade_rejected)
+	# Connect shortlist signals (DRAFT-009)
+	_draft.shortlisted_player_drafted.connect(_on_shortlisted_player_drafted)
+
+	# Initialize shortlist panel if exists
+	_setup_shortlist_panel()
 
 	# Update header
 	header_label.text = "%d NFL Draft - %s" % [session.current_year, session.user_team_name]
@@ -122,6 +163,10 @@ func initialize(session: GameSession, draft: InteractiveDraft) -> void:
 
 ## Setup position filter dropdown
 func _setup_position_filter() -> void:
+	if not position_filter:
+		push_warning("[DraftDayUI] Cannot setup position filter - node is null")
+		return
+
 	position_filter.clear()
 	position_filter.add_item("All Positions", 0)
 	var positions := ["QB", "RB", "WR", "TE", "OL", "DL", "EDGE", "LB", "CB", "S", "K", "P"]
@@ -149,7 +194,14 @@ func _on_user_pick_requested(pick_number: int, round_number: int, available: Arr
 
 
 ## Populate prospect list
+## Uses the draft's sorted available players when draft is available
 func _populate_prospect_list() -> void:
+	# If draft is available, use sorted list that respects current sort mode
+	if _draft:
+		_populate_prospect_list_sorted()
+		return
+
+	# Fallback for when draft is not yet initialized
 	prospect_list.clear()
 
 	var filter_idx := position_filter.selected
@@ -217,12 +269,20 @@ func _on_prospect_selected(index: int) -> void:
 
 	_selected_player_id = String(prospect_list.get_item_metadata(index))
 
-	# Find player data
+	# Find player data - try sorted list first, then fallback to _available_players
 	var player: Dictionary = {}
-	for p in _available_players:
-		if String(p.get("player_id", "")) == _selected_player_id:
-			player = p
-			break
+	if _draft:
+		var sorted_players := _draft.get_sorted_available_players()
+		for p in sorted_players:
+			if String(p.get("player_id", "")) == _selected_player_id:
+				player = p
+				break
+
+	if player.is_empty():
+		for p in _available_players:
+			if String(p.get("player_id", "")) == _selected_player_id:
+				player = p
+				break
 
 	if player.is_empty():
 		return
@@ -236,6 +296,13 @@ func _on_prospect_selected(index: int) -> void:
 
 	draft_button.disabled = false
 	draft_button.text = "DRAFT %s" % String(player.get("name", "Unknown"))
+
+	# Setup shortlist button if not already created
+	_setup_shortlist_button()
+
+	# Update shortlist button state
+	if _draft:
+		_update_shortlist_button_state(_draft.is_on_shortlist(_selected_player_id))
 
 
 ## Handle draft button press
@@ -602,123 +669,175 @@ func _on_teams_popup_closed() -> void:
 
 
 # =============================================================================
-# TRADE SYSTEM UI
+# SHORTLIST INTEGRATION (DRAFT-009)
 # =============================================================================
 
-## Setup trade UI elements
-func _setup_trade_ui() -> void:
-	# Create trade button
-	_trade_button = Button.new()
-	_trade_button.text = "Propose Trade"
-	_trade_button.pressed.connect(_on_trade_button_pressed)
+## Setup the shortlist panel
+func _setup_shortlist_panel() -> void:
+	# Try to find existing shortlist panel in scene tree
+	_shortlist_panel = get_node_or_null("MarginContainer/VBoxContainer/MainContent/LeftPanel/ShortlistPanel") as PlayerShortlistPanel
 
-	# Add to footer (next to other action buttons)
-	var footer := $MarginContainer/VBoxContainer/Footer
-	if footer:
-		footer.add_child(_trade_button)
-		footer.move_child(_trade_button, 1)  # Position after status label
+	if _shortlist_panel == null:
+		# Create shortlist panel dynamically
+		var panel_scene := load("res://scenes/ui/draft_day/PlayerShortlistPanel.tscn")
+		if panel_scene:
+			_shortlist_panel = panel_scene.instantiate() as PlayerShortlistPanel
+			# Add to left panel
+			var left_panel := get_node_or_null("MarginContainer/VBoxContainer/MainContent/LeftPanel")
+			if left_panel:
+				left_panel.add_child(_shortlist_panel)
 
-	# Create trade dialog
-	_trade_dialog = TradeProposalDialog.new()
-	_trade_dialog.trade_proposed.connect(_on_trade_proposed)
-	_trade_dialog.trade_cancelled.connect(_on_trade_cancelled)
-	add_child(_trade_dialog)
+	if _shortlist_panel and _draft:
+		_shortlist_panel.initialize(_draft)
+		_shortlist_panel.player_selected.connect(_on_shortlist_player_selected)
 
 
-## Handle trade button press
-func _on_trade_button_pressed() -> void:
-	if not _draft:
+## Handle shortlist player selection
+func _on_shortlist_player_selected(player_id: String) -> void:
+	# Select this player in the prospect list
+	for i in range(prospect_list.item_count):
+		if prospect_list.get_item_metadata(i) == player_id:
+			prospect_list.select(i)
+			_on_prospect_selected(i)
+			break
+
+
+## Handle shortlisted player drafted notification
+func _on_shortlisted_player_drafted(player_id: String, player_name: String, position: String, team_id: String, pick_number: int) -> void:
+	# The shortlist panel handles its own alert, but we update the status bar too
+	status_label.text = "ALERT: %s %s drafted by %s (Pick #%d)" % [position, player_name, team_id, pick_number]
+
+
+## Toggle shortlist status for selected player
+func _toggle_shortlist() -> void:
+	if _draft == null or _selected_player_id.is_empty():
 		return
 
-	if not _draft.can_open_trade_window():
-		_show_notification("Cannot propose trade during a pick", Color.RED, 2.0)
+	if _draft.is_on_shortlist(_selected_player_id):
+		_draft.remove_from_shortlist(_selected_player_id)
+		_update_shortlist_button_state(false)
+	else:
+		_draft.add_to_shortlist(_selected_player_id)
+		_update_shortlist_button_state(true)
+
+
+## Update shortlist button appearance
+func _update_shortlist_button_state(is_shortlisted: bool) -> void:
+	if _shortlist_button:
+		if is_shortlisted:
+			_shortlist_button.text = "[*] Remove from Watchlist"
+		else:
+			_shortlist_button.text = "[ ] Add to Watchlist"
+
+
+## Setup shortlist button in detail panel
+func _setup_shortlist_button() -> void:
+	if _shortlist_button:
+		return  # Already created
+
+	# Find the detail panel's VBoxContainer
+	var detail_vbox := get_node_or_null("MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer")
+	if detail_vbox == null:
+		push_warning("[DraftDayUI] Cannot setup shortlist button - detail_vbox node not found")
 		return
 
-	# Request trade window from draft
-	_draft.enter_trade_window()
-
-
-## Handle trade window opened
-func _on_trade_window_opened(current_pick: int, user_picks: Array) -> void:
-	if not _trade_dialog:
+	if not draft_button:
+		push_warning("[DraftDayUI] Cannot setup shortlist button - draft_button is null")
 		return
 
-	# Get trade partners and ownership
-	var trade_partners := _draft.get_trade_partner_teams()
-	var ownership := _session.world_state.get("draft_pick_ownership", {})
+	# Create the shortlist button
+	_shortlist_button = Button.new()
+	_shortlist_button.text = "[ ] Add to Watchlist"
+	_shortlist_button.tooltip_text = "Add/remove this player from your watchlist"
+	_shortlist_button.pressed.connect(_toggle_shortlist)
 
-	# Open trade dialog
-	_trade_dialog.open_dialog(
-		_session.user_team_id,
-		trade_partners,
-		user_picks,
-		ownership,
-		_session.current_year,
-		{}  # league_cfg - empty for now, dialog will work without it
-	)
+	# Insert before the draft button
+	var draft_btn_idx := draft_button.get_index()
+	detail_vbox.add_child(_shortlist_button)
+	detail_vbox.move_child(_shortlist_button, draft_btn_idx)
 
 
-## Handle trade proposed by user
-func _on_trade_proposed(offer: Dictionary) -> void:
-	if not _draft:
+# =============================================================================
+# BOARD SORT MODE TOGGLE (DRAFT-015)
+# =============================================================================
+
+## Setup board sort toggle dropdown
+func _setup_board_sort_toggle() -> void:
+	# Try to find existing toggle in filter bar
+	var filter_bar := get_node_or_null("MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer/FilterBar")
+
+	if filter_bar == null:
+		push_warning("[DraftDayUI] Cannot setup board sort toggle - filter_bar node not found")
 		return
 
-	# Propose trade to draft engine
-	var accepted := _draft.propose_trade(offer)
+	# Create the toggle dropdown
+	_board_sort_toggle = OptionButton.new()
+	_board_sort_toggle.add_item("BPA (Best Player Available)", 0)
+	_board_sort_toggle.add_item("Need (Team Needs)", 1)
+	_board_sort_toggle.add_item("Scheme Fit", 2)
+	_board_sort_toggle.tooltip_text = "Sort prospect list by: BPA, Need, or Scheme Fit"
+	_board_sort_toggle.item_selected.connect(_on_board_sort_changed)
 
-	if accepted:
-		_trade_dialog.hide()
-		_draft.exit_trade_window()
-		_show_notification("Trade accepted!", Color.GREEN, 3.0)
-	# If rejected, stay in dialog (rejection handler shows message)
+	filter_bar.add_child(_board_sort_toggle)
 
 
-## Handle trade cancelled
-func _on_trade_cancelled() -> void:
-	if not _draft:
+## Handle board sort mode change
+func _on_board_sort_changed(index: int) -> void:
+	if _draft == null:
 		return
 
-	_draft.exit_trade_window()
+	match index:
+		0:
+			_draft.set_board_sort_mode(InteractiveDraft.BoardSortMode.BPA)
+		1:
+			_draft.set_board_sort_mode(InteractiveDraft.BoardSortMode.NEED)
+		2:
+			_draft.set_board_sort_mode(InteractiveDraft.BoardSortMode.SCHEME_FIT)
+
+	# Refresh the prospect list with new sort
+	_populate_prospect_list_sorted()
 
 
-## Handle trade executed (AI or user)
-func _on_trade_executed(trade_record: Dictionary) -> void:
-	_show_trade_notification(trade_record)
+## Populate prospect list using the draft's sorted available players
+func _populate_prospect_list_sorted() -> void:
+	prospect_list.clear()
 
+	if _draft == null:
+		return
 
-## Handle trade rejected
-func _on_trade_rejected(reason: String) -> void:
-	_show_notification("Trade Rejected: %s" % reason, Color.RED, 3.0)
+	var filter_idx := position_filter.selected
+	var position_filter_text := "" if filter_idx == 0 else position_filter.get_item_text(filter_idx)
 
+	# Get sorted players from draft (respects current sort mode)
+	var sorted_players: Array = _draft.get_sorted_available_players()
 
-## Show trade notification
-func _show_trade_notification(trade: Dictionary) -> void:
-	var offering := String(trade.get("offering_team_id", ""))
-	var receiving := String(trade.get("receiving_team_id", ""))
-	var picks_offered := (trade.get("picks_offered", []) as Array).size()
-	var picks_requested := (trade.get("picks_requested", []) as Array).size()
+	for player in sorted_players:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
 
-	var msg := "TRADE: %s sends %d pick(s) to %s for %d pick(s)" % [
-		offering, picks_offered, receiving, picks_requested
-	]
-	_show_notification(msg, Color.YELLOW, 5.0)
+		# Apply position filter
+		if not position_filter_text.is_empty() and position != position_filter_text:
+			continue
 
-	# Add to ticker
-	draft_ticker.add_item("TRADE: %s <-> %s (%d picks exchanged)" % [
-		offering, receiving, picks_offered + picks_requested
-	])
+		var name := String(p.get("name", "Unknown"))
+		var overall := float(p.get("overall", 50.0))
+		var college := String(p.get("college", ""))
+		var player_id := String(p.get("player_id", ""))
 
+		# Query shortlist state separately (separation of concerns fix)
+		var is_shortlisted := _draft.is_on_shortlist(player_id)
 
-## Show notification message
-func _show_notification(message: String, color: Color, duration: float = 3.0) -> void:
-	# Update status label temporarily
-	var original_text := status_label.text
-	var original_color := status_label.modulate
-	status_label.text = message
-	status_label.modulate = color
+		# Build display text with shortlist indicator
+		var display_text := ""
+		if is_shortlisted:
+			display_text = "[*] "
+		display_text += "%s %s - %.0f OVR" % [position, name, overall]
+		if not college.is_empty():
+			display_text += " (%s)" % college
 
-	# Reset after duration
-	await get_tree().create_timer(duration).timeout
-	if status_label:
-		status_label.text = original_text
-		status_label.modulate = original_color
+		var idx := prospect_list.add_item(display_text)
+		prospect_list.set_item_metadata(idx, player_id)
+
+		# Color shortlisted players differently
+		if is_shortlisted:
+			prospect_list.set_item_custom_fg_color(idx, Color(0.3, 0.8, 0.3))

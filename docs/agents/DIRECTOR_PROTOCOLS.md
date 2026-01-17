@@ -27,14 +27,16 @@ The Director sits above all other agents and is responsible for the full lifecyc
 - **Director analyzes work** and decides how many teams (Architects) are needed
 - **Director spawns Architect(s)** in background with work package and instructions
 - **Maximum 5 teams (Architects) active per Director at one time**
-- **Each Architect decides** how many Engineers to spawn (1-5 based on their work)
-- **Architect spawns Engineers** in background with task assignments
-- **Architect spawns Reviewers** when code is ready (multiple to avoid bottlenecks)
+- **Each Architect designs** and determines optimal Engineer allocation (1-5 based on their work)
+- **Director spawns Engineers** based on Architect specifications (Architects cannot spawn Engineers directly)
+- **Architects CAN spawn Reviewers** when code is ready (multiple to avoid bottlenecks)
 - **Reviewers are reusable** - idle reviewers can pick up new submissions
 - **For simple tasks**: Director can spawn a single Engineer directly
   - Examples: Creating a PR, fixing a typo, updating documentation
   - No Architect needed for non-architectural changes
   - Reviewer still required for code changes (skip for docs-only)
+
+**Technical Note**: Due to Claude Code's agent system limitations, only top-level agents (Director) can spawn sub-agents. Architects design Engineer work and create specifications, but Director handles the actual spawning.
 
 ### 3. Work Distribution Strategy
 
@@ -311,22 +313,34 @@ Score threshold: 9.5/10 minimum
 
 **Failure Mode Prevented:** No code quality reviews occurred. Mandatory ≥9.5/10 threshold never enforced. Work quality unverified.
 
-#### 5. Engineer Spawn Authority (PRE-APPROVED)
+#### 5. Engineer Deployment Process (Director Responsibility)
+
+**IMPORTANT**: Architects design Engineer work but **cannot spawn Engineer agents directly**.
+
+**Correct Workflow:**
+1. **Architect completes CP1** (design phase) with Engineer allocation recommendations
+2. **Director monitors CP1 completion** (via task notifications or periodic checks)
+3. **Director reviews** Architect's Engineer specifications and recommendations
+4. **Director spawns Engineers** with specifications from Architect's design docs
+5. Architect monitors Engineer progress and provides guidance
 
 **In Architect spawn directive, explicitly state:**
-"You have PRE-APPROVED authority to spawn 1-3 game-systems-engineer agents as needed. Create engineer workspaces under `workspaces/team-{name}/eng-{n}/` and provide them with clear task specifications. You do NOT need Director approval to spawn engineers."
+"You will complete a design phase (CP1) and create detailed Engineer specifications. When your CP1 is complete, signal completion to the Director. The Director will spawn Engineers based on your specifications. You CANNOT spawn Engineers directly due to technical limitations, but you retain full design authority and will monitor their progress."
 
-**Architect Task Specification Template:**
+**Engineer Task Specification Template (created by Architect):**
 ```
-ENGINEER {N} TASK
+ENGINEER {N} SPECIFICATION
+Recommended Allocation: [1-5 engineers based on parallelizability]
 Workspace: /path/to/workspaces/team-{name}/eng-{n}/
 Branch: team-{name}/feature-{description}
+Features Assigned: [TICKET-001, TICKET-002, ...]
 Files Owned: [exclusive file list]
 Dependencies: [other engineers or none]
 Acceptance Criteria: [checklist]
+Testing Requirements: [test count and coverage]
 ```
 
-**Failure Mode Prevented:** Team 4 designed excellent 2-engineer architecture but stopped at design phase, awaiting unclear "Director approval" to spawn engineers.
+**Failure Mode Prevented:** Architects waiting indefinitely for "approval" to spawn engineers they cannot technically spawn. Clear workflow eliminates ambiguity.
 
 #### 6. Work Package Validation
 

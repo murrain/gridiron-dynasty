@@ -1,0 +1,202 @@
+[gd_scene load_steps=2 format=3 uid="uid://c4drafthistview"]
+
+[ext_resource type="Script" path="res://scenes/ui/historical/DraftHistoryViewer.gd" id="1_script"]
+
+[node name="DraftHistoryViewer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="HeaderLabel" type="Label" parent="MarginContainer/VBoxContainer/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Draft History Viewer"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="YearLabel" type="Label" parent="MarginContainer/VBoxContainer/Header"]
+layout_mode = 2
+text = "Select Year:"
+
+[node name="YearSelector" type="OptionButton" parent="MarginContainer/VBoxContainer/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CloseButton" type="Button" parent="MarginContainer/VBoxContainer/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Close"
+
+[node name="SummaryLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+text = "Select a draft year to view analysis"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="MainContent" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="LeftPanel" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FilterBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel"]
+layout_mode = 2
+
+[node name="FilterLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/FilterBar"]
+layout_mode = 2
+text = "Filter by Round:"
+
+[node name="RoundFilter" type="OptionButton" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel/FilterBar"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PicksLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Draft Picks"
+
+[node name="Legend" type="Label" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = "[*]=Pro Bowler  [+]=Starter  [-]=Bust  [X]=Out Early"
+
+[node name="PicksList" type="ItemList" parent="MarginContainer/VBoxContainer/MainContent/LeftPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CenterPanel" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DetailPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayerNameLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Select a pick to view details"
+
+[node name="DraftInfoLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Draft Info"
+
+[node name="CareerLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Career Info"
+
+[node name="AccoladesLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.2, 1)
+text = "Accolades"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="VerdictLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel/DetailPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Verdict"
+
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+layout_mode = 2
+
+[node name="BustsLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(1, 0.5, 0.5, 1)
+text = "Biggest Busts"
+
+[node name="BustsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="HSeparator3" type="HSeparator" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+layout_mode = 2
+
+[node name="StealsLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.5, 1, 0.5, 1)
+text = "Best Steals"
+
+[node name="StealsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/CenterPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="RightPanel" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.8
+
+[node name="RoundsLabel" type="Label" parent="MarginContainer/VBoxContainer/MainContent/RightPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Round-by-Round Breakdown"
+
+[node name="RoundsPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/RoundsPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RoundsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/MainContent/RightPanel/RoundsPanel/ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6

@@ -1,4 +1,4 @@
-# class_name Person removed to avoid conflict with scripts/core/models/Person.gd
+class_name Person
 extends Resource
 
 

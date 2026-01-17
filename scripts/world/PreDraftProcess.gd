@@ -7,12 +7,11 @@ class_name PreDraftProcess
 ## pro days, all-star games, and team visits.
 ##
 ## This service handles:
-##   1. Filtering to declared players (via DraftDecisionEngine)
-##   2. NFL Combine invites and performance simulation (~330 players)
-##   3. Pro day simulation for non-combine invitees
-##   4. All-star game invites and performance (Senior Bowl, East-West Shrine)
-##   5. Team visit scheduling (max 30 per player)
-##   6. Interview scoring and evaluations
+##   1. NFL Combine invites and performance simulation (~330 players)
+##   2. Pro day simulation for non-combine invitees
+##   3. All-star game invites and performance (Senior Bowl, East-West Shrine)
+##   4. Team visit scheduling (max 30 per player)
+##   5. Interview scoring and evaluations
 ##
 ## Design Philosophy:
 ##   - Stateless service (all state in world_state)
@@ -28,8 +27,7 @@ class_name PreDraftProcess
 ##   - Interview scores: Gaussian distribution per team-player pair
 ##
 ## Integration Points:
-##   - WorldCalendar: Runs during draft_prep phase (tick 8, after draft_declaration)
-##   - DraftDecisionEngine: Filter to declared players before processing
+##   - WorldCalendar: Runs during draft_prep phase (tick 7)
 ##   - CombineCalculator: Simulate combine performance
 ##   - DraftStockTracker: Update draft stock after each event
 ##   - NflDraft: Use pre_draft_process data in scout evaluation
@@ -37,41 +35,9 @@ class_name PreDraftProcess
 const Rand = preload("res://autoloads/Rand.gd")
 const SimLogger = preload("res://autoloads/SimLogger.gd")
 const CombineCalculator = preload("res://scripts/core/rating/CombineCalculator.gd")
-
-
-## Filters draft pool to only players who have declared for the draft.
-##
-## A player is included in the filtered pool if:
-##   - declared_for_draft == true (underclassman who declared), OR
-##   - years_remaining <= 0 (senior with exhausted eligibility)
-##
-## This function should be called BEFORE pre-draft processing to ensure
-## only draft-eligible players go through combine/pro day evaluation.
-##
-## The DraftDecisionEngine.process_declarations() should have already
-## run during the draft_declaration phase to set declared_for_draft flags.
-##
-## RNG: None (pure filter operation)
-##
-## @param draft_pool: Array of player dictionaries from college_players or draft_pool
-## @return Array: Filtered array of only declared/eligible players
-static func filter_to_declared_players(draft_pool: Array) -> Array:
-	var declared: Array = []
-
-	for player in draft_pool:
-		var p: Dictionary = player
-
-		# Check if player has declared for draft
-		var has_declared := bool(p.get("declared_for_draft", false))
-
-		# Check if player has exhausted eligibility (senior)
-		var years_left := int(p.get("years_remaining", 4))
-
-		# Include if declared OR exhausted eligibility
-		if has_declared or years_left <= 0:
-			declared.append(p)
-
-	return declared
+const RedFlagSystem = preload("res://scripts/world/RedFlagSystem.gd")
+const MockDraftGenerator = preload("res://scripts/world/MockDraftGenerator.gd")
+const ScoutingReportGenerator = preload("res://scripts/world/ScoutingReportGenerator.gd")
 
 ## Main entry point for pre-draft process simulation.
 ##
@@ -107,16 +73,7 @@ static func run(
 	config: Dictionary
 ) -> Dictionary:
 	var draft_pool_all: Dictionary = world_state.get("draft_pool", {})
-	var draft_pool_raw: Array = draft_pool_all.get(year, [])
-
-	# Filter to only players who have declared for draft or exhausted eligibility
-	# This ensures underclassmen who chose to return to school are excluded
-	var draft_pool: Array = filter_to_declared_players(draft_pool_raw)
-
-	# Update the draft pool in world_state with filtered version
-	# This ensures NflDraft only sees declared players
-	draft_pool_all[year] = draft_pool
-	world_state["draft_pool"] = draft_pool_all
+	var draft_pool: Array = draft_pool_all.get(year, [])
 
 	if draft_pool.is_empty():
 		return {
@@ -149,6 +106,16 @@ static func run(
 	var interview_rng := RandomNumberGenerator.new()
 	interview_rng.seed = Rand.splitmix64(seed ^ 0xC0B1E05)
 
+	# Red flag RNG - uses context-derived seed: 0xFED_F1A6 (pronounced "red flag")
+	var red_flag_rng := RandomNumberGenerator.new()
+	red_flag_rng.seed = Rand.splitmix64(seed ^ 0xFEDF1A60)
+
+	# Mock draft seed - uses pattern: seed ^ 0xMOCK0000 + version (handled in MockDraftGenerator)
+	var mock_draft_seed := seed
+
+	# Scouting report seed - uses pattern: seed ^ hash(player_id) (handled in ScoutingReportGenerator)
+	var scouting_report_seed := seed
+
 	# Phase 1: Select combine invitees
 	var combine_invitees: Array = _select_combine_invitees(draft_pool, combine_cfg, combine_rng)
 
@@ -171,18 +138,35 @@ static func run(
 	# Phase 6: Simulate interview scores
 	_simulate_interview_scores(draft_pool, teams, pre_draft_cfg, interview_rng)
 
+	# Phase 7: Generate red flags (medical/character concerns)
+	var red_flags_generated := _generate_red_flags(draft_pool, pre_draft_cfg, red_flag_rng)
+
+	# Phase 8: Generate mock drafts (7 versions with evolving consensus)
+	var positions_cfg: Dictionary = config.get("positions", {})
+	var class_rules: Dictionary = config.get("class_rules", {})
+	_generate_mock_drafts(draft_pool, teams, year, mock_draft_seed, positions_cfg, class_rules)
+
+	# Phase 9: Generate scouting reports for all prospects
+	_generate_scouting_reports(draft_pool, positions_cfg, class_rules, scouting_report_seed)
+
 	return {
 		"year": year,
 		"combine_invites": combine_invitees.size(),
 		"pro_day_participants": pro_day_pool.size(),
 		"all_star_participants": all_star_participants.size(),
 		"team_visits_scheduled": visit_count,
+		"red_flags_generated": red_flags_generated,
+		"mock_drafts_generated": 7,
+		"scouting_reports_generated": draft_pool.size(),
 		"step_seeds": {
 			"combine": combine_rng.seed,
 			"pro_day": pro_day_rng.seed,
 			"all_star": all_star_rng.seed,
 			"visits": visits_rng.seed,
-			"interview": interview_rng.seed
+			"interview": interview_rng.seed,
+			"red_flags": red_flag_rng.seed,
+			"mock_drafts": mock_draft_seed,
+			"scouting_reports": scouting_report_seed
 		}
 	}
 
@@ -765,3 +749,147 @@ static func _shuffle_with_rng(arr: Array, rng: RandomNumberGenerator) -> void:
 static func _get_timestamp() -> String:
 	var time := Time.get_time_dict_from_system()
 	return "%02d:%02d:%02d" % [time["hour"], time["minute"], time["second"]]
+
+
+## Generate red flags for draft pool
+##
+## Delegates to RedFlagSystem to generate medical and character concerns.
+## Red flags affect draft stock and create risk/reward decisions for teams.
+##
+## Side effects:
+##   - Adds entries to player["draft_intelligence"]["red_flags"]
+##   - Logs summary of red flags generated
+##
+## RNG: Delegated to RedFlagSystem
+##
+## @param draft_pool: Array of draft-eligible players
+## @param config: Pre-draft configuration with optional red_flags section
+## @param rng: RNG instance seeded with context-derived value
+## @return int: Number of red flags generated
+static func _generate_red_flags(
+	draft_pool: Array,
+	config: Dictionary,
+	rng: RandomNumberGenerator
+) -> int:
+	var flags_generated := RedFlagSystem.generate_red_flags(draft_pool, config, rng)
+
+	if flags_generated > 0:
+		# Count by type for logging
+		var medical_count := 0
+		var character_count := 0
+		var major_count := 0
+
+		for player in draft_pool:
+			var p: Dictionary = player
+			var di: Dictionary = p.get("draft_intelligence", {})
+			var flags: Array = di.get("red_flags", [])
+
+			for flag in flags:
+				var f: Dictionary = flag
+				if String(f.get("type", "")) == "medical":
+					medical_count += 1
+				else:
+					character_count += 1
+
+				if String(f.get("severity", "")) == "major":
+					major_count += 1
+
+		SimLogger.info("Generated %d red flags: %d medical, %d character (%d major)" % [
+			flags_generated, medical_count, character_count, major_count
+		])
+
+	return flags_generated
+
+
+## Generate mock drafts for draft pool
+##
+## Delegates to MockDraftGenerator to generate 7 mock draft versions with
+## evolving consensus. Early mocks have high variance, late mocks converge.
+##
+## Performance: <500ms for all 7 versions (optimized via pre-computed boards)
+##
+## Side effects:
+##   - Adds "mock_history" array to player["draft_intelligence"]
+##   - Each entry: {version, projected_pick, range_low, range_high, generated_week}
+##
+## RNG: Handled internally by MockDraftGenerator (seed ^ 0xMOCK0000 + version)
+##
+## @param draft_pool: Array of draft-eligible players
+## @param teams: Array of NFL teams
+## @param year: Draft year
+## @param seed: Base seed for determinism
+## @param positions_cfg: Position configuration
+## @param class_rules: Class rules configuration
+static func _generate_mock_drafts(
+	draft_pool: Array,
+	teams: Array,
+	year: int,
+	seed: int,
+	positions_cfg: Dictionary,
+	class_rules: Dictionary
+) -> void:
+	var start_time := Time.get_ticks_msec()
+
+	MockDraftGenerator.generate_all_mocks(
+		draft_pool,
+		teams,
+		year,
+		seed,
+		positions_cfg,
+		class_rules
+	)
+
+	var elapsed := Time.get_ticks_msec() - start_time
+
+	# Log performance and summary
+	SimLogger.info("Generated 7 mock draft versions for %d players in %dms" % [
+		draft_pool.size(),
+		elapsed
+	])
+
+	# Warn if performance budget exceeded
+	if elapsed > 500:
+		SimLogger.warn("Mock draft generation exceeded 500ms budget (%dms)" % elapsed)
+
+
+## Generate scouting reports for draft pool
+##
+## Delegates to ScoutingReportGenerator to generate template-based reports
+## with strengths, weaknesses, pro comparison, and draft grade.
+##
+## Performance: <100ms for full draft pool
+##
+## Side effects:
+##   - Adds "scouting_report" dict to player["draft_intelligence"]
+##
+## RNG: Handled internally by ScoutingReportGenerator (seed ^ hash(player_id))
+##
+## @param draft_pool: Array of draft-eligible players
+## @param positions_cfg: Position configuration
+## @param class_rules: Class rules configuration
+## @param seed: Base seed for determinism
+static func _generate_scouting_reports(
+	draft_pool: Array,
+	positions_cfg: Dictionary,
+	class_rules: Dictionary,
+	seed: int
+) -> void:
+	var start_time := Time.get_ticks_msec()
+
+	ScoutingReportGenerator.generate_all_reports(
+		draft_pool,
+		positions_cfg,
+		class_rules,
+		seed
+	)
+
+	var elapsed := Time.get_ticks_msec() - start_time
+
+	SimLogger.info("Generated scouting reports for %d players in %dms" % [
+		draft_pool.size(),
+		elapsed
+	])
+
+	# Warn if performance budget exceeded
+	if elapsed > 100:
+		SimLogger.warn("Scouting report generation exceeded 100ms budget (%dms)" % elapsed)

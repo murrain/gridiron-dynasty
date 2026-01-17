@@ -1,7 +1,7 @@
 @icon("res://icon.svg")
 # res://scripts/core/models/Person.gd
 extends Resource
-class_name Person
+# class_name Person  # Commented out to avoid conflict with GDUnit4's Person test class
 
 ## Base class for all person entities (Player, Coach, Scout)
 ## Provides shared identity fields and serialization logic

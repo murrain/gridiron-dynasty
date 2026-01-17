@@ -98,6 +98,30 @@ WORK PACKAGE: [From Director]
 
 ---
 
+## Engineer Deployment Process
+
+**IMPORTANT**: Architects design and specify Engineer work, but **cannot directly spawn Engineer agents**.
+
+**Correct Process:**
+1. **Architect** completes design phase (CP1)
+2. **Architect** determines optimal Engineer allocation (1-5 engineers based on parallelizability)
+3. **Architect** creates detailed implementation specifications for each Engineer role
+4. **Architect** signals completion to Director (or Director monitors CP1 completion)
+5. **Director** spawns Engineer agents with Architect's specifications
+6. **Architect** monitors Engineer progress and provides guidance as needed
+
+**Why this workflow:**
+- Claude Code's agent system only allows top-level agents (Director) to spawn sub-agents
+- Architects cannot use the Task tool to spawn Engineers due to technical limitations
+- Architects retain full design authority; spawning is purely a technical execution step
+
+**What Architects CAN spawn:**
+- ✅ **code-quality-reviewer** agents (for reviewing Engineer implementations)
+- ✅ **test-infrastructure-engineer** agents (if test infrastructure work is needed)
+- ❌ **engineer** agents (must be spawned by Director)
+
+---
+
 ## Engineer Task Specification Format
 
 ```
