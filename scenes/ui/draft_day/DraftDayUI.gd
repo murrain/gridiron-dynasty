@@ -55,7 +55,7 @@ var _showing_teams_popup: bool = false
 @onready var pick_label: Label = $MarginContainer/VBoxContainer/Header/PickLabel
 
 @onready var draft_ticker: ItemList = $MarginContainer/VBoxContainer/MainContent/LeftPanel/DraftTicker/MarginContainer/TickerList
-@onready var your_picks_label: Label = $MarginContainer/VBoxContainer/MainContent/LeftPanel/YourPicksPanel/MarginContainer/YourPicksLabel
+@onready var your_picks_label: Label = $MarginContainer/VBoxContainer/MainContent/LeftPanel/YourPicksPanel/MarginContainer/VBoxContainer/YourPicksLabel
 
 @onready var prospect_list: ItemList = $MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer/ProspectList
 @onready var position_filter: OptionButton = $MarginContainer/VBoxContainer/MainContent/CenterPanel/ProspectPanel/MarginContainer/VBoxContainer/FilterBar/PositionFilter
@@ -73,6 +73,10 @@ var _scheme_fit_label: Label = null
 
 @onready var coach_panel: PanelContainer = $MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel
 @onready var rec_container: VBoxContainer = $MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer/RecommendationsContainer
+
+## Coach panel collapse toggle
+var _coach_panel_toggle: Button = null
+var _coach_panel_collapsed: bool = false
 
 @onready var status_label: Label = $MarginContainer/VBoxContainer/Footer/StatusLabel
 @onready var view_world_button: Button = $MarginContainer/VBoxContainer/Footer/ViewWorldButton
@@ -169,6 +173,9 @@ func _ready() -> void:
 	# Enable multi-select for player comparison
 	_enable_multi_select_for_comparison()
 
+	# Setup coach panel toggle
+	_setup_coach_panel_toggle()
+
 
 ## Initialize with session and draft controller
 func initialize(session: GameSession, draft: InteractiveDraft) -> void:
@@ -233,7 +240,13 @@ func _on_user_pick_requested(pick_number: int, round_number: int, available: Arr
 
 	# Show user pick modal if enabled (Engineer 2)
 	if _use_pick_modal and _user_pick_modal != null:
+		# Ensure modal is on top of the z-order
+		_user_pick_modal.z_index = 100
+		# Move to front of parent's children
+		move_child(_user_pick_modal, get_child_count() - 1)
+		# Show the modal
 		_user_pick_modal.show_pick(round_number, pick_number, available)
+		print("[DraftDayUI] UserPickModal shown for Round %d, Pick %d" % [round_number, pick_number])
 
 	# Start pick timer (Engineer 4)
 	_start_pick_timer_for_user()
@@ -1274,6 +1287,10 @@ func _setup_user_pick_modal() -> void:
 		if modal_scene:
 			_user_pick_modal = modal_scene.instantiate() as UserPickModalScript
 			_user_pick_modal.name = "UserPickModal"
+
+			# Set z_index to ensure it appears on top
+			_user_pick_modal.z_index = 100
+
 			# Add as child so it overlays the main content
 			add_child(_user_pick_modal)
 
@@ -1283,12 +1300,17 @@ func _setup_user_pick_modal() -> void:
 
 			# Start hidden
 			_user_pick_modal.visible = false
+
+			print("[DraftDayUI] UserPickModal created and configured with z_index=100")
 		else:
 			push_warning("[DraftDayUI] Could not load UserPickModal.tscn")
 	else:
 		# Connect signals if modal was found in scene tree
 		_user_pick_modal.player_selected.connect(_on_modal_player_selected)
 		_user_pick_modal.auto_pick_requested.connect(_on_modal_auto_pick_requested)
+
+		# Ensure z_index is set for existing modal
+		_user_pick_modal.z_index = 100
 
 
 ## Handle player selection from the user pick modal
@@ -1825,3 +1847,71 @@ func get_last_grade() -> Dictionary:
 ## Check if QoL features are enabled
 func is_qol_enabled() -> bool:
 	return _grader != null
+
+
+# =============================================================================
+# COACH PANEL COLLAPSE TOGGLE
+# =============================================================================
+
+## Setup collapsible coach panel toggle button
+## This prevents the coach panel from blocking the main UI
+func _setup_coach_panel_toggle() -> void:
+	if not coach_panel:
+		push_warning("[DraftDayUI] Cannot setup coach panel toggle - coach_panel is null")
+		return
+
+	# Find the coach panel's VBoxContainer
+	var coach_vbox := get_node_or_null("MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer")
+	if not coach_vbox:
+		push_warning("[DraftDayUI] Cannot setup coach panel toggle - coach_vbox not found")
+		return
+
+	# Find the CoachTitleLabel to add toggle button next to it
+	var title_label := get_node_or_null("MarginContainer/VBoxContainer/MainContent/RightPanel/CoachPanel/MarginContainer/VBoxContainer/CoachTitleLabel")
+	if not title_label:
+		push_warning("[DraftDayUI] Cannot setup coach panel toggle - CoachTitleLabel not found")
+		return
+
+	# Create a horizontal container for title and toggle button
+	var header_container := HBoxContainer.new()
+	header_container.name = "CoachPanelHeader"
+
+	# Move title label into the container
+	var title_index := title_label.get_index()
+	coach_vbox.remove_child(title_label)
+	header_container.add_child(title_label)
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	# Create collapse/expand toggle button
+	_coach_panel_toggle = Button.new()
+	_coach_panel_toggle.text = "[-]"
+	_coach_panel_toggle.tooltip_text = "Collapse/Expand Coach Recommendations"
+	_coach_panel_toggle.custom_minimum_size = Vector2(40, 0)
+	_coach_panel_toggle.pressed.connect(_on_coach_panel_toggle_pressed)
+	header_container.add_child(_coach_panel_toggle)
+
+	# Add the header container back at the same position
+	coach_vbox.add_child(header_container)
+	coach_vbox.move_child(header_container, title_index)
+
+	print("[DraftDayUI] Coach panel toggle created")
+
+
+## Handle coach panel collapse/expand toggle
+func _on_coach_panel_toggle_pressed() -> void:
+	_coach_panel_collapsed = not _coach_panel_collapsed
+
+	if _coach_panel_collapsed:
+		# Collapse: hide recommendations and shrink panel
+		rec_container.visible = false
+		coach_panel.custom_minimum_size = Vector2(0, 60)
+		coach_panel.size_flags_stretch_ratio = 0.2
+		_coach_panel_toggle.text = "[+]"
+		_coach_panel_toggle.tooltip_text = "Expand Coach Recommendations"
+	else:
+		# Expand: show recommendations and restore size
+		rec_container.visible = true
+		coach_panel.custom_minimum_size = Vector2(0, 0)
+		coach_panel.size_flags_stretch_ratio = 1.0
+		_coach_panel_toggle.text = "[-]"
+		_coach_panel_toggle.tooltip_text = "Collapse Coach Recommendations"
