@@ -38,10 +38,12 @@ const CombineCalculator = preload("res://scripts/core/rating/CombineCalculator.g
 const RedFlagSystem = preload("res://scripts/world/RedFlagSystem.gd")
 const MockDraftGenerator = preload("res://scripts/world/MockDraftGenerator.gd")
 const ScoutingReportGenerator = preload("res://scripts/world/ScoutingReportGenerator.gd")
+const UnderclassmanDeclarationEngine = preload("res://scripts/world/UnderclassmanDeclarationEngine.gd")
 
 ## Main entry point for pre-draft process simulation.
 ##
 ## Orchestrates all pre-draft activities in sequence:
+##   0.5 Underclassman declarations (NEW) - 50-100 early entries
 ##   1. Select combine invitees (~330 players)
 ##   2. Simulate combine performance
 ##   3. Simulate pro days for non-invitees
@@ -50,11 +52,13 @@ const ScoutingReportGenerator = preload("res://scripts/world/ScoutingReportGener
 ##   6. Calculate draft stock movement
 ##
 ## Side effects:
+##   - Sets declared_for_draft flag for underclassmen who declare
 ##   - Adds "pre_draft_process" field to all eligible players
 ##   - Updates "draft_stock_timeline" via DraftStockTracker
 ##   - Logs major events (combine standouts, all-star MVPs)
 ##
 ## RNG consumption:
+##   - Underclassman declarations: 1 randf() per eligible underclassman
 ##   - Combine: ~330 players × CombineCalculator calls
 ##   - Pro days: ~200 players × CombineCalculator calls
 ##   - All-star games: ~210 players × performance variance
@@ -78,6 +82,7 @@ static func run(
 	if draft_pool.is_empty():
 		return {
 			"year": year,
+			"underclassman_declarations": 0,
 			"combine_invites": 0,
 			"pro_day_participants": 0,
 			"all_star_participants": 0,
@@ -110,11 +115,44 @@ static func run(
 	var red_flag_rng := RandomNumberGenerator.new()
 	red_flag_rng.seed = Rand.splitmix64(seed ^ 0xFEDF1A60)
 
+	# Underclassman declaration seed - uses pattern: seed ^ 0xUND3RC1A (underclass-ia)
+	# Note: Actual seed mixing happens inside UnderclassmanDeclarationEngine
+	var underclassman_seed := seed
+
 	# Mock draft seed - uses pattern: seed ^ 0xMOCK0000 + version (handled in MockDraftGenerator)
 	var mock_draft_seed := seed
 
 	# Scouting report seed - uses pattern: seed ^ hash(player_id) (handled in ScoutingReportGenerator)
 	var scouting_report_seed := seed
+
+	# Get configuration for rating calculations
+	var positions_cfg: Dictionary = config.get("positions", {})
+	var class_rules: Dictionary = config.get("class_rules", {})
+
+	# ============================================================================
+	# Phase 0.5: Underclassman Declarations (NEW)
+	# ============================================================================
+	# Evaluates which underclassmen (class_year 1-3) declare early for the draft.
+	# Uses talent ratings to determine declaration (elite tier 75+ rating = 90%).
+	# Expected: 50-100 underclassmen per year (varies based on talent distribution)
+	#
+	# RNG consumption: 1 randf() per eligible underclassman (sorted by player_id)
+	# ============================================================================
+
+	# Note: We pass an empty mock_draft_ranks dictionary because the elite tier
+	# (75+ rating = 90% declaration) already catches top talent effectively.
+	# Mock draft rankings will be generated later in Phase 8 for UI/intelligence.
+	var declaration_result := UnderclassmanDeclarationEngine.evaluate_declarations(
+		draft_pool,
+		{},  # Empty mock ranks - rely on rating-based tiers
+		year,
+		underclassman_seed,
+		positions_cfg,
+		class_rules
+	)
+
+	var declaration_count: int = declaration_result.get("declaration_count", 0)
+	SimLogger.info("[PreDraftProcess] %d underclassmen declared for %d draft" % [declaration_count, year])
 
 	# Phase 1: Select combine invitees
 	var combine_invitees: Array = _select_combine_invitees(draft_pool, combine_cfg, combine_rng)
@@ -142,8 +180,7 @@ static func run(
 	var red_flags_generated := _generate_red_flags(draft_pool, pre_draft_cfg, red_flag_rng)
 
 	# Phase 8: Generate mock drafts (7 versions with evolving consensus)
-	var positions_cfg: Dictionary = config.get("positions", {})
-	var class_rules: Dictionary = config.get("class_rules", {})
+	# Note: positions_cfg and class_rules already defined above for Phase 0.5
 	_generate_mock_drafts(draft_pool, teams, year, mock_draft_seed, positions_cfg, class_rules)
 
 	# Phase 9: Generate scouting reports for all prospects
@@ -151,6 +188,7 @@ static func run(
 
 	return {
 		"year": year,
+		"underclassman_declarations": declaration_count,
 		"combine_invites": combine_invitees.size(),
 		"pro_day_participants": pro_day_pool.size(),
 		"all_star_participants": all_star_participants.size(),
@@ -159,6 +197,7 @@ static func run(
 		"mock_drafts_generated": 7,
 		"scouting_reports_generated": draft_pool.size(),
 		"step_seeds": {
+			"underclassman": underclassman_seed,
 			"combine": combine_rng.seed,
 			"pro_day": pro_day_rng.seed,
 			"all_star": all_star_rng.seed,

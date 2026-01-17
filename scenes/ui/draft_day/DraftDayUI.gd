@@ -30,6 +30,8 @@ const PlayerShortlistPanel = preload("res://scenes/ui/draft_day/PlayerShortlistP
 const SchemeFitModifier = preload("res://scripts/core/evaluation/modifiers/SchemeFitModifier.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const TradeProposalDialogScript = preload("res://scenes/ui/draft_day/TradeProposalDialog.gd")
+const PreDraftRosterViewScript = preload("res://scenes/ui/draft/PreDraftRosterView.gd")
+const UserPickModalScript = preload("res://scenes/ui/draft/UserPickModal.gd")
 
 signal draft_completed(session: GameSession)
 signal view_world_requested()
@@ -94,6 +96,15 @@ var _shortlist_button: Button = null
 ## Trade dialog reference (created dynamically)
 var _trade_dialog: Window = null
 
+## Pre-draft roster view panel (for roster context during draft)
+var _roster_view: PreDraftRosterViewScript = null
+
+## User pick modal (embedded panel for user pick selection - Engineer 2)
+var _user_pick_modal: UserPickModalScript = null
+
+## Whether to use modal for user picks (can be toggled for different UX)
+var _use_pick_modal: bool = true
+
 
 func _ready() -> void:
 	# Validate critical UI nodes exist
@@ -149,6 +160,15 @@ func _ready() -> void:
 	# Setup Propose Trade button (DRAFT-001)
 	_setup_propose_trade_button()
 
+	# Setup user pick modal (Engineer 2)
+	_setup_user_pick_modal()
+
+	# Setup QoL features (Engineer 4)
+	_setup_qol_features()
+
+	# Enable multi-select for player comparison
+	_enable_multi_select_for_comparison()
+
 
 ## Initialize with session and draft controller
 func initialize(session: GameSession, draft: InteractiveDraft) -> void:
@@ -172,6 +192,9 @@ func initialize(session: GameSession, draft: InteractiveDraft) -> void:
 
 	# Initialize trade dialog
 	_setup_trade_dialog()
+
+	# Initialize roster context panel (Engineer 3)
+	_setup_roster_view()
 
 	# Update header
 	header_label.text = "%d NFL Draft - %s" % [session.current_year, session.user_team_name]
@@ -207,6 +230,13 @@ func _on_user_pick_requested(pick_number: int, round_number: int, available: Arr
 
 	draft_button.disabled = true
 	_clear_detail_panel()
+
+	# Show user pick modal if enabled (Engineer 2)
+	if _use_pick_modal and _user_pick_modal != null:
+		_user_pick_modal.show_pick(round_number, pick_number, available)
+
+	# Start pick timer (Engineer 4)
+	_start_pick_timer_for_user()
 
 	# Notify that it's the user's turn (for external notification systems)
 	user_turn_started.emit(pick_number, round_number)
@@ -339,8 +369,14 @@ func _make_pick(player_id: String) -> void:
 	draft_button.disabled = true
 	status_label.text = "Making pick..."
 
+	# Stop pick timer (Engineer 4)
+	_stop_pick_timer()
+
 	# Notify that the user's turn is ending
 	user_turn_ended.emit()
+
+	# Show draft grade before making pick (Engineer 4)
+	_show_draft_grade(player_id)
 
 	var success := _draft.make_user_pick(player_id)
 	if not success:
@@ -375,6 +411,10 @@ func _on_pick_made(pick_info: Dictionary) -> void:
 			pick_info.get("position", ""),
 			pick_info.get("player_name", "")
 		]
+
+	# Refresh roster view if user made the pick (Engineer 3)
+	if pick_info.get("is_user_pick", false) and _roster_view != null:
+		_roster_view.refresh_after_pick(pick_info)
 
 
 ## Update your picks display
@@ -718,6 +758,66 @@ func _setup_shortlist_panel() -> void:
 		_shortlist_panel.player_selected.connect(_on_shortlist_player_selected)
 
 
+# =============================================================================
+# PRE-DRAFT ROSTER VIEW (Engineer 3)
+# =============================================================================
+
+## Setup the pre-draft roster view panel
+## Shows current roster, position needs, and depth chart to inform draft decisions
+func _setup_roster_view() -> void:
+	if _session == null:
+		push_warning("[DraftDayUI] Cannot setup roster view - session is null")
+		return
+
+	# Only show roster view if user has a team selected
+	if _session.user_team_id.is_empty():
+		return
+
+	# Try to find existing roster view in scene tree
+	_roster_view = get_node_or_null("MarginContainer/VBoxContainer/MainContent/LeftPanel/RosterView") as PreDraftRosterViewScript
+
+	if _roster_view == null:
+		# Create roster view dynamically
+		var roster_view_scene := load("res://scenes/ui/draft/PreDraftRosterView.tscn")
+		if roster_view_scene:
+			_roster_view = roster_view_scene.instantiate() as PreDraftRosterViewScript
+			_roster_view.name = "RosterView"
+			_roster_view.custom_minimum_size = Vector2(280, 300)
+
+			# Add to left panel (below ticker and your picks)
+			var left_panel := get_node_or_null("MarginContainer/VBoxContainer/MainContent/LeftPanel")
+			if left_panel:
+				left_panel.add_child(_roster_view)
+		else:
+			push_warning("[DraftDayUI] Could not load PreDraftRosterView.tscn")
+			return
+
+	if _roster_view:
+		# Get configs for position needs calculation
+		var positions_cfg: Dictionary = _session.world_state.get("positions_cfg", {})
+		var main_cfg: Dictionary = _session.world_state.get("main_cfg", {})
+
+		# If configs not in world_state, try to load them
+		if positions_cfg.is_empty():
+			positions_cfg = _session.get_config("positions", {}) if _session.has_method("get_config") else {}
+		if main_cfg.is_empty():
+			main_cfg = _session.get_config("main", {}) if _session.has_method("get_config") else {}
+
+		# Initialize with team data
+		_roster_view.initialize(
+			_session.user_team_id,
+			_session.world_state,
+			positions_cfg,
+			main_cfg
+		)
+		_roster_view.visible = true
+
+		# Log render time for performance monitoring
+		var render_time := _roster_view.get_last_render_time_ms()
+		if render_time > 0:
+			print("[DraftDayUI] Roster view rendered in %.1fms" % render_time)
+
+
 ## Handle shortlist player selection
 func _on_shortlist_player_selected(player_id: String) -> void:
 	# Select this player in the prospect list
@@ -825,6 +925,7 @@ func _on_board_sort_changed(index: int) -> void:
 
 
 ## Populate prospect list using the draft's sorted available players
+## PERFORMANCE: Uses get_sorted_with_shortlist() for O(n) instead of O(n²)
 func _populate_prospect_list_sorted() -> void:
 	prospect_list.clear()
 
@@ -834,8 +935,8 @@ func _populate_prospect_list_sorted() -> void:
 	var filter_idx := position_filter.selected
 	var position_filter_text := "" if filter_idx == 0 else position_filter.get_item_text(filter_idx)
 
-	# Get sorted players from draft (respects current sort mode)
-	var sorted_players: Array = _draft.get_sorted_available_players()
+	# Get sorted players with shortlist state included (O(n) performance)
+	var sorted_players: Array = _draft.get_sorted_with_shortlist()
 
 	for player in sorted_players:
 		var p: Dictionary = player
@@ -850,8 +951,8 @@ func _populate_prospect_list_sorted() -> void:
 		var college := String(p.get("college", ""))
 		var player_id := String(p.get("player_id", ""))
 
-		# Query shortlist state separately (separation of concerns fix)
-		var is_shortlisted := _draft.is_on_shortlist(player_id)
+		# Shortlist state is already included in player dict (O(n) instead of O(n²))
+		var is_shortlisted := bool(p.get("_is_shortlisted", false))
 
 		# Build display text with shortlist indicator
 		var display_text := ""
@@ -1151,3 +1252,576 @@ func _get_relevant_scheme_name(position: String, offensive_scheme: String, defen
 	if position in offensive_positions:
 		return offensive_scheme.replace("_", " ") + " offense"
 	return defensive_scheme.replace("_", " ") + " defense"
+
+
+# =============================================================================
+# USER PICK MODAL (Engineer 2)
+# =============================================================================
+
+## Setup the user pick modal as an embedded panel
+## The modal provides an overlay experience for making draft picks
+## Performance target: Modal should render in <100ms
+func _setup_user_pick_modal() -> void:
+	if _user_pick_modal != null:
+		return  # Already created
+
+	# Try to find existing modal in scene tree (if added via .tscn)
+	_user_pick_modal = get_node_or_null("UserPickModal") as UserPickModalScript
+
+	if _user_pick_modal == null:
+		# Create modal dynamically
+		var modal_scene := load("res://scenes/ui/draft/UserPickModal.tscn")
+		if modal_scene:
+			_user_pick_modal = modal_scene.instantiate() as UserPickModalScript
+			_user_pick_modal.name = "UserPickModal"
+			# Add as child so it overlays the main content
+			add_child(_user_pick_modal)
+
+			# Connect signals
+			_user_pick_modal.player_selected.connect(_on_modal_player_selected)
+			_user_pick_modal.auto_pick_requested.connect(_on_modal_auto_pick_requested)
+
+			# Start hidden
+			_user_pick_modal.visible = false
+		else:
+			push_warning("[DraftDayUI] Could not load UserPickModal.tscn")
+	else:
+		# Connect signals if modal was found in scene tree
+		_user_pick_modal.player_selected.connect(_on_modal_player_selected)
+		_user_pick_modal.auto_pick_requested.connect(_on_modal_auto_pick_requested)
+
+
+## Handle player selection from the user pick modal
+func _on_modal_player_selected(player_id: String) -> void:
+	if player_id.is_empty():
+		push_warning("[DraftDayUI] Modal returned empty player_id")
+		return
+
+	_make_pick(player_id)
+
+
+## Handle auto-pick BPA request from the user pick modal
+func _on_modal_auto_pick_requested() -> void:
+	if _draft == null:
+		push_error("[DraftDayUI] Cannot auto-pick - draft is null")
+		return
+
+	# Get recommendations using public API
+	var recommendations := _draft.get_recommendations(1)
+	if recommendations.is_empty():
+		push_warning("[DraftDayUI] No recommendations available for auto-pick")
+		# Fallback: pick the first available player
+		if not _available_players.is_empty():
+			var first_player: Dictionary = _available_players[0]
+			var player_id := String(first_player.get("player_id", ""))
+			if not player_id.is_empty():
+				_make_pick(player_id)
+		return
+
+	var best_player: Dictionary = recommendations[0]
+	var player_id := String(best_player.get("player_id", ""))
+	if player_id.is_empty():
+		push_error("[DraftDayUI] Best player recommendation has empty player_id")
+		return
+
+	_make_pick(player_id)
+
+
+## Toggle whether to use the modal for user picks
+## Can be called from settings or debug panel
+func set_use_pick_modal(enabled: bool) -> void:
+	_use_pick_modal = enabled
+
+	# Hide modal if disabling while visible
+	if not enabled and _user_pick_modal != null and _user_pick_modal.visible:
+		_user_pick_modal.hide_modal()
+
+
+## Check if pick modal is currently being used
+func is_using_pick_modal() -> bool:
+	return _use_pick_modal
+
+
+## Get the user pick modal reference (for external access if needed)
+func get_user_pick_modal() -> UserPickModalScript:
+	return _user_pick_modal
+
+
+# =============================================================================
+# QUALITY OF LIFE FEATURES (Engineer 4)
+# =============================================================================
+
+## Import QoL components
+const PlayerComparisonViewScript = preload("res://scenes/ui/draft/PlayerComparisonView.gd")
+const PickTimerScript = preload("res://scenes/ui/draft/PickTimer.gd")
+const DraftGrader = preload("res://scripts/world/DraftGrader.gd")
+const MockDraftGenerator = preload("res://scripts/world/MockDraftGenerator.gd")
+const TeamNeeds = preload("res://scripts/core/roster/TeamNeeds.gd")
+
+## QoL UI references (created dynamically)
+## NOTE: _advanced_filter removed - we integrate with existing position_filter instead
+var _comparison_view: PlayerComparisonViewScript = null
+var _pick_timer: PickTimerScript = null
+var _compare_button: Button = null
+var _grader: DraftGrader = null
+
+## QoL state
+var _filtered_players: Array = []
+var _last_grade_result: Dictionary = {}
+
+
+## Setup QoL features (called from _ready or initialize)
+func _setup_qol_features() -> void:
+	_setup_advanced_filter()
+	_setup_comparison_view()
+	_setup_pick_timer()
+	_setup_compare_button()
+	_grader = DraftGrader.new()
+
+
+## Setup advanced filter bar
+## NOTE: This integrates with the existing position_filter in FilterBar
+## rather than creating a duplicate filter bar component.
+func _setup_advanced_filter() -> void:
+	# Note: Advanced filtering (search, multi-sort) should be implemented
+	# by enhancing the existing FilterBar controls, not creating a separate
+	# DraftBoardFilter component. This keeps the UI unified.
+	pass
+
+
+## Setup comparison view modal
+func _setup_comparison_view() -> void:
+	var view_scene := load("res://scenes/ui/draft/PlayerComparisonView.tscn")
+	if view_scene:
+		_comparison_view = view_scene.instantiate() as PlayerComparisonViewScript
+		if _comparison_view:
+			add_child(_comparison_view)
+			_comparison_view.player_chosen.connect(_on_comparison_player_chosen)
+			_comparison_view.comparison_closed.connect(_on_comparison_closed)
+
+
+## Setup pick timer
+func _setup_pick_timer() -> void:
+	var timer_scene := load("res://scenes/ui/draft/PickTimer.tscn")
+	if timer_scene:
+		_pick_timer = timer_scene.instantiate() as PickTimerScript
+		if _pick_timer:
+			# Add to header area
+			var header := get_node_or_null("MarginContainer/VBoxContainer/Header")
+			if header:
+				header.add_child(_pick_timer)
+				_pick_timer.time_expired.connect(_on_pick_timer_expired)
+
+
+## Setup compare button in the detail panel
+func _setup_compare_button() -> void:
+	var detail_vbox := get_node_or_null("MarginContainer/VBoxContainer/MainContent/RightPanel/DetailPanel/MarginContainer/VBoxContainer")
+	if detail_vbox == null:
+		return
+
+	if _compare_button:
+		return  # Already created
+
+	_compare_button = Button.new()
+	_compare_button.text = "Compare Players"
+	_compare_button.tooltip_text = "Select 2-3 players from the list to compare (Ctrl+click)"
+	_compare_button.disabled = true
+	_compare_button.pressed.connect(_on_compare_button_pressed)
+
+	# Insert before draft button
+	if draft_button and draft_button.get_parent() == detail_vbox:
+		var btn_idx := draft_button.get_index()
+		detail_vbox.add_child(_compare_button)
+		detail_vbox.move_child(_compare_button, btn_idx)
+
+
+## Apply advanced filters to player list
+## NOTE: This is called manually or could be connected to enhanced filter controls
+func _apply_advanced_filters(position_filter_val: String, search_val: String, sort_mode: String) -> void:
+	if _draft == null:
+		return
+
+	# Get base player list
+	var all_players := _draft.get_sorted_available_players()
+
+	# Apply position filter
+	if position_filter_val != "All":
+		all_players = all_players.filter(func(p):
+			return String(p.get("position", "")) == position_filter_val
+		)
+
+	# Apply name search
+	if not search_val.is_empty():
+		var search_lower := search_val.to_lower()
+		all_players = all_players.filter(func(p):
+			return search_lower in String(p.get("name", "")).to_lower()
+		)
+
+	# Apply sort mode
+	match sort_mode:
+		"Overall":
+			all_players.sort_custom(func(a, b):
+				return float(a.get("overall", 0.0)) > float(b.get("overall", 0.0))
+			)
+		"Scheme Fit":
+			_sort_by_scheme_fit_qol(all_players)
+		"Position Need":
+			_sort_by_position_need_qol(all_players)
+		"Mock Rank":
+			_sort_by_mock_rank(all_players)
+
+	_filtered_players = all_players
+	_populate_prospect_list_from_array(_filtered_players)
+
+
+## Sort players by scheme fit (QoL version)
+func _sort_by_scheme_fit_qol(players: Array) -> void:
+	var user_team := _get_user_team_data()
+	var offensive_scheme := String(user_team.get("offensive_scheme", "pro_style"))
+	var defensive_scheme := String(user_team.get("defensive_scheme", "cover_2"))
+
+	for player in players:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
+		var scheme_fit: Dictionary = p.get("scheme_fit", {})
+
+		var scheme := offensive_scheme
+		if position in ["DL", "EDGE", "LB", "CB", "S"]:
+			scheme = defensive_scheme
+
+		var fit := float(scheme_fit.get(scheme, 75.0))
+		p["_sort_score"] = fit
+
+	players.sort_custom(func(a, b):
+		return float(a.get("_sort_score", 0.0)) > float(b.get("_sort_score", 0.0))
+	)
+
+
+## Sort players by position need (QoL version)
+func _sort_by_position_need_qol(players: Array) -> void:
+	if _session == null:
+		return
+
+	# Get team needs
+	var roster_data: Dictionary = _session.get_user_roster()
+	var needs := _calculate_simple_needs(roster_data)
+
+	# Apply need multiplier to overall for sorting
+	for player in players:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
+		var overall := float(p.get("overall", 50.0))
+		var need_mult := float(needs.get(position, 1.0))
+		p["_sort_score"] = overall * need_mult
+
+	players.sort_custom(func(a, b):
+		return float(a.get("_sort_score", 0.0)) > float(b.get("_sort_score", 0.0))
+	)
+
+
+## Sort players by mock draft rank
+func _sort_by_mock_rank(players: Array) -> void:
+	for player in players:
+		var p: Dictionary = player
+		var projection := MockDraftGenerator.get_latest_projection(p)
+		var rank := int(projection.get("projected_pick", 999))
+		p["_sort_score"] = -rank  # Negative so lower rank = higher score
+
+	players.sort_custom(func(a, b):
+		return float(a.get("_sort_score", 0.0)) > float(b.get("_sort_score", 0.0))
+	)
+
+
+## Populate prospect list from filtered array
+func _populate_prospect_list_from_array(players: Array) -> void:
+	prospect_list.clear()
+
+	for player in players:
+		var p: Dictionary = player
+		var position := String(p.get("position", ""))
+		var player_name := String(p.get("name", "Unknown"))
+		var overall := float(p.get("overall", 50.0))
+		var college := String(p.get("college", p.get("college_team_id", "")))
+		var player_id := String(p.get("player_id", ""))
+
+		# Check shortlist state
+		var is_shortlisted := false
+		if _draft:
+			is_shortlisted = _draft.is_on_shortlist(player_id)
+
+		var display_text := ""
+		if is_shortlisted:
+			display_text = "[*] "
+		display_text += "%s %s - %.0f OVR" % [position, player_name, overall]
+		if not college.is_empty():
+			display_text += " (%s)" % college
+
+		var idx := prospect_list.add_item(display_text)
+		prospect_list.set_item_metadata(idx, player_id)
+
+		if is_shortlisted:
+			prospect_list.set_item_custom_fg_color(idx, Color(0.3, 0.8, 0.3))
+
+
+## Handle compare button press
+func _on_compare_button_pressed() -> void:
+	var selected := prospect_list.get_selected_items()
+	if selected.size() < 2:
+		status_label.text = "Select 2-3 players to compare (Ctrl+click to multi-select)"
+		return
+
+	# Get player data for comparison
+	var players_to_compare: Array = []
+	for idx in selected:
+		if players_to_compare.size() >= 3:
+			break
+		var player_id := String(prospect_list.get_item_metadata(idx))
+		var player := _draft.get_player_by_id(player_id)
+		if not player.is_empty():
+			players_to_compare.append(player)
+
+	if players_to_compare.size() < 2:
+		status_label.text = "Could not load player data for comparison"
+		return
+
+	# Get config for comparison view
+	var positions_cfg: Dictionary = {}
+	var class_rules: Dictionary = {}
+	var team_scheme := ""
+
+	if _session:
+		positions_cfg = _session.world_state.get("positions_cfg", {})
+		class_rules = _session.world_state.get("class_rules", {})
+		var user_team := _get_user_team_data()
+		team_scheme = String(user_team.get("offensive_scheme", "pro_style"))
+
+	_comparison_view.show_comparison(players_to_compare, positions_cfg, class_rules, team_scheme)
+
+
+## Handle player chosen from comparison view
+func _on_comparison_player_chosen(player_id: String) -> void:
+	# Select this player and make the pick
+	_selected_player_id = player_id
+
+	# Find and select in list
+	for i in range(prospect_list.item_count):
+		if prospect_list.get_item_metadata(i) == player_id:
+			prospect_list.select(i)
+			_on_prospect_selected(i)
+			break
+
+	# Optionally auto-draft
+	_make_pick(player_id)
+
+
+## Handle comparison view closed
+func _on_comparison_closed() -> void:
+	status_label.text = "Comparison closed - select a player to draft"
+
+
+## Handle pick timer expiry - auto-pick BPA
+func _on_pick_timer_expired() -> void:
+	if _draft == null:
+		return
+
+	status_label.text = "Time's up! Auto-picking best player available..."
+
+	# Get BPA from recommendations using public API
+	var recommendations := _draft.get_recommendations(1)
+	if not recommendations.is_empty():
+		var bpa: Dictionary = recommendations[0]
+		var player_id := String(bpa.get("player_id", ""))
+		if not player_id.is_empty():
+			_make_pick(player_id)
+			return
+
+	# Fallback: pick first player in list
+	if prospect_list.item_count > 0:
+		var first_player_id := String(prospect_list.get_item_metadata(0))
+		_make_pick(first_player_id)
+
+
+## Start pick timer when user's turn begins
+func _start_pick_timer_for_user() -> void:
+	if _pick_timer and _pick_timer.is_timer_enabled():
+		_pick_timer.start_timer(300.0)  # 5 minutes
+
+
+## Stop pick timer when user makes pick
+func _stop_pick_timer() -> void:
+	if _pick_timer:
+		_pick_timer.stop_timer()
+
+
+## Prepare data needed for draft grade calculation
+## @return Dictionary with all required fields, or empty dict if data unavailable
+##
+## This helper method validates all data dependencies and aggregates them
+## into a single structure, making _show_draft_grade() testable and debuggable.
+func _prepare_grade_data(player: Dictionary, pick_number: int) -> Dictionary:
+	# Validate session data availability
+	var roster_data := _session.get_user_roster()
+	if roster_data.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - roster data unavailable")
+		return {}
+
+	# Calculate position needs
+	var needs := _calculate_simple_needs(roster_data)
+	if needs.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - needs calculation failed")
+		return {}
+
+	# Get user team data for scheme
+	var user_team := _get_user_team_data()
+	if user_team.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - user team data unavailable")
+		return {}
+
+	# Determine relevant scheme based on position
+	var position := String(player.get("position", ""))
+	var team_scheme := _get_team_scheme_for_position(user_team, position)
+
+	# Get consensus rank from mock draft
+	var projection := MockDraftGenerator.get_latest_projection(player)
+	var consensus_rank := int(projection.get("projected_pick", pick_number))
+
+	# Get required configs
+	var positions_cfg: Dictionary = _session.world_state.get("positions_cfg", {})
+	var class_rules: Dictionary = _session.world_state.get("class_rules", {})
+
+	if positions_cfg.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - positions_cfg unavailable")
+		return {}
+
+	if class_rules.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - class_rules unavailable")
+		return {}
+
+	return {
+		"needs": needs,
+		"team_scheme": team_scheme,
+		"consensus_rank": consensus_rank,
+		"positions_cfg": positions_cfg,
+		"class_rules": class_rules
+	}
+
+
+## Get the relevant team scheme (offensive or defensive) for a given position
+## @param user_team: Team data dictionary containing scheme information
+## @param position: Player position string
+## @return Scheme name string
+func _get_team_scheme_for_position(user_team: Dictionary, position: String) -> String:
+	var offensive_positions := ["QB", "RB", "WR", "TE", "OL"]
+	if position in offensive_positions:
+		return String(user_team.get("offensive_scheme", "pro_style"))
+	else:
+		return String(user_team.get("defensive_scheme", "cover_2"))
+
+
+## Show draft grade after user makes a pick
+func _show_draft_grade(player_id: String) -> void:
+	if _grader == null or _draft == null or _session == null:
+		return
+
+	var player := _draft.get_player_by_id(player_id)
+	if player.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - player not found")
+		return
+
+	var pick_number := _draft.get_current_pick()
+	var round_number := _draft.get_current_round()
+
+	# Prepare all required data with validation
+	var grade_data := _prepare_grade_data(player, pick_number)
+	if grade_data.is_empty():
+		push_warning("[DraftDayUI] Cannot calculate draft grade - missing data")
+		return
+
+	# Calculate grade using validated data
+	var grade_result := _grader.grade_pick(
+		player,
+		pick_number,
+		round_number,
+		grade_data.get("needs"),
+		grade_data.get("team_scheme"),
+		grade_data.get("consensus_rank"),
+		grade_data.get("positions_cfg"),
+		grade_data.get("class_rules")
+	)
+
+	_last_grade_result = grade_result
+
+	# Display grade popup
+	_display_grade_popup(grade_result)
+
+
+## Calculate simple needs from roster
+func _calculate_simple_needs(roster_data: Dictionary) -> Dictionary:
+	var by_position: Dictionary = {}
+	for player in roster_data.get("players", []):
+		var pos := String(player.get("position", ""))
+		if not by_position.has(pos):
+			by_position[pos] = 0
+		by_position[pos] = int(by_position[pos]) + 1
+
+	var ideal_counts := {
+		"QB": 3, "RB": 4, "WR": 6, "TE": 3, "OL": 10,
+		"DL": 5, "EDGE": 4, "LB": 6, "CB": 6, "S": 4, "K": 1, "P": 1
+	}
+
+	var needs := {}
+	for pos in ideal_counts.keys():
+		var current := int(by_position.get(pos, 0))
+		var ideal := int(ideal_counts.get(pos, 3))
+		if current == 0:
+			needs[pos] = 1.5
+		elif current < ideal:
+			needs[pos] = 1.0 + (float(ideal - current) / float(ideal)) * 0.3
+		else:
+			needs[pos] = 0.95
+
+	return needs
+
+
+## Display draft grade popup
+func _display_grade_popup(grade_result: Dictionary) -> void:
+	var letter := String(grade_result.get("letter_grade", "C"))
+	var analysis := String(grade_result.get("analysis", ""))
+	var overall_score := float(grade_result.get("overall_score", 70.0))
+
+	var dialog := AcceptDialog.new()
+	dialog.title = "Draft Grade: %s" % letter
+	dialog.dialog_text = "Grade: %s (%.0f)\n\n%s" % [letter, overall_score, analysis]
+
+	dialog.confirmed.connect(func(): dialog.queue_free())
+	dialog.canceled.connect(func(): dialog.queue_free())
+
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+## Enable multi-select on prospect list for comparison
+func _enable_multi_select_for_comparison() -> void:
+	if prospect_list:
+		prospect_list.select_mode = ItemList.SELECT_MULTI
+
+
+## Update compare button state based on selection
+func _update_compare_button_state() -> void:
+	if _compare_button:
+		var selected_count := prospect_list.get_selected_items().size()
+		_compare_button.disabled = selected_count < 2
+		if selected_count >= 2:
+			_compare_button.text = "Compare %d Players" % min(selected_count, 3)
+		else:
+			_compare_button.text = "Compare Players"
+
+
+## Get the last calculated draft grade
+func get_last_grade() -> Dictionary:
+	return _last_grade_result
+
+
+## Check if QoL features are enabled
+func is_qol_enabled() -> bool:
+	return _grader != null

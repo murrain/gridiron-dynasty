@@ -1,0 +1,146 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7pre_draft_roster_view"]
+
+[ext_resource type="Script" path="res://scenes/ui/draft/PreDraftRosterView.gd" id="1_script"]
+
+[node name="PreDraftRosterView" type="TabContainer"]
+custom_minimum_size = Vector2(300, 400)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Roster" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="HBoxContainer" parent="Roster"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Roster/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Current Roster"
+
+[node name="Spacer" type="Control" parent="Roster/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SortLabel" type="Label" parent="Roster/Header"]
+layout_mode = 2
+text = "Sort by:"
+
+[node name="SortButton" type="OptionButton" parent="Roster/Header"]
+layout_mode = 2
+item_count = 4
+popup/item_0/text = "Position"
+popup/item_1/text = "Overall"
+popup/item_1/id = 1
+popup/item_2/text = "Age"
+popup/item_2/id = 2
+popup/item_3/text = "Contract"
+popup/item_3/id = 3
+
+[node name="RosterScroll" type="ScrollContainer" parent="Roster"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="RosterList" type="VBoxContainer" parent="Roster/RosterScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Needs" type="VBoxContainer" parent="."]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RecommendationLabel" type="Label" parent="Needs"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Priority Needs: CB, EDGE, WR"
+autowrap_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="Needs"]
+layout_mode = 2
+
+[node name="NeedsGrid" type="GridContainer" parent="Needs"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+columns = 4
+
+[node name="Depth" type="HBoxContainer" parent="."]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="OffensePanel" type="PanelContainer" parent="Depth"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="Depth/OffensePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Depth/OffensePanel/MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Depth/OffensePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "OFFENSE"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Depth/OffensePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Depth/OffensePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="OffenseDepth" type="VBoxContainer" parent="Depth/OffensePanel/MarginContainer/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VSeparator" type="VSeparator" parent="Depth"]
+layout_mode = 2
+
+[node name="DefensePanel" type="PanelContainer" parent="Depth"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="Depth/DefensePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Depth/DefensePanel/MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Depth/DefensePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "DEFENSE"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Depth/DefensePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Depth/DefensePanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DefenseDepth" type="VBoxContainer" parent="Depth/DefensePanel/MarginContainer/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
