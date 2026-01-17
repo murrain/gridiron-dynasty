@@ -15,6 +15,7 @@ const NewGameFlow = preload("res://scripts/pipelines/NewGameFlow.gd")
 const InteractiveDraft = preload("res://scripts/world/InteractiveDraft.gd")
 const GameSession = preload("res://scripts/core/models/GameSession.gd")
 const ConfigService = preload("res://autoloads/Config.gd")
+const DraftDayLauncher = preload("res://scripts/ui/draft_day/DraftDayLauncher.gd")
 
 enum GamePhase { LOADING, TEAM_SELECTION, DRAFT, WORLD_EXPLORER }
 
@@ -135,32 +136,42 @@ func _show_draft() -> void:
 	_phase = GamePhase.DRAFT
 
 	team_selection_ui.visible = false
-	draft_day_ui.visible = true
+	# Note: draft_day_ui will be created dynamically by DraftDayLauncher
 
-	# Load configs
-	var config := _get_config()
-	var league_cfg: Dictionary = config.get_config("world/league")
-	var positions_cfg: Dictionary = config.get_config("positions")
-	var stats_cfg: Dictionary = config.get_config("stats")
-	var scouts_cfg: Dictionary = config.get_config("scouts")
-	var main_cfg: Dictionary = config.get_config("main")
-
-	# Create interactive draft
-	var draft := InteractiveDraft.new()
-	draft.initialize(
+	# Use DraftDayLauncher to create session, draft, and UI
+	# This eliminates code duplication with BootstrapPreview
+	var result := DraftDayLauncher.launch_with_team(
 		_world_state,
 		_session.current_year,
-		base_seed if base_seed != 0 else int(Time.get_unix_time_from_system()),
 		_session.user_team_id,
-		league_cfg,
-		positions_cfg,
-		stats_cfg,
-		scouts_cfg,
-		main_cfg
+		$MarginContainer  # Add to MarginContainer instead of root
 	)
 
-	# Initialize draft UI
-	draft_day_ui.initialize(_session, draft)
+	if result.is_empty():
+		push_error("[NewGameMain] Failed to launch draft")
+		_show_error("Failed to initialize draft")
+		return
+
+	# Update our session reference (DraftDayLauncher created a new one)
+	_session = result.get("session")
+	var draft: InteractiveDraft = result.get("draft")
+	var ui: Control = result.get("ui")
+
+	# Store references for signal connections
+	draft_day_ui = ui
+
+	# Connect signals (DraftDayLauncher only handles initialization)
+	if draft_day_ui.has_signal("draft_completed"):
+		draft_day_ui.draft_completed.connect(_on_draft_completed)
+	if draft_day_ui.has_signal("view_world_requested"):
+		draft_day_ui.view_world_requested.connect(_on_view_world_requested)
+	if draft_day_ui.has_signal("user_turn_started"):
+		draft_day_ui.user_turn_started.connect(_on_user_turn_started)
+	if draft_day_ui.has_signal("user_turn_ended"):
+		draft_day_ui.user_turn_ended.connect(_on_user_turn_ended)
+
+	draft_day_ui.visible = true
+	print("[NewGameMain] Draft launched via DraftDayLauncher")
 
 
 func _on_draft_completed(session: GameSession) -> void:
