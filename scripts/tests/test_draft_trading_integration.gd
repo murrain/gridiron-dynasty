@@ -76,11 +76,11 @@ func test_trade_updates_draft_order(t) -> void:
 		"picks_requested": [{"year": 2025, "round": 2, "pick_in_round": 2}]
 	}
 
-	var record := DraftTradeEngine.execute_trade(offer, ownership, 2025, 0)
+	var result := DraftTradeEngine.execute_trade(offer, ownership, 2025, 0)
 
-	# Ownership should be updated
-	# Note: The execute_trade modifies in place
-	t.assert_true(not record.is_empty(), "Trade executed successfully")
+	# Verify result structure
+	t.assert_true(result.has("trade_record"), "Result should have trade_record")
+	t.assert_true(result.has("updated_ownership"), "Result should have updated_ownership")
 
 
 ## Test 3: Multiple trades in same draft work correctly
@@ -105,7 +105,8 @@ func test_multiple_trades_same_draft(t) -> void:
 		# Validate first
 		var validation := DraftTradeEngine.validate_trade(offer, ownership, 2025, 0)
 		if bool(validation.get("valid")):
-			DraftTradeEngine.execute_trade(offer, ownership, 2025, i)
+			var result := DraftTradeEngine.execute_trade(offer, ownership, 2025, i)
+			ownership = result.get("updated_ownership", ownership)
 			trades_executed += 1
 
 	t.assert_true(trades_executed >= 3,
@@ -124,7 +125,8 @@ func test_trade_history_persistence(t) -> void:
 		"initiated_by": "ai"
 	}
 
-	var record := DraftTradeEngine.execute_trade(offer, ownership, 2025, 15)
+	var result := DraftTradeEngine.execute_trade(offer, ownership, 2025, 15)
+	var record: Dictionary = result.get("trade_record", {})
 
 	# Verify record can be serialized (no Resource types)
 	var json := JSON.stringify(record)
@@ -348,7 +350,8 @@ func test_performance_batch_trades(t) -> void:
 			"picks_requested": [{"year": 2025, "round": ((i + 1) % 7) + 1, "pick_in_round": ((i + 2) % 4) + 1}]
 		}
 
-		DraftTradeEngine.execute_trade(offer, ownership, 2025, i)
+		var result := DraftTradeEngine.execute_trade(offer, ownership, 2025, i)
+		ownership = result.get("updated_ownership", ownership)
 
 	var elapsed_ms := (Time.get_ticks_usec() - start) / 1000.0
 

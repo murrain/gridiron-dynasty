@@ -226,14 +226,22 @@ func test_execute_trade_updates_ownership(t) -> void:
 		"picks_requested": [{"year": 2025, "round": 1, "pick_in_round": 2}]
 	}
 
-	var record := DraftTradeEngine.execute_trade(offer, ownership, 2025, 5)
+	var result := DraftTradeEngine.execute_trade(offer, ownership, 2025, 5)
 
-	# Verify ownership transferred
+	# Verify result structure
+	t.assert_true(result.has("trade_record"),
+		"Execute trade should return trade_record")
+	t.assert_true(result.has("updated_ownership"),
+		"Execute trade should return updated_ownership")
+
+	var updated_ownership: Dictionary = result.get("updated_ownership", {})
+
+	# Verify ownership transferred in the returned ownership
 	# After trade:
 	# - team_a should own team_b's round 1 pick 2
 	# - team_b should own team_a's round 2 pick 1
-	t.assert_true(not record.is_empty(),
-		"Execute trade should return a record")
+	t.assert_true(not updated_ownership.is_empty(),
+		"Updated ownership should not be empty")
 
 
 ## Test 10: Trade record has all required fields with version
@@ -248,7 +256,8 @@ func test_execute_trade_creates_history_record(t) -> void:
 		"initiated_by": "user"
 	}
 
-	var record := DraftTradeEngine.execute_trade(offer, ownership, 2025, 10)
+	var result := DraftTradeEngine.execute_trade(offer, ownership, 2025, 10)
+	var record: Dictionary = result.get("trade_record", {})
 
 	# Check required fields
 	t.assert_true(record.has("version"),

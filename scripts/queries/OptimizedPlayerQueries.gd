@@ -10,15 +10,16 @@ extends RefCounted
 ## - Player-coach filters results by scouting knowledge post-query
 ## - AI coaches use results directly (true stats)
 ##
+## DATA FORMAT: All players are Dictionary objects (world_state format)
+## - Does NOT support Player resources (use dictionary format)
+## - Type contract: All indexed data must be Dictionary
+##
 ## Usage:
 ##   var queries = OptimizedPlayerQueries.new()
 ##   queries.rebuild_indexes(world_state)
 ##   var fast_cbs = queries.by_position("CB").filter(func(p): return p.stats.speed >= 90)
 ##
 ## RNG: This class does NOT consume RNG. All operations are pure data access functions.
-
-# Preload Player model for type checking
-const Player = preload("res://scripts/core/models/Player.gd")
 
 # Position group constants for categorization
 const OFFENSIVE_POSITIONS := ["QB", "RB", "FB", "WR", "TE", "OT", "OG", "C", "OL"]
@@ -30,15 +31,15 @@ const AGE_YOUNG_MAX := 24
 const AGE_PRIME_MAX := 30
 
 # Primary indexes - rebuilt after each tick
-var _player_by_id: Dictionary = {}        # id -> Player or Dictionary
-var _players_by_position: Dictionary = {} # position -> Array[Player or Dictionary]
-var _players_by_team: Dictionary = {}     # team_id -> Array[Player or Dictionary]
-var _players_by_stage: Dictionary = {}    # PlayerStage -> Array[Player or Dictionary]
+var _player_by_id: Dictionary = {}        # id -> Dictionary
+var _players_by_position: Dictionary = {} # position -> Array[Dictionary]
+var _players_by_team: Dictionary = {}     # team_id -> Array[Dictionary]
+var _players_by_stage: Dictionary = {}    # PlayerStage -> Array[Dictionary]
 
 # Secondary indexes for common queries
-var _free_agents: Array = []              # Players without team
-var _draft_eligible: Array = []           # Players eligible for draft
-var _players_by_age_bucket: Dictionary = {} # "young"|"prime"|"veteran" -> Array
+var _free_agents: Array = []              # Array[Dictionary] - Players without team
+var _draft_eligible: Array = []           # Array[Dictionary] - Players eligible for draft
+var _players_by_age_bucket: Dictionary = {} # "young"|"prime"|"veteran" -> Array[Dictionary]
 
 signal indexes_rebuilt
 
@@ -106,9 +107,9 @@ func _clear_indexes() -> void:
 
 
 ## Index a single player into all relevant indexes
-## @param player: Player resource or Dictionary containing player data
+## @param player: Dictionary containing player data
 ## @param team_id: Team ID string (empty for free agents/draft eligible)
-func _index_player(player: Variant, team_id: String) -> void:
+func _index_player(player: Dictionary, team_id: String) -> void:
 	var id: String = _get_player_field(player, "id", "")
 	var position: String = _get_player_field(player, "position", "")
 	var stage: int = _get_player_field(player, "stage", 0)
@@ -145,32 +146,19 @@ func _index_player(player: Variant, team_id: String) -> void:
 	_players_by_age_bucket[bucket].append(player)
 
 	# Secondary index: draft eligible (check stage)
-	if stage == Player.PlayerStage.DRAFT_ELIGIBLE:
+	# PlayerStage.DRAFT_ELIGIBLE = 2 (from Player.gd enum)
+	if stage == 2:  # DRAFT_ELIGIBLE
 		if player not in _draft_eligible:
 			_draft_eligible.append(player)
 
 
-## Get player field value, handling both Player resource and Dictionary
-## @param player: Player resource or Dictionary
+## Get player field value from Dictionary
+## @param player: Dictionary containing player data
 ## @param field: Field name to retrieve
 ## @param default: Default value if field not found
 ## @return: Field value or default
-func _get_player_field(player: Variant, field: String, default: Variant) -> Variant:
-	if player is Player:
-		match field:
-			"id":
-				return player.id
-			"position":
-				return player.position
-			"stage":
-				return int(player.stage)
-			"age":
-				return player.age
-			_:
-				return default
-	elif player is Dictionary:
-		return player.get(field, default)
-	return default
+func _get_player_field(player: Dictionary, field: String, default: Variant) -> Variant:
+	return player.get(field, default)
 
 
 ## Categorize age into bucket for indexing
@@ -191,7 +179,7 @@ func _get_age_bucket(age: int) -> String:
 
 ## O(1) lookup by player ID
 ## @param player_id: Unique player identifier
-## @return: Player resource/Dictionary or null if not found
+## @return: Player Dictionary or null if not found
 func by_id(player_id: String) -> Variant:
 	return _player_by_id.get(player_id, null)
 

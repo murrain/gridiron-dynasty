@@ -315,15 +315,17 @@ static func _calculate_acceptance_probability(
 ## Execute trade (update ownership ledger)
 ##
 ## Transfers pick ownership between teams and creates a trade record
-## for history tracking. Modifies the ownership dictionary in place.
+## for history tracking. Returns both the trade record and updated ownership.
+##
+## STATELESS: Does not modify input parameters. Returns updated ownership.
 ##
 ## RNG: None (deterministic update)
 ##
 ## @param offer: Trade offer structure
-## @param ownership: draft_pick_ownership ledger (MODIFIED IN PLACE)
+## @param ownership: draft_pick_ownership ledger (NOT modified)
 ## @param year: Current draft year
 ## @param current_pick: Current pick number (for timestamp)
-## @return Dictionary: Trade record for history
+## @return Dictionary: {trade_record: Dictionary, updated_ownership: Dictionary}
 static func execute_trade(
 	offer: Dictionary,
 	ownership: Dictionary,
@@ -335,15 +337,18 @@ static func execute_trade(
 	var picks_offered: Array = offer.get("picks_offered", []) as Array
 	var picks_requested: Array = offer.get("picks_requested", []) as Array
 
+	# Create a deep copy of ownership to avoid mutating input
+	var updated_ownership := ownership.duplicate(true)
+
 	# Transfer offered picks: offering_team -> receiving_team
 	for pick in picks_offered:
 		var p: Dictionary = pick
-		_transfer_pick(p, offering_team, receiving_team, ownership, year)
+		_transfer_pick(p, offering_team, receiving_team, updated_ownership, year)
 
 	# Transfer requested picks: receiving_team -> offering_team
 	for pick in picks_requested:
 		var p: Dictionary = pick
-		_transfer_pick(p, receiving_team, offering_team, ownership, year)
+		_transfer_pick(p, receiving_team, offering_team, updated_ownership, year)
 
 	# Create trade record
 	var trade_record := {
@@ -357,7 +362,10 @@ static func execute_trade(
 		"initiated_by": String(offer.get("initiated_by", "ai"))
 	}
 
-	return trade_record
+	return {
+		"trade_record": trade_record,
+		"updated_ownership": updated_ownership
+	}
 
 
 ## Transfer a single pick's ownership
@@ -695,7 +703,7 @@ static func _get_team_picks(
 ##
 ## RNG: None (pure string generation)
 ##
-## @param trade_record: Trade record from execute_trade()
+## @param trade_record: Trade record from execute_trade()["trade_record"]
 ## @param league_cfg: Configuration for value calculation
 ## @return String: Formatted trade summary
 static func format_trade_summary(

@@ -1,8 +1,22 @@
-## InteractiveDraft - Draft system with user participation
+## InteractiveDraft - Stateful Draft Coordinator
 ##
-## This extends the NflDraft system to support a human user controlling
-## one team's picks. The draft proceeds pick-by-pick, pausing when
-## it's the user's turn to make a selection.
+## ARCHITECTURAL PATTERN: Stateful Coordinator (NOT a stateless service)
+##
+## This class manages the interactive draft session lifecycle, coordinating
+## between stateless services (DraftTradeEngine, DraftDecisionEngine) and
+## maintaining session state. It differs from stateless services by:
+##
+## Responsibilities:
+##   - Session lifecycle management (initialize -> start -> complete)
+##   - Draft state machine (NOT_STARTED, RUNNING, WAITING_FOR_USER, etc.)
+##   - Service orchestration (delegates to DraftTradeEngine for trades)
+##   - Signal emission for UI synchronization
+##   - World state persistence on session completion
+##
+## State Mutation:
+##   - Holds mutable session state (_current_pick, _team_boards, etc.)
+##   - Mutates world_state during lifecycle (pick ownership, rosters)
+##   - This is INTENTIONAL and appropriate for the coordinator pattern
 ##
 ## Usage:
 ##   var draft = InteractiveDraft.new()
@@ -896,13 +910,16 @@ func propose_trade(offer: Dictionary) -> bool:
 func _execute_trade(offer: Dictionary) -> void:
 	var ownership: Dictionary = _world_state.get("draft_pick_ownership", {})
 
-	# Use engine to update ownership and create record
-	var trade_record := DraftTradeEngine.execute_trade(
+	# Use engine to update ownership and create record (stateless)
+	var result := DraftTradeEngine.execute_trade(
 		offer, ownership, _year, _current_pick
 	)
 
-	# Update world state
-	_world_state["draft_pick_ownership"] = ownership
+	var trade_record: Dictionary = result.get("trade_record", {})
+	var updated_ownership: Dictionary = result.get("updated_ownership", {})
+
+	# Update world state with new ownership
+	_world_state["draft_pick_ownership"] = updated_ownership
 
 	# Add to trade history
 	if not _world_state.has("draft_trades"):
