@@ -402,6 +402,259 @@ The only difference is the base class: `ReactivePanelContainer` extends `PanelCo
 
 ---
 
+## Built-in Theme and Style System
+
+Both `ReactivePanel` and `ReactivePanelContainer` include a built-in theme system for consistent, professional styling with automatic nesting support.
+
+### Style Variants
+
+Choose from 9 built-in style variants:
+
+| Variant | Description | Use Case |
+|---------|-------------|----------|
+| `default` | Standard dark panel | General-purpose panels |
+| `primary` | Blue accent | Primary actions, highlighted content |
+| `secondary` | Purple accent | Secondary actions, alternative content |
+| `info` | Teal accent | Informational messages, tooltips |
+| `warning` | Orange accent | Warnings, cautions, alerts |
+| `success` | Green accent | Success messages, confirmations |
+| `error` | Red accent | Error messages, critical alerts |
+| `nested` | Auto-darkening | Panels nested inside other panels |
+| `transparent` | No background/border | Invisible containers |
+
+### Using Style Variants
+
+Set the variant via the exported property:
+
+```gdscript
+extends ReactivePanelContainer
+class_name TeamInfoPanel
+
+# Set in editor or script
+@export_enum("default", "primary", "secondary", "info", "warning", "success", "error", "nested", "transparent")
+var style_variant: String = "primary"
+```
+
+Or programmatically:
+
+```gdscript
+func _ready() -> void:
+    super._ready()
+    set_style_variant("warning")  # Changes to warning style
+```
+
+### Nesting and Auto-Indenting
+
+Panels automatically detect when they're nested inside other `ReactivePanel` or `ReactivePanelContainer` instances.
+
+#### Automatic Nesting Detection
+
+```gdscript
+# Parent panel
+var parent := ReactivePanelContainer.new()
+parent.style_variant = "default"
+add_child(parent)
+
+# Child panel (automatically detects it's nested)
+var child := ReactivePanelContainer.new()
+child.style_variant = "nested"  # Auto-darkens based on depth
+child.auto_indent_nested = true  # Adds left margin (8px by default)
+parent.add_child(child)
+
+# Grandchild panel (even darker, more indented)
+var grandchild := ReactivePanelContainer.new()
+grandchild.style_variant = "nested"
+child.add_child(grandchild)
+```
+
+**Result:**
+- Parent: Medium background, no indent
+- Child: Dark background, 8px left indent
+- Grandchild: Darker background, 16px left indent
+
+#### Configuring Auto-Indent
+
+Control nesting behavior with exported properties:
+
+```gdscript
+@export var auto_indent_nested: bool = true  # Enable auto-indent
+@export_range(0, 32, 1) var nest_indent: int = 8  # Pixels per level
+```
+
+Disable auto-indent for horizontal layouts:
+
+```gdscript
+var panel := ReactivePanelContainer.new()
+panel.auto_indent_nested = false  # No indenting
+panel.style_variant = "nested"  # Still auto-darkens
+```
+
+### Example: Multi-Level Nested Panels
+
+```gdscript
+extends Control
+
+func _ready() -> void:
+    # Parent: Team Overview
+    var team_panel := ReactivePanelContainer.new()
+    team_panel.style_variant = "default"
+    add_child(team_panel)
+
+    var team_label := Label.new()
+    team_label.text = "Atlanta Falcons"
+    team_panel.add_child(team_label)
+
+    # Child: Roster Section
+    var roster_panel := ReactivePanelContainer.new()
+    roster_panel.style_variant = "nested"
+    team_panel.add_child(roster_panel)
+
+    var roster_label := Label.new()
+    roster_label.text = "Roster (53 players)"
+    roster_panel.add_child(roster_label)
+
+    # Grandchild: Position Group
+    var qb_panel := ReactivePanelContainer.new()
+    qb_panel.style_variant = "nested"
+    roster_panel.add_child(qb_panel)
+
+    var qb_label := Label.new()
+    qb_label.text = "QB: 3 players"
+    qb_panel.add_child(qb_label)
+```
+
+Visual result:
+```
+┌─────────────────────────────────────┐
+│ Atlanta Falcons (medium bg)         │
+│  ┌──────────────────────────────────┤
+│  │ Roster (53 players) (dark bg)    │
+│  │  ┌───────────────────────────────┤
+│  │  │ QB: 3 players (darker bg)     │
+│  │  └───────────────────────────────┘
+│  └──────────────────────────────────┘
+└─────────────────────────────────────┘
+```
+
+### Using PanelStyles Directly
+
+For advanced use cases, use the `PanelStyles` utility class:
+
+```gdscript
+# Create a custom style
+var style := PanelStyles.create_style("primary", 0)
+
+# Apply to any Control
+some_panel.add_theme_stylebox_override("panel", style)
+
+# Access color palette
+var bg_color := PanelStyles.get_color("bg_dark")
+var border_color := PanelStyles.get_color("border_accent")
+
+# Access spacing constants
+var padding := PanelStyles.get_spacing("md")  # 12px
+var gap := PanelStyles.get_spacing("lg")  # 16px
+
+# Custom style configuration
+var custom_style := PanelStyles.create_style("warning", 0, {
+    "padding": 16,
+    "corner_radius": 8,
+    "border_width": 2,
+    "bg_color": Color(0.3, 0.2, 0.1)
+})
+```
+
+### Color Palette Reference
+
+The `PanelStyles` class provides a consistent color palette:
+
+#### Background Colors
+- `bg_darker`: #121215 (deepest nested)
+- `bg_dark`: #1a1a1f (dark panels)
+- `bg_medium`: #252530 (standard panels)
+- `bg_light`: #33333d (light panels)
+
+#### Border Colors
+- `border_subtle`: #3a3a45 (subtle borders)
+- `border_medium`: #4a4a59 (medium borders)
+- `border_accent`: #4a6a9a (accent borders)
+
+#### Semantic Colors
+- `primary`: #2a4a7a (blue)
+- `secondary`: #4a3a6a (purple)
+- `info`: #2a5a6a (teal)
+- `warning`: #7a5a2a (orange)
+- `success`: #2a6030 (green)
+- `error`: #7a1f1f (red)
+
+### Spacing Constants
+
+Consistent spacing values for margins, padding, and gaps:
+
+```gdscript
+PanelStyles.SPACING = {
+    "xs": 4,   # Extra small
+    "sm": 8,   # Small
+    "md": 12,  # Medium (default)
+    "lg": 16,  # Large
+    "xl": 24,  # Extra large
+}
+```
+
+### Example: Style Variants in a Dashboard
+
+```gdscript
+extends Control
+class_name GameDashboard
+
+func _ready() -> void:
+    # Create main container
+    var vbox := VBoxContainer.new()
+    add_child(vbox)
+
+    # Header panel (primary)
+    var header := ReactivePanelContainer.new()
+    header.style_variant = "primary"
+    vbox.add_child(header)
+
+    var title := Label.new()
+    title.text = "Game Dashboard"
+    header.add_child(title)
+
+    # Stats panel (info)
+    var stats := ReactivePanelContainer.new()
+    stats.style_variant = "info"
+    vbox.add_child(stats)
+
+    var stats_label := Label.new()
+    stats_label.text = "Season: Week 12 | Record: 8-4"
+    stats.add_child(stats_label)
+
+    # Warning panel (warning)
+    var warning := ReactivePanelContainer.new()
+    warning.style_variant = "warning"
+    vbox.add_child(warning)
+
+    var warning_label := Label.new()
+    warning_label.text = "⚠ Cap space critical: $2.5M remaining"
+    warning.add_child(warning_label)
+```
+
+### Example Scene: ExampleNestedPanels
+
+See `scripts/ui/base/ExampleNestedPanels.gd` for a complete demonstration scene showing:
+- All style variants
+- Multi-level nesting
+- Auto-indenting
+- Dynamic style changes
+
+To try it:
+1. Create a new scene with a Control node
+2. Attach the ExampleNestedPanels script
+3. Run the scene
+
+---
+
 ## Comparison with Manual Subscription
 
 ### Without ReactivePanel (Manual)
@@ -669,6 +922,107 @@ func _create_test_world_state() -> Dictionary:
            _add_new_player()  # Assumes insert!
    ```
 
+### Style System Best Practices
+
+#### ✅ DO
+
+1. **Use semantic variants for clarity**
+   ```gdscript
+   # ✅ GOOD - Clear intent
+   warning_panel.style_variant = "warning"  # Visual hierarchy
+   error_panel.style_variant = "error"      # Semantic meaning
+   ```
+
+2. **Use "nested" variant for hierarchical layouts**
+   ```gdscript
+   # ✅ GOOD - Auto-darkening shows depth
+   parent.style_variant = "default"
+   child.style_variant = "nested"
+   grandchild.style_variant = "nested"
+   ```
+
+3. **Disable auto-indent for horizontal layouts**
+   ```gdscript
+   # ✅ GOOD - Prevents awkward indenting
+   var hbox := HBoxContainer.new()
+   for i in 3:
+       var panel := ReactivePanelContainer.new()
+       panel.auto_indent_nested = false  # Horizontal layout
+       hbox.add_child(panel)
+   ```
+
+4. **Use PanelStyles for consistency**
+   ```gdscript
+   # ✅ GOOD - Consistent spacing
+   vbox.add_theme_constant_override("separation", PanelStyles.SPACING["md"])
+   label.add_theme_color_override("font_color", PanelStyles.COLORS["primary"])
+   ```
+
+5. **Prefer ReactivePanelContainer over ReactivePanel**
+   ```gdscript
+   # ✅ GOOD - Full StyleBox support
+   extends ReactivePanelContainer  # Better style rendering
+   ```
+
+#### ❌ DON'T
+
+1. **Don't hardcode colors**
+   ```gdscript
+   # ❌ WRONG - Hardcoded colors
+   panel.modulate = Color(0.2, 0.4, 0.7)
+
+   # ✅ GOOD - Use palette
+   panel.set_style_variant("primary")
+   ```
+
+2. **Don't mix auto_apply_style settings inconsistently**
+   ```gdscript
+   # ❌ WRONG - Confusing behavior
+   parent.auto_apply_style = true   # Applies on ready
+   child.auto_apply_style = false   # Doesn't apply
+   # Child won't match parent's theme
+
+   # ✅ GOOD - Consistent settings
+   parent.auto_apply_style = true
+   child.auto_apply_style = true
+   ```
+
+3. **Don't nest too deeply without visual distinction**
+   ```gdscript
+   # ❌ WRONG - Hard to see hierarchy
+   panel1.style_variant = "default"
+   panel2.style_variant = "default"  # Same color!
+   panel3.style_variant = "default"  # Can't tell depth
+
+   # ✅ GOOD - Clear visual hierarchy
+   panel1.style_variant = "nested"   # Auto-darkens by depth
+   panel2.style_variant = "nested"
+   panel3.style_variant = "nested"
+   ```
+
+4. **Don't use indenting for visual-only purposes**
+   ```gdscript
+   # ❌ WRONG - Abuse of nesting indent
+   panel.auto_indent_nested = true
+   panel.nest_indent = 100  # Way too much!
+
+   # ✅ GOOD - Use containers for layout
+   var margin := MarginContainer.new()
+   margin.add_theme_constant_override("margin_left", 100)
+   ```
+
+5. **Don't forget to call apply_style() after manual changes**
+   ```gdscript
+   # ❌ WRONG - Style not applied
+   panel.auto_apply_style = false
+   panel.style_variant = "warning"  # Not visible yet!
+
+   # ✅ GOOD - Manually apply after changes
+   panel.auto_apply_style = false
+   panel.style_variant = "warning"
+   panel.apply_style()  # Now it's visible
+   ```
+
 ---
 
 ## Troubleshooting
@@ -721,6 +1075,74 @@ func _on_world_state_loaded() -> void:
 func initialize(ws: Dictionary) -> void:
     super.initialize(ws)
     # Don't refresh here
+```
+
+### Problem: Style not applying
+
+**Cause:** `auto_apply_style` is false or `apply_style()` not called
+**Solution:** Enable auto-apply or call manually
+
+```gdscript
+# Option 1: Enable auto-apply (recommended)
+panel.auto_apply_style = true  # Applies on _ready()
+
+# Option 2: Manual control
+panel.auto_apply_style = false
+panel.style_variant = "warning"
+panel.apply_style()  # Manually apply
+```
+
+### Problem: Panel has no visible style (ReactivePanel)
+
+**Cause:** ReactivePanel uses ColorRect background, not full StyleBox
+**Solution:** Use ReactivePanelContainer for full style support
+
+```gdscript
+# ❌ Limited style support
+extends ReactivePanel  # Only background color
+
+# ✅ Full style support
+extends ReactivePanelContainer  # Full StyleBox with borders, corners
+```
+
+### Problem: Nested panels not indenting
+
+**Cause:** `auto_indent_nested` is false or nesting not detected
+**Solution:** Enable auto-indent and check hierarchy
+
+```gdscript
+# Enable auto-indent
+child_panel.auto_indent_nested = true
+
+# Verify nesting
+print("Is nested: ", child_panel._is_nested())
+print("Depth: ", child_panel._get_nesting_depth())
+```
+
+### Problem: Too much nesting indent
+
+**Cause:** `nest_indent` value too high or too many nesting levels
+**Solution:** Reduce indent amount or restructure UI
+
+```gdscript
+# Reduce indent per level
+panel.nest_indent = 4  # Instead of default 8
+
+# Or disable for specific panels
+panel.auto_indent_nested = false
+```
+
+### Problem: Colors don't match palette reference
+
+**Cause:** Color hex values converted incorrectly
+**Solution:** Use PanelStyles color constants directly
+
+```gdscript
+# ❌ WRONG - Manual conversion errors
+var color := Color(0.10, 0.10, 0.12)  # Might be off
+
+# ✅ GOOD - Use constants
+var color := PanelStyles.COLORS["bg_dark"]
 ```
 
 ---

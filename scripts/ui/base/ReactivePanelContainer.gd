@@ -51,12 +51,54 @@ var _databus_connected: bool = false
 
 
 # ============================================================================
+# STYLE CONFIGURATION
+# ============================================================================
+
+## Style variant for this panel.
+##
+## Available variants:
+## - [b]default:[/b] Standard dark panel
+## - [b]primary:[/b] Primary accent (blue)
+## - [b]secondary:[/b] Secondary accent (purple)
+## - [b]info:[/b] Info accent (teal)
+## - [b]warning:[/b] Warning accent (orange)
+## - [b]success:[/b] Success accent (green)
+## - [b]error:[/b] Error accent (red)
+## - [b]nested:[/b] Auto-darkening based on depth
+## - [b]transparent:[/b] No background or border
+@export_enum("default", "primary", "secondary", "info", "warning", "success", "error", "nested", "transparent")
+var style_variant: String = "default"
+
+## Whether to auto-indent when nested inside another ReactivePanel.
+##
+## When enabled, nested panels automatically add left margin based on
+## their nesting depth for visual hierarchy.
+@export var auto_indent_nested: bool = true
+
+## Indent amount in pixels per nesting level.
+##
+## Each level of nesting adds this amount of left margin.
+## Example: depth 2 with indent 8 = 16px left margin
+@export_range(0, 32, 1) var nest_indent: int = 8
+
+## Whether to apply the style automatically on ready.
+##
+## When true, style is applied in [method _ready].
+## Set to false if you want manual control via [method apply_style].
+@export var auto_apply_style: bool = true
+
+
+# ============================================================================
 # LIFECYCLE
 # ============================================================================
 
 func _ready() -> void:
 	_subscribed_collections = _get_subscribed_collections()
 	_connect_databus_signals()
+
+	# Apply style if enabled
+	if auto_apply_style:
+		apply_style()
 
 
 func _exit_tree() -> void:
@@ -74,6 +116,51 @@ func _exit_tree() -> void:
 func initialize(ws: Dictionary) -> void:
 	world_state = ws
 	# Subclasses override and add custom initialization
+
+
+## Apply the style variant to this panel.
+##
+## This method creates and applies a StyleBoxFlat based on the current
+## [member style_variant] and nesting configuration. It also handles
+## auto-indent for nested panels if enabled.
+##
+## [b]Note:[/b] This is called automatically in [method _ready] if
+## [member auto_apply_style] is true. You can also call it manually
+## to reapply styles after changing configuration.
+##
+## [b]Example:[/b]
+## [codeblock]
+## func _ready() -> void:
+##     super._ready()
+##     style_variant = "primary"
+##     apply_style()  # Manually apply after changing variant
+## [/codeblock]
+func apply_style() -> void:
+	var depth := _get_nesting_depth()
+	var style := PanelStyles.create_style(style_variant, depth)
+
+	# Apply the style to this PanelContainer
+	# PanelContainer has built-in support for StyleBoxFlat
+	add_theme_stylebox_override("panel", style)
+
+	# Handle nesting indent
+	if auto_indent_nested and _is_nested():
+		_apply_nesting_indent(depth)
+
+
+## Set the style variant and reapply styles.
+##
+## Convenience method to change the variant and apply in one call.
+##
+## [param variant] The new variant name
+##
+## [b]Example:[/b]
+## [codeblock]
+## panel.set_style_variant("warning")  # Change to warning style
+## [/codeblock]
+func set_style_variant(variant: String) -> void:
+	style_variant = variant
+	apply_style()
 
 
 # ============================================================================
@@ -129,6 +216,43 @@ func _disconnect_databus_signals() -> void:
 		DataBus.world_state_loaded.disconnect(_on_databus_world_state_loaded)
 
 	_databus_connected = false
+
+
+# ============================================================================
+# STYLE PRIVATE METHODS
+# ============================================================================
+
+## Apply nesting indent based on depth.
+func _apply_nesting_indent(depth: int) -> void:
+	if depth <= 0:
+		return
+
+	var margin := nest_indent * depth
+
+	# Add left margin using MarginContainer or direct offset
+	# For PanelContainer, we'll adjust the left offset
+	offset_left = margin
+
+
+## Check if this panel is nested inside another ReactivePanel or ReactivePanelContainer.
+func _is_nested() -> bool:
+	var parent := get_parent()
+	while parent:
+		if parent is ReactivePanel or parent is ReactivePanelContainer:
+			return true
+		parent = parent.get_parent()
+	return false
+
+
+## Get the nesting depth (how many ReactivePanel/ReactivePanelContainer ancestors).
+func _get_nesting_depth() -> int:
+	var depth := 0
+	var parent := get_parent()
+	while parent:
+		if parent is ReactivePanel or parent is ReactivePanelContainer:
+			depth += 1
+		parent = parent.get_parent()
+	return depth
 
 
 # ============================================================================
