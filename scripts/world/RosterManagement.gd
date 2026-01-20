@@ -6,9 +6,9 @@
 ##
 ## Architecture:
 ## - Runs BEFORE free agency phase (tick 9 in calendar)
-## - Mutates world_state["nfl_rosters"] in-place
+## - All contract mutations flow through ContractStateManager for atomicity and cap integrity
 ## - Tracks releases in world_state["player_releases"][year]
-## - Moves released players to world_state["free_agents"][year] pool
+## - Released players moved to world_state["free_agents"][year] pool by ContractStateManager
 ## - Uses stats-based eval_score (avoids circular dependency with contracts)
 ##
 ## RNG Determinism:
@@ -26,6 +26,7 @@ class_name RosterManagement
 
 const Rand = preload("res://autoloads/Rand.gd")
 const SimLogger = preload("res://autoloads/SimLogger.gd")
+const ContractStateManager = preload("res://scripts/core/state/ContractStateManager.gd")
 
 
 ## Run roster management for all NFL teams.
@@ -390,9 +391,11 @@ static func _calculate_dead_cap(player: Dictionary) -> float:
 	return 0.0
 
 
-## Execute player releases by removing from roster and adding to FA pool.
+## Execute player releases by delegating to ContractStateManager.
 ##
-## @param world_state: World state dictionary (MUTATED)
+## All state mutations flow through ContractStateManager for atomicity and cap integrity.
+##
+## @param world_state: World state dictionary (MUTATED through ContractStateManager)
 ## @param team_id: Team identifier
 ## @param released_players: Array of release dictionaries
 ## @param year: Current year
@@ -405,49 +408,36 @@ static func _execute_releases(
 	if released_players.is_empty():
 		return
 
-	var nfl_rosters := world_state.get("nfl_rosters", {}) as Dictionary
-	var roster: Dictionary = nfl_rosters.get(team_id, {})
-	var players: Array = roster.get("players", [])
-
-	# Build set of released player IDs for fast lookup
-	var released_ids := {}
+	# Execute each release through ContractStateManager
 	for release in released_players:
-		var pid := String(release.get("player_id", ""))
-		released_ids[pid] = true
+		var player_id := String(release.get("player_id", ""))
+		var reason := String(release.get("reason", "cap_efficiency"))
 
-	# Remove released players from roster
-	var remaining_players: Array = []
-	var released_player_objects: Array = []
+		# Release player through ContractStateManager (handles all mutations atomically)
+		var release_result := ContractStateManager.release_player(
+			world_state,
+			player_id,
+			team_id,
+			reason,
+			year
+		)
 
-	for player in players:
-		var p: Dictionary = player
-		var player_id := String(p.get("id", p.get("player_id", "")))
+		# Check if release succeeded
+		if not release_result.get("success", false):
+			var error_msg := String(release_result.get("error", "unknown"))
+			SimLogger.error("Failed to release player %s from %s: %s" % [
+				player_id, team_id, error_msg
+			])
+			continue
 
-		if released_ids.has(player_id):
-			# Mark contract as released
-			var contract: Dictionary = p.get("contract", {})
-			if not contract.is_empty():
-				contract["status"] = "released"
-				contract["released_year"] = year
+		# Log release with cap impact details
+		var net_savings := float(release_result.get("net_savings", 0.0))
+		var dead_cap := float(release_result.get("dead_cap", 0.0))
+		var player_name := String(release.get("name", player_id))
 
-			# Store player data for FA pool
-			p["last_team_id"] = team_id
-			p["release_year"] = year
-			released_player_objects.append(p)
-		else:
-			remaining_players.append(p)
-
-	# Update roster
-	roster["players"] = remaining_players
-	nfl_rosters[team_id] = roster
-	world_state["nfl_rosters"] = nfl_rosters
-
-	# Add released players to free agent pool
-	var fa_pool: Dictionary = world_state.get("free_agents", {})
-	var year_fas: Array = fa_pool.get(year, [])
-	year_fas.append_array(released_player_objects)
-	fa_pool[year] = year_fas
-	world_state["free_agents"] = fa_pool
+		SimLogger.info("Released %s from %s: $%.2fM saved, $%.2fM dead cap" % [
+			player_name, team_id, net_savings, dead_cap
+		])
 
 
 ## Store release records in world state for historical tracking.

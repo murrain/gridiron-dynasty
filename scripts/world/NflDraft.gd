@@ -10,17 +10,28 @@ const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCa
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
 const EvaluationContext = preload("res://scripts/core/evaluation/EvaluationContext.gd")
 const EvaluationModifierStack = preload("res://scripts/core/evaluation/EvaluationModifierStack.gd")
+const DraftStateManager = preload("res://scripts/core/state/DraftStateManager.gd")
+const DraftStateMachine = preload("res://scripts/core/state/DraftStateMachine.gd")
 
 const ELITE_RESCUE_SCORE := 999.0  # Guaranteed top pick priority for elite prospects
 
 ## Runs the NFL draft for a given year.
 ##
+## ARCHITECTURE: Uses pure functional DraftStateManager for all state mutations.
+## All world_state changes flow through DraftStateManager, which ensures:
+## - Atomic updates with automatic DataBus notifications
+## - State machine validation (INITIALIZING -> RUNNING -> COMPLETED)
+## - Immutable transformations via DraftTransformations
+##
 ## Iterates through all rounds, with each team selecting the best available
 ## player based on scout ratings weighted by positional needs.
 ##
-## Side effects:
-##   - Caches team scouting quality in world_state["nfl_scouting_quality"] on first run
-##   - This cached data persists across multiple draft runs for consistency
+## State Mutations (via DraftStateManager):
+##   - DraftStateManager.initialize_draft() - Allocates picks, initializes scouting quality
+##   - DraftStateManager.start_draft() - Transitions to RUNNING state
+##   - DraftStateManager.execute_pick() - Records each pick, updates rosters atomically
+##   - DraftStateManager.store_undrafted_players() - Stores remaining pool
+##   - DraftStateManager.record_draft_history() - Finalizes draft, transitions to COMPLETED
 ##
 ## Returns:
 ##   - picks: Array of all draft picks made
@@ -61,16 +72,24 @@ func run(
 	var contract_rng := RandomNumberGenerator.new()
 	contract_rng.seed = Rand.splitmix64(seed ^ 0xD4AF7003)
 
-	# Initialize draft pick ownership ledger if not present
-	# This enables pick trading by tracking who owns each pick
-	if not world_state.has("draft_pick_ownership"):
-		initialize_pick_ownership(world_state, teams, year, rounds)
-
-	# Initialize team scouting quality (once per world, cached)
-	if not world_state.has("nfl_scouting_quality"):
-		world_state["nfl_scouting_quality"] = _generate_team_scouting_quality(
-			teams, main_cfg.get("class_rules", {}), seed
+	# Initialize draft structures using DraftStateManager
+	# This handles: pick ownership allocation, scouting quality generation, state machine setup
+	# Only runs once per year if not already initialized
+	var class_rules: Dictionary = main_cfg.get("class_rules", {})
+	if not world_state.has("draft_pick_ownership") or not world_state.has("nfl_scouting_quality"):
+		var init_result := DraftStateManager.initialize_draft(
+			world_state,
+			teams,
+			year,
+			league_cfg,
+			class_rules,
+			seed
 		)
+		if init_result.get("picks_allocated", false):
+			SimLogger.info("Draft initialized for year %d: %d teams, %d rounds" % [
+				year, init_result.get("teams_count", 0), init_result.get("rounds", 0)
+			])
+
 	var team_quality: Dictionary = world_state.get("nfl_scouting_quality", {})
 
 	# Build team index and initialize rosters
@@ -91,7 +110,6 @@ func run(
 
 	var picks: Array = []
 	var remaining_pool := draft_pool.duplicate()
-	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
 
 	# Normalize field names early: draft uses "player_id", FA expects "id"
 	# This ensures UDFAs are compatible with FreeAgency system from the start
@@ -124,6 +142,9 @@ func run(
 	# Calculate compensatory picks for this draft year
 	# These are awarded based on previous year's FA losses
 	var comp_picks := calculate_compensatory_picks(world_state, year, league_cfg)
+
+	# Transition draft state to RUNNING before executing picks
+	DraftStateManager.start_draft(world_state, year, 1)
 
 	# Execute each round
 	for round_num in range(1, rounds + 1):
@@ -189,37 +210,50 @@ func run(
 			var overall_pick := picks.size() + 1
 			var contract := _create_rookie_contract(round_num, overall_pick, league_cfg, contract_rng, year)
 
-			# Update player with NFL info
-			player["nfl_team_id"] = team_id
-			player["nfl_status"] = "active"
-			player["contract"] = contract
-			player["draft_info"] = {
+			# Prepare draft info for pick execution
+			var draft_info := {
 				"year": year,
 				"round": round_num,
 				"pick": overall_pick,
 				"team_id": team_id
 			}
 
-			# Flatten draft_year for RosterManagement compatibility
-			player["draft_year"] = year
+			# Execute pick atomically via DraftStateManager
+			# This handles: removing from pool, updating player, adding to roster, updating by_position
+			var pick_result := DraftStateManager.execute_pick(
+				world_state,
+				player_id,
+				team_id,
+				draft_info,
+				contract,
+				year
+			)
 
-			# Initialize eval_score using composite_score for RosterManagement
-			var composite := float(player.get("composite_score", 50.0))
-			player["eval_score"] = composite
+			if not pick_result.get("success", false):
+				SimLogger.error("Failed to execute pick for player %s (team %s)" % [player_id, team_id])
+				continue
 
-			# Add to roster
-			var players: Array = roster.get("players", []) as Array
-			players.append(player)
-			roster["players"] = players
-			_update_roster_by_position(roster, player)
-			rosters[team_id] = roster
+			# Update remaining_pool to reflect the pick (already removed by execute_pick)
+			remaining_pool = remaining_pool.filter(func(p):
+				return String((p as Dictionary).get("player_id", "")) != player_id
+			)
+
+			# Refresh roster reference after state mutation
+			var rosters_updated: Dictionary = world_state.get("nfl_rosters", {})
+			roster = rosters_updated.get(team_id, {})
+
+			# Get drafted player from updated roster for position and metadata
+			var drafted_player := _find_player_in_roster(roster, player_id)
+			if drafted_player.is_empty():
+				SimLogger.warn("Could not find drafted player %s in roster after pick" % player_id)
+				continue
 
 			# Check if position is overstocked and release weakest player if needed
 			_handle_post_draft_roster_cuts(
 				world_state,
 				roster,
 				team_id,
-				String(player.get("position", "")),
+				String(drafted_player.get("position", "")),
 				year,
 				positions_cfg
 			)
@@ -230,7 +264,7 @@ func run(
 				"pick": overall_pick,
 				"team_id": team_id,
 				"player_id": player_id,
-				"position": String(player.get("position", "")),
+				"position": String(drafted_player.get("position", "")),
 				"score": float(selected.get("score", 0.0)),
 				"traded": is_traded,
 				"original_team_id": original_team_id if is_traded else null,
@@ -264,70 +298,36 @@ func run(
 				SimLogger.info("Pick %d (%s): %s %s%s" % [
 					overall_pick,
 					team_id,
-					String(player.get("position", "?")),
-					String(player.get("name", "Unknown")),
+					String(drafted_player.get("position", "?")),
+					String(drafted_player.get("name", "Unknown")),
 					alt_text
 				])
 
-			# Remove from pool
-			remaining_pool = remaining_pool.filter(func(p):
-				return String((p as Dictionary).get("player_id", "")) != player_id
-			)
+	# Store undrafted players using DraftStateManager
+	# This ensures atomic update with DataBus notification
+	var undrafted_result := DraftStateManager.store_undrafted_players(
+		world_state,
+		remaining_pool,
+		year
+	)
+	SimLogger.info("Stored %d undrafted players for year %d" % [
+		undrafted_result.get("undrafted_count", 0), year
+	])
 
-	# Store undrafted players
-	var undrafted_pool: Dictionary = world_state.get("undrafted_pool", {}) as Dictionary
-	undrafted_pool[year] = remaining_pool
-	world_state["undrafted_pool"] = undrafted_pool
-	world_state["nfl_rosters"] = rosters
-
-	# Store draft history (D5.1, D5.5)
-	# Records all picks with complete information for historical tracking
-	# Includes trade tracking fields (traded, original_team_id) for pick trading system
+	# Record draft history using DraftStateManager
+	# This finalizes the draft and transitions state to COMPLETED
+	# Includes trade tracking (traded, original_team_id) for pick trading system
 	#
 	# RNG Note: Draft history recording is deterministic and does not consume RNG.
 	# It only reads and records the results of the draft execution above.
-	var draft_history: Dictionary = world_state.get("draft_history", {}) as Dictionary
-	draft_history[year] = []
-
-	# Build player lookup index for efficient college extraction
-	# Maps player_id -> player dictionary from rosters
-	var player_lookup := {}
-	for team_id in rosters.keys():
-		var roster: Dictionary = rosters.get(team_id, {}) as Dictionary
-		var roster_players: Array = roster.get("players", []) as Array
-		for roster_player in roster_players:
-			var rp: Dictionary = roster_player as Dictionary
-			var pid := String(rp.get("player_id", ""))
-			if pid != "":
-				player_lookup[pid] = rp
-
-	# Record each pick with full information
-	for pick in picks:
-		var p: Dictionary = pick as Dictionary
-		var player_id := String(p.get("player_id", ""))
-		var team_id := String(p.get("team_id", ""))
-		var is_traded := bool(p.get("traded", false))
-		var original_team_id: Variant = p.get("original_team_id", null)
-		var is_compensatory := bool(p.get("compensatory", false))
-
-		# Extract college from player record (O(1) lookup instead of O(n) search)
-		var player_college := ""
-		if player_lookup.has(player_id):
-			var player_record: Dictionary = player_lookup[player_id] as Dictionary
-			player_college = String(player_record.get("college_team_id", ""))
-
-		draft_history[year].append({
-			"pick_number": int(p.get("pick", 0)),
-			"round": int(p.get("round", 0)),
-			"team_id": team_id,
-			"player_id": player_id,
-			"position": String(p.get("position", "")),
-			"college": player_college,
-			"traded": is_traded,
-			"original_team_id": original_team_id,
-			"compensatory": is_compensatory
-		})
-	world_state["draft_history"] = draft_history
+	var history_result := DraftStateManager.record_draft_history(
+		world_state,
+		picks,
+		year
+	)
+	SimLogger.info("Recorded draft history for year %d (%d picks)" % [
+		year, history_result.get("picks_recorded", 0)
+	])
 
 	return {
 		"year": year,
@@ -352,89 +352,9 @@ func _build_team_index(teams: Array) -> Dictionary:
 	return index
 
 
-## Generates persistent team scouting quality metrics.
-##
-## Quality determines scout skill (higher = better board accuracy) and
-## board noise (higher = more variance in evaluations). Each team is assigned
-## to a tier (elite/good/average/poor/terrible) based on configuration, then
-## small jitter is added for deterministic variance.
-##
-## RNG consumption pattern:
-## - 1 randf_range() call per team (for base_quality jitter)
-##
-## Parameters:
-##   teams: Array of team dictionaries with "id" fields
-##   class_rules: Configuration dictionary with "draft_team_quality" section
-##   world_seed: Seed used for deterministic generation (hashed with team_id)
-##
-## Returns:
-##   Dictionary mapping team_id -> {
-##     base_quality: float (0.0-1.0),
-##     noise_modifier: float (multiplier for board_noise_sigma),
-##     skill_modifier: float (multiplier for base_skill),
-##     tier: String (quality tier name)
-##   }
-static func _generate_team_scouting_quality(
-	teams: Array,
-	class_rules: Dictionary,
-	world_seed: int
-) -> Dictionary:
-	var quality_cfg: Dictionary = class_rules.get("draft_team_quality", {})
-
-	# If disabled, return neutral quality for all teams
-	if not bool(quality_cfg.get("enabled", true)):
-		var neutral := {}
-		for team in teams:
-			var t: Dictionary = team
-			neutral[String(t.get("id", ""))] = {
-				"base_quality": 0.50,
-				"noise_modifier": 1.0,
-				"skill_modifier": 1.0,
-				"tier": "average"
-			}
-		return neutral
-
-	var tiers: Dictionary = quality_cfg.get("quality_tiers", {})
-	var quality_map := {}
-
-	# Build tier lookup: team_id -> tier_name
-	var team_to_tier := {}
-	for tier_name in tiers.keys():
-		var tier: Dictionary = tiers[tier_name]
-		var team_list: Array = tier.get("teams", [])
-		for tm in team_list:
-			team_to_tier[String(tm)] = tier_name
-
-	# Assign quality with deterministic jitter to avoid exact ties
-	for team in teams:
-		var t: Dictionary = team
-		var team_id := String(t.get("id", ""))
-		var tier_name := String(team_to_tier.get(team_id, "average"))
-		var tier: Dictionary = tiers.get(tier_name, {})
-
-		# Create team-specific RNG from world_seed XOR team_id hash
-		# This ensures same seed + team always produces same quality
-		var team_rng := RandomNumberGenerator.new()
-		team_rng.seed = Rand.splitmix64(world_seed ^ hash(team_id))
-
-		# Extract tier base values
-		var base := float(tier.get("base_quality", 0.50))
-		var noise := float(tier.get("noise_modifier", 1.0))
-		var skill := float(tier.get("skill_modifier", 1.0))
-
-		# Add small jitter to base_quality for variance within tier
-		# RNG consumption: 1 randf_range() per team
-		base += team_rng.randf_range(-0.05, 0.05)
-		base = clamp(base, 0.2, 0.9)
-
-		quality_map[team_id] = {
-			"base_quality": base,
-			"noise_modifier": noise,
-			"skill_modifier": skill,
-			"tier": tier_name
-		}
-
-	return quality_map
+## NOTE: Team scouting quality generation now handled by DraftStateManager.initialize_draft()
+## which calls DraftTransformations.generate_scouting_quality().
+## This ensures consistent state management and DataBus notifications.
 
 
 ## Generates scouts for each NFL team with team-specific quality modifiers.
@@ -1379,6 +1299,16 @@ static func _evaluate_qb_urgency(
 	return {"level": "stable", "multiplier": 1.0, "reason": "qb_room_set"}
 
 
+## Find a player in a roster by player_id (helper for pick execution)
+func _find_player_in_roster(roster: Dictionary, player_id: String) -> Dictionary:
+	var players: Array = roster.get("players", [])
+	for p in players:
+		var player: Dictionary = p as Dictionary
+		if String(player.get("player_id", "")) == player_id:
+			return player
+	return {}
+
+
 func _update_roster_by_position(roster: Dictionary, player: Dictionary) -> void:
 	var by_position: Dictionary = roster.get("by_position", {}) as Dictionary
 	var position := String(player.get("position", ""))
@@ -1665,54 +1595,12 @@ func _calculate_rookie_salary(overall_pick: int, cap_limit: float) -> float:
 # FEATURE 5: DRAFT PICK TRADING
 # ============================================================================
 
-## Initializes draft pick ownership ledger for a draft year.
+## NOTE: Draft pick ownership initialization now handled by DraftStateManager.initialize_draft()
+## which calls DraftTransformations.allocate_draft_picks().
+## This ensures consistent state management and DataBus notifications.
 ##
-## Creates the ownership structure in world_state that tracks which team
-## currently owns each draft pick. By default, each team owns their own picks.
-## This ledger is updated when picks are traded.
-##
-## Data structure created:
-##   world_state["draft_pick_ownership"][year][round][original_team_id] = current_owner_team_id
-##
-## Example:
-##   ownership[2025][1]["SF"] = "CHI"  # Bears own 49ers' 1st round pick
-##   ownership[2025][1]["CHI"] = "CHI" # Bears own their own pick
-##
-## RNG: None (deterministic initialization)
-##
-## @param world_state: World state dictionary to modify
-## @param teams: Array of team dictionaries with "id" fields
-## @param year: Draft year to initialize
-## @param rounds: Number of draft rounds (typically 7)
-static func initialize_pick_ownership(
-	world_state: Dictionary,
-	teams: Array,
-	year: int,
-	rounds: int
-) -> void:
-	if not world_state.has("draft_pick_ownership"):
-		world_state["draft_pick_ownership"] = {}
-
-	var ownership: Dictionary = world_state["draft_pick_ownership"]
-
-	if not ownership.has(year):
-		ownership[year] = {}
-
-	var year_ownership: Dictionary = ownership[year]
-
-	# Initialize each round
-	for round_num in range(1, rounds + 1):
-		if not year_ownership.has(round_num):
-			year_ownership[round_num] = {}
-
-		var round_ownership: Dictionary = year_ownership[round_num]
-
-		# Each team owns their own pick by default
-		for team in teams:
-			var t: Dictionary = team
-			var team_id := String(t.get("id", ""))
-			if team_id != "":
-				round_ownership[team_id] = team_id
+## For manual pick ownership operations, use:
+## - DraftStateManager.execute_trade() to transfer pick ownership
 
 
 ## Resolves draft order for a specific round respecting pick ownership.
@@ -1852,12 +1740,10 @@ static func value_draft_pick(
 	return base_value * future_discount
 
 
+## DEPRECATED: Use DraftStateManager.execute_trade() instead.
+##
 ## Transfers ownership of a draft pick from one team to another.
-##
-## Updates the draft_pick_ownership ledger to reflect a trade.
-## This is called when a trade involving picks is executed.
-##
-## RNG: None (deterministic update)
+## This method is maintained for backward compatibility but delegates to DraftStateManager.
 ##
 ## @param world_state: World state dictionary to modify
 ## @param year: Draft year of the pick
@@ -1871,23 +1757,14 @@ static func transfer_pick_ownership(
 	original_team_id: String,
 	new_owner_id: String
 ) -> void:
-	if not world_state.has("draft_pick_ownership"):
-		world_state["draft_pick_ownership"] = {}
-
-	var ownership: Dictionary = world_state["draft_pick_ownership"]
-
-	if not ownership.has(year):
-		ownership[year] = {}
-
-	var year_ownership: Dictionary = ownership[year]
-
-	if not year_ownership.has(round_num):
-		year_ownership[round_num] = {}
-
-	var round_ownership: Dictionary = year_ownership[round_num]
-
-	# Update ownership
-	round_ownership[original_team_id] = new_owner_id
+	# Delegate to DraftStateManager for consistent state management
+	DraftStateManager.execute_trade(
+		world_state,
+		year,
+		round_num,
+		original_team_id,
+		new_owner_id
+	)
 
 
 # ============================================================================
