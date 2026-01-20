@@ -3,6 +3,7 @@ class_name NflSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
 const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
+const SeasonStateManager = preload("res://scripts/core/state/SeasonStateManager.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const TradeGenerator = preload("res://scripts/world/TradeGenerator.gd")
@@ -98,13 +99,18 @@ func run(
 			continue
 
 		# Apply development context for NFL level
+		# This adds NFL-specific context (usage, competition tier) to each player
 		var prepared_players := _apply_nfl_development_context(
 			players,
 			context_rng,
 			year
 		)
 
-		# Update roster in world_state with prepared players (with context)
+		# Update roster in world_state with context-enriched players
+		# NOTE: Direct mutation here is acceptable as it's preparatory work for
+		# PlayerStateManager. The development context must be in place before
+		# the lifecycle simulation. This is distinct from the "roster preparation"
+		# done by SeasonTransformations.prepare_roster() which adds simulation fields.
 		roster["players"] = prepared_players
 		rosters[team_id] = roster
 		world_state["nfl_rosters"] = rosters
@@ -853,17 +859,21 @@ func _simulate_nfl_season(
 			)
 
 	# Aggregate results (G1.2: Season W-L Records, G1.8: Strength of Schedule)
-	# Expected RNG consumption: None (pure aggregation)
+	# Expected RNG consumption: None (pure aggregation via SeasonStateManager)
 	# Note: team_ids already computed above during strength calculation
-	var season_results := GameSimulator.aggregate_season_results(all_results, team_ids)
 
-	# Store season records in world_state (G1.2)
+	# Use SeasonStateManager to record all game results atomically
+	# This ensures proper DataBus notifications and maintains architectural consistency
+	var standings_path := ["season_records", year]
+	var record_result := SeasonStateManager.record_game_results(
+		world_state,
+		standings_path,
+		all_results
+	)
+
+	# Extract updated standings from world_state (manager updated it atomically)
 	var season_records: Dictionary = world_state.get("season_records", {})
-	if not season_records.has(year):
-		season_records[year] = {}
-	for team_id in season_results.keys():
-		season_records[year][team_id] = season_results[team_id]
-	world_state["season_records"] = season_records
+	var season_results: Dictionary = season_records.get(year, {})
 
 	# Determine Super Bowl winner (G1.5: Championship Tracking)
 	# Phase 1: Best record wins (simple version, playoffs in Phase 2)

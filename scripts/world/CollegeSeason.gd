@@ -3,6 +3,7 @@ class_name CollegeSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
 const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
+const SeasonStateManager = preload("res://scripts/core/state/SeasonStateManager.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
@@ -96,7 +97,11 @@ func run(
 		var college: Dictionary = college_index.get(college_id, {}) as Dictionary
 		var prepared_players := _apply_development_context(players, college, config, context_rng, year)
 
-		# Update roster in world_state with prepared players (with context)
+		# Update roster in world_state with context-enriched players
+		# NOTE: Direct mutation here is acceptable as it's preparatory work for
+		# PlayerStateManager. The development context must be in place before
+		# the lifecycle simulation. This is distinct from the "roster preparation"
+		# done by SeasonTransformations.prepare_roster() which adds simulation fields.
 		roster["players"] = prepared_players
 		rosters[college_id] = roster
 		world_state["college_rosters"] = rosters
@@ -126,6 +131,11 @@ func run(
 		var active: Array = []
 		var class_years := {1: [], 2: [], 3: [], 4: []}
 
+		# Process draft eligibility for each player
+		# NOTE: College draft eligibility has complex business logic (rating thresholds,
+		# early declaration advisory system) that doesn't fit into the generic
+		# SeasonStateManager.process_draft_eligibility() method. This logic must
+		# remain inline until we have a more flexible eligibility system.
 		for i in range(updated_players.size()):
 			var p: Variant = updated_players[i]
 			if p == null:
@@ -181,6 +191,12 @@ func run(
 		rosters_updated += 1
 
 	world_state["college_rosters"] = rosters
+
+	# Update draft pool with newly eligible players
+	# NOTE: Direct mutation of draft_pool is acceptable here as this is a
+	# collection-level operation that aggregates players from multiple rosters.
+	# The manager's process_draft_eligibility() is designed for per-roster operations,
+	# whereas this is a global pool assembly.
 	draft_pool[year] = draft_eligible
 	world_state["draft_pool"] = draft_pool
 
@@ -589,17 +605,21 @@ func _simulate_college_season(
 			)
 
 	# Aggregate results (G1.2: Season W-L Records, G1.8: Strength of Schedule)
-	# Expected RNG consumption: None (pure aggregation)
+	# Expected RNG consumption: None (pure aggregation via SeasonStateManager)
 	# Note: college_ids already computed above during strength calculation
-	var season_results := GameSimulator.aggregate_season_results(all_results, college_ids)
 
-	# Store season records in world_state (G1.2)
+	# Use SeasonStateManager to record all game results atomically
+	# This ensures proper DataBus notifications and maintains architectural consistency
+	var standings_path := ["season_records", year]
+	var record_result := SeasonStateManager.record_game_results(
+		world_state,
+		standings_path,
+		all_results
+	)
+
+	# Extract updated standings from world_state (manager updated it atomically)
 	var season_records: Dictionary = world_state.get("season_records", {})
-	if not season_records.has(year):
-		season_records[year] = {}
-	for team_id in season_results.keys():
-		season_records[year][team_id] = season_results[team_id]
-	world_state["season_records"] = season_records
+	var season_results: Dictionary = season_records.get(year, {})
 
 	# Determine national champion (G1.5: Championship Tracking)
 	# Phase 1: Best record wins (simple version, playoffs in Phase 2)

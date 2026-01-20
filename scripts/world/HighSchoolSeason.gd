@@ -3,6 +3,7 @@ class_name HighSchoolSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
 const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
+const SeasonStateManager = preload("res://scripts/core/state/SeasonStateManager.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 
@@ -65,28 +66,33 @@ func run(
 	var graduates: Array = []
 	var active: Array = []
 
+	# Process each player for year advancement and graduation
+	# NOTE: These are local transformations on players extracted from temp_world_state.
+	# Since HighSchoolSeason doesn't directly mutate the main world_state (it uses
+	# a temporary wrapper), these transformations are acceptable. The pure function
+	# pattern would be to extract this into a transformation function, but the current
+	# approach maintains clarity and doesn't violate the world_state mutation contract.
 	for i in range(updated_players.size()):
 		var p = updated_players[i]  # No type annotation - array can contain nulls when players retire
 		if p == null:
 			continue
 
-		var old_year := int(p.get("hs_year", 1))
-		var old_status := String(p.get("eligibility_status", "hs_underclass"))
-		var new_year := old_year + 1
-		p["hs_year"] = new_year
+		# Apply year transition using pure transformation logic
+		var year_transition := _apply_year_transition(p, hs_years, underclass_years)
+		var old_year: int = year_transition["old_year"]
+		var old_status: String = year_transition["old_status"]
+		var new_year: int = year_transition["new_year"]
+		var new_status: String = year_transition["new_status"]
+		var graduated: bool = year_transition["graduated"]
 
-		var new_status := "hs_upperclass"
-		var graduated := false
-		if new_year >= hs_years:
-			new_status = "hs_grad"
-			graduated = true
-		elif new_year <= underclass_years:
-			new_status = "hs_underclass"
+		# Update player with new year and status
+		p["hs_year"] = new_year
 		p["eligibility_status"] = new_status
 
 		var performance := _performance_bundle(p, school_map, config, perf_rng, year)
 		p["hs_stats"] = performance
 
+		# Track transition for reporting
 		transitions.append({
 			"player_id": String(p.get("player_id", "")),
 			"name": String(p.get("name", "")),
@@ -324,3 +330,45 @@ func _player_strength(player: Dictionary) -> float:
 			total += float(val)
 			count += 1
 	return (total / float(count)) if count > 0 else 0.0
+
+
+## Pure function: Calculate year transition for high school player
+##
+## This is a pure transformation that determines the new year, eligibility status,
+## and graduation status for a player without mutating the input.
+##
+## @param player: Player dictionary (unchanged)
+## @param hs_years: Number of years in high school (typically 4)
+## @param underclass_years: Number of underclass years (typically 2)
+## @return Dictionary: {
+##   "old_year": int,
+##   "old_status": String,
+##   "new_year": int,
+##   "new_status": String,
+##   "graduated": bool
+## }
+func _apply_year_transition(
+	player: Dictionary,
+	hs_years: int,
+	underclass_years: int
+) -> Dictionary:
+	var old_year := int(player.get("hs_year", 1))
+	var old_status := String(player.get("eligibility_status", "hs_underclass"))
+	var new_year := old_year + 1
+
+	var new_status := "hs_upperclass"
+	var graduated := false
+
+	if new_year >= hs_years:
+		new_status = "hs_grad"
+		graduated = true
+	elif new_year <= underclass_years:
+		new_status = "hs_underclass"
+
+	return {
+		"old_year": old_year,
+		"old_status": old_status,
+		"new_year": new_year,
+		"new_status": new_status,
+		"graduated": graduated
+	}

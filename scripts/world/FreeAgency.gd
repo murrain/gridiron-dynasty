@@ -4,10 +4,10 @@
 ## sign with new teams based on team needs, cap space, and player preferences.
 ##
 ## Architecture:
-## - Mutates world_state["nfl_rosters"] in-place (same pattern as TradeGenerator)
+## - All contract mutations flow through ContractStateManager for atomicity and cap integrity
 ## - Franchise tags stored in world_state["franchise_tags"], NOT in Team.gd
 ## - Uses ContractNegotiation for offer generation and evaluation
-## - Uses ContractLifecycle for contract transitions
+## - Uses ContractStateManager for all contract state transitions
 ##
 ## RNG Determinism:
 ## - Master FA seed: Rand.splitmix64(seed ^ 0xFAFA0001)
@@ -49,7 +49,7 @@ class_name FreeAgency
 const Rand = preload("res://autoloads/Rand.gd")
 const SimLogger = preload("res://autoloads/SimLogger.gd")
 const ContractNegotiation = preload("res://scripts/world/ContractNegotiation.gd")
-const ContractLifecycle = preload("res://scripts/world/ContractLifecycle.gd")
+const ContractStateManager = preload("res://scripts/core/state/ContractStateManager.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
 const EvaluationContext = preload("res://scripts/core/evaluation/EvaluationContext.gd")
 const EvaluationModifierStack = preload("res://scripts/core/evaluation/EvaluationModifierStack.gd")
@@ -434,11 +434,12 @@ static func player_chooses_team(
 ## Prevents player from entering free agency by applying guaranteed 1-year
 ## contract at position average salary.
 ##
-## CRITICAL: Franchise tags stored in world_state["franchise_tags"], NOT Team.gd
+## CRITICAL: All mutations flow through ContractStateManager for atomicity and cap integrity.
+## Franchise tags stored in world_state["franchise_tags"], NOT Team.gd
 ##
 ## RNG: None (deterministic calculation)
 ##
-## @param world_state: World state dictionary (MUTATED)
+## @param world_state: World state dictionary (MUTATED through ContractStateManager)
 ## @param team_id: Team applying tag
 ## @param player_id: Player being tagged
 ## @param tag_type: "exclusive", "non_exclusive", or "transition"
@@ -453,76 +454,43 @@ static func apply_franchise_tag(
 	year: int,
 	config: Dictionary
 ) -> Dictionary:
-	# Validate team hasn't already tagged a player this year
-	if not world_state.has("franchise_tags"):
-		world_state["franchise_tags"] = {}
+	# Execute franchise tag through ContractStateManager (handles all mutations atomically)
+	# Note: ContractStateManager signature has (player_id, team_id) - parameters swapped from our API
+	var tag_result := ContractStateManager.apply_franchise_tag(
+		world_state,
+		player_id,  # ContractStateManager expects player_id first
+		team_id,    # Then team_id
+		tag_type,
+		year,
+		config
+	)
 
-	var year_tags := world_state["franchise_tags"].get(year, {}) as Dictionary
-	if year_tags.has(team_id):
-		SimLogger.error("Team %s already used franchise tag in %d" % [team_id, year])
+	# Check if tagging succeeded
+	if not tag_result.get("success", false):
+		var error_msg := String(tag_result.get("error", "unknown"))
+		SimLogger.error("Failed to apply franchise tag to %s: %s" % [player_id, error_msg])
 		return {}
 
-	# Get player information
-	var player := _find_player_in_rosters(world_state, player_id)
-	if player.is_empty():
-		SimLogger.error("Player %s not found" % player_id)
-		return {}
+	# Extract tag details
+	var tag_salary := float(tag_result.get("tag_salary", 0.0))
+	var consecutive_years := int(tag_result.get("consecutive_years", 1))
+	var position := String(tag_result.get("position", ""))
 
-	var position := String(player.get("position", ""))
+	# Log success
+	SimLogger.info("Applied %s franchise tag to %s: %.2fM" % [
+		tag_type, player_id, tag_salary
+	])
 
-	# Calculate tag salary (top 5 position average)
-	var tag_salary := _calculate_tag_salary(world_state, position, tag_type)
-
-	# Check consecutive tags (20% penalty for 2nd year tag)
-	var consecutive_years := _get_consecutive_tag_years(world_state, player_id, year)
-	if consecutive_years > 0:
-		tag_salary *= 1.2  # 20% penalty per consecutive year
-
-	# Validate team has cap space
-	var team := _find_team(world_state, team_id)
-	var cap_space := float(team.get("cap_space", 0.0))
-	if tag_salary > cap_space:
-		SimLogger.error("Team %s cannot afford tag (%.2fM > %.2fM cap)" % [
-			team_id, tag_salary, cap_space
-		])
-		return {}
-
-	# Create franchise tag entry
-	var franchise_tag := {
+	# Return franchise tag summary (for compatibility with existing callers)
+	return {
 		"player_id": player_id,
 		"team_id": team_id,
 		"tag_type": tag_type,
 		"salary": tag_salary,
 		"applied_year": year,
-		"consecutive_years": consecutive_years + 1
+		"consecutive_years": consecutive_years,
+		"position": position
 	}
-
-	# Store in world_state (NOT in Team.gd)
-	if not world_state["franchise_tags"].has(year):
-		world_state["franchise_tags"][year] = {}
-
-	world_state["franchise_tags"][year][team_id] = franchise_tag
-
-	# Create 1-year contract for tagged player
-	var contract := {
-		"status": "signed",
-		"annual_value": tag_salary,
-		"years_total": 1,
-		"years_remaining": 1,
-		"base_salary": tag_salary * 0.8,
-		"signing_bonus": tag_salary * 0.2,
-		"guaranteed_value": tag_salary,  # Fully guaranteed
-		"signed_year": year,
-		"trigger": "franchise_tag"
-	}
-
-	player["contract"] = contract
-
-	SimLogger.info("Applied %s franchise tag to %s: %.2fM" % [
-		tag_type, player_id, tag_salary
-	])
-
-	return franchise_tag
 
 
 ## INTERNAL: Extract common profile fields from player data.
@@ -915,10 +883,10 @@ static func _find_offer(offers: Array, team_id: String) -> Dictionary:
 	return {}
 
 
-## INTERNAL: Execute player signing (mutate world_state).
+## INTERNAL: Execute player signing (delegates to ContractStateManager).
 ##
 ## Handles signing for both veteran FAs and UDFAs.
-## Uses _find_player_object() to locate player in either rosters or undrafted_pool.
+## All state mutations flow through ContractStateManager for atomicity and cap integrity.
 ##
 ## RNG: None (deterministic signing execution)
 static func _execute_signing(
@@ -929,58 +897,38 @@ static func _execute_signing(
 	year: int,
 	team_spending: Dictionary
 ) -> Dictionary:
-	# Find player object (checks rosters first, then undrafted pool)
-	var player := _find_player_object(world_state, player_id, year)
-	if player.is_empty():
-		SimLogger.error("Cannot find player %s for signing" % player_id)
-		return {}
-
-	# Determine previous team (empty for UDFAs)
-	var previous_team_id := _find_player_team(world_state, player_id)
-
-	# Create new contract from offer
-	var contract := {
-		"status": "signed",
-		"annual_value": offer.get("annual_value", 0.0),
-		"years_total": offer.get("years_total", 1),
-		"years_remaining": offer.get("years_total", 1),
-		"base_salary": offer.get("base_salary", 0.0),
-		"signing_bonus": offer.get("signing_bonus", 0.0),
-		"guaranteed_value": offer.get("guaranteed_value", 0.0),
-		"cap_hit_year_1": offer.get("cap_hit_year_1", 0.0),
-		"signed_year": year,
-		"trigger": "free_agency_signed"
-	}
-
-	# Transition contract status
-	var transition := ContractLifecycle.transition_unsigned_to_signed(
-		contract,
-		"free_agency_signed",
+	# Execute signing through ContractStateManager (handles all mutations atomically)
+	var signing_result := ContractStateManager.execute_signing(
+		world_state,
+		player_id,
+		team_id,
+		offer,
 		year
 	)
 
-	player["contract"] = transition["contract"]
+	# Check if signing succeeded
+	if not signing_result.get("success", false):
+		var error_msg := String(signing_result.get("error", "unknown"))
+		SimLogger.error("Failed to execute signing for player %s: %s" % [player_id, error_msg])
+		return {}
 
-	# Move player to new team (pass year for UDFA pool lookup)
-	_move_player_to_team(world_state, player_id, previous_team_id, team_id, year)
+	# Extract signing details
+	var contract: Dictionary = signing_result.get("contract", {})
+	var annual_value := float(signing_result.get("annual_value", 0.0))
+	var previous_team_id := String(signing_result.get("previous_team", ""))
 
-	# Update team cap space
-	var team := _find_team(world_state, team_id)
-	var cap_impact := float(transition.get("cap_impact", {}).get("annual_value_delta", 0.0))
-	team["cap_space"] = float(team.get("cap_space", 0.0)) - cap_impact
-
-	# Track spending for cap space summary
-	var aav := float(contract.get("annual_value", 0.0))
+	# Track spending for cap space summary (external tracking for reporting)
 	if not team_spending.has(team_id):
 		team_spending[team_id] = 0.0
-	team_spending[team_id] = float(team_spending[team_id]) + aav
+	team_spending[team_id] = float(team_spending[team_id]) + annual_value
 
 	# Log signing with UDFA indicator
 	var udfa_marker := " (UDFA)" if previous_team_id.is_empty() else ""
 	SimLogger.info("Signed %s to %s for %.2fM AAV%s" % [
-		player_id, team_id, aav, udfa_marker
+		player_id, team_id, annual_value, udfa_marker
 	])
 
+	# Return signing summary (for transaction history)
 	return {
 		"player_id": player_id,
 		"team_id": team_id,
