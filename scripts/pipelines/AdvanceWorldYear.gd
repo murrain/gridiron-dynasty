@@ -21,6 +21,7 @@ const SimLogger = preload("res://autoloads/SimLogger.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const FreeAgency = preload("res://scripts/world/FreeAgency.gd")
 const RosterManagement = preload("res://scripts/world/RosterManagement.gd")
+const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
 
 ## Cached config instance for performance optimization.
 ## The Config object is read-only during simulation and contains no mutable state

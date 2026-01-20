@@ -2,7 +2,7 @@ extends RefCounted
 class_name CollegeSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
-const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
@@ -96,22 +96,33 @@ func run(
 		var college: Dictionary = college_index.get(college_id, {}) as Dictionary
 		var prepared_players := _apply_development_context(players, college, config, context_rng, year)
 
-		# Use parallel processing for college rosters (typically 50-100 players per college)
-		# For large conferences, parallel processing can provide significant speedup
-		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel(
-			prepared_players,
-			positions_cfg,
-			main_cfg,
-			stats_cfg,
-			lifecycle_rng,
-			{},  # development_context already merged into players
-			0,  # Auto-detect thread count
-			options,  # Pass through skip_reports and other options
-			dev_config,  # Pre-extracted development config
-			ret_config  # Pre-extracted retirement config
+		# Update roster in world_state with prepared players (with context)
+		roster["players"] = prepared_players
+		rosters[college_id] = roster
+		world_state["college_rosters"] = rosters
+
+		# NEW ARCHITECTURE: Use PlayerStateManager with pure function pipeline
+		# Build configs dictionary for pure functions
+		var configs := {
+			"positions": positions_cfg,
+			"main": main_cfg,
+			"stats": stats_cfg
+		}
+
+		# Call PlayerStateManager with pure function pipeline
+		# RNG consumption: ~20-30 calls per player per year (deterministic)
+		# Context is already embedded in each player's development_context field
+		var result := PlayerStateManager.advance_players_one_year(
+			world_state,
+			["college_rosters", college_id, "players"],
+			{},  # Empty global context - all context is per-player
+			configs,
+			lifecycle_rng
 		)
 
-		var updated_players: Array = progressed.get("players", []) as Array
+		# Extract updated players from world_state (PlayerStateManager updates it atomically)
+		roster = rosters.get(college_id, {}) as Dictionary
+		var updated_players: Array = roster.get("players", []) as Array
 		var active: Array = []
 		var class_years := {1: [], 2: [], 3: [], 4: []}
 
