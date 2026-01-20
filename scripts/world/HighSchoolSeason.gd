@@ -2,7 +2,7 @@ extends RefCounted
 class_name HighSchoolSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
-const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 
@@ -33,24 +33,33 @@ func run(
 	var school_map := _school_index(schools)
 	var prepared_players := _apply_development_contexts(context_players, school_map, config)
 
-	# OPTIMIZATION (F6): Pre-extract config values once for all players
-	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
-	var ret_config := RetirementConfig.new(main_cfg)
+	# NEW ARCHITECTURE: Use PlayerStateManager with pure function pipeline
+	# Create temporary world_state to interface with PlayerStateManager
+	var temp_world_state := {
+		"hs_players": prepared_players
+	}
 
-	# Use parallel processing for large player sets (high school typically has 10,000+ players)
-	var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel(
-		prepared_players,
-		positions_cfg,
-		main_cfg,
-		stats_cfg,
-		lifecycle_rng,
-		{},  # development_context already merged into players
-		0,  # Auto-detect thread count
-		options,  # Pass through skip_reports and other options
-		dev_config,  # Pre-extracted development config
-		ret_config  # Pre-extracted retirement config
+	# Build configs dictionary for pure functions
+	var configs := {
+		"positions": positions_cfg,
+		"main": main_cfg,
+		"stats": stats_cfg
+	}
+
+	# Call PlayerStateManager with pure function pipeline
+	# RNG consumption: ~20-30 calls per player per year (deterministic)
+	# Context is already embedded in each player's development_context field
+	var result := PlayerStateManager.advance_players_one_year(
+		temp_world_state,
+		["hs_players"],
+		{},  # Empty global context - all context is per-player
+		configs,
+		lifecycle_rng
 	)
-	var updated_players: Array = progressed.get("players", []) as Array
+
+	# Extract updated players from temporary world_state
+	var updated_players: Array = temp_world_state.get("hs_players", []) as Array
+	var retired_players: Array = []  # Retired players are filtered out by PlayerStateManager
 
 	var transitions: Array = []
 	var graduates: Array = []
@@ -105,7 +114,7 @@ func run(
 ## This eliminates one full deep copy per player per season (10,000+ players).
 ##
 ## Safety guarantee: The players array is owned by this method's caller and will be
-## passed to PlayerLifecycle.advance_one_year, which performs its own selective copying.
+## passed to PlayerStateManager, which uses pure functions that create new copies.
 func _apply_development_contexts(players: Array, school_map: Dictionary, config: Dictionary) -> Array:
 	var program_cfg: Dictionary = config.get("program_quality", {}) as Dictionary
 	var default_program_mult := float(program_cfg.get("default_dev_multiplier", 1.0))

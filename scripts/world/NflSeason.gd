@@ -2,7 +2,7 @@ extends RefCounted
 class_name NflSeason
 
 const Rand = preload("res://autoloads/Rand.gd")
-const PlayerLifecycle = preload("res://scripts/world/PlayerLifecycle.gd")
+const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
 const DevelopmentConfig = preload("res://scripts/support/config/DevelopmentConfig.gd")
 const RetirementConfig = preload("res://scripts/support/config/RetirementConfig.gd")
 const TradeGenerator = preload("res://scripts/world/TradeGenerator.gd")
@@ -17,7 +17,7 @@ const DynastyDetector = preload("res://scripts/core/awards/DynastyDetector.gd")
 ## Runs the NFL season simulation for a given year.
 ##
 ## Advances all NFL players by one year, handling:
-## - Development/regression via PlayerLifecycle
+## - Development/regression via pure function pipeline (PlayerStateManager)
 ## - Retirement decisions
 ## - Contract expiration tracking
 ## - Free agency pool management
@@ -104,23 +104,34 @@ func run(
 			year
 		)
 
-		# Use parallel processing for NFL rosters (typically 53 players per team)
-		# Since we process all 32 teams, total player count is ~1700, making parallel beneficial
-		var progressed: Dictionary = PlayerLifecycle.advance_one_year_parallel(
-			prepared_players,
-			positions_cfg,
-			main_cfg,
-			stats_cfg,
-			lifecycle_rng,
-			{},  # development_context already merged into players
-			0,  # Auto-detect thread count
-			options,  # Pass through skip_reports and other options
-			dev_config,  # Pre-extracted development config
-			ret_config  # Pre-extracted retirement config
+		# Update roster in world_state with prepared players (with context)
+		roster["players"] = prepared_players
+		rosters[team_id] = roster
+		world_state["nfl_rosters"] = rosters
+
+		# NEW ARCHITECTURE: Use PlayerStateManager with pure function pipeline
+		# Build configs dictionary for pure functions
+		var configs := {
+			"positions": positions_cfg,
+			"main": main_cfg,
+			"stats": stats_cfg
+		}
+
+		# Call PlayerStateManager with pure function pipeline
+		# RNG consumption: ~20-30 calls per player per year (deterministic)
+		# Context is already embedded in each player's development_context field
+		var result := PlayerStateManager.advance_players_one_year(
+			world_state,
+			["nfl_rosters", team_id, "players"],
+			{},  # Empty global context - all context is per-player
+			configs,
+			lifecycle_rng
 		)
 
-		var updated_players: Array = progressed.get("players", []) as Array
-		var lifecycle_retired: Array = progressed.get("retired", []) as Array
+		# Extract updated players and retired players from result
+		roster = rosters.get(team_id, {}) as Dictionary
+		var updated_players: Array = roster.get("players", []) as Array
+		var lifecycle_retired: Array = result.get("retired", []) as Array
 
 		# Process each player for contract expiration and additional retirement checks
 		var active_players: Array = []
@@ -133,7 +144,7 @@ func run(
 			# Update contract years
 			var contract_result := _update_contract(p)
 
-			# Check for additional retirement (beyond PlayerLifecycle)
+			# Check for additional retirement (beyond pure function pipeline)
 			if _check_nfl_retirement(p, positions_cfg, main_cfg, retirement_rng):
 				p["retirement_year"] = year
 				p["retirement_team"] = team_id
@@ -153,7 +164,7 @@ func run(
 			# Player remains active on roster
 			active_players.append(p)
 
-		# Handle players retired by PlayerLifecycle
+		# Handle players retired by pure function pipeline
 		for lc_retired in lifecycle_retired:
 			var p: Dictionary = lc_retired
 			p["retirement_year"] = year

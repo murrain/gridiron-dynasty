@@ -14,6 +14,29 @@ const TeamDetailFormatter = preload("res://scripts/ui/world_explorer/formatters/
 ## - Tabbed navigation (NFL, College, HS, Draft, Retired)
 ## - Global search across all players
 ## - BBCode formatted detail views
+## - Automatic UI refresh via DataBus event system
+##
+## AUTOMATIC UI REFRESH:
+## WorldExplorer subscribes to DataBus signals for automatic updates:
+##   - DataBus.phase_completed → refreshes panels affected by that phase
+##   - DataBus.collection_changed → refreshes panels showing that collection
+##   - DataBus.world_state_loaded → full refresh of all panels
+##
+## Phase-to-Panel Mapping:
+##   - hs_generation, hs_assignment, hs_season → HS panel
+##   - college_generation, college_recruiting, college_season → College panel
+##   - nfl_team_generation, roster_management, nfl_free_agency, nfl_season → NFL panel
+##   - draft_prep, nfl_draft → Draft panel + NFL panel
+##
+## Collection-to-Panel Mapping:
+##   - hs_players, hs_schools → HS panel
+##   - colleges, college_rosters → College panel
+##   - nfl_teams, nfl_rosters → NFL panel
+##   - draft_pool → Draft panel
+##   - retired_players → Retired panel
+##
+## Manual Refresh:
+## The refresh button remains as a fallback but should rarely be needed.
 ##
 ## PANEL INTEGRATION GUIDE:
 ##
@@ -57,6 +80,10 @@ const TeamDetailFormatter = preload("res://scripts/ui/world_explorer/formatters/
 
 ## World state reference (READ-ONLY - panels must not modify!)
 ## Panels should create local copies if they need to filter/sort
+##
+## IMPORTANT: This should be a reference to the same Dictionary that simulation
+## code mutates. When DataBus signals fire, we assume world_state is already
+## updated and we just re-initialize panels with the current reference.
 var world_state: Dictionary = {}
 
 # Debug tracking for mutation detection
@@ -132,6 +159,9 @@ func _connect_signals() -> void:
 	if tabs != null:
 		tabs.tab_changed.connect(_on_tab_changed)
 
+	# Connect DataBus signals for automatic UI refresh
+	_connect_databus_signals()
+
 func _initialize_ui() -> void:
 	if world_state.is_empty():
 		_show_no_world_loaded()
@@ -140,6 +170,20 @@ func _initialize_ui() -> void:
 	_update_header()
 	_show_welcome()
 	_initialize_panels()
+
+## Connect to DataBus signals for automatic UI refresh
+func _connect_databus_signals() -> void:
+	# Listen for phase completions
+	if not DataBus.phase_completed.is_connected(_on_databus_phase_completed):
+		DataBus.phase_completed.connect(_on_databus_phase_completed)
+
+	# Listen for collection changes
+	if not DataBus.collection_changed.is_connected(_on_databus_collection_changed):
+		DataBus.collection_changed.connect(_on_databus_collection_changed)
+
+	# Listen for world state loaded
+	if not DataBus.world_state_loaded.is_connected(_on_databus_world_state_loaded):
+		DataBus.world_state_loaded.connect(_on_databus_world_state_loaded)
 
 ## Public API: Load world state and initialize UI
 func load_world_state(ws: Dictionary) -> void:
@@ -436,6 +480,7 @@ func _on_clear_search_pressed() -> void:
 		search_field.text = ""
 
 func _on_refresh_pressed() -> void:
+	# Manual fallback refresh - DataBus signals should handle most cases
 	_initialize_panels()
 	clear_detail()
 
@@ -449,3 +494,109 @@ func _on_tab_changed(tab_index: int) -> void:
 
 	# Show welcome message when switching tabs
 	_show_welcome()
+
+# DataBus signal handlers
+
+func _on_databus_phase_completed(phase_id: String, year: int) -> void:
+	# Map phases to affected tab indices
+	# Tab order: 0=NFL, 1=College, 2=HS, 3=Draft, 4=Retired
+	var affected_tabs := _get_tabs_affected_by_phase(phase_id)
+
+	if affected_tabs.is_empty():
+		return
+
+	# Smart refresh: only update affected panels
+	_refresh_panels(affected_tabs)
+
+func _on_databus_collection_changed(collection_name: String, operation: String) -> void:
+	# Map collections to affected tab indices
+	var affected_tabs := _get_tabs_affected_by_collection(collection_name)
+
+	if affected_tabs.is_empty():
+		return
+
+	# Smart refresh: only update affected panels
+	_refresh_panels(affected_tabs)
+
+func _on_databus_world_state_loaded() -> void:
+	# Full refresh when world state is loaded
+	_initialize_panels()
+	clear_detail()
+
+# DataBus mapping helpers
+
+## Returns array of tab indices affected by a specific phase
+func _get_tabs_affected_by_phase(phase_id: String) -> Array:
+	var tabs_affected := []
+
+	match phase_id:
+		# High School phases -> HS tab (index 2)
+		"hs_generation", "hs_assignment", "hs_season":
+			tabs_affected.append(2)
+
+		# College phases -> College tab (index 1)
+		"college_generation", "college_recruiting", "college_season":
+			tabs_affected.append(1)
+
+		# NFL phases -> NFL tab (index 0)
+		"nfl_team_generation", "roster_management", "nfl_free_agency", "nfl_season":
+			tabs_affected.append(0)
+
+		# Draft phases -> Draft tab (index 3) and NFL tab (index 0)
+		"draft_prep", "nfl_draft":
+			tabs_affected.append(3)
+			tabs_affected.append(0)
+
+		# Cap validation might affect NFL rosters
+		"cap_validation":
+			tabs_affected.append(0)
+
+	return tabs_affected
+
+## Returns array of tab indices affected by a specific collection
+func _get_tabs_affected_by_collection(collection_name: String) -> Array:
+	var tabs_affected := []
+
+	match collection_name:
+		# High School collections -> HS tab (index 2)
+		"hs_players", "hs_schools", "hs_recruit_pool":
+			tabs_affected.append(2)
+
+		# College collections -> College tab (index 1)
+		"colleges", "college_rosters", "college_commitments", "college_classes":
+			tabs_affected.append(1)
+
+		# NFL collections -> NFL tab (index 0)
+		"nfl_teams", "nfl_rosters", "free_agents":
+			tabs_affected.append(0)
+
+		# Draft collections -> Draft tab (index 3)
+		"draft_pool", "valuation_snapshots":
+			tabs_affected.append(3)
+
+		# Retired players -> Retired tab (index 4)
+		"retired_players":
+			tabs_affected.append(4)
+
+	return tabs_affected
+
+## Refresh only specified panel tabs
+func _refresh_panels(tab_indices: Array) -> void:
+	if tabs == null:
+		return
+
+	for tab_index in tab_indices:
+		if tab_index < 0 or tab_index >= tabs.get_tab_count():
+			continue
+
+		var panel = tabs.get_tab_control(tab_index)
+		if panel == null:
+			continue
+
+		# Clean up first if panel supports it
+		if panel.has_method("cleanup"):
+			panel.cleanup()
+
+		# Re-initialize with updated world_state
+		if panel.has_method("initialize"):
+			panel.initialize(world_state)
