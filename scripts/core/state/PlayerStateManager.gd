@@ -37,9 +37,6 @@ const PlayerLifecycleStateMachine = preload("res://scripts/world/PlayerLifecycle
 const StagePipeline = preload("res://scripts/core/transformations/StagePipeline.gd")
 const Rand = preload("res://autoloads/Rand.gd")
 
-# Reference to DataBus autoload (initialized at runtime)
-static var _data_bus: Node = null
-
 # ============================================================================
 # PUBLIC API - State Mutation Methods
 # ============================================================================
@@ -461,26 +458,19 @@ static func _replace_collection(
 # INTERNAL HELPERS - DataBus Integration
 # ============================================================================
 
-## Initialize DataBus reference (called lazily on first use)
-static func _ensure_data_bus() -> void:
-	if _data_bus == null:
-		_data_bus = Engine.get_singleton("DataBus")
-		if _data_bus == null:
-			push_warning("PlayerStateManager: DataBus autoload not found - notifications will be skipped")
-
-
-## Notify DataBus that a collection has changed
+## Notify DataBus that a collection has changed.
+## DataBus is a global autoload and can be accessed directly by name.
 static func _notify_collection_changed(collection_name: String, operation: String) -> void:
-	_ensure_data_bus()
-	if _data_bus != null:
-		_data_bus.notify_collection_changed(collection_name, operation)
+	# Access DataBus autoload directly - it's registered in project.godot
+	# and available as a global variable
+	if DataBus:
+		DataBus.notify_collection_changed(collection_name, operation)
 
 
 ## Notify DataBus that players have changed for a specific stage
 static func _notify_players_changed(stage: Player.PlayerStage, count: int) -> void:
-	_ensure_data_bus()
-	if _data_bus != null:
-		_data_bus.notify_players_changed(stage, count)
+	if DataBus:
+		DataBus.notify_players_changed(stage, count)
 
 
 # ============================================================================

@@ -206,9 +206,9 @@ func _handle_hs_generation(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("hs_players")
+		DataBus.notify_collection_changed("hs_players", "bulk_update")
 		if not world_state.get("hs_schools", []).is_empty():
-			DataBus.notify_collection_changed("hs_schools")
+			DataBus.notify_collection_changed("hs_schools", "bulk_update")
 
 	return {
 		"class_year": year,
@@ -240,7 +240,7 @@ func _handle_hs_assignment(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("hs_players")
+		DataBus.notify_collection_changed("hs_players", "bulk_update")
 
 	return {
 		"year": year,
@@ -285,8 +285,8 @@ func _handle_hs_season(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("hs_players")
-		DataBus.notify_collection_changed("hs_recruit_pool")
+		DataBus.notify_collection_changed("hs_players", "bulk_update")
+		DataBus.notify_collection_changed("hs_recruit_pool", "bulk_update")
 
 	return {
 		"year": year,
@@ -319,7 +319,7 @@ func _handle_college_generation(
 
 		# Notify DataBus of collection changes
 		if DataBus:
-			DataBus.notify_collection_changed("colleges")
+			DataBus.notify_collection_changed("colleges", "bulk_update")
 
 	return {
 		"year": year,
@@ -357,8 +357,8 @@ func _handle_nfl_team_generation(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("nfl_teams")
-		DataBus.notify_collection_changed("nfl_rosters")
+		DataBus.notify_collection_changed("nfl_teams", "bulk_update")
+		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -420,8 +420,8 @@ func _handle_college_recruiting(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("college_commitments")
-		DataBus.notify_collection_changed("college_rosters")
+		DataBus.notify_collection_changed("college_commitments", "bulk_update")
+		DataBus.notify_collection_changed("college_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -451,8 +451,8 @@ func _handle_college_season(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("college_rosters")
-		DataBus.notify_collection_changed("draft_pool")
+		DataBus.notify_collection_changed("college_rosters", "bulk_update")
+		DataBus.notify_collection_changed("draft_pool", "bulk_update")
 
 	return result
 
@@ -510,8 +510,8 @@ func _handle_nfl_draft(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters")
-		DataBus.notify_collection_changed("draft_pool")
+		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
+		DataBus.notify_collection_changed("draft_pool", "bulk_update")
 
 	return result
 
@@ -540,7 +540,7 @@ func _handle_roster_management(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters")
+		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -581,7 +581,7 @@ func _handle_nfl_free_agency(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters")
+		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -613,7 +613,7 @@ func _handle_nfl_season(
 
 	# Notify DataBus of collection changes
 	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters")
+		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return result
 
