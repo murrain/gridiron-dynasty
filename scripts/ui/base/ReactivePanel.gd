@@ -1,17 +1,18 @@
 extends Control
 class_name ReactivePanel
 
-## Base class for reactive UI panels that auto-subscribe to DataBus.
+## Base class for reactive UI panels that auto-subscribe to DataBus and ThemeManager.
 ##
-## ReactivePanel simplifies building UI components that need to refresh when
-## world_state changes. Instead of manually subscribing to DataBus signals,
-## subclasses simply declare which collections they care about.
+## ReactivePanel simplifies building UI components that automatically refresh when:
+## - World state changes (via DataBus)
+## - Theme changes (via ThemeManager)
 ##
 ## [b]Subclass Requirements:[/b]
 ## 1. Override [method _get_subscribed_collections] to specify which collections to watch
-## 2. Override [method _on_data_changed] to handle refreshes
-## 3. Optionally override [method _on_world_state_loaded] for full refresh
-## 4. Call [method initialize] to set initial data
+## 2. Override [method _on_data_changed] to handle data refreshes
+## 3. Optionally override [method _on_theme_changed] for custom theme handling
+## 4. Optionally override [method _on_world_state_loaded] for full refresh
+## 5. Call [method initialize] to set initial data
 ##
 ## [b]Example Subclass:[/b]
 ## [codeblock]
@@ -30,41 +31,33 @@ class_name ReactivePanel
 ##     elif collection == "contracts":
 ##         _refresh_contract_info()
 ##
+## func _on_theme_changed(theme_name: String) -> void:
+##     # Custom theme handling (style auto-reapplied by default)
+##     _update_custom_colors()
+##
 ## func _on_world_state_loaded() -> void:
-##     # Full refresh when world loads
 ##     _refresh_all()
 ##
 ## func initialize(ws: Dictionary) -> void:
 ##     super.initialize(ws)
 ##     _refresh_all()
-##
-## func _refresh_roster_display() -> void:
-##     roster_list.clear()
-##     var roster = world_state.get("nfl_rosters", {}).get(current_team_id, {})
-##     for player in roster.get("players", []):
-##         roster_list.add_item(player["name"])
 ## [/codeblock]
+##
+## [b]Auto-Refresh Behavior:[/b]
+## - DataBus changes → [method _on_data_changed] called for subscribed collections
+## - Theme changes → Style auto-reapplied + [method _on_theme_changed] called
+## - World loaded → [method _on_world_state_loaded] called
 ##
 ## [b]Benefits:[/b]
 ## - Automatic DataBus subscription management
+## - Automatic ThemeManager subscription (styles refresh on theme change)
 ## - Filtered notifications (only subscribed collections)
 ## - Automatic cleanup on exit (no memory leaks)
 ## - Consistent pattern across all reactive panels
 ##
-## [b]When to Use:[/b]
-## - Your panel needs to display world_state data
-## - Your panel should refresh when specific collections change
-## - Your panel is a smart container managing child components
-##
-## [b]When NOT to Use:[/b]
-## - Your panel receives data from a parent container (use dumb component pattern)
-## - Your panel is a modal with transient state
-## - Your parent already subscribes to DataBus (avoid double-subscription)
-##
 ## [b]See Also:[/b]
 ## - [ReactivePanelContainer] - PanelContainer variant
 ## - [code]docs/ui/REACTIVE_PANEL_GUIDE.md[/code] - Detailed usage guide
-## - [code]docs/ui/COMPONENT_CONTRACTS.md[/code] - Component patterns
 
 ## World state reference (READ-ONLY - do not modify!)
 ## Panels should query this dictionary but never mutate it.
@@ -75,6 +68,9 @@ var _subscribed_collections: Array[String] = []
 
 ## Whether DataBus signals are connected
 var _databus_connected: bool = false
+
+## Whether ThemeManager signals are connected
+var _theme_connected: bool = false
 
 
 # ============================================================================
@@ -122,6 +118,7 @@ var style_variant: String = "default"
 func _ready() -> void:
 	_subscribed_collections = _get_subscribed_collections()
 	_connect_databus_signals()
+	_connect_theme_signals()
 
 	# Apply style if enabled
 	if auto_apply_style:
@@ -130,6 +127,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_disconnect_databus_signals()
+	_disconnect_theme_signals()
 
 
 # ============================================================================
@@ -263,6 +261,25 @@ func _on_world_state_loaded() -> void:
 	pass  # Subclass implements
 
 
+## Override: Handle theme change events.
+##
+## Called when the theme changes (dark ↔ light). The panel's style is
+## automatically reapplied before this method is called, so you only need
+## to override this if you have custom color handling beyond the style system.
+##
+## [param theme_name] The new theme name ("dark" or "light")
+##
+## [b]Example:[/b]
+## [codeblock]
+## func _on_theme_changed(theme_name: String) -> void:
+##     # Update custom labels with theme colors
+##     title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_primary"))
+##     _refresh_chart_colors()
+## [/codeblock]
+func _on_theme_changed(theme_name: String) -> void:
+	pass  # Subclass implements (style auto-reapplied before this is called)
+
+
 # ============================================================================
 # PRIVATE METHODS
 # ============================================================================
@@ -295,6 +312,33 @@ func _disconnect_databus_signals() -> void:
 		DataBus.world_state_loaded.disconnect(_on_databus_world_state_loaded)
 
 	_databus_connected = false
+
+
+## Connect to ThemeManager signals for automatic style refresh.
+func _connect_theme_signals() -> void:
+	if _theme_connected:
+		return
+
+	# ThemeManager is an autoload, check if it exists
+	if not ThemeManager:
+		push_warning("ReactivePanel: ThemeManager autoload not found")
+		return
+
+	if not ThemeManager.theme_changed.is_connected(_on_thememanager_theme_changed):
+		ThemeManager.theme_changed.connect(_on_thememanager_theme_changed)
+
+	_theme_connected = true
+
+
+## Disconnect from ThemeManager signals.
+func _disconnect_theme_signals() -> void:
+	if not _theme_connected:
+		return
+
+	if ThemeManager and ThemeManager.theme_changed.is_connected(_on_thememanager_theme_changed):
+		ThemeManager.theme_changed.disconnect(_on_thememanager_theme_changed)
+
+	_theme_connected = false
 
 
 # ============================================================================
@@ -402,3 +446,14 @@ func _on_databus_collection_changed(collection_name: String, operation: String) 
 ## Calls subclass handler for full refresh.
 func _on_databus_world_state_loaded() -> void:
 	_on_world_state_loaded()
+
+
+## ThemeManager signal: theme_changed
+## Reapplies style and calls subclass handler.
+func _on_thememanager_theme_changed(theme_name: String) -> void:
+	# Auto-reapply style with new theme colors
+	if auto_apply_style:
+		apply_style()
+
+	# Delegate to subclass for custom handling
+	_on_theme_changed(theme_name)

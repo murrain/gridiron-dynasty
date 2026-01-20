@@ -49,6 +49,9 @@ var _subscribed_collections: Array[String] = []
 ## Whether DataBus signals are connected
 var _databus_connected: bool = false
 
+## Whether ThemeManager signals are connected
+var _theme_connected: bool = false
+
 
 # ============================================================================
 # STYLE CONFIGURATION
@@ -95,6 +98,7 @@ var style_variant: String = "default"
 func _ready() -> void:
 	_subscribed_collections = _get_subscribed_collections()
 	_connect_databus_signals()
+	_connect_theme_signals()
 
 	# Apply style if enabled
 	if auto_apply_style:
@@ -103,6 +107,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_disconnect_databus_signals()
+	_disconnect_theme_signals()
 
 
 # ============================================================================
@@ -185,6 +190,12 @@ func _on_world_state_loaded() -> void:
 	pass  # Subclass implements
 
 
+## Override: Handle theme change events.
+## See [ReactivePanel._on_theme_changed] for details.
+func _on_theme_changed(theme_name: String) -> void:
+	pass  # Subclass implements (style auto-reapplied before this is called)
+
+
 # ============================================================================
 # PRIVATE METHODS
 # ============================================================================
@@ -216,6 +227,32 @@ func _disconnect_databus_signals() -> void:
 		DataBus.world_state_loaded.disconnect(_on_databus_world_state_loaded)
 
 	_databus_connected = false
+
+
+## Connect to ThemeManager signals for automatic style refresh.
+func _connect_theme_signals() -> void:
+	if _theme_connected:
+		return
+
+	if not ThemeManager:
+		push_warning("ReactivePanelContainer: ThemeManager autoload not found")
+		return
+
+	if not ThemeManager.theme_changed.is_connected(_on_thememanager_theme_changed):
+		ThemeManager.theme_changed.connect(_on_thememanager_theme_changed)
+
+	_theme_connected = true
+
+
+## Disconnect from ThemeManager signals.
+func _disconnect_theme_signals() -> void:
+	if not _theme_connected:
+		return
+
+	if ThemeManager and ThemeManager.theme_changed.is_connected(_on_thememanager_theme_changed):
+		ThemeManager.theme_changed.disconnect(_on_thememanager_theme_changed)
+
+	_theme_connected = false
 
 
 # ============================================================================
@@ -274,3 +311,14 @@ func _on_databus_collection_changed(collection_name: String, operation: String) 
 ## Calls subclass handler for full refresh.
 func _on_databus_world_state_loaded() -> void:
 	_on_world_state_loaded()
+
+
+## ThemeManager signal: theme_changed
+## Reapplies style and calls subclass handler.
+func _on_thememanager_theme_changed(theme_name: String) -> void:
+	# Auto-reapply style with new theme colors
+	if auto_apply_style:
+		apply_style()
+
+	# Delegate to subclass for custom handling
+	_on_theme_changed(theme_name)
