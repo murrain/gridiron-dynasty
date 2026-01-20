@@ -184,7 +184,19 @@ static func prepare_roster(
 
 	return new_roster
 
-## Prepare single player for simulation (internal helper)
+## Prepare single player for simulation (internal helper).
+##
+## Adds simulation-ready fields to a player dictionary if they don't exist:
+## - injury_status: "healthy" (default)
+## - stamina: 100.0 (full stamina)
+## - morale: 75.0 (neutral-positive morale)
+## - overall_rating: Calculated from current stats
+##
+## RNG consumption: NONE (pure calculation)
+##
+## @param player: Player dictionary to prepare (not modified)
+## @param configs: Configuration dictionaries for rating calculation
+## @return Dictionary: NEW player dict with simulation fields added
 static func _prepare_player(
 	player: Dictionary,
 	configs: Dictionary
@@ -211,7 +223,21 @@ static func _prepare_player(
 
 	return new_player
 
-## Calculate overall rating from current stats (internal helper)
+## Calculate overall rating from current stats (internal helper).
+##
+## Computes a simple average of all numeric stat values.
+## This is a simplified calculation - production implementation should use
+## position-weighted formulas from configs.
+##
+## RNG consumption: NONE (pure calculation)
+##
+## @param current_stats: Dictionary of {stat_name: numeric_value}
+## @param configs: Configuration (reserved for future position-weighted calculations)
+## @return float: Overall rating (0-100 scale), defaults to 50.0 if no stats
+##
+## Example:
+##   var rating := _calculate_overall_rating({"speed": 85, "strength": 78}, {})
+##   # Returns 81.5 (average of 85 and 78)
 static func _calculate_overall_rating(
 	current_stats: Dictionary,
 	configs: Dictionary
@@ -310,7 +336,20 @@ static func calculate_playoff_seeding(
 		"matchups": matchups
 	}
 
-## Generate playoff matchups from seeds (internal helper)
+## Generate playoff matchups from seeds (internal helper).
+##
+## Creates first-round matchups using standard bracket seeding:
+## 1 vs N, 2 vs N-1, 3 vs N-2, etc. where N is total teams.
+## Higher seeds get home field advantage.
+##
+## RNG consumption: NONE (deterministic bracket)
+##
+## @param seeds: Array of seed dictionaries [{seed: int, team_id: String, ...}, ...]
+## @return Array: Matchup dictionaries [{home_team_id, away_team_id, home_seed, away_seed, round}, ...]
+##
+## Example (6-team bracket):
+##   seeds = [{seed: 1, team_id: "SF"}, ..., {seed: 6, team_id: "DAL"}]
+##   returns: [{home: "SF", away: "DAL", seeds: 1v6}, {home: team2, away: team5}, ...]
 static func _generate_playoff_matchups(seeds: Array) -> Array:
 	var matchups := []
 	var num_seeds := seeds.size()
@@ -429,7 +468,15 @@ static func _immutable_copy(dict: Dictionary) -> Dictionary:
 # INTERNAL HELPERS - Data Structure Creation
 # ============================================================================
 
-## Create empty team record structure
+## Create empty team record structure (internal helper).
+##
+## Initializes a fresh team record with all counters at zero.
+## Used when a team doesn't have an existing record in standings.
+##
+## RNG consumption: NONE (pure structure creation)
+##
+## @param team_id: Team identifier to associate with record
+## @return Dictionary: New team record with zeroed stats
 static func _create_empty_record(team_id: String) -> Dictionary:
 	return {
 		"team_id": team_id,
@@ -446,7 +493,15 @@ static func _create_empty_record(team_id: String) -> Dictionary:
 		"conference_losses": 0
 	}
 
-## Calculate win percentage from record
+## Calculate win percentage from record (internal helper).
+##
+## Computes win percentage using: wins / games_played.
+## Returns 0.0 if no games have been played (prevents division by zero).
+##
+## RNG consumption: NONE (pure calculation)
+##
+## @param record: Team record dictionary with "wins" and "games_played" keys
+## @return float: Win percentage (0.0 to 1.0 scale)
 static func _calculate_win_percentage(record: Dictionary) -> float:
 	var games_played: int = int(record.get("games_played", 0))
 	if games_played == 0:
