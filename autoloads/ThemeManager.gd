@@ -1,8 +1,10 @@
 extends Node
 ## Global theme manager for consistent UI theming across the application.
 ##
-## Manages color palettes for dark and light themes, provides theme switching,
-## and emits signals when themes change so UI can react.
+## Design Philosophy (Solarized-inspired):
+## - SHARED accent colors between dark/light themes (semantic colors stay constant)
+## - BASE colors swap roles: dark bg ↔ light bg, light text ↔ dark text
+## - Minimizes color definitions while maximizing theme consistency
 ##
 ## [b]Usage:[/b]
 ## [codeblock]
@@ -46,113 +48,167 @@ var active_theme: String = DEFAULT_THEME
 
 
 # ============================================================================
-# THEME DEFINITIONS
+# SHARED COLOR PALETTE (Solarized-inspired)
 # ============================================================================
+# These colors are IDENTICAL in both dark and light themes.
+# Only base colors (backgrounds, text) swap roles.
 
-## Dark theme color palette
-const DARK_THEME := {
-	# Background progression (darkest to lightest)
-	"bg_darker": Color(0.07, 0.07, 0.08),    # #121215 - Deepest nested panels
-	"bg_dark": Color(0.10, 0.10, 0.12),      # #1a1a1f - Dark panels
-	"bg_medium": Color(0.15, 0.15, 0.18),    # #252530 - Standard panels
-	"bg_light": Color(0.20, 0.20, 0.24),     # #33333d - Light panels
-	"bg_lighter": Color(0.25, 0.25, 0.30),   # #404050 - Lighter panels
+## Accent colors - SHARED between themes (like Solarized)
+const ACCENT := {
+	# Primary blues
+	"blue": Color(0.15, 0.55, 0.82),           # #268bd2 - Primary actions
+	"blue_dim": Color(0.10, 0.40, 0.65),       # #1a66a6 - Subdued blue
 
-	# Border colors
-	"border_subtle": Color(0.23, 0.23, 0.28),   # #3a3a45 - Subtle borders
-	"border_medium": Color(0.29, 0.29, 0.35),   # #4a4a59 - Medium borders
-	"border_accent": Color(0.29, 0.42, 0.60),   # #4a6a9a - Accent borders
+	# Secondary
+	"violet": Color(0.42, 0.44, 0.77),         # #6c71c4 - Secondary actions
+	"magenta": Color(0.83, 0.21, 0.51),        # #d33682 - Highlights
 
-	# Text colors
-	"text_primary": Color(0.90, 0.90, 0.92),    # #e6e6eb - Primary text
-	"text_secondary": Color(0.70, 0.70, 0.75),  # #b3b3bf - Secondary text
-	"text_disabled": Color(0.45, 0.45, 0.50),   # #73738c - Disabled text
-
-	# Semantic colors
-	"primary": Color(0.16, 0.29, 0.48),         # #2a4a7a - Primary blue
-	"primary_border": Color(0.20, 0.40, 0.70),  # #3366b3 - Primary border
-	"primary_text": Color(0.40, 0.65, 1.00),    # #66a6ff - Primary text/icons
-
-	"secondary": Color(0.29, 0.23, 0.42),       # #4a3a6a - Secondary purple
-	"secondary_border": Color(0.45, 0.35, 0.65), # #7359a6 - Secondary border
-	"secondary_text": Color(0.65, 0.50, 0.95),  # #a680f2 - Secondary text/icons
-
-	"info": Color(0.16, 0.35, 0.42),            # #2a5a6a - Info teal
-	"info_border": Color(0.25, 0.55, 0.65),     # #408ca6 - Info border
-	"info_text": Color(0.40, 0.85, 1.00),       # #66d9ff - Info text/icons
-
-	"warning": Color(0.48, 0.35, 0.16),         # #7a5a2a - Warning orange
-	"warning_border": Color(0.75, 0.55, 0.25),  # #bf8c40 - Warning border
-	"warning_text": Color(1.00, 0.75, 0.40),    # #ffbf66 - Warning text/icons
-
-	"success": Color(0.16, 0.38, 0.19),         # #2a6030 - Success green
-	"success_border": Color(0.25, 0.60, 0.30),  # #40994d - Success border
-	"success_text": Color(0.40, 0.95, 0.50),    # #66f280 - Success text/icons
-
-	"error": Color(0.48, 0.12, 0.12),           # #7a1f1f - Error red
-	"error_border": Color(0.75, 0.20, 0.20),    # #bf3333 - Error border
-	"error_text": Color(1.00, 0.40, 0.40),      # #ff6666 - Error text/icons
-
-	# Rating/stat colors (green to red scale)
-	"rating_elite": Color(0.00, 1.00, 0.00),    # #00ff00 - 90+ elite
-	"rating_great": Color(0.40, 1.00, 0.40),    # #66ff66 - 80-89 great
-	"rating_good": Color(0.60, 1.00, 0.60),     # #99ff99 - 70-79 good
-	"rating_average": Color(1.00, 1.00, 0.00),  # #ffff00 - 60-69 average
-	"rating_below_avg": Color(1.00, 0.67, 0.00), # #ffaa00 - 50-59 below avg
-	"rating_poor": Color(1.00, 0.00, 0.00),     # #ff0000 - <50 poor
+	# Semantic
+	"cyan": Color(0.16, 0.63, 0.60),           # #2aa198 - Info/links
+	"green": Color(0.52, 0.60, 0.00),          # #859900 - Success
+	"yellow": Color(0.71, 0.54, 0.00),         # #b58900 - Warning
+	"orange": Color(0.80, 0.29, 0.09),         # #cb4b16 - Alert
+	"red": Color(0.86, 0.20, 0.18),            # #dc322f - Error/danger
 }
 
-## Light theme color palette
+## Rating colors - SHARED between themes (high visibility required)
+const RATINGS := {
+	"elite": Color(0.00, 0.80, 0.20),          # #00cc33 - 90+ elite
+	"great": Color(0.40, 0.85, 0.40),          # #66d966 - 80-89 great
+	"good": Color(0.60, 0.90, 0.40),           # #99e666 - 70-79 good
+	"average": Color(0.90, 0.85, 0.20),        # #e6d933 - 60-69 average
+	"below_avg": Color(0.95, 0.60, 0.15),      # #f29926 - 50-59 below avg
+	"poor": Color(0.90, 0.25, 0.20),           # #e64033 - <50 poor
+}
+
+# ============================================================================
+# BASE COLORS (Swap roles between dark/light)
+# ============================================================================
+
+## Base monotone scale - used differently per theme
+## Inspired by Solarized base03 → base3
+const BASE := {
+	# Dark end of spectrum
+	"base03": Color(0.00, 0.17, 0.21),         # #002b36 - Darkest
+	"base02": Color(0.03, 0.21, 0.26),         # #073642
+	"base01": Color(0.35, 0.43, 0.46),         # #586e75 - Dark content
+	"base00": Color(0.40, 0.48, 0.51),         # #657b83 - Body text (dark)
+	# Light end of spectrum
+	"base0": Color(0.51, 0.58, 0.59),          # #839496 - Body text (light)
+	"base1": Color(0.58, 0.63, 0.63),          # #93a1a1 - Light content
+	"base2": Color(0.93, 0.91, 0.84),          # #eee8d5
+	"base3": Color(0.99, 0.96, 0.89),          # #fdf6e3 - Lightest
+}
+
+
+# ============================================================================
+# THEME DEFINITIONS (Assembled from shared palette)
+# ============================================================================
+
+## Dark theme - dark backgrounds, light text
+const DARK_THEME := {
+	# Backgrounds (using dark end of BASE)
+	"bg_darker": BASE["base03"],
+	"bg_dark": BASE["base02"],
+	"bg_medium": Color(0.07, 0.25, 0.30),      # Slightly lighter than base02
+	"bg_light": Color(0.10, 0.28, 0.33),
+	"bg_lighter": Color(0.13, 0.31, 0.36),
+
+	# Borders
+	"border_subtle": BASE["base01"],
+	"border_medium": Color(0.30, 0.38, 0.42),
+	"border_accent": ACCENT["blue"],
+
+	# Text (using light end of BASE)
+	"text_primary": BASE["base1"],
+	"text_secondary": BASE["base0"],
+	"text_disabled": BASE["base01"],
+
+	# Semantic colors - backgrounds muted, text/borders use accent
+	"primary": Color(ACCENT["blue"].r * 0.3, ACCENT["blue"].g * 0.3, ACCENT["blue"].b * 0.3),
+	"primary_border": ACCENT["blue"],
+	"primary_text": ACCENT["blue"],
+
+	"secondary": Color(ACCENT["violet"].r * 0.3, ACCENT["violet"].g * 0.3, ACCENT["violet"].b * 0.3),
+	"secondary_border": ACCENT["violet"],
+	"secondary_text": ACCENT["violet"],
+
+	"info": Color(ACCENT["cyan"].r * 0.25, ACCENT["cyan"].g * 0.25, ACCENT["cyan"].b * 0.25),
+	"info_border": ACCENT["cyan"],
+	"info_text": ACCENT["cyan"],
+
+	"warning": Color(ACCENT["yellow"].r * 0.3, ACCENT["yellow"].g * 0.3, ACCENT["yellow"].b * 0.3),
+	"warning_border": ACCENT["yellow"],
+	"warning_text": ACCENT["yellow"],
+
+	"success": Color(ACCENT["green"].r * 0.25, ACCENT["green"].g * 0.25, ACCENT["green"].b * 0.25),
+	"success_border": ACCENT["green"],
+	"success_text": ACCENT["green"],
+
+	"error": Color(ACCENT["red"].r * 0.25, ACCENT["red"].g * 0.25, ACCENT["red"].b * 0.25),
+	"error_border": ACCENT["red"],
+	"error_text": ACCENT["red"],
+
+	# Ratings - direct from shared palette
+	"rating_elite": RATINGS["elite"],
+	"rating_great": RATINGS["great"],
+	"rating_good": RATINGS["good"],
+	"rating_average": RATINGS["average"],
+	"rating_below_avg": RATINGS["below_avg"],
+	"rating_poor": RATINGS["poor"],
+}
+
+## Light theme - light backgrounds, dark text (BASE colors swap roles)
 const LIGHT_THEME := {
-	# Background progression (lightest to darker)
-	"bg_darker": Color(0.85, 0.85, 0.88),    # #d9d9e0 - Deepest nested panels
-	"bg_dark": Color(0.90, 0.90, 0.92),      # #e6e6eb - Dark panels
-	"bg_medium": Color(0.95, 0.95, 0.96),    # #f2f2f5 - Standard panels
-	"bg_light": Color(0.98, 0.98, 0.99),     # #fafafc - Light panels
-	"bg_lighter": Color(1.00, 1.00, 1.00),   # #ffffff - Lighter panels
+	# Backgrounds (using light end of BASE - SWAPPED from dark theme)
+	"bg_darker": BASE["base2"],
+	"bg_dark": BASE["base2"],
+	"bg_medium": BASE["base3"],
+	"bg_light": Color(0.99, 0.97, 0.91),
+	"bg_lighter": Color(1.00, 0.98, 0.94),
 
-	# Border colors
-	"border_subtle": Color(0.80, 0.80, 0.83),   # #ccccD4 - Subtle borders
-	"border_medium": Color(0.70, 0.70, 0.75),   # #b3b3bf - Medium borders
-	"border_accent": Color(0.30, 0.50, 0.80),   # #4d80cc - Accent borders
+	# Borders
+	"border_subtle": BASE["base1"],
+	"border_medium": BASE["base0"],
+	"border_accent": ACCENT["blue"],
 
-	# Text colors
-	"text_primary": Color(0.10, 0.10, 0.12),    # #1a1a1f - Primary text
-	"text_secondary": Color(0.30, 0.30, 0.35),  # #4d4d59 - Secondary text
-	"text_disabled": Color(0.55, 0.55, 0.60),   # #8c8c99 - Disabled text
+	# Text (using dark end of BASE - SWAPPED from dark theme)
+	"text_primary": BASE["base00"],
+	"text_secondary": BASE["base01"],
+	"text_disabled": BASE["base1"],
 
-	# Semantic colors (lighter versions for light theme)
-	"primary": Color(0.85, 0.90, 0.98),         # #d9e6fa - Primary blue bg
-	"primary_border": Color(0.30, 0.50, 0.85),  # #4d80d9 - Primary border
-	"primary_text": Color(0.15, 0.35, 0.70),    # #2659b3 - Primary text/icons
+	# Semantic colors - light backgrounds, same accent colors for text/borders
+	"primary": Color(0.90, 0.94, 0.98),        # Very light blue tint
+	"primary_border": ACCENT["blue_dim"],
+	"primary_text": ACCENT["blue_dim"],
 
-	"secondary": Color(0.92, 0.88, 0.98),       # #ebe0fa - Secondary purple bg
-	"secondary_border": Color(0.50, 0.35, 0.75), # #8059bf - Secondary border
-	"secondary_text": Color(0.35, 0.20, 0.65),  # #5933a6 - Secondary text/icons
+	"secondary": Color(0.94, 0.92, 0.98),      # Very light violet tint
+	"secondary_border": ACCENT["violet"],
+	"secondary_text": ACCENT["violet"],
 
-	"info": Color(0.85, 0.95, 0.98),            # #d9f2fa - Info teal bg
-	"info_border": Color(0.25, 0.60, 0.80),     # #4099cc - Info border
-	"info_text": Color(0.10, 0.45, 0.65),       # #1a73a6 - Info text/icons
+	"info": Color(0.90, 0.96, 0.96),           # Very light cyan tint
+	"info_border": ACCENT["cyan"],
+	"info_text": ACCENT["cyan"],
 
-	"warning": Color(0.98, 0.92, 0.85),         # #faebd9 - Warning orange bg
-	"warning_border": Color(0.80, 0.55, 0.20),  # #cc8c33 - Warning border
-	"warning_text": Color(0.65, 0.40, 0.10),    # #a6661a - Warning text/icons
+	"warning": Color(0.98, 0.95, 0.88),        # Very light yellow tint
+	"warning_border": ACCENT["yellow"],
+	"warning_text": ACCENT["yellow"],
 
-	"success": Color(0.85, 0.96, 0.88),         # #d9f5e0 - Success green bg
-	"success_border": Color(0.25, 0.70, 0.35),  # #40b359 - Success border
-	"success_text": Color(0.10, 0.50, 0.20),    # #1a8033 - Success text/icons
+	"success": Color(0.94, 0.96, 0.88),        # Very light green tint
+	"success_border": ACCENT["green"],
+	"success_text": ACCENT["green"],
 
-	"error": Color(0.98, 0.85, 0.85),           # #fad9d9 - Error red bg
-	"error_border": Color(0.85, 0.25, 0.25),    # #d94040 - Error border
-	"error_text": Color(0.70, 0.10, 0.10),      # #b31a1a - Error text/icons
+	"error": Color(0.98, 0.90, 0.90),          # Very light red tint
+	"error_border": ACCENT["red"],
+	"error_text": ACCENT["red"],
 
-	# Rating/stat colors (same vibrant colors work in light mode)
-	"rating_elite": Color(0.00, 0.80, 0.00),    # #00cc00 - 90+ elite
-	"rating_great": Color(0.30, 0.90, 0.30),    # #4de64d - 80-89 great
-	"rating_good": Color(0.50, 0.95, 0.50),     # #80f280 - 70-79 good
-	"rating_average": Color(0.90, 0.90, 0.00),  # #e6e600 - 60-69 average
-	"rating_below_avg": Color(0.95, 0.60, 0.00), # #f29900 - 50-59 below avg
-	"rating_poor": Color(0.90, 0.00, 0.00),     # #e60000 - <50 poor
+	# Ratings - SAME as dark theme (high visibility colors work in both)
+	"rating_elite": RATINGS["elite"],
+	"rating_great": RATINGS["great"],
+	"rating_good": RATINGS["good"],
+	"rating_average": RATINGS["average"],
+	"rating_below_avg": RATINGS["below_avg"],
+	"rating_poor": RATINGS["poor"],
 }
 
 
