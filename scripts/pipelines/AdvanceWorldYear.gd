@@ -112,6 +112,10 @@ func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: boo
 		if capture_timing:
 			phase_timings[phase_id] = elapsed_usec
 
+		# Notify DataBus that phase completed
+		if DataBus:
+			DataBus.notify_phase_completed(phase_id, year)
+
 		results.append({
 			"phase_id": phase_id,
 			"seed": phase_seed,
@@ -199,6 +203,12 @@ func _handle_hs_generation(
 	hs_players.append_array(players)
 	world_state["hs_players"] = hs_players
 
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("hs_players")
+		if not world_state.get("hs_schools", []).is_empty():
+			DataBus.notify_collection_changed("hs_schools")
+
 	return {
 		"class_year": year,
 		"count": players.size(),
@@ -226,6 +236,10 @@ func _handle_hs_assignment(
 	world_state["hs_players"] = output.get("players", hs_players) as Array
 	world_state["hs_schools"] = hs_schools
 	world_state["hs_school_index"] = _school_index(hs_schools)
+
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("hs_players")
 
 	return {
 		"year": year,
@@ -268,6 +282,11 @@ func _handle_hs_season(
 	recruit_pool[year] = profiles
 	world_state["hs_recruit_pool"] = recruit_pool
 
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("hs_players")
+		DataBus.notify_collection_changed("hs_recruit_pool")
+
 	return {
 		"year": year,
 		"count": active.size(),
@@ -296,6 +315,10 @@ func _handle_college_generation(
 		var generated := generator.generate(step_seed)
 		colleges = generated.get("colleges", []) as Array
 		world_state["colleges"] = colleges
+
+		# Notify DataBus of collection changes
+		if DataBus:
+			DataBus.notify_collection_changed("colleges")
 
 	return {
 		"year": year,
@@ -330,6 +353,11 @@ func _handle_nfl_team_generation(
 	# Only initialize rosters if they don't exist (preserve drafted players!)
 	if not world_state.has("nfl_rosters"):
 		world_state["nfl_rosters"] = {}
+
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("nfl_teams")
+		DataBus.notify_collection_changed("nfl_rosters")
 
 	return {
 		"year": year,
@@ -389,6 +417,11 @@ func _handle_college_recruiting(
 	# A1: Initialize college rosters from commitments
 	_initialize_college_rosters(world_state, year, commitments, recruits)
 
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("college_commitments")
+		DataBus.notify_collection_changed("college_rosters")
+
 	return {
 		"year": year,
 		"offers": int(output.get("offers", 0)),
@@ -413,7 +446,14 @@ func _handle_college_season(
 	var positions_cfg: Dictionary = _get_config().get_config("positions")
 	var main_cfg: Dictionary = _get_config().get_config("main")
 	var stats_cfg: Dictionary = _get_config().get_config("stats")
-	return season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
+	var result := season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
+
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("college_rosters")
+		DataBus.notify_collection_changed("draft_pool")
+
+	return result
 
 func _handle_draft_prep(
 	world_state: Dictionary,
@@ -465,7 +505,14 @@ func _handle_nfl_draft(
 	var main_cfg: Dictionary = _get_config().get_config("main")
 
 	var draft := NflDraft.new()
-	return draft.run(world_state, year, step_seed, league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg)
+	var result := draft.run(world_state, year, step_seed, league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg)
+
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("nfl_rosters")
+		DataBus.notify_collection_changed("draft_pool")
+
+	return result
 
 func _handle_roster_management(
 	world_state: Dictionary,
@@ -489,6 +536,10 @@ func _handle_roster_management(
 		step_seed,
 		main_cfg
 	)
+
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("nfl_rosters")
 
 	return {
 		"year": year,
@@ -527,6 +578,10 @@ func _handle_nfl_free_agency(
 		league_cfg
 	)
 
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("nfl_rosters")
+
 	return {
 		"year": year,
 		"signings": int(output.get("signings", []).size()),
@@ -553,7 +608,13 @@ func _handle_nfl_season(
 	var stats_cfg: Dictionary = _get_config().get_config("stats")
 
 	var season := NflSeason.new()
-	return season.run(world_state, year, step_seed, league_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
+	var result := season.run(world_state, year, step_seed, league_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
+
+	# Notify DataBus of collection changes
+	if DataBus:
+		DataBus.notify_collection_changed("nfl_rosters")
+
+	return result
 
 func _handle_placeholder_phase(
 	_world_state: Dictionary,
