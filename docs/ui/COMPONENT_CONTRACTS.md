@@ -28,7 +28,20 @@ Gridiron Dynasty uses a **smart container / dumb component** pattern:
 
 **Example:** `WorldExplorer`
 
-**Required Implementation:**
+**Quick Start:** Use `ReactivePanel` base class to eliminate boilerplate:
+
+```gdscript
+extends ReactivePanel
+class_name MySmartContainer
+
+func _get_subscribed_collections() -> Array[String]:
+    return ["nfl_rosters", "contracts"]
+
+func _on_data_changed(collection: String, operation: String) -> void:
+    _refresh_affected_components(collection)
+```
+
+**Manual Implementation (if not using ReactivePanel):**
 
 ```gdscript
 extends Control
@@ -587,8 +600,62 @@ func _refresh() -> void:
 
 **For questions or clarifications, see:**
 - `docs/ui/UI_DATABUS_INTEGRATION_AUDIT.md` - Full audit report
+- `docs/ui/REACTIVE_PANEL_GUIDE.md` - ReactivePanel base class guide
 - `docs/architecture/DATABUS_NOTIFICATION_STRATEGY.md` - Notification patterns
 - `autoloads/DataBus.gd` - DataBus implementation
+- `scripts/ui/base/ReactivePanel.gd` - ReactivePanel base class
+- `scripts/ui/base/ReactivePanelContainer.gd` - ReactivePanelContainer base class
+
+---
+
+## ReactivePanel Base Classes
+
+To simplify building smart containers, use the `ReactivePanel` or `ReactivePanelContainer` base classes. These handle all DataBus subscription boilerplate automatically.
+
+### Quick Start
+
+```gdscript
+extends ReactivePanel
+class_name MySmartPanel
+
+func _get_subscribed_collections() -> Array[String]:
+    return ["nfl_rosters", "contracts"]
+
+func _on_data_changed(collection: String, operation: String) -> void:
+    match collection:
+        "nfl_rosters":
+            _refresh_roster()
+        "contracts":
+            _refresh_contracts()
+
+func _on_world_state_loaded() -> void:
+    _refresh_all()
+
+func initialize(ws: Dictionary) -> void:
+    super.initialize(ws)
+    _refresh_all()
+```
+
+### Benefits
+
+- **No Boilerplate:** Automatic DataBus subscription/unsubscription
+- **Filtered Notifications:** Only receive events for collections you care about
+- **Consistent Pattern:** All smart containers follow the same structure
+- **Memory Safe:** Automatic cleanup prevents leaks
+
+### When to Use
+
+- ✅ Your component is a smart container
+- ✅ You need to subscribe to DataBus
+- ✅ You want to reduce boilerplate
+
+### When NOT to Use
+
+- ❌ Your component is a dumb component (receives data from parent)
+- ❌ Your parent already uses ReactivePanel (avoid double-subscription)
+- ❌ Your component is a modal with transient state
+
+**See [REACTIVE_PANEL_GUIDE.md](./REACTIVE_PANEL_GUIDE.md) for complete documentation.**
 
 ---
 

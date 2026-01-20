@@ -31,6 +31,7 @@ const Rand = preload("res://autoloads/Rand.gd")
 const RookieWageScale = preload("res://scripts/core/contracts/RookieWageScale.gd")
 const PlayerRatingCalculator = preload("res://scripts/core/rating/PlayerRatingCalculator.gd")
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
+const ContractStateManager = preload("res://scripts/core/state/ContractStateManager.gd")
 
 # Configuration constants
 const MAX_UDFAS_TO_SIGN := 50       # Top 50 UDFAs are eligible for signing
@@ -127,7 +128,7 @@ static func run(
 	)
 
 	# Step 5: Update world state with signings
-	_update_world_state(world_state, year, user_signings, ai_signings, rosters)
+	_update_world_state(world_state, year, user_signings, ai_signings)
 
 	# Calculate unsigned (eligible but not signed)
 	var unsigned: Array = []
@@ -350,62 +351,79 @@ static func _calculate_position_needs(
 	return needs
 
 
-## Update world state with UDFA signings
+## Update world state with UDFA signings (via ContractStateManager)
 ##
-## - Adds signed players to team rosters
-## - Updates player NFL status and contract
+## CRITICAL: All contract mutations flow through ContractStateManager for atomicity.
+## This ensures:
+## - DataBus notifications fire automatically
+## - UI components auto-refresh during UDFA bidding
+## - Cap space is tracked correctly
+## - Contract state transitions are valid
+##
+## - Executes each signing through ContractStateManager
 ## - Records UDFA history for the year
 static func _update_world_state(
 	world_state: Dictionary,
 	year: int,
 	user_signings: Array,
-	ai_signings: Array,
-	rosters: Dictionary
+	ai_signings: Array
 ) -> void:
 	# Combine all signings
 	var all_signings := user_signings + ai_signings
 
-	# Add each signed player to their team's roster
+	# Execute each signing through ContractStateManager (handles all mutations atomically)
 	for signing in all_signings:
 		var s: Dictionary = signing
 		var team_id := String(s.get("team_id", ""))
-		var player: Dictionary = s.get("player", {})
+		var player_id := String(s.get("player_id", ""))
 		var contract: Dictionary = s.get("contract", {})
 
-		if team_id.is_empty() or player.is_empty():
+		if team_id.is_empty() or player_id.is_empty() or contract.is_empty():
+			push_warning("UDFABiddingEngine: Invalid signing record, skipping: %s" % str(s))
 			continue
 
-		# Update player with NFL info
-		player["nfl_team_id"] = team_id
-		player["nfl_status"] = "active"
-		player["contract"] = contract
-		player["udfa_info"] = {
-			"year": year,
-			"team_id": team_id
+		# Convert UDFA contract to offer format for ContractStateManager
+		# ContractStateManager.execute_signing() expects an offer dictionary with:
+		# - annual_value, years_total, signing_bonus, guarantee_amount, base_salary
+		var offer := {
+			"team_id": team_id,
+			"annual_value": contract.get("annual_value", 0.0),
+			"years_total": contract.get("years_remaining", 1),
+			"signing_bonus": contract.get("signing_bonus", 0.0),
+			"guarantee_amount": contract.get("guarantee_amount", 0.0),
+			"base_salary": contract.get("base_salary", 0.0)
 		}
-		player["draft_year"] = year
 
-		# Add to roster
-		var roster: Dictionary = rosters.get(team_id, {"players": [], "by_position": {}})
-		var players: Array = roster.get("players", [])
-		players.append(player)
-		roster["players"] = players
+		# Execute signing through ContractStateManager (handles all mutations atomically)
+		# This:
+		# 1. Validates player exists in undrafted_pool[year]
+		# 2. Creates and signs contract
+		# 3. Moves player from undrafted_pool to team roster
+		# 4. Updates team cap space
+		# 5. Emits DataBus notifications
+		var signing_result := ContractStateManager.execute_signing(
+			world_state,
+			player_id,
+			team_id,
+			offer,
+			year
+		)
 
-		# Update by_position index
-		var position := String(player.get("position", ""))
-		if not position.is_empty():
-			var by_position: Dictionary = roster.get("by_position", {})
-			if not by_position.has(position):
-				by_position[position] = []
-			(by_position[position] as Array).append(String(player.get("player_id", player.get("id", ""))))
-			roster["by_position"] = by_position
+		# Check if signing succeeded
+		if not signing_result.get("success", false):
+			var error_msg := String(signing_result.get("error", "unknown"))
+			push_error("UDFABiddingEngine: Failed to sign player %s to %s: %s" % [
+				player_id, team_id, error_msg
+			])
+			continue
 
-		rosters[team_id] = roster
+		# Log successful signing
+		var annual_value := float(signing_result.get("annual_value", 0.0))
+		print_verbose("UDFABiddingEngine: Signed %s to %s for $%.2fM AAV" % [
+			player_id, team_id, annual_value
+		])
 
-	# Update world state rosters
-	world_state["nfl_rosters"] = rosters
-
-	# Record UDFA history
+	# Record UDFA history (this is history/analytics data, not core state)
 	if not world_state.has("udfa_history"):
 		world_state["udfa_history"] = {}
 	var udfa_history := world_state.get("udfa_history", {}) as Dictionary

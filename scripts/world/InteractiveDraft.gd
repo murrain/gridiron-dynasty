@@ -27,6 +27,7 @@ const RosterComposition = preload("res://scripts/core/roster/RosterComposition.g
 const NflDraft = preload("res://scripts/world/NflDraft.gd")
 const PlayerShortlist = preload("res://scripts/core/models/PlayerShortlist.gd")
 const DraftTradeEngine = preload("res://scripts/world/DraftTradeEngine.gd")
+const DraftStateManager = preload("res://scripts/core/state/DraftStateManager.gd")
 
 ## Emitted when the user needs to make a pick
 ## Parameters: pick_number, round_number, available_players, recommendations
@@ -175,7 +176,14 @@ func initialize(
 
 	# Extract teams and rosters
 	_teams = world_state.get("nfl_teams", [])
-	_rosters = world_state.get("nfl_rosters", {})
+
+	# CRITICAL: Make _rosters a deep copy, not a reference to world_state
+	# This prevents accidental direct mutations of world_state during draft execution
+	# Rosters will be synced back via DraftStateManager.execute_pick() after each pick
+	var world_rosters: Dictionary = world_state.get("nfl_rosters", {})
+	_rosters = {}
+	for team_id in world_rosters.keys():
+		_rosters[team_id] = (world_rosters[team_id] as Dictionary).duplicate(true)
 
 	# Build team index
 	_team_index = _build_team_index(_teams)
@@ -191,16 +199,22 @@ func initialize(
 	_rounds = int(draft_cfg.get("rounds", 7))
 	_picks_per_round = int(draft_cfg.get("picks_per_round", _teams.size()))
 
-	# Initialize pick ownership if needed
-	if not world_state.has("draft_pick_ownership"):
-		NflDraft.initialize_pick_ownership(world_state, _teams, year, _rounds)
-
-	# Initialize team scouting quality
-	if not world_state.has("nfl_scouting_quality"):
-		var class_rules: Dictionary = _main_cfg.get("class_rules", {})
-		world_state["nfl_scouting_quality"] = NflDraft._generate_team_scouting_quality(
-			_teams, class_rules, seed
+	# Initialize draft structures using DraftStateManager
+	# This handles: pick ownership allocation, scouting quality generation, state machine setup
+	# Only runs once per year if not already initialized
+	var class_rules: Dictionary = _main_cfg.get("class_rules", {})
+	if not world_state.has("draft_pick_ownership") or not world_state.has("nfl_scouting_quality"):
+		var init_result := DraftStateManager.initialize_draft(
+			world_state,
+			_teams,
+			year,
+			_league_cfg,
+			class_rules,
+			seed
 		)
+		if init_result.get("scouting_initialized", false):
+			print("[InteractiveDraft] Initialized scouting quality for %d teams" % _teams.size())
+
 	_team_quality = world_state.get("nfl_scouting_quality", {})
 
 	# Generate scouts for each team
@@ -521,6 +535,10 @@ func _make_ai_pick(pick_assignment: Dictionary) -> void:
 
 
 ## Execute a pick (shared by AI and user)
+##
+## ARCHITECTURE: Uses DraftStateManager.execute_pick() for atomic world_state updates.
+## Maintains local caches (_rosters, _remaining_pool, _drafted_players) for performance,
+## but refreshes from world_state after each mutation to ensure consistency.
 func _execute_pick(pick_assignment: Dictionary, player: Dictionary, player_index: int) -> void:
 	var team_id := String(pick_assignment.get("current_owner_id", ""))
 	var round_num := int(pick_assignment.get("round", 1))
@@ -533,53 +551,67 @@ func _execute_pick(pick_assignment: Dictionary, player: Dictionary, player_index
 	# Create rookie contract
 	var contract := _create_rookie_contract(round_num, overall_pick)
 
-	# Update player with NFL info
-	player["nfl_team_id"] = team_id
-	player["nfl_status"] = "active"
-	player["contract"] = contract
-	player["draft_info"] = {
+	# Prepare draft info for DraftStateManager
+	var draft_info := {
 		"year": _year,
 		"round": round_num,
 		"pick": overall_pick,
 		"team_id": team_id
 	}
-	player["draft_year"] = _year
-	var composite := float(player.get("composite_score", 50.0))
-	player["eval_score"] = composite
 
-	# Add to roster and update by_position index
-	# CRITICAL: _rosters[team_id] is updated immediately so that when boards are
-	# recomputed at the start of the next round, position needs reflect current roster state
-	var roster: Dictionary = _rosters.get(team_id, {"players": [], "by_position": {}})
-	var players: Array = roster.get("players", [])
-	players.append(player)
-	roster["players"] = players
-	_update_roster_by_position(roster, player)
-	_rosters[team_id] = roster
+	# Execute pick atomically via DraftStateManager
+	# This handles: removing from draft pool, updating player, adding to roster, DataBus notifications
+	var pick_result := DraftStateManager.execute_pick(
+		_world_state,
+		player_id,
+		team_id,
+		draft_info,
+		contract,
+		_year
+	)
 
-	# Mark player as drafted (for fast lookup in board iteration)
+	if not pick_result.get("success", false):
+		push_error("[InteractiveDraft] Failed to execute pick for player %s" % player_id)
+		return
+
+	# Refresh local roster cache from world_state after mutation
+	# This ensures our local cache stays in sync with the authoritative world_state
+	var updated_rosters: Dictionary = _world_state.get("nfl_rosters", {})
+	_rosters[team_id] = (updated_rosters.get(team_id, {}) as Dictionary).duplicate(true)
+
+	# Update local player reference from updated roster for signal emission
+	var roster: Dictionary = _rosters.get(team_id, {})
+	var roster_players: Array = roster.get("players", [])
+	var drafted_player: Dictionary = {}
+	for p in roster_players:
+		var rp: Dictionary = p
+		if String(rp.get("player_id", "")) == player_id:
+			drafted_player = rp
+			break
+
+	# Mark player as drafted in local cache (for fast lookup in board iteration)
 	_drafted_players[player_id] = true
 
 	# Notify shortlist if this player was on user's watchlist
 	if _shortlist and _shortlist.is_shortlisted(player_id):
 		_shortlist.mark_as_drafted(player_id, team_id, overall_pick)
 
-	# Record pick
+	# Record pick in local tracking
 	var pick_record := {
 		"round": round_num,
 		"pick": overall_pick,
 		"team_id": team_id,
 		"player_id": player_id,
-		"player_name": String(player.get("name", "Unknown")),
-		"position": String(player.get("position", "")),
-		"college": String(player.get("college_team_id", "")),
+		"player_name": String(drafted_player.get("name", "Unknown")),
+		"position": String(drafted_player.get("position", "")),
+		"college": String(drafted_player.get("college_team_id", "")),
 		"traded": is_traded,
 		"original_team_id": original_team_id if is_traded else null,
 		"is_user_pick": team_id == _user_team_id
 	}
 	_picks_made.append(pick_record)
 
-	# Remove from pool
+	# Remove from local pool cache
 	_remaining_pool.remove_at(player_index)
 
 	# Emit signals
@@ -587,25 +619,36 @@ func _execute_pick(pick_assignment: Dictionary, player: Dictionary, player_index
 	draft_ticker_update.emit(
 		overall_pick,
 		team_id,
-		String(player.get("name", "Unknown")),
-		String(player.get("position", ""))
+		String(drafted_player.get("name", "Unknown")),
+		String(drafted_player.get("position", ""))
 	)
 
 
 ## Finalize the draft
+##
+## ARCHITECTURE: Uses DraftStateManager for atomic state updates and DataBus notifications.
+## All world_state mutations go through the manager to ensure UI reactivity.
 func _finalize_draft() -> void:
 	_state = DraftState.COMPLETED
 
-	# Store undrafted players
-	var undrafted_pool: Dictionary = _world_state.get("undrafted_pool", {})
-	undrafted_pool[_year] = _remaining_pool
-	_world_state["undrafted_pool"] = undrafted_pool
-	_world_state["nfl_rosters"] = _rosters
+	# Store undrafted players using DraftStateManager
+	# This ensures atomic update with DataBus notification for UI reactivity
+	var undrafted_result := DraftStateManager.store_undrafted_players(
+		_world_state,
+		_remaining_pool,
+		_year
+	)
+	print("[InteractiveDraft] Stored %d undrafted players" % undrafted_result.get("undrafted_count", 0))
 
-	# Store draft history
-	var draft_history: Dictionary = _world_state.get("draft_history", {})
-	draft_history[_year] = _picks_made
-	_world_state["draft_history"] = draft_history
+	# Store draft history using DraftStateManager
+	# This finalizes the draft and ensures DataBus notification
+	# Note: Rosters are already updated via execute_pick(), so no need to write them here
+	var history_result := DraftStateManager.record_draft_history(
+		_world_state,
+		_picks_made,
+		_year
+	)
+	print("[InteractiveDraft] Recorded draft history (%d picks)" % history_result.get("picks_recorded", 0))
 
 	# Build results
 	var results := {
@@ -1274,13 +1317,20 @@ func accept_trade(offer: Dictionary) -> bool:
 		push_error("[InteractiveDraft] Invalid trade: %s" % String(validation.get("reason", "Unknown")))
 		return false
 
-	# Execute the trade
+	# Execute the trade (DraftTradeEngine.execute_trade is pure - returns new ownership)
 	var result := DraftTradeEngine.execute_trade(offer, ownership, _year, overall_pick)
 	var trade_record: Dictionary = result.get("trade_record", {})
 	var updated_ownership: Dictionary = result.get("updated_ownership", {})
 
-	# Update world state with new ownership
+	# Update world state with new ownership atomically
+	# Note: We can't use DraftStateManager.execute_trade() here because it handles single-pick
+	# trades, while DraftTradeEngine handles complex multi-pick packages. However, we must
+	# ensure DataBus notifications fire for UI reactivity.
 	_world_state["draft_pick_ownership"] = updated_ownership
+
+	# Emit DataBus notification to trigger UI refresh (WorldExplorer, etc.)
+	if DataBus:
+		DataBus.notify_collection_changed("draft_pick_ownership", "update")
 
 	# Record trade in history
 	_trade_history.append(trade_record)
