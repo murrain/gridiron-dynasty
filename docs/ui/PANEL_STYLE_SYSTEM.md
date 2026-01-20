@@ -67,29 +67,63 @@ Standard spacing constants:
 - `lg`: 16px
 - `xl`: 24px
 
+### 5. Dynamic Theme Support
+
+The panel system integrates with **ThemeManager** for dynamic dark/light theme switching:
+
+- All colors pulled from ThemeManager automatically
+- Supports both dark and light themes
+- Theme switching via `ThemeManager.set_theme("light")` or `ThemeManager.toggle_theme()`
+- Panels using `PanelStyles.get_color()` automatically use active theme colors
+- StatQueries rating colors also support theme switching
+
+#### Theme Colors
+
+Both dark and light themes include:
+- Background progression colors (bg_darker → bg_lighter)
+- Border colors (subtle → accent)
+- Text colors (primary, secondary, disabled)
+- Semantic colors (primary, secondary, info, warning, success, error)
+- Rating colors (elite → poor, green → red scale)
+
 ---
 
 ## Implementation Details
 
 ### Files Created
 
-1. **`scripts/ui/base/PanelStyles.gd`**
+1. **`autoloads/ThemeManager.gd`**
+   - Global theme manager autoload
+   - Dark and light theme definitions
+   - Theme switching logic
+   - Signal emission on theme changes
+   - Registered as autoload in project.godot
+
+2. **`scripts/ui/base/PanelStyles.gd`**
    - Centralized style configuration class
-   - Color palette constants
+   - Integrates with ThemeManager for colors
    - Spacing constants
    - Style creation utilities
+   - Legacy COLORS constant for backward compatibility
 
-2. **`scripts/ui/base/ExampleNestedPanels.gd`**
+3. **`scripts/ui/base/ExampleNestedPanels.gd`**
    - Complete demonstration scene
    - Shows all style variants
    - Demonstrates nesting behavior
    - Interactive style changes
 
-3. **`tests/ui/test_panel_styles.gd`**
+4. **`tests/ui/test_panel_styles.gd`**
    - Comprehensive unit tests
    - Tests all style variants
    - Tests nesting detection
    - Integration tests
+
+5. **`tests/ui/test_theme_manager.gd`**
+   - ThemeManager unit tests
+   - Theme switching tests
+   - Color retrieval tests
+   - Signal emission tests
+   - Integration tests with PanelStyles and StatQueries
 
 ### Files Modified
 
@@ -107,7 +141,16 @@ Standard spacing constants:
    - Added nesting detection methods
    - Full StyleBox support (better than ReactivePanel)
 
-3. **`docs/ui/REACTIVE_PANEL_GUIDE.md`**
+3. **`scripts/ui/world_explorer/queries/StatQueries.gd`**
+   - Updated to use ThemeManager for rating colors
+   - Deprecated legacy COLOR_* constants
+   - `get_stat_color_hex()` now pulls from active theme
+   - Falls back to legacy constants if ThemeManager unavailable
+
+4. **`project.godot`**
+   - Added ThemeManager as autoload singleton
+
+5. **`docs/ui/REACTIVE_PANEL_GUIDE.md`**
    - Added comprehensive style system documentation
    - Added nesting examples
    - Added color palette reference
@@ -155,17 +198,59 @@ child.add_child(grandchild)  # 16px left margin
 ### Using PanelStyles Directly
 
 ```gdscript
-# Create a custom style
+# Create a custom style (uses active theme colors)
 var style := PanelStyles.create_style("warning", 0, {
     "padding": 16,
     "corner_radius": 8
 })
 
-# Access colors
+# Access colors from active theme
 var bg_color := PanelStyles.get_color("bg_dark")
+var text_color := PanelStyles.get_color("text_primary")
 
 # Access spacing
 var padding := PanelStyles.get_spacing("md")
+```
+
+### Theme Switching
+
+```gdscript
+# Switch to light theme
+ThemeManager.set_theme("light")
+
+# Switch to dark theme
+ThemeManager.set_theme("dark")
+
+# Toggle between dark and light
+ThemeManager.toggle_theme()
+
+# Check active theme
+if ThemeManager.is_dark_theme():
+    print("Dark mode active")
+
+# Get a color from the active theme
+var bg_color := ThemeManager.get_color("bg_dark")
+
+# React to theme changes
+func _ready() -> void:
+    ThemeManager.theme_changed.connect(_on_theme_changed)
+
+func _on_theme_changed(theme_name: String) -> void:
+    print("Theme changed to: ", theme_name)
+    # Refresh UI elements that need manual updates
+    apply_style()  # For ReactivePanel/ReactivePanelContainer
+```
+
+### Using Rating Colors
+
+```gdscript
+# Get rating color for a stat value (auto-uses active theme)
+var rating := 85.0
+var color_hex := StatQueries.get_stat_color_hex(rating)  # Returns "#66ff66"
+var color := StatQueries.get_stat_color(rating)  # Returns Color object
+
+# Use in BBCode
+var bbcode := "[color=%s]%d[/color]" % [color_hex, rating]
 ```
 
 ---
@@ -214,14 +299,14 @@ func _get_nesting_depth() -> int
 ### PanelStyles (Static Class)
 
 ```gdscript
-## Create a style for a variant
+## Create a style for a variant (uses active theme colors)
 static func create_style(
     variant: String,
     nesting_depth: int = 0,
     custom_config: Dictionary = {}
 ) -> StyleBoxFlat
 
-## Get a color from the palette
+## Get a color from the active theme
 static func get_color(color_name: String, fallback: Color = Color.WHITE) -> Color
 
 ## Get a spacing value
@@ -229,6 +314,41 @@ static func get_spacing(spacing_name: String, fallback: int = 8) -> int
 
 ## Get a corner radius value
 static func get_corner_radius(radius_name: String, fallback: int = 4) -> int
+```
+
+### ThemeManager (Autoload Singleton)
+
+```gdscript
+## Set the active theme ("dark" or "light")
+func set_theme(theme_name: String) -> void
+
+## Toggle between dark and light themes
+func toggle_theme() -> void
+
+## Get a color from the active theme
+func get_color(color_name: String, fallback: Color = Color.MAGENTA) -> Color
+
+## Get all colors from the active theme
+func get_all_colors() -> Dictionary
+
+## Check if dark theme is active
+func is_dark_theme() -> bool
+
+## Check if light theme is active
+func is_light_theme() -> bool
+
+## Signal emitted when theme changes
+signal theme_changed(theme_name: String)
+```
+
+### StatQueries (Static Class)
+
+```gdscript
+## Get color for stat value (uses active theme, returns Color)
+static func get_stat_color(value: float) -> Color
+
+## Get color for stat value (uses active theme, returns hex string)
+static func get_stat_color_hex(value: float) -> String
 ```
 
 ---
@@ -272,25 +392,56 @@ This creates clear parent-child relationships without manual configuration.
 ### 4. Why Centralized PanelStyles Class?
 
 The `PanelStyles` utility class provides:
-- Single source of truth for colors
+- Single source of truth for styling logic
 - Consistent spacing across UI
-- Easy theme customization (change colors in one place)
+- Easy integration with ThemeManager
 - Reusable across non-ReactivePanel widgets
+
+### 5. Why ThemeManager Autoload?
+
+ThemeManager is implemented as an autoload singleton because:
+- **Global access:** All UI components can access theme colors without dependency injection
+- **Signal propagation:** Centralized theme_changed signal reaches all connected components
+- **State management:** Single source of truth for active theme
+- **Performance:** Theme colors are cached in dictionaries, no file I/O needed
+- **Simplicity:** No need to pass theme references through constructors
+
+**Architecture benefits:**
+- PanelStyles delegates color retrieval to ThemeManager
+- StatQueries uses ThemeManager for rating colors
+- Future UI components can easily integrate by calling `ThemeManager.get_color()`
+- Theme switching is a single function call that affects all UI instantly
+
+**Alternative considered:** Resource-based themes (.tres files) were considered but rejected because:
+- Dictionary-based approach is simpler and more maintainable
+- No need for resource loading/unloading
+- Easier to extend with new colors
+- Better performance (no disk I/O)
 
 ---
 
 ## Testing
 
-The style system is fully tested with:
+The style and theme system is fully tested with:
+- Unit tests for `ThemeManager` (theme switching, color retrieval, signals)
 - Unit tests for `PanelStyles` utility
 - Unit tests for `ReactivePanel` styling
 - Unit tests for `ReactivePanelContainer` styling
 - Integration tests for nesting behavior
+- Integration tests for ThemeManager with PanelStyles and StatQueries
 - Tests for all 9 style variants
+- Tests for dark and light theme color differences
 
 Run tests with:
 ```bash
+# Test ThemeManager
+godot --path . --script addons/gut/gut_cmdln.gd -gtest=res://tests/ui/test_theme_manager.gd
+
+# Test PanelStyles
 godot --path . --script addons/gut/gut_cmdln.gd -gtest=res://tests/ui/test_panel_styles.gd
+
+# Run all UI tests
+godot --path . --script addons/gut/gut_cmdln.gd -gdir=res://tests/ui/
 ```
 
 ---
@@ -302,14 +453,15 @@ godot --path . --script addons/gut/gut_cmdln.gd -gtest=res://tests/ui/test_panel
 If you have existing ReactivePanel or ReactivePanelContainer instances:
 
 1. **No changes required** - Style system is opt-in via `auto_apply_style`
-2. **To use styles** - Set `style_variant` property:
+2. **Colors automatically use ThemeManager** - All PanelStyles colors now pull from active theme
+3. **To use styles** - Set `style_variant` property:
    ```gdscript
    # In editor: Set "Style Variant" property
    # Or in code:
    panel.set_style_variant("primary")
    ```
 
-3. **For full style support** - Use ReactivePanelContainer:
+4. **For full style support** - Use ReactivePanelContainer:
    ```gdscript
    # Before
    extends ReactivePanel
@@ -318,26 +470,74 @@ If you have existing ReactivePanel or ReactivePanelContainer instances:
    extends ReactivePanelContainer
    ```
 
+### Migrating Hardcoded Colors
+
+If you have hardcoded colors in your UI code:
+
+**Before:**
+```gdscript
+var bg_color := Color(0.15, 0.15, 0.18)  # Hardcoded dark gray
+var text_color := Color(0.9, 0.9, 0.92)  # Hardcoded light gray
+```
+
+**After:**
+```gdscript
+var bg_color := ThemeManager.get_color("bg_medium")
+var text_color := ThemeManager.get_color("text_primary")
+```
+
+**Benefits:**
+- Automatically supports dark/light theme switching
+- Consistent colors across the entire UI
+- Single place to update colors (ThemeManager)
+
+### Migrating StatQueries Rating Colors
+
+**Before:**
+```gdscript
+# Hardcoded colors
+const COLOR_ELITE = "#00ff00"
+var color_hex := COLOR_ELITE
+```
+
+**After:**
+```gdscript
+# Use ThemeManager colors (automatic)
+var color_hex := StatQueries.get_stat_color_hex(rating)
+# No changes needed! StatQueries now uses ThemeManager internally
+```
+
 ---
 
 ## Future Enhancements
 
-Potential improvements:
+Completed enhancements:
+- ✅ **Theme system** - ThemeManager with dark/light themes
+- ✅ **Dynamic colors** - Colors pulled from active theme
+- ✅ **Theme switching** - Runtime theme switching with signals
 
-1. **Custom theme files** - Load themes from `.tres` files
-2. **Dynamic palette** - Hot-reload colors from config
-3. **Animation support** - Smooth transitions between variants
-4. **Additional variants** - Add more semantic variants (e.g., "critical", "highlight")
-5. **Border customization** - Per-side border width configuration
+Potential future improvements:
+
+1. **User preference persistence** - Save/load theme preference from config
+2. **Additional themes** - High contrast, custom color schemes
+3. **Theme loading from files** - Load custom themes from JSON/tres files
+4. **Animation support** - Smooth transitions when switching themes
+5. **Additional variants** - Add more semantic variants (e.g., "critical", "highlight")
+6. **Border customization** - Per-side border width configuration
+7. **Automatic theme refresh** - Auto-refresh all panels when theme changes
+8. **Theme preview** - Live preview of theme changes before applying
 
 ---
 
 ## See Also
 
 - **[REACTIVE_PANEL_GUIDE.md](./REACTIVE_PANEL_GUIDE.md)** - Complete ReactivePanel documentation
+- **[autoloads/ThemeManager.gd](/home/user/gridiron-dynasty/autoloads/ThemeManager.gd)** - Theme manager implementation
 - **[scripts/ui/base/PanelStyles.gd](/home/user/gridiron-dynasty/scripts/ui/base/PanelStyles.gd)** - Style utility implementation
+- **[scripts/ui/world_explorer/queries/StatQueries.gd](/home/user/gridiron-dynasty/scripts/ui/world_explorer/queries/StatQueries.gd)** - Rating color utilities
 - **[scripts/ui/base/ExampleNestedPanels.gd](/home/user/gridiron-dynasty/scripts/ui/base/ExampleNestedPanels.gd)** - Live examples
-- **[tests/ui/test_panel_styles.gd](/home/user/gridiron-dynasty/tests/ui/test_panel_styles.gd)** - Test suite
+- **[tests/ui/test_theme_manager.gd](/home/user/gridiron-dynasty/tests/ui/test_theme_manager.gd)** - ThemeManager test suite
+- **[tests/ui/test_panel_styles.gd](/home/user/gridiron-dynasty/tests/ui/test_panel_styles.gd)** - PanelStyles test suite
 
 ---
 

@@ -22,6 +22,7 @@ Config="*res://autoloads/Config.gd"
 DataBus="*res://autoloads/DataBus.gd"
 Rand="*res://autoloads/Rand.gd"
 RngBox="*res://autoloads/RngBox.gd"
+ThemeManager="*res://autoloads/ThemeManager.gd"
 
 [editor_plugins]
 

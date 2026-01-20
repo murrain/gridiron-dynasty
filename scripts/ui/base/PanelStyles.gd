@@ -2,23 +2,27 @@ class_name PanelStyles
 ## Centralized panel styling system for consistent UI theming.
 ##
 ## Provides color palette, spacing constants, and style creation utilities
-## for ReactivePanel and ReactivePanelContainer instances.
+## for ReactivePanel and ReactivePanelContainer instances. Integrates with
+## [ThemeManager] for dynamic dark/light theme support.
 ##
 ## [b]Usage:[/b]
 ## [codeblock]
-## # Create a style for a variant
+## # Create a style for a variant (uses active theme colors)
 ## var style = PanelStyles.create_style("primary", 0)
 ## panel.add_theme_stylebox_override("panel", style)
 ##
-## # Get a color from the palette
-## var bg_color = PanelStyles.COLORS["bg_dark"]
+## # Get a color from the active theme
+## var bg_color = PanelStyles.get_color("bg_dark")
 ##
 ## # Get standard spacing
 ## var padding = PanelStyles.SPACING["md"]
+##
+## # React to theme changes
+## ThemeManager.theme_changed.connect(_on_theme_changed)
 ## [/codeblock]
 ##
 ## [b]Variants:[/b]
-## - [b]default:[/b] Standard dark panel (medium background, subtle border)
+## - [b]default:[/b] Standard panel (medium background, subtle border)
 ## - [b]primary:[/b] Primary accent panel (blue tones)
 ## - [b]secondary:[/b] Secondary accent panel (purple tones)
 ## - [b]info:[/b] Informational panel (teal tones)
@@ -29,17 +33,29 @@ class_name PanelStyles
 ## - [b]transparent:[/b] Transparent panel (no background, no border)
 ##
 ## [b]Nesting Behavior:[/b]
-## The "nested" variant automatically darkens based on nesting depth:
-## - Depth 0: [code]bg_medium[/code] (#252530)
-## - Depth 1: [code]bg_dark[/code] (#1a1a1f)
-## - Depth 2+: [code]bg_darker[/code] (#121215)
+## The "nested" variant automatically adjusts based on nesting depth:
+## - Depth 0: [code]bg_medium[/code]
+## - Depth 1: [code]bg_dark[/code]
+## - Depth 2+: [code]bg_darker[/code]
+##
+## [b]Theme Integration:[/b]
+## All colors are fetched from [ThemeManager] automatically. When the theme
+## switches (dark/light), panels using [method create_style] will need to be
+## manually refreshed. Consider using [ReactivePanel] which can handle theme
+## changes automatically.
 
 
 # ============================================================================
 # COLOR PALETTE
 # ============================================================================
 
-## Color palette for consistent theming across all panels.
+## [b]DEPRECATED:[/b] Legacy color palette for backward compatibility.
+##
+## [color=yellow]Use [method get_color] instead, which pulls from ThemeManager.[/color]
+##
+## This constant provides fallback colors only and does not change with theme.
+## All new code should use [method get_color] or [method ThemeManager.get_color]
+## to support dynamic theme switching.
 ##
 ## [b]Background colors:[/b] Dark theme progression from dark to light
 ## [br][b]Border colors:[/b] Subtle to accent borders
@@ -219,37 +235,37 @@ static func _apply_variant_style(
 
 ## Apply default panel style.
 static func _apply_default_style(style: StyleBoxFlat) -> void:
-	style.bg_color = COLORS["bg_medium"]
+	style.bg_color = get_color("bg_medium")
 	style.set_border_width_all(1)
-	style.border_color = COLORS["border_subtle"]
+	style.border_color = get_color("border_subtle")
 	style.set_corner_radius_all(CORNER_RADIUS["small"])
 	style.set_content_margin_all(SPACING["md"])
 
 
 ## Apply accent variant style (primary, secondary, info, warning, success, error).
 static func _apply_accent_style(style: StyleBoxFlat, accent_name: String) -> void:
-	style.bg_color = COLORS[accent_name]
+	style.bg_color = get_color(accent_name)
 	style.set_border_width_all(1)
-	style.border_color = COLORS[accent_name + "_border"]
+	style.border_color = get_color(accent_name + "_border")
 	style.set_corner_radius_all(CORNER_RADIUS["small"])
 	style.set_content_margin_all(SPACING["md"])
 
 
 ## Apply nested panel style with depth-based darkening.
 static func _apply_nested_style(style: StyleBoxFlat, depth: int) -> void:
-	# Background darkens with depth
+	# Background changes with depth (darker in dark theme, lighter in light theme)
 	var bg_color: Color
 	match depth:
 		0:
-			bg_color = COLORS["bg_medium"]
+			bg_color = get_color("bg_medium")
 		1:
-			bg_color = COLORS["bg_dark"]
+			bg_color = get_color("bg_dark")
 		_:
-			bg_color = COLORS["bg_darker"]
+			bg_color = get_color("bg_darker")
 
 	style.bg_color = bg_color
 	style.set_border_width_all(1)
-	style.border_color = COLORS["border_subtle"]
+	style.border_color = get_color("border_subtle")
 	style.set_corner_radius_all(CORNER_RADIUS["small"])
 	style.set_content_margin_all(SPACING["md"])
 
@@ -266,13 +282,21 @@ static func _apply_transparent_style(style: StyleBoxFlat) -> void:
 # UTILITY FUNCTIONS
 # ============================================================================
 
-## Get a color from the palette by name.
+## Get a color from the active theme.
 ##
 ## [param color_name] The color key (e.g., "bg_dark", "primary", "border_subtle")
 ## [param fallback] Optional fallback color if key not found
 ##
-## [b]Returns:[/b] The color, or fallback if not found.
+## [b]Returns:[/b] The color from ThemeManager's active theme, or fallback if not found.
+##
+## This method pulls colors from [ThemeManager], so colors will automatically
+## change when the theme switches between dark and light modes.
 static func get_color(color_name: String, fallback: Color = Color.WHITE) -> Color:
+	# Try ThemeManager first
+	if ThemeManager:
+		return ThemeManager.get_color(color_name, fallback)
+
+	# Fallback to legacy COLORS constant if ThemeManager not available
 	if COLORS.has(color_name):
 		return COLORS[color_name]
 
