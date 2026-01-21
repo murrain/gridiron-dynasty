@@ -140,7 +140,8 @@ static func _create_mock_world_state() -> Dictionary:
 		var team_id := "team_%02d" % i
 		teams.append({
 			"id": team_id,
-			"name": "Team %d" % i
+			"name": "Team %d" % i,
+			"cap_space": CAP_LIMIT  # Required for ContractStateManager
 		})
 		rosters[team_id] = {"players": [], "by_position": {}}
 

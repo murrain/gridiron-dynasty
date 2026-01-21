@@ -4,7 +4,8 @@ extends RefCounted
 ## Static utility class for stat calculations and queries
 ##
 ## Provides functions to calculate composite ratings, identify core stats,
-## and map stat values to display colors
+## and map stat values to display colors. Integrates with [ThemeManager] for
+## dynamic theme support.
 
 ## Rating tier thresholds
 const RATING_ELITE = 90.0       # Elite tier (green)
@@ -14,7 +15,9 @@ const RATING_AVERAGE = 60.0     # Average tier (yellow)
 const RATING_BELOW_AVG = 50.0   # Below average tier (orange)
 # Below 50.0 is poor (red)
 
-## Color codes for rating tiers
+## [b]DEPRECATED:[/b] Legacy color constants for backward compatibility.
+## Use [method get_stat_color] or [method get_stat_color_hex] instead,
+## which pull from [ThemeManager] and support theme switching.
 const COLOR_ELITE = "#00ff00"
 const COLOR_GREAT = "#66ff66"
 const COLOR_GOOD = "#99ff99"
@@ -122,7 +125,31 @@ static func get_stat_color(value: float) -> Color:
 ## Get color for stat value (hex string for BBCode)
 ## value: Stat value 0-100
 ## Returns hex color string (e.g., "#00ff00")
+##
+## Uses [ThemeManager] colors automatically, falling back to legacy constants
+## if ThemeManager is not available.
 static func get_stat_color_hex(value: float) -> String:
+	# Determine which rating tier
+	var color_key: String
+	if value >= RATING_ELITE:
+		color_key = "rating_elite"
+	elif value >= RATING_GREAT:
+		color_key = "rating_great"
+	elif value >= RATING_GOOD:
+		color_key = "rating_good"
+	elif value >= RATING_AVERAGE:
+		color_key = "rating_average"
+	elif value >= RATING_BELOW_AVG:
+		color_key = "rating_below_avg"
+	else:
+		color_key = "rating_poor"
+
+	# Get color from ThemeManager if available
+	if ThemeManager:
+		var color := ThemeManager.get_color(color_key, Color.WHITE)
+		return color.to_html(false)
+
+	# Fallback to legacy constants
 	if value >= RATING_ELITE: return COLOR_ELITE
 	if value >= RATING_GREAT: return COLOR_GREAT
 	if value >= RATING_GOOD: return COLOR_GOOD

@@ -546,7 +546,9 @@ static func _find_player(world_state: Dictionary, player_id: String, year: int =
 			var year_pool: Array = undrafted_pool[year]
 			for i in range(year_pool.size()):
 				var p: Dictionary = year_pool[i]
-				if String(p.get("id", "")) == player_id:
+				# UDFAs may use either "id" or "player_id" field
+				var pid := String(p.get("id", p.get("player_id", "")))
+				if pid == player_id:
 					return {
 						"collection_path": ["undrafted_pool", year],
 						"index": i,
