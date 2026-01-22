@@ -1,5 +1,9 @@
 {
     "active_sport": "american_football",
+    "ovr_calculation": {
+        "weights_file": "res://configs/sports/american_football/ovr_weights.json",
+        "_comment": "Weighted OVR system (Alpha). See docs/architecture/WEIGHTED_OVR_SYSTEM.md"
+    },
     "class_size": 4500,
     "gaussian_share": 0.75,
     "bootstrap": {
@@ -337,35 +341,36 @@
     },
     "class_rules": {
         "draft_position_strategy": {
-            "note": "Position tier-based draft strategy. OL treated as premium (approximates real NFL where OT is premium, OG/C are standard). Generational threshold of 78 reflects realistic ratings at draft entry (players reach 77-82% of potential by age 22).",
+            "note": "ADDITIVE position tier-based draft strategy. Bonuses are in OVR points, not multipliers. This ensures player quality dominates over position value. Example: 73 OVR EDGE + 5 bonus = 78 score, still loses to 88 OVR WR + 0.5 bonus = 88.5 score.",
             "position_tiers": {
                 "premium": {
                     "positions": ["QB", "EDGE", "OL", "CB"],
-                    "round_1_bonus": 1.4,
-                    "round_2_bonus": 1.3,
-                    "round_3_bonus": 1.15,
-                    "round_4_plus_bonus": 1.0
+                    "note": "Premium positions get additive OVR bonuses in early rounds",
+                    "round_1_bonus_ovr": 3.0,
+                    "round_2_bonus_ovr": 2.0,
+                    "round_3_4_bonus_ovr": 1.0,
+                    "round_5_plus_bonus_ovr": 0.0
                 },
                 "standard": {
                     "positions": ["WR", "DL", "LB"],
-                    "round_1_bonus": 1.0,
-                    "round_2_bonus": 1.0,
-                    "round_3_bonus": 1.0,
-                    "round_4_plus_bonus": 1.0
+                    "note": "Standard positions are neutral (no bonus or penalty)",
+                    "all_rounds_bonus_ovr": 0.0
                 },
                 "devalued": {
                     "positions": ["RB", "TE", "S"],
-                    "round_1_penalty": 0.7,
-                    "round_2_penalty": 0.85,
-                    "round_3_penalty": 0.95,
-                    "round_4_plus_bonus": 1.0
+                    "note": "Devalued positions get penalties in early rounds (luxury picks)",
+                    "round_1_penalty_ovr": -3.0,
+                    "round_2_penalty_ovr": -2.0,
+                    "round_3_4_penalty_ovr": -1.0,
+                    "round_5_plus_penalty_ovr": 0.0
                 },
                 "special_teams": {
                     "positions": ["K", "P"],
-                    "round_1_penalty": 0.05,
-                    "round_2_penalty": 0.1,
-                    "round_3_penalty": 0.2,
-                    "round_4_plus_penalty": 0.8
+                    "note": "Special teams are severely penalized - rarely drafted early",
+                    "round_1_penalty_ovr": -20.0,
+                    "round_2_penalty_ovr": -15.0,
+                    "round_3_4_penalty_ovr": -8.0,
+                    "round_5_plus_penalty_ovr": -3.0
                 }
             },
             "generational_threshold": 78.0
@@ -432,9 +437,10 @@
                 "QB": { "athletic": 0.30, "core": 0.45, "secondary": 0.15, "mentals": 0.10 }
                 },
                 "position_value": {
-                "QB": 1.55, "WR": 1.05, "RB": 0.98, "TE": 0.98,
-                "OL": 1.08, "DL": 1.06, "EDGE": 1.20, "LB": 1.00, "CB": 1.05, "S": 0.98,
-                "K": 0.60, "P": 0.60
+                    "note": "ADDITIVE position value bonuses in OVR points (not multipliers). Used by PositionValueModifier. Positive = more valuable, Negative = less valuable.",
+                    "QB": 5.0, "WR": 0.5, "RB": 0.0, "TE": 0.0,
+                    "OL": 1.0, "DL": 0.5, "EDGE": 2.0, "LB": 0.0, "CB": 0.5, "S": 0.0,
+                    "K": -5.0, "P": -5.0
                 },
             "athletic_keys": [
                 "speed",

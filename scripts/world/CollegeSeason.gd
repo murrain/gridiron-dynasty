@@ -56,6 +56,20 @@ func run(
 	var dev_config := DevelopmentConfig.new(positions_cfg, main_cfg)
 	var ret_config := RetirementConfig.new(main_cfg)
 
+	# Weighted OVR System integration (Alpha - always enabled)
+	# Load OVR config once (cached for all players)
+	# See docs/architecture/WEIGHTED_OVR_SYSTEM.md for design details
+	var ovr_calculation_cfg: Dictionary = main_cfg.get("ovr_calculation", {}) as Dictionary
+	var ovr_config: Dictionary = {}
+	var weights_file := String(ovr_calculation_cfg.get("weights_file", ""))
+	if not weights_file.is_empty():
+		ovr_config = PlayerRatingCalculator.load_ovr_config(weights_file)
+		# Validate config on first load (push_error on failure)
+		if not ovr_config.is_empty():
+			if not PlayerRatingCalculator.validate_ovr_config(ovr_config, positions_cfg):
+				push_error("OVR config validation failed - check ovr_weights.json")
+				ovr_config = {}
+
 	# GAME SIMULATION (G1.1): Simulate season before player lifecycle
 	# This generates win-loss records, championships, and strength of schedule
 	var game_sim_summary := _simulate_college_season(
@@ -160,7 +174,9 @@ func run(
 				total_graduates += 1
 				var draft_threshold_cfg: Dictionary = config.get("draft_declaration", {}) as Dictionary
 				var rating_threshold := float(draft_threshold_cfg.get("rating_threshold", 65.0))
-				player_rating = PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
+				# Calculate weighted OVR for draft eligibility
+				var position := String(p.get("position", ""))
+				player_rating = PlayerRatingCalculator.calculate_weighted_ovr(p, position, ovr_config)
 				if player_rating >= rating_threshold:
 					is_draft_eligible = true
 			elif new_year == 3:
@@ -171,8 +187,9 @@ func run(
 				):
 					is_draft_eligible = true
 					total_early_declares += 1
-					# Calculate rating for early declares (used for draft grade display)
-					player_rating = PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
+					# Calculate weighted OVR for early declares (used for draft grade display)
+					var position := String(p.get("position", ""))
+					player_rating = PlayerRatingCalculator.calculate_weighted_ovr(p, position, ovr_config)
 
 			if is_draft_eligible:
 				p["draft_eligible"] = true
