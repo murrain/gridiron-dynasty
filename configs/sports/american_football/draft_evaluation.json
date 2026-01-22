@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "description": "Multi-factor draft evaluation configuration - Team Need, Scouting Knowledge, and Hype modifiers",
+
+  "feature_flags": {
+    "use_legacy_need_modifier": false,
+    "enable_scouting_knowledge_modifier": true,
+    "enable_hype_modifier": true,
+    "enable_team_susceptibility": true,
+    "description": "Feature flags for gradual rollout - set to false to use legacy behavior"
+  },
+
+  "team_need": {
+    "description": "Configuration for how team roster needs affect player evaluation",
+
+    "need_levels": {
+      "critical": {
+        "description": "No starter at position (0 players)",
+        "player_count_threshold": 0,
+        "bonus_ovr": 8.0
+      },
+      "high": {
+        "description": "Starter below threshold OR only 1 player at position",
+        "player_count_threshold": 1,
+        "starter_rating_threshold": 65.0,
+        "bonus_ovr": 5.0
+      },
+      "moderate": {
+        "description": "Starter 65-72 OVR OR below ideal depth",
+        "below_ideal_depth": true,
+        "starter_rating_range": [65.0, 72.0],
+        "bonus_ovr": 3.0
+      },
+      "low": {
+        "description": "Starter adequate but weak backup depth",
+        "starter_rating_min": 72.0,
+        "backup_quality_threshold": 60.0,
+        "bonus_ovr": 1.0
+      },
+      "none": {
+        "description": "Position is well-stocked with quality depth",
+        "bonus_ovr": 0.0
+      }
+    },
+
+    "round_scaling": {
+      "description": "Scaling factors by round to prevent early-round reaches. Lower values in early rounds mean need bonuses are reduced.",
+      "round_1": {
+        "critical": 0.60,
+        "high": 0.50,
+        "moderate": 0.40,
+        "low": 0.30
+      },
+      "round_2": {
+        "critical": 0.75,
+        "high": 0.70,
+        "moderate": 0.60,
+        "low": 0.50
+      },
+      "round_3": {
+        "critical": 0.90,
+        "high": 0.85,
+        "moderate": 0.80,
+        "low": 0.70
+      },
+      "round_4_plus": {
+        "critical": 1.00,
+        "high": 1.00,
+        "moderate": 1.00,
+        "low": 1.00
+      }
+    },
+
+    "position_importance_multipliers": {
+      "description": "How important each position's need is. QB need is 50% more impactful than baseline.",
+      "QB": 1.50,
+      "EDGE": 1.20,
+      "CB": 1.10,
+      "OL": 1.00,
+      "WR": 1.00,
+      "DL": 0.90,
+      "LB": 0.90,
+      "TE": 0.80,
+      "S": 0.80,
+      "RB": 0.70,
+      "K": 0.30,
+      "P": 0.30
+    },
+
+    "reach_prevention": {
+      "description": "Minimum OVR required to receive need bonus by round. Prevents teams from reaching on clearly inferior players.",
+      "round_1_min_ovr": 70.0,
+      "round_2_min_ovr": 65.0,
+      "round_3_min_ovr": 60.0,
+      "round_4_plus_min_ovr": 50.0
+    }
+  },
+
+  "scouting_knowledge": {
+    "description": "Configuration for how scouting depth affects evaluation confidence",
+
+    "levels": {
+      "comprehensive": {
+        "description": "Multiple workouts, medical, interviews - full picture",
+        "min_scouting_hours": 40.0,
+        "confidence_bonus_ovr": 0.0,
+        "variance_reduction": 0.90
+      },
+      "solid": {
+        "description": "Film study + combine + one meeting",
+        "min_scouting_hours": 20.0,
+        "confidence_bonus_ovr": 0.0,
+        "variance_reduction": 0.70
+      },
+      "moderate": {
+        "description": "Film study + combine data only",
+        "min_scouting_hours": 8.0,
+        "confidence_bonus_ovr": -1.0,
+        "variance_reduction": 0.50
+      },
+      "limited": {
+        "description": "Combine data and public info only",
+        "min_scouting_hours": 2.0,
+        "confidence_bonus_ovr": -2.0,
+        "variance_reduction": 0.30
+      },
+      "unknown": {
+        "description": "No direct scouting - relying on third-party info",
+        "min_scouting_hours": 0.0,
+        "confidence_bonus_ovr": -4.0,
+        "variance_reduction": 0.0
+      }
+    },
+
+    "round_risk_multipliers": {
+      "description": "How much the unknown penalty is amplified by round. High picks require certainty.",
+      "round_1": 2.0,
+      "round_2": 1.5,
+      "round_3": 1.2,
+      "round_4_plus": 0.8
+    },
+
+    "team_philosophy_tolerance": {
+      "description": "How tolerant each philosophy is of uncertainty. Higher = more willing to take risks on unknowns.",
+      "analytics_heavy": {
+        "tolerance": 0.70,
+        "description": "Trust data over gut, comfortable with some unknowns if metrics are good"
+      },
+      "traditional": {
+        "tolerance": 0.50,
+        "description": "Trust scouts' eyes, want certainty on picks"
+      },
+      "aggressive": {
+        "tolerance": 1.20,
+        "description": "Swing for the fences, willing to gamble on upside"
+      }
+    }
+  },
+
+  "hype": {
+    "description": "Configuration for media hype and narrative influence on draft evaluation",
+
+    "base_effect": {
+      "description": "Core hype calculation parameters",
+      "neutral_hype": 50.0,
+      "max_bonus_ovr": 5.0,
+      "max_penalty_ovr": -3.0,
+      "formula_description": "bonus = ((hype - 50) / 50) * max_bonus * susceptibility"
+    },
+
+    "round_scaling": {
+      "description": "Hype matters more in early rounds due to media pressure and fan expectations",
+      "round_1": 1.20,
+      "round_2": 1.00,
+      "round_3": 0.80,
+      "round_4_plus": 0.50
+    },
+
+    "award_signal_bonuses": {
+      "description": "Direct bonuses for verified awards - these represent validated talent, not just hype",
+      "heisman_winner": {
+        "bonus_ovr": 3.0,
+        "description": "Heisman validates talent at highest level, reduces risk perception"
+      },
+      "heisman_finalist": {
+        "bonus_ovr": 1.5,
+        "description": "Top-4 Heisman finish indicates elite production"
+      },
+      "all_american_first": {
+        "bonus_ovr": 2.0,
+        "description": "First-team All-American - consensus top player at position"
+      },
+      "all_american_second": {
+        "bonus_ovr": 1.0,
+        "description": "Second-team recognition"
+      },
+      "all_american_third": {
+        "bonus_ovr": 0.0,
+        "description": "Third-team - minimal signal"
+      },
+      "conference_poy": {
+        "bonus_ovr": 1.0,
+        "description": "Conference Player of the Year"
+      },
+      "combine_standout": {
+        "bonus_ovr": 0.5,
+        "description": "Verified elite measurable (4.3 40, 40+ bench, etc.)"
+      },
+      "senior_bowl_mvp": {
+        "bonus_ovr": 0.5,
+        "description": "Senior Bowl MVP - showed well against good competition"
+      }
+    },
+    "max_award_bonus": 4.0,
+    "max_award_bonus_description": "Cap on total award bonuses to prevent stacking",
+
+    "team_susceptibility": {
+      "description": "How much teams buy into media narratives",
+      "generation_weights": {
+        "analytics_focused": 0.20,
+        "balanced": 0.55,
+        "narrative_driven": 0.25,
+        "description": "Distribution weights when generating team susceptibility"
+      },
+      "ranges": {
+        "analytics_focused": {
+          "min": 0.15,
+          "max": 0.35,
+          "description": "Data-driven teams largely ignore hype, trust their boards"
+        },
+        "balanced": {
+          "min": 0.40,
+          "max": 0.60,
+          "description": "Most teams fall here - influenced but not dominated by hype"
+        },
+        "narrative_driven": {
+          "min": 0.65,
+          "max": 0.85,
+          "description": "Teams that chase names, stories, and fan favorites"
+        }
+      }
+    },
+
+    "hype_talent_guardrails": {
+      "description": "Prevents hype from overriding massive talent gaps",
+      "max_hype_overcome_gap": 10.0,
+      "max_hype_overcome_gap_description": "A hyped player can beat an unhyped player up to 10 OVR better, but not more"
+    }
+  },
+
+  "global_limits": {
+    "description": "Hard caps on total factor adjustments to keep talent dominant",
+    "max_positive_adjustment": 25.0,
+    "max_negative_adjustment": -35.0,
+    "max_positive_adjustment_description": "Maximum OVR boost from all factors combined",
+    "max_negative_adjustment_description": "Maximum OVR penalty from all factors combined"
+  },
+
+  "logging": {
+    "log_factor_breakdown": true,
+    "log_factor_breakdown_description": "Log individual factor contributions for debugging",
+    "log_round_1_picks_detailed": true,
+    "log_round_1_picks_detailed_description": "Extra detail on first-round selections"
+  }
+}

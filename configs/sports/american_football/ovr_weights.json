@@ -1,0 +1,567 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Weighted OVR calculation configuration for all football positions",
+    "design_doc": "docs/architecture/WEIGHTED_OVR_SYSTEM.md",
+    "last_updated": "2026-01-21",
+    "validation_rules": {
+      "weight_sum": "All position weights must sum to exactly 1.0",
+      "override_semantics": "override_base/override_side replace defaults for this position",
+      "missing_stats": "Use neutral value (50.0) if stat missing from player"
+    }
+  },
+
+  "base_weights": {
+    "_comment": "Universal attributes applying to ALL positions. Default ~23% total.",
+    "speed": 0.05,
+    "strength": 0.05,
+    "stamina": 0.04,
+    "agility": 0.04,
+    "awareness": 0.05
+  },
+
+  "side_of_ball_weights": {
+    "offensive": {
+      "_comment": "Skills shared by offensive players. Default ~16% total.",
+      "blocking": 0.08,
+      "catching": 0.08
+    },
+    "defensive": {
+      "_comment": "Skills shared by defensive players. Default ~24% total.",
+      "tackling": 0.10,
+      "coverage": 0.08,
+      "shedding_blocks": 0.06
+    },
+    "special_teams": {
+      "_comment": "Special teams have minimal shared attributes beyond position-specific kicking skills."
+    }
+  },
+
+  "position_weights": {
+
+    "QB": {
+      "_rationale": [
+        "QB is the most mentally demanding position in football.",
+        "Throw accuracy is the single most critical attribute - a QB who cannot place the ball is useless.",
+        "Decision-making under pressure separates elite QBs from average ones.",
+        "Physical attributes (speed, strength) are nice-to-haves, not requirements.",
+        "Blocking/catching virtually never matter for QBs.",
+        "Visibility: throw_accuracy is public (measurable), decision_making is scoutable (film study)."
+      ],
+      "side_of_ball": "offensive",
+      "weights": {
+        "throw_accuracy": 0.26,
+        "decision_making": 0.18,
+        "throw_power": 0.12,
+        "anticipation": 0.10,
+        "composure": 0.08,
+        "reaction_time": 0.08
+      },
+      "override_base": {
+        "speed": 0.02,
+        "strength": 0.02,
+        "stamina": 0.04,
+        "agility": 0.02,
+        "awareness": 0.08
+      },
+      "override_side": {
+        "blocking": 0.00,
+        "catching": 0.00
+      },
+      "_verification": {
+        "weights": 0.82,
+        "override_base": 0.18,
+        "override_side": 0.00,
+        "total": 1.00
+      }
+    },
+
+    "RB": {
+      "_rationale": [
+        "RB is defined by explosiveness (speed, agility) and durability.",
+        "Vision (awareness) and balance determine yards after contact.",
+        "Catching increasingly important in modern football (receiving backs).",
+        "Blocking matters for pass protection assignments.",
+        "Speed is public/measurable; balance and awareness require scouting."
+      ],
+      "side_of_ball": "offensive",
+      "weights": {
+        "balance": 0.20
+      },
+      "override_base": {
+        "speed": 0.16,
+        "strength": 0.08,
+        "stamina": 0.08,
+        "agility": 0.14,
+        "awareness": 0.10
+      },
+      "override_side": {
+        "blocking": 0.10,
+        "catching": 0.14
+      },
+      "_additional_stats_note": "RB heavily relies on athleticism; balance is key for yards after contact",
+      "_verification": {
+        "weights": 0.20,
+        "override_base": 0.56,
+        "override_side": 0.24,
+        "total": 1.00
+      }
+    },
+
+    "WR": {
+      "_rationale": [
+        "WR success is primarily about catching the ball and getting open.",
+        "Route running is the craft that creates separation.",
+        "Speed is critical for stretching the field and after-catch yards.",
+        "Agility enables quick cuts and route breaking.",
+        "Blocking matters for screens and run support but is secondary.",
+        "Speed is public; route_running requires film study (scoutable)."
+      ],
+      "side_of_ball": "offensive",
+      "weights": {
+        "route_running": 0.18,
+        "release": 0.06,
+        "contested_catch": 0.06,
+        "separation": 0.06
+      },
+      "override_base": {
+        "speed": 0.12,
+        "strength": 0.04,
+        "stamina": 0.04,
+        "agility": 0.10,
+        "awareness": 0.06
+      },
+      "override_side": {
+        "blocking": 0.04,
+        "catching": 0.24
+      },
+      "_verification": {
+        "weights": 0.36,
+        "override_base": 0.36,
+        "override_side": 0.28,
+        "total": 1.00
+      }
+    },
+
+    "TE": {
+      "_rationale": [
+        "TE is the ultimate hybrid - must block AND catch.",
+        "Blocking is slightly more important as many TEs are blocking-first.",
+        "Receiving TEs need catching and route running.",
+        "Size (represented via strength) matters for both roles.",
+        "Speed is less critical than WR but still valuable for mismatches.",
+        "Balance of skills makes this a complex position to evaluate."
+      ],
+      "side_of_ball": "offensive",
+      "weights": {
+        "route_running": 0.12,
+        "balance": 0.08
+      },
+      "override_base": {
+        "speed": 0.06,
+        "strength": 0.12,
+        "stamina": 0.04,
+        "agility": 0.06,
+        "awareness": 0.08
+      },
+      "override_side": {
+        "blocking": 0.24,
+        "catching": 0.20
+      },
+      "_verification": {
+        "weights": 0.20,
+        "override_base": 0.36,
+        "override_side": 0.44,
+        "total": 1.00
+      }
+    },
+
+    "OL": {
+      "_rationale": [
+        "OL is ALL about blocking - pass protection and run blocking.",
+        "Strength is critical for holding ground against DL/EDGE.",
+        "Balance and footwork matter for pass sets and pulling.",
+        "Awareness is crucial for reading blitzes and making line calls (especially C).",
+        "Speed is virtually irrelevant except for pulling guards.",
+        "Catching never matters. Agility has minor importance.",
+        "Blocking is scoutable; strength is public."
+      ],
+      "side_of_ball": "offensive",
+      "weights": {
+        "balance": 0.14,
+        "footwork": 0.10
+      },
+      "override_base": {
+        "speed": 0.02,
+        "strength": 0.16,
+        "stamina": 0.04,
+        "agility": 0.06,
+        "awareness": 0.10
+      },
+      "override_side": {
+        "blocking": 0.38,
+        "catching": 0.00
+      },
+      "_verification": {
+        "weights": 0.24,
+        "override_base": 0.38,
+        "override_side": 0.38,
+        "total": 1.00
+      }
+    },
+
+    "DL": {
+      "_rationale": [
+        "Interior DL must stop the run first, then rush the passer.",
+        "Strength and shedding blocks are fundamental.",
+        "Run defense (gap discipline) separates good from great.",
+        "Pass rush matters but less than for EDGE players.",
+        "Speed is minimal; these are power players.",
+        "Tackling matters when they get to the ball carrier.",
+        "Most skills require film study (scoutable)."
+      ],
+      "side_of_ball": "defensive",
+      "weights": {
+        "run_defense": 0.16,
+        "pass_rush": 0.14,
+        "balance": 0.08,
+        "acceleration": 0.06
+      },
+      "override_base": {
+        "speed": 0.02,
+        "strength": 0.14,
+        "stamina": 0.04,
+        "agility": 0.04,
+        "awareness": 0.08
+      },
+      "override_side": {
+        "tackling": 0.10,
+        "coverage": 0.00,
+        "shedding_blocks": 0.14
+      },
+      "_additional_stats_note": "DL prioritizes run stopping; strength/shedding are key battle stats",
+      "_verification": {
+        "weights": 0.44,
+        "override_base": 0.32,
+        "override_side": 0.24,
+        "total": 1.00
+      }
+    },
+
+    "EDGE": {
+      "_rationale": [
+        "EDGE rushers are defined by their ability to get to the QB.",
+        "Pass rush is THE critical attribute - sacks win games.",
+        "Acceleration and first-step quickness create pressure.",
+        "Speed around the edge is essential for speed rushers.",
+        "Strength matters for power moves and setting the edge.",
+        "Must also be able to tackle runners.",
+        "Pass rush is scoutable; acceleration/speed are public."
+      ],
+      "side_of_ball": "defensive",
+      "weights": {
+        "pass_rush": 0.26,
+        "acceleration": 0.12,
+        "balance": 0.06,
+        "reaction_time": 0.06
+      },
+      "override_base": {
+        "speed": 0.08,
+        "strength": 0.08,
+        "stamina": 0.04,
+        "agility": 0.08,
+        "awareness": 0.04
+      },
+      "override_side": {
+        "tackling": 0.08,
+        "coverage": 0.00,
+        "shedding_blocks": 0.10
+      },
+      "_additional_stats_note": "EDGE premium on pass_rush; athleticism determines rush style (speed vs power)",
+      "_verification": {
+        "weights": 0.50,
+        "override_base": 0.32,
+        "override_side": 0.18,
+        "total": 1.00
+      }
+    },
+
+    "LB": {
+      "_rationale": [
+        "LB is the most versatile defensive position - tackle, cover, rush.",
+        "Tackling is fundamental - LBs make the most tackles.",
+        "Awareness/instincts let them read plays and flow to the ball.",
+        "Coverage matters in modern NFL with RBs/TEs as weapons.",
+        "Speed determines range sideline-to-sideline.",
+        "Strength for taking on blocks.",
+        "Scoutable stats dominate (tackling, coverage, awareness)."
+      ],
+      "side_of_ball": "defensive",
+      "weights": {},
+      "override_base": {
+        "speed": 0.10,
+        "strength": 0.10,
+        "stamina": 0.04,
+        "agility": 0.08,
+        "awareness": 0.16
+      },
+      "override_side": {
+        "tackling": 0.22,
+        "coverage": 0.16,
+        "shedding_blocks": 0.14
+      },
+      "_additional_stats_note": "LB is defined by side-of-ball versatility; must tackle, cover, and shed blocks",
+      "_verification": {
+        "weights": 0.00,
+        "override_base": 0.48,
+        "override_side": 0.52,
+        "total": 1.00
+      }
+    },
+
+    "CB": {
+      "_rationale": [
+        "CB is an island position - coverage ability is paramount.",
+        "Speed is critical to keep up with fast WRs (public stat).",
+        "Agility for mirroring cuts and breaks in routes.",
+        "Press coverage for disrupting timing at the line.",
+        "Reaction time for breaking on the ball.",
+        "Tackling matters less but still important for run support.",
+        "Coverage and press_coverage are scoutable; speed/agility public."
+      ],
+      "side_of_ball": "defensive",
+      "weights": {
+        "press_coverage": 0.14,
+        "reaction_time": 0.12
+      },
+      "override_base": {
+        "speed": 0.12,
+        "strength": 0.03,
+        "stamina": 0.04,
+        "agility": 0.10,
+        "awareness": 0.07
+      },
+      "override_side": {
+        "tackling": 0.06,
+        "coverage": 0.30,
+        "shedding_blocks": 0.02
+      },
+      "_additional_stats_note": "CB is coverage-first; speed/agility gate the position; tackling secondary",
+      "_verification": {
+        "weights": 0.26,
+        "override_base": 0.36,
+        "override_side": 0.38,
+        "total": 1.00
+      }
+    },
+
+    "S": {
+      "_rationale": [
+        "Safety is the last line of defense - must do everything.",
+        "Coverage and tackling both critical - can't sacrifice one.",
+        "Speed for range covering the deep part of the field.",
+        "Awareness/instincts for reading plays and being in position.",
+        "Run support (tackling) important, especially for SS.",
+        "More balanced than CB between run/pass responsibilities.",
+        "Mix of public (speed) and scoutable (coverage, awareness) stats."
+      ],
+      "side_of_ball": "defensive",
+      "weights": {
+        "run_defense": 0.10,
+        "reaction_time": 0.10
+      },
+      "override_base": {
+        "speed": 0.10,
+        "strength": 0.04,
+        "stamina": 0.04,
+        "agility": 0.08,
+        "awareness": 0.12
+      },
+      "override_side": {
+        "tackling": 0.16,
+        "coverage": 0.22,
+        "shedding_blocks": 0.04
+      },
+      "_additional_stats_note": "S must balance run/pass responsibilities; awareness is critical for reads",
+      "_verification": {
+        "weights": 0.20,
+        "override_base": 0.38,
+        "override_side": 0.42,
+        "total": 1.00
+      }
+    },
+
+    "K": {
+      "_rationale": [
+        "Kicker is purely about making kicks under pressure.",
+        "Kick accuracy is THE stat - you either make it or you don't.",
+        "Kick power determines range (how far you can attempt).",
+        "Composure critical for high-pressure game-winning kicks.",
+        "Focus for consistency over the course of a game/season.",
+        "Physical attributes (speed, strength) virtually irrelevant.",
+        "Accuracy/power are public; composure is scoutable."
+      ],
+      "side_of_ball": "special_teams",
+      "weights": {
+        "kick_accuracy": 0.32,
+        "kick_power": 0.28,
+        "composure": 0.16,
+        "focus": 0.12,
+        "confidence": 0.04
+      },
+      "override_base": {
+        "speed": 0.01,
+        "strength": 0.02,
+        "stamina": 0.01,
+        "agility": 0.01,
+        "awareness": 0.03
+      },
+      "override_side": {},
+      "_verification": {
+        "weights": 0.92,
+        "override_base": 0.08,
+        "override_side": 0.00,
+        "total": 1.00
+      }
+    },
+
+    "P": {
+      "_rationale": [
+        "Punter needs power for distance and hang time.",
+        "Accuracy for directional kicking and coffin corner punts.",
+        "Composure for performing under pressure (e.g., bad snaps).",
+        "Slightly more athletic than K - sometimes need to tackle.",
+        "Focus for consistency through adverse conditions.",
+        "Physical attributes matter slightly more than K but still minimal."
+      ],
+      "side_of_ball": "special_teams",
+      "weights": {
+        "kick_power": 0.30,
+        "kick_accuracy": 0.28,
+        "composure": 0.14,
+        "focus": 0.10,
+        "confidence": 0.04,
+        "tackling": 0.02
+      },
+      "override_base": {
+        "speed": 0.02,
+        "strength": 0.02,
+        "stamina": 0.02,
+        "agility": 0.02,
+        "awareness": 0.04
+      },
+      "override_side": {},
+      "_verification": {
+        "weights": 0.88,
+        "override_base": 0.12,
+        "override_side": 0.00,
+        "total": 1.00
+      }
+    }
+  },
+
+  "_balance_analysis": {
+    "_comment": "Analysis of weight distribution patterns across positions for gameplay balance.",
+
+    "weight_distribution_summary": {
+      "QB":   { "weights": 0.82, "base": 0.18, "side": 0.00, "top_stat": "throw_accuracy(26%)" },
+      "RB":   { "weights": 0.20, "base": 0.56, "side": 0.24, "top_stat": "balance(20%)" },
+      "WR":   { "weights": 0.36, "base": 0.36, "side": 0.28, "top_stat": "catching(24%)" },
+      "TE":   { "weights": 0.20, "base": 0.36, "side": 0.44, "top_stat": "blocking(24%)" },
+      "OL":   { "weights": 0.24, "base": 0.38, "side": 0.38, "top_stat": "blocking(38%)" },
+      "DL":   { "weights": 0.44, "base": 0.32, "side": 0.24, "top_stat": "run_defense(16%)" },
+      "EDGE": { "weights": 0.50, "base": 0.32, "side": 0.18, "top_stat": "pass_rush(26%)" },
+      "LB":   { "weights": 0.00, "base": 0.48, "side": 0.52, "top_stat": "tackling(22%)" },
+      "CB":   { "weights": 0.26, "base": 0.36, "side": 0.38, "top_stat": "coverage(30%)" },
+      "S":    { "weights": 0.20, "base": 0.38, "side": 0.42, "top_stat": "coverage(22%)" },
+      "K":    { "weights": 0.92, "base": 0.08, "side": 0.00, "top_stat": "kick_accuracy(32%)" },
+      "P":    { "weights": 0.88, "base": 0.12, "side": 0.00, "top_stat": "kick_power(30%)" }
+    },
+
+    "position_archetypes": {
+      "skill_concentrated": {
+        "positions": ["QB", "K", "P", "EDGE"],
+        "pattern": "Position-specific weights dominate (50-92%). One skill defines the position.",
+        "gameplay_implication": "Clear tier separation. Elite prospects obvious, busts obvious."
+      },
+      "athleticism_driven": {
+        "positions": ["CB", "WR", "RB"],
+        "pattern": "Base stats (speed/agility) comprise 36-56% of OVR.",
+        "gameplay_implication": "Public stats heavily influence evaluation. Less scouting variance."
+      },
+      "versatility_required": {
+        "positions": ["TE", "LB", "S"],
+        "pattern": "Side-of-ball overrides are 42-52%. Must do multiple things well.",
+        "gameplay_implication": "Harder to find elite prospects. More 'safe' picks."
+      },
+      "power_based": {
+        "positions": ["OL", "DL"],
+        "pattern": "Strength (14-16%) and blocking/shedding (38-52% combined) dominate.",
+        "gameplay_implication": "Less athletic variation. Technique-heavy evaluation."
+      }
+    },
+
+    "stat_visibility_breakdown": {
+      "public_stat_heavy": {
+        "positions": ["WR", "CB", "RB", "EDGE", "K", "P"],
+        "public_weight_range": "40-60%",
+        "scouting_implication": "Less uncertainty. What you see is what you get."
+      },
+      "scoutable_stat_heavy": {
+        "positions": ["QB", "LB", "DL", "S"],
+        "scoutable_weight_range": "50-70%",
+        "scouting_implication": "High evaluation uncertainty. Investment in scouting pays off."
+      },
+      "mixed_visibility": {
+        "positions": ["TE", "OL"],
+        "scouting_implication": "Moderate uncertainty. Some scouting required."
+      }
+    },
+
+    "draft_representation_factors": {
+      "qb_premium": {
+        "observation": "QB has 82% weight on position-specific stats.",
+        "effect": "Elite QBs will dominate OVR rankings. Variance is high."
+      },
+      "ol_compression": {
+        "observation": "OL relies on blocking(38%) + strength(16%) + balance(14%) = 68% of OVR.",
+        "effect": "OL OVRs will cluster more. Fewer outliers in either direction."
+      },
+      "cb_speed_gate": {
+        "observation": "CB speed weight is 12% (vs 5% base). Coverage at 30%.",
+        "effect": "Slow CBs severely penalized. Speed is a hard floor."
+      },
+      "edge_pass_rush_premium": {
+        "observation": "EDGE pass_rush at 26% is highest single-stat weight for non-K/P.",
+        "effect": "Elite pass rushers will stand out clearly in draft rankings."
+      },
+      "lb_versatility": {
+        "observation": "LB has 0% position-specific weights; entirely base(48%) + side(52%).",
+        "effect": "LBs evaluated on fundamental football skills. Very few 'bust' candidates."
+      },
+      "kp_specialist_isolation": {
+        "observation": "K/P have 88-92% weight on kicking-specific stats.",
+        "effect": "K/P evaluation is almost entirely separate from other positions."
+      }
+    },
+
+    "balance_verification_checklist": [
+      "All 12 positions sum to exactly 1.00",
+      "No position has >40% weight on a single stat (except OL blocking at 38%)",
+      "All positions have base stat representation (8-56% range)",
+      "Defensive positions properly weight tackling (6-22% range)",
+      "Offensive skill positions properly weight catching (14-24% range)",
+      "Special teams properly isolated from standard evaluation",
+      "Speed importance scales correctly: CB(12%) > WR(12%) > RB(16%) > EDGE(8%) > DL(2%) > OL(2%)"
+    ],
+
+    "stats_requiring_addition_to_positions_json": {
+      "_note": "These stats are used in OVR weights but may not exist in positions.json. The calculator will use neutral (50.0) for missing stats.",
+      "universal_base_stats": ["stamina", "agility"],
+      "wr_specific": ["release", "separation", "contested_catch"],
+      "ol_specific": ["footwork"],
+      "te_specific": ["balance"],
+      "recommendation": "Add these stats to positions.json distributions for accurate OVR calculation."
+    }
+  }
+}
