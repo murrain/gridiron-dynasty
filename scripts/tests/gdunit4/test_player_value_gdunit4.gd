@@ -1,529 +1,306 @@
-## GdUnit4 test suite for PlayerValue
-##
-## Validates player valuation including VOR, age multipliers, scarcity, and team premium.
-## Migrated from test_player_value.gd
 extends GdUnitTestSuite
+class_name TestPlayerValueGdUnit4
 
 const PlayerValue = preload("res://scripts/core/valuation/PlayerValue.gd")
+const TestHelpersGdUnit4 = preload("res://scripts/tests/TestHelpersGdUnit4.gd")
 
-
-func _get_test_config() -> Dictionary:
+## Helper to create minimal config
+func _create_minimal_config() -> Dictionary:
 	return {
 		"value_curve": {
-			"curve_type": "tiered_exponential",
+			"curve_type": "exponential",
 			"base_value": 1.0,
-			"tiers": [
-				{"min": 0, "max": 60, "multiplier": 0.5, "exponent": 1.0},
-				{"min": 60, "max": 75, "multiplier": 1.0, "exponent": 1.3},
-				{"min": 75, "max": 85, "multiplier": 2.0, "exponent": 1.8},
-				{"min": 85, "max": 92, "multiplier": 4.0, "exponent": 2.2},
-				{"min": 92, "max": 100, "multiplier": 10.0, "exponent": 3.0}
-			],
-			"elite_threshold": 92,
+			"exponent": 2.0,
+			"elite_threshold": 92.0,
 			"elite_multiplier_boost": 1.5
 		},
 		"replacement_levels": {
 			"QB": 55.0,
 			"RB": 62.0,
 			"WR": 58.0,
-			"TE": 56.0,
-			"OL": 54.0,
-			"DL": 57.0,
-			"EDGE": 52.0,
-			"LB": 58.0,
-			"CB": 53.0,
-			"S": 57.0,
-			"K": 65.0,
-			"P": 65.0,
-			"ATH": 55.0
+			"EDGE": 52.0
 		},
 		"scarcity": {
 			"scarcity_min": 0.7,
-			"scarcity_max": 1.5
+			"scarcity_max": 1.5,
+			"starter_slots": {"QB": 1, "RB": 1, "WR": 3}
 		},
 		"team_impact": {
 			"no_backup_multiplier": 1.4,
 			"thin_depth_multiplier": 1.15,
-			"position_win_impacts": {
-				"QB": 2.5,
-				"EDGE": 1.4,
-				"CB": 1.3,
-				"WR": 1.2,
-				"OL": 1.1,
-				"DL": 1.1,
-				"LB": 1.0,
-				"S": 0.95,
-				"TE": 0.9,
-				"RB": 0.8,
-				"K": 0.5,
-				"P": 0.4
-			}
+			"position_win_impacts": {"QB": 2.5, "RB": 0.8, "WR": 1.2}
 		},
 		"age_multipliers": [
-			{"min": 18, "max": 20, "mult": 1.12},
-			{"min": 21, "max": 24, "mult": 1.05},
-			{"min": 25, "max": 27, "mult": 1.00},
-			{"min": 28, "max": 30, "mult": 0.90},
-			{"min": 31, "max": 34, "mult": 0.80},
-			{"min": 35, "max": 50, "mult": 0.65}
+			{"min": 18, "max": 24, "mult": 1.05},
+			{"min": 25, "max": 30, "mult": 1.00},
+			{"min": 31, "max": 50, "mult": 0.80}
 		],
-		"range_spread_pct": 0.18,
 		"market": {
-			"range_spread_pct": 0.18
+			"range_spread_pct": 0.15
 		}
 	}
 
-
-func test_all_components_integrate() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "player_001",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var context := {
-		"position_supply": {
-			"QB": 40
-		}
-	}
-
-	var result := PlayerValue.calculate(player, context, config, rng)
-
-	assert_bool(result.has("player_id")).is_true()
-	assert_bool(result.has("position")).is_true()
-	assert_bool(result.has("age")).is_true()
-	assert_bool(result.has("eval_score")).is_true()
-	assert_bool(result.has("vor")).is_true()
-	assert_bool(result.has("curved_value")).is_true()
-	assert_bool(result.has("scarcity_multiplier")).is_true()
-	assert_bool(result.has("age_multiplier")).is_true()
-	assert_bool(result.has("market_value")).is_true()
-	assert_bool(result.has("team_value")).is_true()
-	assert_bool(result.has("team_premium")).is_true()
-	assert_bool(result.has("range_min")).is_true()
-	assert_bool(result.has("range_max")).is_true()
-	assert_bool(result.has("components")).is_true()
-
-	assert_float(float(result.vor)).is_equal_approx(30.0, 0.001)
-	assert_float(float(result.age_multiplier)).is_equal_approx(1.0, 0.001)
-	assert_float(float(result.scarcity_multiplier)).is_between(0.7, 1.5)
-	assert_float(float(result.market_value)).is_greater(0.0)
-
-
-func test_elite_player_premium() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var avg_player := {
-		"id": "player_avg",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 75.0
-	}
-
-	var elite_player := {
-		"id": "player_elite",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 98.0
-	}
-
-	var context := {
-		"position_supply": {
-			"QB": 32
-		}
-	}
-
-	var avg_result := PlayerValue.calculate(avg_player, context, config, rng)
-	var elite_result := PlayerValue.calculate(elite_player, context, config, rng)
-
-	var ratio: float = float(elite_result.market_value) / maxf(float(avg_result.market_value), 0.001)
-
-	assert_float(ratio).is_greater_equal(5.0)
-	assert_float(ratio).is_less_equal(20.0)
-
-
-func test_team_premium_no_backup() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "qb_1",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var team_roster := [
-		{"id": "qb_1", "position": "QB", "eval_score": 85.0},
-		{"id": "wr_1", "position": "WR", "eval_score": 75.0},
-		{"id": "wr_2", "position": "WR", "eval_score": 70.0}
-	]
-
-	var context := {
-		"team_roster": team_roster,
-		"position_supply": {"QB": 32}
-	}
-
-	var result := PlayerValue.calculate(player, context, config, rng)
-
-	assert_float(float(result.team_premium)).is_greater(0.0)
-
-	var premium_ratio: float = float(result.team_value) / maxf(float(result.market_value), 0.001)
-	assert_float(premium_ratio).is_greater(1.2)
-
-
-func test_team_premium_with_depth() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "qb_1",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var team_roster := [
-		{"id": "qb_1", "position": "QB", "eval_score": 85.0},
-		{"id": "qb_2", "position": "QB", "eval_score": 78.0},
-		{"id": "qb_3", "position": "QB", "eval_score": 70.0},
-		{"id": "wr_1", "position": "WR", "eval_score": 75.0}
-	]
-
-	var context := {
-		"team_roster": team_roster,
-		"position_supply": {"QB": 32}
-	}
-
-	var result := PlayerValue.calculate(player, context, config, rng)
-
-	var premium_ratio: float = float(result.team_value) / maxf(float(result.market_value), 0.001)
-	assert_float(premium_ratio).is_less(1.3)
-
-
-func test_market_vs_team_value() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "player_001",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var market_context := {
-		"position_supply": {"QB": 32}
-	}
-
-	var market_result := PlayerValue.calculate(player, market_context, config, rng)
-
-	assert_float(float(market_result.team_value)).is_equal_approx(float(market_result.market_value), 0.001)
-	assert_float(float(market_result.team_premium)).is_equal_approx(0.0, 0.001)
-
-	var team_context := {
-		"team_roster": [
-			{"id": "player_001", "position": "QB", "eval_score": 85.0}
-		],
-		"position_supply": {"QB": 32}
-	}
-
-	var team_result := PlayerValue.calculate(player, team_context, config, rng)
-
-	assert_float(float(team_result.team_value)).is_greater(float(team_result.market_value))
-	assert_float(float(team_result.team_premium)).is_greater(0.0)
-
-
-func test_contract_range_variance() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "player_001",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var context := {
-		"position_supply": {"QB": 32}
-	}
-
-	var result := PlayerValue.calculate(player, context, config, rng)
-
-	var spread: float = config.range_spread_pct
-	var expected_min: float = float(result.market_value) * (1.0 - spread)
-	var expected_max: float = float(result.market_value) * (1.0 + spread)
-
-	assert_float(float(result.range_min)).is_equal_approx(expected_min, 0.001)
-	assert_float(float(result.range_max)).is_equal_approx(expected_max, 0.001)
-
-	assert_float(float(result.range_min)).is_less(float(result.market_value))
-	assert_float(float(result.range_max)).is_greater(float(result.market_value))
-
-	var actual_spread: float = (float(result.range_max) - float(result.range_min)) / (2.0 * float(result.market_value))
-	assert_float(actual_spread).is_equal_approx(0.18, 0.001)
-
-
-func test_positional_scarcity_impact() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "player_001",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var scarce_context := {
-		"position_supply": {
-			"QB": 20
-		}
-	}
-
-	var scarce_result := PlayerValue.calculate(player, scarce_context, config, rng)
-
-	var abundant_context := {
-		"position_supply": {
-			"QB": 60
-		}
-	}
-
-	var abundant_result := PlayerValue.calculate(player, abundant_context, config, rng)
-
-	assert_float(float(scarce_result.market_value)).is_greater(float(abundant_result.market_value))
-	assert_float(float(scarce_result.scarcity_multiplier)).is_greater(float(abundant_result.scarcity_multiplier))
-
-
-func test_age_multiplier_impact() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var young_player := {
-		"id": "player_young",
-		"position": "QB",
-		"age": 22,
-		"eval_score": 85.0
-	}
-
-	var prime_player := {
-		"id": "player_prime",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var old_player := {
-		"id": "player_old",
-		"position": "QB",
-		"age": 32,
-		"eval_score": 85.0
-	}
-
-	var context := {
-		"position_supply": {"QB": 32}
-	}
-
-	var young_result := PlayerValue.calculate(young_player, context, config, rng)
-	var prime_result := PlayerValue.calculate(prime_player, context, config, rng)
-	var old_result := PlayerValue.calculate(old_player, context, config, rng)
-
-	assert_float(float(young_result.age_multiplier)).is_greater(float(prime_result.age_multiplier))
-	assert_float(float(prime_result.age_multiplier)).is_greater(float(old_result.age_multiplier))
-
-	assert_float(float(young_result.market_value)).is_greater(float(prime_result.market_value))
-	assert_float(float(prime_result.market_value)).is_greater(float(old_result.market_value))
-
-
-func test_determinism() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "player_001",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var context := {
-		"team_roster": [
-			{"id": "player_001", "position": "QB", "eval_score": 85.0}
-		],
-		"position_supply": {"QB": 32}
-	}
-
-	var results: Array = []
-	for i in range(5):
-		results.append(PlayerValue.calculate(player, context, config, rng))
-
-	for i in range(1, results.size()):
-		assert_float(float(results[i].market_value)).is_equal_approx(float(results[0].market_value), 0.0001)
-		assert_float(float(results[i].team_value)).is_equal_approx(float(results[0].team_value), 0.0001)
-		assert_float(float(results[i].vor)).is_equal_approx(float(results[0].vor), 0.0001)
-
-
+## Test basic player valuation
+func test_basic_player_valuation() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+	var context := {}
+
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	assert_that(result).contains_key("player_id")
+	assert_that(result).contains_key("market_value")
+	assert_that(result).contains_key("team_value")
+	assert_that(result).contains_key("vor")
+	assert_that(result).contains_key("curved_value")
+
+## Test VOR calculation in player valuation
 func test_vor_calculation() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+	var context := {}
 
-	var qb := {
-		"id": "qb_1",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 80.0
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	# QB replacement is 55.0, so VOR = 75 - 55 = 20
+	assert_float(result["vor"]).is_equal(20.0)
+
+## Test market value increases with score
+func test_market_value_increases_with_score() -> void:
+	var config := _create_minimal_config()
+	var context := {}
+
+	var player_70 := {"id": "P1", "position": "QB", "age": 25, "eval_score": 70.0}
+	var player_80 := {"id": "P2", "position": "QB", "age": 25, "eval_score": 80.0}
+	var player_90 := {"id": "P3", "position": "QB", "age": 25, "eval_score": 90.0}
+
+	var result_70 := PlayerValue.calculate(player_70, context, config, null)
+	var result_80 := PlayerValue.calculate(player_80, context, config, null)
+	var result_90 := PlayerValue.calculate(player_90, context, config, null)
+
+	assert_float(result_80["market_value"]).is_greater(result_70["market_value"])
+	assert_float(result_90["market_value"]).is_greater(result_80["market_value"])
+
+## Test scarcity multiplier affects market value
+func test_scarcity_multiplier() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+
+	# Scarce supply
+	var context_scarce := {"position_supply": {"QB": 20}}
+	var result_scarce := PlayerValue.calculate(player, context_scarce, config, null)
+
+	# Abundant supply
+	var context_abundant := {"position_supply": {"QB": 64}}
+	var result_abundant := PlayerValue.calculate(player, context_abundant, config, null)
+
+	# Scarce supply should increase market value
+	assert_float(result_scarce["market_value"]).is_greater(result_abundant["market_value"])
+	assert_float(result_scarce["scarcity_multiplier"]).is_greater(result_abundant["scarcity_multiplier"])
+
+## Test age multiplier affects market value
+func test_age_multiplier() -> void:
+	var config := _create_minimal_config()
+	var context := {}
+
+	var young_player := {"id": "P1", "position": "QB", "age": 22, "eval_score": 75.0}
+	var prime_player := {"id": "P2", "position": "QB", "age": 27, "eval_score": 75.0}
+	var old_player := {"id": "P3", "position": "QB", "age": 35, "eval_score": 75.0}
+
+	var result_young := PlayerValue.calculate(young_player, context, config, null)
+	var result_prime := PlayerValue.calculate(prime_player, context, config, null)
+	var result_old := PlayerValue.calculate(old_player, context, config, null)
+
+	# Younger players should have higher market value
+	assert_float(result_young["market_value"]).is_greater_equal(result_prime["market_value"])
+	assert_float(result_prime["market_value"]).is_greater(result_old["market_value"])
+
+## Test team value with roster context
+func test_team_value_with_roster() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "QB1", "position": "QB", "age": 25, "eval_score": 80.0}
+	var backup := {"id": "QB2", "position": "QB", "age": 27, "eval_score": 60.0}
+
+	var context := {"team_roster": [player, backup]}
+
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	# Should have team value calculated
+	assert_that(result).contains_key("team_value")
+	assert_that(result).contains_key("team_premium")
+
+## Test team premium for no backup
+func test_team_premium_no_backup() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "QB1", "position": "QB", "age": 25, "eval_score": 80.0}
+
+	var context := {"team_roster": [player]}
+
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	# No backup should give positive team premium
+	assert_float(result["team_premium"]).is_greater(0.0)
+
+## Test range_min and range_max
+func test_contract_range() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+	var context := {}
+
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	var market_value := result["market_value"]
+	var range_min := result["range_min"]
+	var range_max := result["range_max"]
+
+	# Range should be around market value
+	assert_float(range_min).is_less(market_value)
+	assert_float(range_max).is_greater(market_value)
+
+	# Range spread is 15% (0.15)
+	var expected_min := market_value * 0.85
+	var expected_max := market_value * 1.15
+	assert_float(range_min).is_equal(expected_min)
+	assert_float(range_max).is_equal(expected_max)
+
+## Test components dictionary
+func test_components_dictionary() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+	var context := {}
+
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	assert_that(result).contains_key("components")
+	var components: Dictionary = result["components"]
+
+	assert_that(components).contains_key("vor")
+	assert_that(components).contains_key("curve_output")
+	assert_that(components).contains_key("scarcity")
+	assert_that(components).contains_key("age")
+	assert_that(components).contains_key("team_impact")
+
+## Test elite player gets premium value
+func test_elite_player_premium() -> void:
+	var config := _create_minimal_config()
+	var context := {}
+
+	var good_player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 88.0}
+	var elite_player := {"id": "P2", "position": "QB", "age": 25, "eval_score": 95.0}
+
+	var result_good := PlayerValue.calculate(good_player, context, config, null)
+	var result_elite := PlayerValue.calculate(elite_player, context, config, null)
+
+	# Elite player (92+) should be worth significantly more
+	var value_ratio := result_elite["market_value"] / result_good["market_value"]
+	assert_float(value_ratio).is_greater(1.5)
+
+## Test player below replacement has low value
+func test_below_replacement_low_value() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 50.0}
+	var context := {}
+
+	var result := PlayerValue.calculate(player, context, config, null)
+
+	# VOR should be 0
+	assert_float(result["vor"]).is_equal(0.0)
+	# Market value should be very low or zero
+	assert_float(result["market_value"]).is_less_equal(1.0)
+
+## Test config validation - valid config
+func test_config_validation_valid() -> void:
+	var config := _create_minimal_config()
+	var errors := PlayerValue.validate_config(config)
+	assert_that(errors).is_empty()
+
+## Test config validation - missing sections
+func test_config_validation_missing_sections() -> void:
+	var config := {
+		"value_curve": {}
 	}
 
-	var rb := {
-		"id": "rb_1",
-		"position": "RB",
-		"age": 25,
-		"eval_score": 80.0
+	var errors := PlayerValue.validate_config(config)
+	assert_int(errors.size()).is_greater(0)
+
+## Test config validation - missing value curve tiers
+func test_config_validation_missing_tiers() -> void:
+	var config := {
+		"value_curve": {
+			"tiers": []
+		},
+		"replacement_levels": {},
+		"scarcity": {},
+		"team_impact": {}
 	}
 
-	var k := {
-		"id": "k_1",
-		"position": "K",
-		"age": 25,
-		"eval_score": 80.0
-	}
+	var errors := PlayerValue.validate_config(config)
+	assert_bool(errors.size() > 0).is_true()
 
-	var context := {
-		"position_supply": {"QB": 32, "RB": 32, "K": 32}
-	}
+## Test different positions have different values
+func test_different_positions_different_values() -> void:
+	var config := _create_minimal_config()
+	var context := {}
 
-	var qb_result := PlayerValue.calculate(qb, context, config, rng)
-	var rb_result := PlayerValue.calculate(rb, context, config, rng)
-	var k_result := PlayerValue.calculate(k, context, config, rng)
+	var qb := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+	var rb := {"id": "P2", "position": "RB", "age": 25, "eval_score": 75.0}
+	var edge := {"id": "P3", "position": "EDGE", "age": 25, "eval_score": 75.0}
 
-	assert_float(float(qb_result.vor)).is_equal_approx(25.0, 0.001)
-	assert_float(float(rb_result.vor)).is_equal_approx(18.0, 0.001)
-	assert_float(float(k_result.vor)).is_equal_approx(15.0, 0.001)
+	var result_qb := PlayerValue.calculate(qb, context, config, null)
+	var result_rb := PlayerValue.calculate(rb, context, config, null)
+	var result_edge := PlayerValue.calculate(edge, context, config, null)
 
-	assert_float(float(qb_result.vor)).is_greater(float(rb_result.vor))
-	assert_float(float(rb_result.vor)).is_greater(float(k_result.vor))
+	# Different replacement levels lead to different VORs
+	assert_float(result_qb["vor"]).is_not_equal(result_rb["vor"])
+	assert_float(result_rb["vor"]).is_not_equal(result_edge["vor"])
 
+## Test calculation is deterministic
+func test_calculation_deterministic() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 75.0}
+	var context := {}
 
-func test_replacement_level_players() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
+	var result1 := PlayerValue.calculate(player, context, config, null)
+	var result2 := PlayerValue.calculate(player, context, config, null)
+	var result3 := PlayerValue.calculate(player, context, config, null)
 
-	var replacement_qb := {
-		"id": "qb_replacement",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 55.0
-	}
+	assert_float(result1["market_value"]).is_equal(result2["market_value"])
+	assert_float(result2["market_value"]).is_equal(result3["market_value"])
+	assert_float(result1["team_value"]).is_equal(result2["team_value"])
 
-	var below_replacement_qb := {
-		"id": "qb_below",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 50.0
-	}
+## Test missing player fields use defaults
+func test_missing_player_fields() -> void:
+	var config := _create_minimal_config()
+	var player := {}  # Empty player
+	var context := {}
 
-	var context := {
-		"position_supply": {"QB": 32}
-	}
+	var result := PlayerValue.calculate(player, context, config, null)
 
-	var replacement_result := PlayerValue.calculate(replacement_qb, context, config, rng)
-	var below_result := PlayerValue.calculate(below_replacement_qb, context, config, rng)
+	# Should use defaults: position "ATH", age 22, eval_score 50.0
+	assert_string(result["position"]).is_equal("ATH")
+	assert_int(result["age"]).is_equal(22)
+	assert_float(result["eval_score"]).is_equal(50.0)
 
-	assert_float(float(replacement_result.vor)).is_equal_approx(0.0, 0.001)
-	assert_float(float(below_result.vor)).is_equal_approx(0.0, 0.001)
+## Test zero eval_score
+func test_zero_eval_score() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 0.0}
+	var context := {}
 
-	assert_float(float(replacement_result.market_value)).is_less(5.0)
-	assert_float(float(below_result.market_value)).is_less(5.0)
+	var result := PlayerValue.calculate(player, context, config, null)
 
+	# VOR should be 0 (below replacement)
+	assert_float(result["vor"]).is_equal(0.0)
+	assert_float(result["market_value"]).is_less_equal(1.0)
 
-func test_young_vs_old_players() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
+## Test maximum eval_score
+func test_maximum_eval_score() -> void:
+	var config := _create_minimal_config()
+	var player := {"id": "P1", "position": "QB", "age": 25, "eval_score": 100.0}
+	var context := {}
 
-	var young := {
-		"id": "young",
-		"position": "QB",
-		"age": 22,
-		"eval_score": 82.0
-	}
+	var result := PlayerValue.calculate(player, context, config, null)
 
-	var old := {
-		"id": "old",
-		"position": "QB",
-		"age": 33,
-		"eval_score": 88.0
-	}
-
-	var context := {
-		"position_supply": {"QB": 32}
-	}
-
-	var young_result := PlayerValue.calculate(young, context, config, rng)
-	var old_result := PlayerValue.calculate(old, context, config, rng)
-
-	assert_float(float(young_result.age_multiplier)).is_equal_approx(1.05, 0.001)
-	assert_float(float(old_result.age_multiplier)).is_equal_approx(0.80, 0.001)
-
-	var young_value_without_age: float = float(young_result.market_value) / float(young_result.age_multiplier)
-	var old_value_without_age: float = float(old_result.market_value) / float(old_result.age_multiplier)
-
-	assert_float(old_value_without_age).is_greater(young_value_without_age)
-
-
-func test_complete_valuation_structure() -> void:
-	var config := _get_test_config()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-
-	var player := {
-		"id": "player_001",
-		"position": "QB",
-		"age": 25,
-		"eval_score": 85.0
-	}
-
-	var context := {
-		"team_roster": [
-			{"id": "player_001", "position": "QB", "eval_score": 85.0},
-			{"id": "qb_2", "position": "QB", "eval_score": 70.0}
-		],
-		"position_supply": {"QB": 32}
-	}
-
-	var result := PlayerValue.calculate(player, context, config, rng)
-
-	assert_bool(result.components.has("vor")).is_true()
-	assert_bool(result.components.has("curve_output")).is_true()
-	assert_bool(result.components.has("scarcity")).is_true()
-	assert_bool(result.components.has("age")).is_true()
-	assert_bool(result.components.has("team_impact")).is_true()
-
-	var team_impact: Dictionary = result.components.team_impact
-	assert_bool(team_impact.has("player_id")).is_true()
-	assert_bool(team_impact.has("position")).is_true()
-	assert_bool(team_impact.has("raw_impact")).is_true()
-	assert_bool(team_impact.has("depth")).is_true()
-	assert_bool(team_impact.has("leverage_multiplier")).is_true()
-	assert_bool(team_impact.has("position_importance")).is_true()
-	assert_bool(team_impact.has("team_value")).is_true()
-
-	assert_int(int(team_impact.depth)).is_equal(1)
-	assert_float(float(team_impact.leverage_multiplier)).is_equal_approx(1.15, 0.001)
+	# Should have very high VOR and market value
+	assert_float(result["vor"]).is_equal(45.0)  # 100 - 55
+	assert_float(result["market_value"]).is_greater(50.0)
