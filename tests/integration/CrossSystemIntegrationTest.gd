@@ -42,11 +42,27 @@ func test_undrafted_players_flow_to_free_agency() -> void:
 	var year := 2025
 	var seed := 12345
 
-	# Run draft first
-	var draft_result := NflDraft.new().run(
+	# Run CollegeSeason first to populate draft pool
+	var college_result := CollegeSeason.new().run(
 		world_state,
 		year,
 		seed,
+		test_configs["league"],
+		test_configs["positions"],
+		test_configs["main"],
+		test_configs["stats"]
+	)
+	assert_that(college_result).is_not_null()
+
+	# Verify draft pool created
+	assert_that(world_state.has("draft_pool")).is_true()
+	assert_that(world_state["draft_pool"].has(year)).is_true()
+
+	# Run draft to create undrafted players
+	var draft_result := NflDraft.new().run(
+		world_state,
+		year,
+		seed + 500,
 		test_configs["league"],
 		test_configs["positions"],
 		test_configs["stats"],
@@ -84,11 +100,27 @@ func test_drafted_players_have_valid_contracts_for_fa() -> void:
 	var year := 2025
 	var seed := 12345
 
+	# Run CollegeSeason first to populate draft pool
+	var college_result := CollegeSeason.new().run(
+		world_state,
+		year,
+		seed,
+		test_configs["league"],
+		test_configs["positions"],
+		test_configs["main"],
+		test_configs["stats"]
+	)
+	assert_that(college_result).is_not_null()
+
+	# Verify draft pool created
+	assert_that(world_state.has("draft_pool")).is_true()
+	assert_that(world_state["draft_pool"].has(year)).is_true()
+
 	# Run draft
 	var draft_result := NflDraft.new().run(
 		world_state,
 		year,
-		seed,
+		seed + 500,
 		test_configs["league"],
 		test_configs["positions"],
 		test_configs["stats"],
@@ -441,7 +473,7 @@ func test_roster_sizes_remain_valid_across_cycle() -> void:
 	# Assert - Roster sizes valid
 	for team_id in world_state["nfl_rosters"].keys():
 		var roster: Dictionary = world_state["nfl_rosters"][team_id]
-		var current_size := roster["players"].size()
+		var current_size: int = roster["players"].size()
 
 		# Should not exceed roster limit
 		assert_that(current_size).is_less_equal(roster_limit)
@@ -461,14 +493,15 @@ func test_state_machines_coordinate_correctly() -> void:
 	var year := 2025
 	var seed := 12345
 
-	# Initialize draft state
-	DraftStateManager.initialize_draft(
+	# Run CollegeSeason first to populate draft pool
+	var _college := CollegeSeason.new().run(
 		world_state,
-		world_state["nfl_teams"],
 		year,
+		seed,
 		test_configs["league"],
+		test_configs["positions"],
 		test_configs["main"],
-		seed
+		test_configs["stats"]
 	)
 
 	# Initialize season state
@@ -477,9 +510,9 @@ func test_state_machines_coordinate_correctly() -> void:
 		"year": year
 	}
 
-	# Run draft
+	# Run draft (this also initializes draft state)
 	var _draft := NflDraft.new().run(
-		world_state, year, seed,
+		world_state, year, seed + 500,
 		test_configs["league"], test_configs["positions"],
 		test_configs["stats"], test_configs["scouts"], test_configs["main"]
 	)
@@ -493,7 +526,8 @@ func test_state_machines_coordinate_correctly() -> void:
 
 	# Assert - Both state machines in valid states
 	var draft_state: Dictionary = world_state["draft_state"]
-	assert_that(draft_state["state"]).is_equal(2)  # COMPLETED
+	# DraftStateMachine.State enum: NONE=0, INITIALIZING=1, RUNNING=2, PAUSED=3, COMPLETED=4
+	assert_that(draft_state["state"]).is_equal(4)  # COMPLETED
 
 	# Season state unchanged (FA doesn't modify it)
 	var season_state: Dictionary = world_state["nfl_season_state"]
@@ -575,6 +609,8 @@ func _create_test_nfl_players(team_id: String, count: int) -> Array:
 
 
 func _create_test_college_rosters() -> Dictionary:
+	# Create enough college players to have some undrafted after draft
+	# 4 teams * 1 round = 4 picks in first round, we need more than 4 players
 	return {
 		"Alabama": {
 			"school_id": "Alabama",
@@ -608,6 +644,26 @@ func _create_test_college_rosters() -> Dictionary:
 					"stage": Player.PlayerStage.COLLEGE,
 					"stats": {"speed": 85.0, "strength": 68.0},
 					"composite_score": 72.0
+				},
+				{
+					"player_id": "college_senior_4",
+					"name": "Senior LB",
+					"position": "LB",
+					"age": 22,
+					"college_year": 4,
+					"stage": Player.PlayerStage.COLLEGE,
+					"stats": {"speed": 72.0, "strength": 78.0},
+					"composite_score": 68.0
+				},
+				{
+					"player_id": "college_senior_5",
+					"name": "Senior CB",
+					"position": "CB",
+					"age": 22,
+					"college_year": 4,
+					"stage": Player.PlayerStage.COLLEGE,
+					"stats": {"speed": 80.0, "strength": 65.0},
+					"composite_score": 67.0
 				}
 			]
 		},
@@ -623,6 +679,26 @@ func _create_test_college_rosters() -> Dictionary:
 					"stage": Player.PlayerStage.COLLEGE,
 					"stats": {"speed": 76.0, "strength": 80.0},
 					"composite_score": 71.0
+				},
+				{
+					"player_id": "college_senior_6",
+					"name": "Senior S",
+					"position": "S",
+					"age": 22,
+					"college_year": 4,
+					"stage": Player.PlayerStage.COLLEGE,
+					"stats": {"speed": 78.0, "strength": 70.0},
+					"composite_score": 65.0
+				},
+				{
+					"player_id": "college_senior_7",
+					"name": "Senior DT",
+					"position": "DT",
+					"age": 22,
+					"college_year": 4,
+					"stage": Player.PlayerStage.COLLEGE,
+					"stats": {"speed": 65.0, "strength": 85.0},
+					"composite_score": 64.0
 				}
 			]
 		}
@@ -633,7 +709,7 @@ func _create_test_configs() -> Dictionary:
 	return {
 		"league": {
 			"draft": {
-				"rounds": 7,
+				"rounds": 1,  # Only 1 round so we have undrafted players from 8 college players
 				"picks_per_round": 4
 			},
 			"season": {
@@ -649,7 +725,11 @@ func _create_test_configs() -> Dictionary:
 			"RB": {"name": "Running Back", "group": "offense"},
 			"WR": {"name": "Wide Receiver", "group": "offense"},
 			"TE": {"name": "Tight End", "group": "offense"},
-			"OL": {"name": "Offensive Line", "group": "offense"}
+			"OL": {"name": "Offensive Line", "group": "offense"},
+			"LB": {"name": "Linebacker", "group": "defense"},
+			"CB": {"name": "Cornerback", "group": "defense"},
+			"S": {"name": "Safety", "group": "defense"},
+			"DT": {"name": "Defensive Tackle", "group": "defense"}
 		},
 		"stats": {
 			"stats": [

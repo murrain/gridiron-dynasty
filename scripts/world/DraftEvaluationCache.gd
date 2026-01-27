@@ -85,6 +85,7 @@ var _positions_cfg: Dictionary = {}
 var _stats_cfg: Dictionary = {}
 var _class_rules: Dictionary = {}
 var _schemes_cfg: Dictionary = {}
+var _ovr_cfg: Dictionary = {}
 
 ## Team index for O(1) lookup
 var _team_index: Dictionary = {}
@@ -125,8 +126,10 @@ func initialize(
 	_build_team_index()
 	_build_player_index()
 
-	# Load schemes config once
+	# Load schemes and OVR weights configs once
 	_schemes_cfg = SchemeFitCalculator.load_schemes_config()
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	_ovr_cfg = PlayerRatingCalculator.load_ovr_config(OVR_WEIGHTS_PATH)
 
 	_cache_valid = false
 	_cached_boards.clear()
@@ -148,13 +151,22 @@ func precompute_all_boards() -> float:
 
 	# Pre-sort draft pool by talent (needed for BPA candidate selection)
 	var sorted_pool := _draft_pool.duplicate()
+	var use_weighted := not _ovr_cfg.is_empty()
 	sorted_pool.sort_custom(func(a, b):
-		var a_rating := PlayerRatingCalculator.calculate_overall_rating(
-			a as Dictionary, _positions_cfg, _class_rules
-		)
-		var b_rating := PlayerRatingCalculator.calculate_overall_rating(
-			b as Dictionary, _positions_cfg, _class_rules
-		)
+		var a_rating: float
+		var b_rating: float
+		if use_weighted:
+			var a_pos := String((a as Dictionary).get("position", ""))
+			var b_pos := String((b as Dictionary).get("position", ""))
+			a_rating = PlayerRatingCalculator.calculate_weighted_ovr(a as Dictionary, a_pos, _ovr_cfg)
+			b_rating = PlayerRatingCalculator.calculate_weighted_ovr(b as Dictionary, b_pos, _ovr_cfg)
+		else:
+			a_rating = PlayerRatingCalculator.calculate_overall_rating(
+				a as Dictionary, _positions_cfg, _class_rules
+			)
+			b_rating = PlayerRatingCalculator.calculate_overall_rating(
+				b as Dictionary, _positions_cfg, _class_rules
+			)
 		return a_rating > b_rating
 	)
 
@@ -225,13 +237,22 @@ func invalidate_team_board(team_id: String, reason: String = "team_change") -> v
 
 	# Pre-sort pool (needed for board computation)
 	var sorted_pool := _draft_pool.duplicate()
+	var use_weighted := not _ovr_cfg.is_empty()
 	sorted_pool.sort_custom(func(a, b):
-		var a_rating := PlayerRatingCalculator.calculate_overall_rating(
-			a as Dictionary, _positions_cfg, _class_rules
-		)
-		var b_rating := PlayerRatingCalculator.calculate_overall_rating(
-			b as Dictionary, _positions_cfg, _class_rules
-		)
+		var a_rating: float
+		var b_rating: float
+		if use_weighted:
+			var a_pos := String((a as Dictionary).get("position", ""))
+			var b_pos := String((b as Dictionary).get("position", ""))
+			a_rating = PlayerRatingCalculator.calculate_weighted_ovr(a as Dictionary, a_pos, _ovr_cfg)
+			b_rating = PlayerRatingCalculator.calculate_weighted_ovr(b as Dictionary, b_pos, _ovr_cfg)
+		else:
+			a_rating = PlayerRatingCalculator.calculate_overall_rating(
+				a as Dictionary, _positions_cfg, _class_rules
+			)
+			b_rating = PlayerRatingCalculator.calculate_overall_rating(
+				b as Dictionary, _positions_cfg, _class_rules
+			)
 		return a_rating > b_rating
 	)
 
@@ -318,10 +339,14 @@ func _compute_team_board(
 		var player: Dictionary = candidates[player_id]
 		var position := String(player.get("position", ""))
 
-		# Calculate base rating
-		var overall_rating := PlayerRatingCalculator.calculate_overall_rating(
-			player, _positions_cfg, _class_rules
-		)
+		# Calculate base rating using weighted OVR if available
+		var overall_rating: float
+		if not _ovr_cfg.is_empty():
+			overall_rating = PlayerRatingCalculator.calculate_weighted_ovr(player, position, _ovr_cfg)
+		else:
+			overall_rating = PlayerRatingCalculator.calculate_overall_rating(
+				player, _positions_cfg, _class_rules
+			)
 
 		# Scout evaluation
 		var base_score := ScoutRuntime.score_player(

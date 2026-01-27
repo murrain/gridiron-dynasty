@@ -118,7 +118,8 @@ static func calculate(
 	# 5. Team-specific impact (if on a team)
 	# How valuable is this player to their current team specifically?
 	# Accounts for roster depth, position importance, and leverage
-	var team_impact := {"team_value": curved_value}
+	# Default team_value is 1.0 (multiplier, meaning team_value = market_value)
+	var team_impact := {"team_value": 1.0}
 	if context.has("team_roster"):
 		team_impact = TeamImpact.compute_team_value(
 			player, context.get("team_roster", []), config
@@ -130,9 +131,11 @@ static func calculate(
 	var market_value := curved_value * scarcity_mult * age_mult
 
 	# Team value (what this player is worth to current team)
-	# Uses team-specific impact calculation rather than raw curved_value
-	# This captures depth chart considerations and position leverage
-	var team_value: float = float(team_impact.get("team_value", market_value)) * age_mult
+	# Uses team-specific multiplier on market value to account for depth
+	# and position leverage. TeamImpact.team_value is now a multiplier (1.0-1.4)
+	# that scales the market value based on roster context.
+	var team_multiplier: float = float(team_impact.get("team_value", 1.0))
+	var team_value: float = market_value * team_multiplier
 
 	# Contract range (with variance)
 	# Provides min/max bounds for contract negotiations

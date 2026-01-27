@@ -54,10 +54,7 @@ static func apply_game_result(
 	standings: Dictionary,
 	game_result: Dictionary
 ) -> Dictionary:
-	# Validate inputs
-	if standings.is_empty():
-		push_warning("SeasonTransformations.apply_game_result: standings is empty")
-		return {}
+	# Note: Empty standings is valid - teams will be created on first game result
 
 	var home_team: String = String(game_result.get("home_team_id", ""))
 	var away_team: String = String(game_result.get("away_team_id", ""))
@@ -415,7 +412,7 @@ static func transition_to_draft_eligible(
 			continue
 
 		# Create immutable copy
-		var player_copy := player_dict.duplicate(true)
+		var player_copy: Dictionary = player_dict.duplicate(true)
 
 		# Check eligibility
 		var class_year: int = int(player_copy.get("college_year", 0))

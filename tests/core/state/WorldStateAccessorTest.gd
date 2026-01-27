@@ -200,12 +200,12 @@ func test_get_team_roster_counts() -> void:
 	assert_bool(roster_counts.has("SF")).is_true()
 	assert_bool(roster_counts.has("KC")).is_true()
 
-	var sf_info := roster_counts["SF"]
+	var sf_info: Dictionary = roster_counts["SF"]
 	assert_str(sf_info["name"]).is_equal("San Francisco 49ers")
 	assert_int(sf_info["roster_count"]).is_equal(2)
 	assert_int(sf_info["roster_limit"]).is_equal(53)
 
-	var kc_info := roster_counts["KC"]
+	var kc_info: Dictionary = roster_counts["KC"]
 	assert_int(kc_info["roster_count"]).is_equal(1)
 
 func test_get_team_roster_counts_empty() -> void:
@@ -346,7 +346,7 @@ func test_get_player_counts() -> void:
 	# Total: 2 HS + 3 college + 3 draft + 3 NFL + 1 FA = 12
 	assert_int(counts["total"]).is_equal(12)
 
-	var by_stage := counts["by_stage"]
+	var by_stage: Dictionary = counts["by_stage"]
 	assert_int(by_stage[Player.PlayerStage.HIGH_SCHOOL]).is_equal(2)
 	assert_int(by_stage[Player.PlayerStage.COLLEGE]).is_equal(3)
 	assert_int(by_stage[Player.PlayerStage.DRAFT_ELIGIBLE]).is_equal(3)

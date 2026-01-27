@@ -307,12 +307,14 @@ func test_get_lifecycle_phase_at_decline_boundary() -> void:
 func test_get_lifecycle_phase_different_positions() -> void:
 	var configs := _create_test_configs()
 
-	# At age 26, QB is in prime, RB is in decline
+	# At age 26:
+	# - QB: peak_age=28, so 26 < 28 means "growth"
+	# - RB: peak_age=25, decline_start=29, so 25 <= 26 < 29 means "prime"
 	var qb_phase := AgeFunctions.get_lifecycle_phase(26, "QB", configs)
 	var rb_phase := AgeFunctions.get_lifecycle_phase(26, "RB", configs)
 
-	assert_str(qb_phase).is_equal("prime")
-	assert_str(rb_phase).is_equal("growth")  # RB peaks at 25, so 26 is past peak
+	assert_str(qb_phase).is_equal("growth")
+	assert_str(rb_phase).is_equal("prime")
 
 # ============================================================================
 # EDGE CASE TESTS

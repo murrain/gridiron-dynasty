@@ -2,7 +2,7 @@
 ##
 ## Implements tier-based draft strategy using ADDITIVE bonuses:
 ## - Premium positions (QB, EDGE, OL, CB) get +3 OVR in early rounds
-## - Devalued positions (RB, TE, S) get -3 OVR penalty in rounds 1-2
+## - Devalued positions (RB, TE, S) get -6 OVR penalty in round 1, -4 in round 2
 ## - Special teams (K, P) get severe penalties
 ## - Converges to neutral in later rounds
 ##
@@ -10,6 +10,8 @@
 ## Using additive bonuses ensures player quality (OVR) dominates over position.
 ## A +3 OVR bonus is meaningful but won't let a 73 OVR player beat an 88 OVR player.
 ## Example: 73 OVR EDGE + 3 bonus = 76, still loses to 88 OVR WR + 0 bonus = 88
+##
+## 2026-01-23: Phase 2 Round 2 tuning - RB penalty increased from -3 to -6 for Round 1
 extends "res://scripts/core/evaluation/EvaluationModifier.gd"
 
 
@@ -69,19 +71,23 @@ func calculate(ctx: EvaluationContext) -> ModifierResult:
 
 	# Additive bonus constants (OVR points)
 	# These are intentionally modest so player quality dominates
-	const PREMIUM_ROUND_1_BONUS := 3.0   # +3 OVR for premium in round 1
-	const PREMIUM_ROUND_2_BONUS := 2.0   # +2 OVR for premium in round 2
+	# 2026-01-23: Reduced R1/R2 bonuses to encourage BPA drafting (was 3.0/2.0)
+	const PREMIUM_ROUND_1_BONUS := 2.0   # +2 OVR for premium in round 1
+	const PREMIUM_ROUND_2_BONUS := 1.5   # +1.5 OVR for premium in round 2
 	const PREMIUM_ROUND_3_4_BONUS := 1.0 # +1 OVR for premium in rounds 3-4
 
-	const DEVALUED_ROUND_1_PENALTY := -3.0  # -3 OVR for devalued in round 1
-	const DEVALUED_ROUND_2_PENALTY := -2.0  # -2 OVR for devalued in round 2
-	const DEVALUED_ROUND_3_4_PENALTY := -1.0 # -1 OVR for devalued in rounds 3-4
+	const DEVALUED_ROUND_1_PENALTY := -6.0  # -6 OVR for devalued in round 1 (Phase 2 Round 2: increased from -3)
+	const DEVALUED_ROUND_2_PENALTY := -4.0  # -4 OVR for devalued in round 2 (Phase 2 Round 2: increased from -2)
+	const DEVALUED_ROUND_3_4_PENALTY := -2.0 # -2 OVR for devalued in rounds 3-4 (Phase 2 Round 2: increased from -1)
 
 	# Special teams get severe penalties in early rounds (rarely drafted high)
-	const SPECIAL_TEAMS_ROUND_1_PENALTY := -20.0  # Essentially never pick K/P in round 1
-	const SPECIAL_TEAMS_ROUND_2_PENALTY := -15.0  # Very rare in round 2
-	const SPECIAL_TEAMS_ROUND_3_4_PENALTY := -8.0 # Uncommon in rounds 3-4
-	const SPECIAL_TEAMS_ROUND_5_PLUS_PENALTY := -3.0 # Slight penalty even late
+	# K/P specialists have high base OVR from kicking stats (85-90 range), so penalties
+	# must be aggressive to suppress Round 1 selection. NFL averages <1 K/P in first 3 rounds.
+	# Iteration 2 tuning: increased from -20/-15/-8/-3 to -35/-25/-15/-5 (2026-01-22)
+	const SPECIAL_TEAMS_ROUND_1_PENALTY := -35.0  # Drops 90 OVR K/P to ~55, undraftable in R1
+	const SPECIAL_TEAMS_ROUND_2_PENALTY := -25.0  # Very rare in round 2 (65 effective OVR)
+	const SPECIAL_TEAMS_ROUND_3_4_PENALTY := -15.0 # Uncommon in rounds 3-4 (75 effective OVR)
+	const SPECIAL_TEAMS_ROUND_5_PLUS_PENALTY := -5.0 # Modest penalty late, specialists viable R5+
 
 	var bonus := 0.0
 	var reason := ""

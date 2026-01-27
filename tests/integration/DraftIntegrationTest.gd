@@ -39,11 +39,11 @@ func test_complete_draft_simulation_produces_valid_results() -> void:
 	# Arrange
 	var year := 2025
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var stats_cfg := test_configs["stats"]
-	var scouts_cfg := test_configs["scouts"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var stats_cfg: Dictionary = test_configs["stats"]
+	var scouts_cfg: Dictionary = test_configs["scouts"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Act
 	var result := NflDraft.new().run(
@@ -78,7 +78,7 @@ func test_complete_draft_simulation_produces_valid_results() -> void:
 
 	# Assert - Draft pool reduced
 	var draft_pool: Array = world_state["draft_pool"][year]
-	var initial_pool_size := _create_test_draft_pool().size()
+	var initial_pool_size: int = _create_test_draft_pool().size()
 	assert_that(draft_pool.size()).is_less(initial_pool_size)
 
 	# Assert - Players added to rosters
@@ -105,11 +105,11 @@ func test_same_seed_produces_identical_draft_outcomes() -> void:
 	# Arrange
 	var year := 2025
 	var seed := 99999
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var stats_cfg := test_configs["stats"]
-	var scouts_cfg := test_configs["scouts"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var stats_cfg: Dictionary = test_configs["stats"]
+	var scouts_cfg: Dictionary = test_configs["scouts"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Act - Run draft twice with same seed
 	var world_state_1 := _create_test_world_state()
@@ -160,11 +160,11 @@ func test_different_seeds_produce_different_draft_outcomes() -> void:
 	var year := 2025
 	var seed_1 := 11111
 	var seed_2 := 99999
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var stats_cfg := test_configs["stats"]
-	var scouts_cfg := test_configs["scouts"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var stats_cfg: Dictionary = test_configs["stats"]
+	var scouts_cfg: Dictionary = test_configs["scouts"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Act - Run draft with different seeds
 	var world_state_1 := _create_test_world_state()
@@ -216,8 +216,8 @@ func test_draft_state_machine_transitions_correctly() -> void:
 	var year := 2025
 	var seed := 12345
 	var teams := _create_test_teams()
-	var league_cfg := test_configs["league"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Initial state: NOT_STARTED
 	assert_that(world_state.has("draft_state")).is_false()
@@ -265,8 +265,8 @@ func test_cannot_execute_pick_when_not_running() -> void:
 	var year := 2025
 	var seed := 12345
 	var teams := _create_test_teams()
-	var league_cfg := test_configs["league"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Initialize but don't start
 	DraftStateManager.initialize_draft(
@@ -312,13 +312,13 @@ func test_undrafted_players_stored_correctly() -> void:
 	# Arrange
 	var year := 2025
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var stats_cfg := test_configs["stats"]
-	var scouts_cfg := test_configs["scouts"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var stats_cfg: Dictionary = test_configs["stats"]
+	var scouts_cfg: Dictionary = test_configs["scouts"]
+	var main_cfg: Dictionary = test_configs["main"]
 
-	var initial_pool_size := world_state["draft_pool"][year].size()
+	var initial_pool_size: int = world_state["draft_pool"][year].size()
 
 	# Act
 	var result := NflDraft.new().run(
@@ -362,11 +362,11 @@ func test_draft_history_recorded_correctly() -> void:
 	# Arrange
 	var year := 2025
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var stats_cfg := test_configs["stats"]
-	var scouts_cfg := test_configs["scouts"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var stats_cfg: Dictionary = test_configs["stats"]
+	var scouts_cfg: Dictionary = test_configs["scouts"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Act
 	var result := NflDraft.new().run(
@@ -398,7 +398,8 @@ func test_draft_history_recorded_correctly() -> void:
 		assert_that(history_entry["player_id"]).is_equal(pick["player_id"])
 		assert_that(history_entry["team_id"]).is_equal(pick["team_id"])
 		assert_that(history_entry["round"]).is_equal(pick["round"])
-		assert_that(history_entry["pick"]).is_equal(pick["pick"])
+		# Note: history_entry uses "pick_number", pick uses "pick"
+		assert_that(history_entry["pick_number"]).is_equal(pick["pick"])
 
 
 # ============================================================================
@@ -410,8 +411,8 @@ func test_pick_ownership_transfer_works() -> void:
 	var year := 2025
 	var seed := 12345
 	var teams := _create_test_teams()
-	var league_cfg := test_configs["league"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Initialize draft
 	DraftStateManager.initialize_draft(
@@ -445,11 +446,11 @@ func test_drafted_players_added_to_rosters_with_contracts() -> void:
 	# Arrange
 	var year := 2025
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var stats_cfg := test_configs["stats"]
-	var scouts_cfg := test_configs["scouts"]
-	var main_cfg := test_configs["main"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var stats_cfg: Dictionary = test_configs["stats"]
+	var scouts_cfg: Dictionary = test_configs["scouts"]
+	var main_cfg: Dictionary = test_configs["main"]
 
 	# Act
 	var result := NflDraft.new().run(
@@ -505,11 +506,11 @@ func test_draft_does_not_corrupt_original_configs() -> void:
 	# Arrange
 	var year := 2025
 	var seed := 12345
-	var league_cfg := test_configs["league"].duplicate(true)
-	var positions_cfg := test_configs["positions"].duplicate(true)
-	var stats_cfg := test_configs["stats"].duplicate(true)
-	var scouts_cfg := test_configs["scouts"].duplicate(true)
-	var main_cfg := test_configs["main"].duplicate(true)
+	var league_cfg: Dictionary = test_configs["league"].duplicate(true)
+	var positions_cfg: Dictionary = test_configs["positions"].duplicate(true)
+	var stats_cfg: Dictionary = test_configs["stats"].duplicate(true)
+	var scouts_cfg: Dictionary = test_configs["scouts"].duplicate(true)
+	var main_cfg: Dictionary = test_configs["main"].duplicate(true)
 
 	# Hash configs before draft
 	var league_hash := hash(league_cfg)

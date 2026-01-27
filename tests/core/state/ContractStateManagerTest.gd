@@ -156,13 +156,14 @@ func test_execute_signing_success() -> void:
 	assert_str(kc_players[0]["id"]).is_equal("fa_1")
 
 	# Verify contract applied
-	assert_dict(kc_players[0]).contains_key_value("contract", ContractTransformations)
+	assert_bool(kc_players[0].has("contract")).is_true()
 	var contract: Dictionary = kc_players[0]["contract"]
+	assert_bool(contract is Dictionary).is_true()
 	assert_str(contract["status"]).is_equal("signed")
 	assert_float(contract["annual_value"]).is_equal(10.0)
 
 	# Verify cap space updated
-	var team := world_state["nfl_teams"][1]  # KC
+	var team: Dictionary = world_state["nfl_teams"][1]  # KC
 	assert_float(team["cap_space"]).is_equal(20.0)  # 30.0 - 10.0
 
 	# Verify player removed from FA pool
@@ -304,7 +305,7 @@ func test_release_player_success() -> void:
 	assert_bool(found_released).is_true()
 
 	# Verify cap space updated
-	var team := world_state["nfl_teams"][0]  # SF
+	var team: Dictionary = world_state["nfl_teams"][0]  # SF
 	var expected_cap := 50.0 + net_savings
 	assert_float(team["cap_space"]).is_equal(expected_cap)
 
@@ -414,7 +415,7 @@ func test_apply_franchise_tag_success() -> void:
 	assert_float(contract["guaranteed_value"]).is_equal(tag_salary)  # Fully guaranteed
 
 	# Verify cap space updated
-	var team := world_state["nfl_teams"][0]  # SF
+	var team: Dictionary = world_state["nfl_teams"][0]  # SF
 	var expected_cap := 50.0 - tag_salary
 	assert_float(team["cap_space"]).is_equal(expected_cap)
 
@@ -551,7 +552,7 @@ func test_update_cap_space_positive_delta() -> void:
 	var success := ContractStateManager.update_cap_space(world_state, "SF", 10.0)
 
 	assert_bool(success).is_true()
-	var team := world_state["nfl_teams"][0]  # SF
+	var team: Dictionary = world_state["nfl_teams"][0]  # SF
 	assert_float(team["cap_space"]).is_equal(60.0)  # 50.0 + 10.0
 
 
@@ -562,7 +563,7 @@ func test_update_cap_space_negative_delta() -> void:
 	var success := ContractStateManager.update_cap_space(world_state, "SF", -15.0)
 
 	assert_bool(success).is_true()
-	var team := world_state["nfl_teams"][0]  # SF
+	var team: Dictionary = world_state["nfl_teams"][0]  # SF
 	assert_float(team["cap_space"]).is_equal(35.0)  # 50.0 - 15.0
 
 

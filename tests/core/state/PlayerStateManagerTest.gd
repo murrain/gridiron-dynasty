@@ -135,7 +135,7 @@ func test_advance_players_one_year_updates_world_state() -> void:
 	)
 
 	# Verify ages were updated in world_state
-	var updated_players := world_state["nfl_rosters"]["SF"]["players"]
+	var updated_players: Array = world_state["nfl_rosters"]["SF"]["players"]
 	for i in range(updated_players.size()):
 		assert_int(updated_players[i]["age"]).is_equal(initial_ages[i] + 1)
 
@@ -193,8 +193,8 @@ func test_advance_players_one_year_is_deterministic() -> void:
 	assert_int(result1["retired_count"]).is_equal(result2["retired_count"])
 
 	# Player ages should be identical
-	var players1 := world_state1["nfl_rosters"]["SF"]["players"]
-	var players2 := world_state2["nfl_rosters"]["SF"]["players"]
+	var players1: Array = world_state1["nfl_rosters"]["SF"]["players"]
+	var players2: Array = world_state2["nfl_rosters"]["SF"]["players"]
 	assert_int(players1.size()).is_equal(players2.size())
 
 	for i in range(players1.size()):
@@ -255,7 +255,7 @@ func test_transition_player_stage_valid_transition() -> void:
 	assert_bool(success).is_true()
 
 	# Verify stage updated in world_state
-	var player := world_state["college_rosters"]["STANFORD"]["players"][0]
+	var player: Dictionary = world_state["college_rosters"]["STANFORD"]["players"][0]
 	assert_int(player["stage"]).is_equal(Player.PlayerStage.DRAFT_ELIGIBLE)
 
 func test_transition_player_stage_invalid_transition() -> void:
@@ -274,7 +274,7 @@ func test_transition_player_stage_invalid_transition() -> void:
 	assert_bool(success).is_false()
 
 	# Verify stage unchanged
-	var player := world_state["hs_players"][0]
+	var player: Dictionary = world_state["hs_players"][0]
 	assert_int(player["stage"]).is_equal(Player.PlayerStage.HIGH_SCHOOL)
 
 func test_transition_player_stage_player_not_found() -> void:

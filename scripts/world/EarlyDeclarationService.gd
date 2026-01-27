@@ -116,8 +116,11 @@ static func _calculate_advisory_grade(
 	main_cfg: Dictionary,
 	config: Dictionary
 ) -> String:
-	var class_rules: Dictionary = main_cfg.get("class_rules", {})
-	var rating := PlayerRatingCalculator.calculate_overall_rating(player, positions_cfg, class_rules)
+	# Load OVR weights config for weighted OVR calculation
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	var ovr_config := PlayerRatingCalculator.load_ovr_config(OVR_WEIGHTS_PATH)
+	var position := String(player.get("position", ""))
+	var rating := PlayerRatingCalculator.calculate_weighted_ovr(player, position, ovr_config)
 
 	var grades_cfg: Dictionary = config.get("nfl_advisory_grades", {})
 
@@ -421,8 +424,11 @@ static func _simple_declaration_check(
 	var base_chance := float(config.get("base_chance", 0.15))
 	var rating_bonus_per_point := float(config.get("rating_bonus_per_point", 0.01))
 
-	var class_rules: Dictionary = main_cfg.get("class_rules", {})
-	var rating := PlayerRatingCalculator.calculate_overall_rating(player, positions_cfg, class_rules)
+	# Load OVR weights config for weighted OVR calculation
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	var ovr_config := PlayerRatingCalculator.load_ovr_config(OVR_WEIGHTS_PATH)
+	var position := String(player.get("position", ""))
+	var rating := PlayerRatingCalculator.calculate_weighted_ovr(player, position, ovr_config)
 
 	if rating < rating_threshold:
 		return false

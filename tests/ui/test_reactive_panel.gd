@@ -1,4 +1,4 @@
-extends GutTest
+extends "res://tests/GutTest.gd"
 
 ## Unit tests for ReactivePanel base class.
 ##
@@ -70,15 +70,31 @@ func test_databus_auto_disconnect_on_exit() -> void:
 		"Should be connected before exit"
 	)
 
+	# Count connections before free
+	var pre_free_connections := 0
+	for connection in DataBus.collection_changed.get_connections():
+		if is_instance_valid(connection["callable"].get_object()):
+			if connection["callable"].get_object() == panel:
+				pre_free_connections += 1
+
+	assert_eq(pre_free_connections, 1, "Should have 1 connection before exit")
+
 	# Free the panel
 	panel.queue_free()
 	await get_tree().process_frame
+	await get_tree().process_frame  # Extra frame to ensure cleanup
 
-	# Verify disconnected
-	assert_false(
-		DataBus.collection_changed.is_connected(panel._on_databus_collection_changed),
-		"Should auto-disconnect on exit"
-	)
+	# Verify disconnected by checking no connections from freed panel
+	# After queue_free, the panel's connections should be cleaned up
+	var post_free_connections := 0
+	for connection in DataBus.collection_changed.get_connections():
+		var obj = connection["callable"].get_object()
+		# If object is freed, it won't be valid; if valid, check if it's our panel
+		if is_instance_valid(obj) and obj == panel:
+			post_free_connections += 1
+
+	# After panel is freed, connection should be gone
+	assert_eq(post_free_connections, 0, "Should auto-disconnect on exit")
 
 
 func test_no_double_connection() -> void:

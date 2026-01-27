@@ -515,7 +515,9 @@ static func _find_player(world_state: Dictionary, player_id: String, year: int =
 		var players: Array = roster.get("players", [])
 		for i in range(players.size()):
 			var p: Dictionary = players[i]
-			if String(p.get("id", "")) == player_id:
+			# Check both "id" and "player_id" fields for compatibility
+			var pid := String(p.get("id", p.get("player_id", "")))
+			if pid == player_id:
 				return {
 					"collection_path": ["nfl_rosters", team_id, "players"],
 					"index": i,
@@ -530,7 +532,9 @@ static func _find_player(world_state: Dictionary, player_id: String, year: int =
 		var year_fas: Array = free_agents[year]
 		for i in range(year_fas.size()):
 			var p: Dictionary = year_fas[i]
-			if String(p.get("id", "")) == player_id:
+			# Check both "id" and "player_id" fields for compatibility
+			var pid := String(p.get("id", p.get("player_id", "")))
+			if pid == player_id:
 				return {
 					"collection_path": ["free_agents", year],
 					"index": i,
@@ -576,7 +580,9 @@ static func _find_player_on_team(world_state: Dictionary, player_id: String, tea
 
 	for i in range(players.size()):
 		var p: Dictionary = players[i]
-		if String(p.get("id", "")) == player_id:
+		# Check both "id" and "player_id" fields for compatibility
+		var pid := String(p.get("id", p.get("player_id", "")))
+		if pid == player_id:
 			return {
 				"collection_path": ["nfl_rosters", team_id, "players"],
 				"index": i,
@@ -823,8 +829,18 @@ static func _get_consecutive_tag_years(world_state: Dictionary, player_id: Strin
 # INTERNAL HELPERS - DataBus Integration
 # ============================================================================
 
+## Helper to get DataBus autoload safely (returns null in headless mode).
+## This avoids compile-time identifier resolution issues when running as -s script.
+static func _get_databus() -> Node:
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root := (main_loop as SceneTree).root
+		if root.has_node("DataBus"):
+			return root.get_node("DataBus")
+	return null
+
 ## Notify DataBus that a collection has changed.
-## DataBus is a global autoload and can be accessed directly by name.
 static func _notify_collection_changed(collection_name: String, operation: String) -> void:
-	if DataBus:
-		DataBus.notify_collection_changed(collection_name, operation)
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed(collection_name, operation)

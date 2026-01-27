@@ -337,7 +337,7 @@ static func apply_pick_trade(
 ## Generate draft history record from picks array (pure function).
 ##
 ## Creates a structured draft history entry for a given year by processing
-## the picks array and extracting relevant player information.
+## the picks array and extracting relevant player information from rosters.
 ##
 ## RNG consumption: NONE (deterministic processing)
 ##
@@ -351,6 +351,9 @@ static func apply_pick_trade(
 ##     team_id: String,
 ##     player_id: String,
 ##     position: String,
+##     name: String,                 # Player's full name at time of draft
+##     overall_rating: float,        # Player's OVR at time of draft (composite_score)
+##     age: int,                     # Player's age at draft time
 ##     college: String,
 ##     traded: bool,
 ##     original_team_id: String | null,
@@ -360,7 +363,7 @@ static func apply_pick_trade(
 ## Algorithm:
 ##   1. Build player lookup index from rosters
 ##   2. For each pick, extract metadata
-##   3. Look up college from player record
+##   3. Look up player details (name, OVR, age, college) from player record
 ##   4. Create history entry with all relevant fields
 ##   5. Return NEW history array (original inputs unchanged)
 ##
@@ -395,10 +398,27 @@ static func generate_draft_history(
 		var original_team_id: Variant = p.get("original_team_id", null)
 		var is_compensatory := bool(p.get("compensatory", false))
 
-		# Extract college from player record (O(1) lookup)
+		# Extract player details from roster lookup (O(1) lookup)
+		# These fields capture the player's state at time of draft for historical analysis
+		var player_name := "Unknown"
+		var player_ovr := 0.0
+		var player_age := 0
 		var player_college := ""
+
 		if player_lookup.has(player_id):
 			var player_record: Dictionary = player_lookup[player_id]
+
+			# Extract player name (stored as single "name" field)
+			player_name = String(player_record.get("name", "Unknown"))
+
+			# Extract overall rating - use composite_score as primary source
+			# This is the standard player rating field used throughout the system
+			player_ovr = float(player_record.get("composite_score", 0.0))
+
+			# Extract age at draft time
+			player_age = int(player_record.get("age", 0))
+
+			# Extract college team ID
 			player_college = String(player_record.get("college_team_id", ""))
 
 		history.append({
@@ -407,6 +427,9 @@ static func generate_draft_history(
 			"team_id": team_id,
 			"player_id": player_id,
 			"position": String(p.get("position", "")),
+			"name": player_name,
+			"overall_rating": player_ovr,
+			"age": player_age,
 			"college": player_college,
 			"traded": is_traded,
 			"original_team_id": original_team_id,

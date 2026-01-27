@@ -111,6 +111,10 @@ func run(
 	var picks: Array = []
 	var remaining_pool := draft_pool.duplicate()
 
+	# Load OVR weights config for weighted OVR calculations
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	var ovr_config := PlayerRatingCalculator.load_ovr_config(OVR_WEIGHTS_PATH)
+
 	# Normalize field names early: draft uses "player_id", FA expects "id"
 	# This ensures UDFAs are compatible with FreeAgency system from the start
 	for player in remaining_pool:
@@ -122,12 +126,12 @@ func run(
 	# Sort once at start, then players are removed as drafted
 	# This eliminates redundant sorting on every pick
 	remaining_pool.sort_custom(func(a, b):
-		var a_rating := PlayerRatingCalculator.calculate_overall_rating(
-			a as Dictionary, positions_cfg, class_rules
-		)
-		var b_rating := PlayerRatingCalculator.calculate_overall_rating(
-			b as Dictionary, positions_cfg, class_rules
-		)
+		var a_dict := a as Dictionary
+		var b_dict := b as Dictionary
+		var a_pos := String(a_dict.get("position", ""))
+		var b_pos := String(b_dict.get("position", ""))
+		var a_rating := PlayerRatingCalculator.calculate_weighted_ovr(a_dict, a_pos, ovr_config)
+		var b_rating := PlayerRatingCalculator.calculate_weighted_ovr(b_dict, b_pos, ovr_config)
 		return a_rating > b_rating
 	)
 
@@ -230,7 +234,12 @@ func run(
 			)
 
 			if not pick_result.get("success", false):
-				SimLogger.error("Failed to execute pick for player %s (team %s)" % [player_id, team_id])
+				SimLogger.error("Failed to execute pick for player %s (team %s) - player may not be in draft pool" % [player_id, team_id])
+				# CRITICAL: Remove player from remaining_pool even though pick failed,
+				# to prevent subsequent teams from trying to draft the same invalid player
+				remaining_pool = remaining_pool.filter(func(p):
+					return String((p as Dictionary).get("player_id", "")) != player_id
+				)
 				continue
 
 			# Update remaining_pool to reflect the pick (already removed by execute_pick)
@@ -748,7 +757,9 @@ func _score_draft_pool(
 		var eval_result := stack.evaluate(ctx)
 
 		# Calculate weighted score using modifiers
-		var weighted_score := base_score * eval_result.final_multiplier
+		# Uses helper method to properly apply both additive bonuses and multipliers
+		# Formula: (base_score + additive_total) * final_multiplier
+		var weighted_score := eval_result.calculate_final_score(base_score)
 
 		scored.append({
 			"player": p,

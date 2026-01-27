@@ -32,7 +32,8 @@
 ##
 ## RNG Usage: None (deterministic calculation based on roster state)
 ##
-## Maximum bonus: ~12 OVR (8.0 base * 1.5 position importance = 12.0 OVR for critical QB need)
+## Maximum bonus: ~1.5 OVR (1.0 base * 1.5 position importance = 1.5 OVR for critical QB need)
+## NOTE: Bonuses reduced by 75% in Phase 1 of BPA fix to reduce reaching from 59% to <35%
 extends "res://scripts/core/evaluation/EvaluationModifier.gd"
 
 const RosterComposition = preload("res://scripts/core/roster/RosterComposition.gd")
@@ -72,9 +73,9 @@ func get_priority() -> int:
 	return 25
 
 
-## Bounds for additive bonus: 0 to +12 OVR points (critical QB need)
+## Bounds for additive bonus: 0 to +1.5 OVR points (critical QB need after 75% reduction)
 func get_bounds() -> Dictionary:
-	return {"min": 0.0, "max": 12.0}
+	return {"min": 0.0, "max": 1.5}
 
 
 func get_tags() -> Array:
@@ -382,14 +383,15 @@ static func _load_config_file() -> Dictionary:
 
 
 ## Default configuration if config file not found
+## NOTE: Bonus values reduced by 75% in Phase 1 of BPA fix to reduce reaching behavior
 static func _get_default_config() -> Dictionary:
 	return {
 		"team_need": {
 			"need_levels": {
-				"critical": {"bonus_ovr": 8.0},
-				"high": {"starter_rating_threshold": 65.0, "bonus_ovr": 5.0},
-				"moderate": {"starter_rating_range": [65.0, 72.0], "bonus_ovr": 3.0},
-				"low": {"starter_rating_min": 72.0, "backup_quality_threshold": 60.0, "bonus_ovr": 1.0},
+				"critical": {"bonus_ovr": 1.0},
+				"high": {"starter_rating_threshold": 65.0, "bonus_ovr": 0.6},
+				"moderate": {"starter_rating_range": [65.0, 72.0], "bonus_ovr": 0.4},
+				"low": {"starter_rating_min": 72.0, "backup_quality_threshold": 60.0, "bonus_ovr": 0.1},
 				"none": {"bonus_ovr": 0.0}
 			},
 			"round_scaling": {

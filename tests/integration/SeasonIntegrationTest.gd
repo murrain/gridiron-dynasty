@@ -121,7 +121,7 @@ func test_multiple_game_results_accumulate_correctly() -> void:
 			"home_team_id": "SEA",
 			"away_team_id": "SF",
 			"home_score": 24,
-			"away_team_id": 17,
+			"away_score": 17,
 			"week": 2,
 			"season_type": "regular_season"
 		},
@@ -183,6 +183,8 @@ func test_season_phase_transitions_work() -> void:
 		SeasonStateMachine.SeasonPhase.PLAYOFFS
 	)
 	assert_that(success).is_true()
+	# Re-fetch season_state since _replace_value creates a new dictionary
+	season_state = world_state["nfl_season_state"]
 	assert_that(season_state["phase"]).is_equal(SeasonStateMachine.SeasonPhase.PLAYOFFS)
 
 
@@ -217,10 +219,10 @@ func test_nfl_season_completes_successfully() -> void:
 	# Arrange
 	var year := 2033
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var main_cfg := test_configs["main"]
-	var stats_cfg := test_configs["stats"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var main_cfg: Dictionary = test_configs["main"]
+	var stats_cfg: Dictionary = test_configs["stats"]
 
 	# Act
 	var result := NflSeason.new().run(
@@ -249,10 +251,10 @@ func test_nfl_season_determinism() -> void:
 	# Arrange
 	var year := 2033
 	var seed := 99999
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var main_cfg := test_configs["main"]
-	var stats_cfg := test_configs["stats"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var main_cfg: Dictionary = test_configs["main"]
+	var stats_cfg: Dictionary = test_configs["stats"]
 
 	# Act - Run season twice with same seed
 	var world_state_1 := _create_test_world_state()
@@ -294,10 +296,10 @@ func test_college_season_completes_successfully() -> void:
 	# Arrange
 	var year := 2033
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var main_cfg := test_configs["main"]
-	var stats_cfg := test_configs["stats"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var main_cfg: Dictionary = test_configs["main"]
+	var stats_cfg: Dictionary = test_configs["stats"]
 
 	# Add college rosters to world state
 	world_state["college_rosters"] = _create_test_college_rosters()
@@ -326,10 +328,10 @@ func test_college_season_draft_eligibility_processing() -> void:
 	# Arrange
 	var year := 2033
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var main_cfg := test_configs["main"]
-	var stats_cfg := test_configs["stats"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var main_cfg: Dictionary = test_configs["main"]
+	var stats_cfg: Dictionary = test_configs["stats"]
 
 	# Add college rosters with seniors
 	world_state["college_rosters"] = _create_test_college_rosters()
@@ -398,24 +400,28 @@ func test_all_three_season_levels_complete_sequentially() -> void:
 	# Arrange
 	var year := 2033
 	var seed := 12345
-	var league_cfg := test_configs["league"]
-	var positions_cfg := test_configs["positions"]
-	var main_cfg := test_configs["main"]
-	var stats_cfg := test_configs["stats"]
+	var league_cfg: Dictionary = test_configs["league"]
+	var positions_cfg: Dictionary = test_configs["positions"]
+	var main_cfg: Dictionary = test_configs["main"]
+	var stats_cfg: Dictionary = test_configs["stats"]
 
 	# Add high school and college rosters
 	world_state["high_school_rosters"] = _create_test_high_school_rosters()
 	world_state["college_rosters"] = _create_test_college_rosters()
 
 	# Act - Run all three season levels
+	# HighSchoolSeason has a different API: (players, schools, positions_cfg, main_cfg, stats_cfg, config, seed, year)
+	var hs_players: Array = world_state.get("high_school_rosters", {}).get("Test_HS", {}).get("players", [])
+	var hs_schools: Array = [{"id": "Test_HS", "name": "Test High School"}]
 	var hs_result := HighSchoolSeason.new().run(
-		world_state,
-		year,
-		seed,
-		league_cfg,
+		hs_players,
+		hs_schools,
 		positions_cfg,
 		main_cfg,
-		stats_cfg
+		stats_cfg,
+		league_cfg,  # config parameter
+		seed,
+		year
 	)
 
 	var college_result := CollegeSeason.new().run(
@@ -444,8 +450,9 @@ func test_all_three_season_levels_complete_sequentially() -> void:
 	assert_that(college_result).is_not_null()
 	assert_that(nfl_result).is_not_null()
 
-	# Assert - Each level produced players transitioning
-	assert_that(hs_result.has("graduating_count")).is_true()
+	# Assert - Each level produced expected result keys
+	# HighSchoolSeason returns: {players, graduates, transitions}
+	assert_that(hs_result.has("graduates")).is_true()
 	assert_that(college_result.has("draft_eligible_count")).is_true()
 
 
@@ -457,10 +464,10 @@ func test_season_does_not_corrupt_configs() -> void:
 	# Arrange
 	var year := 2033
 	var seed := 12345
-	var league_cfg := test_configs["league"].duplicate(true)
-	var positions_cfg := test_configs["positions"].duplicate(true)
-	var main_cfg := test_configs["main"].duplicate(true)
-	var stats_cfg := test_configs["stats"].duplicate(true)
+	var league_cfg: Dictionary = test_configs["league"].duplicate(true)
+	var positions_cfg: Dictionary = test_configs["positions"].duplicate(true)
+	var main_cfg: Dictionary = test_configs["main"].duplicate(true)
+	var stats_cfg: Dictionary = test_configs["stats"].duplicate(true)
 
 	# Hash configs before season
 	var league_hash := hash(league_cfg)

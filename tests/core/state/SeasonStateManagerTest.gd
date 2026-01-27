@@ -1,4 +1,4 @@
-extends GutTest
+extends "res://tests/GutTest.gd"
 
 ## SeasonStateManagerTest - Comprehensive test suite for SeasonStateManager
 ##

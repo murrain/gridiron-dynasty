@@ -331,8 +331,17 @@ func _check_early_declaration(
 	if college_year < min_year:
 		return false
 
-	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
-	var rating := PlayerRatingCalculator.calculate_overall_rating(player, positions_cfg, class_rules)
+	# Use weighted OVR if available, fallback to legacy
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	var ovr_config := PlayerRatingCalculator.load_ovr_config(OVR_WEIGHTS_PATH)
+	var rating: float
+	if not ovr_config.is_empty():
+		var position := String(player.get("position", ""))
+		rating = PlayerRatingCalculator.calculate_weighted_ovr(player, position, ovr_config)
+	else:
+		var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
+		rating = PlayerRatingCalculator.calculate_overall_rating(player, positions_cfg, class_rules)
+
 	if rating < rating_threshold:
 		return false
 

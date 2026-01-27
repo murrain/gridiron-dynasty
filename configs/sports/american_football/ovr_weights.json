@@ -1,9 +1,12 @@
 {
   "_meta": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Weighted OVR calculation configuration for all football positions",
     "design_doc": "docs/architecture/WEIGHTED_OVR_SYSTEM.md",
-    "last_updated": "2026-01-21",
+    "last_updated": "2026-01-22",
+    "changelog": {
+      "1.1.0": "Tuned RB/QB/EDGE weights to improve draft position distribution (reduce RB/EDGE over-representation, increase QB representation)"
+    },
     "validation_rules": {
       "weight_sum": "All position weights must sum to exactly 1.0",
       "override_semantics": "override_base/override_side replace defaults for this position",
@@ -42,35 +45,38 @@
     "QB": {
       "_rationale": [
         "QB is the most mentally demanding position in football.",
-        "Throw accuracy is the single most critical attribute - a QB who cannot place the ball is useless.",
-        "Decision-making under pressure separates elite QBs from average ones.",
+        "Throw accuracy remains critical but not sole determinant.",
+        "Decision-making, anticipation, and awareness all contribute to elite QB play.",
+        "Arm strength (throw_power) and composure under pressure matter significantly.",
         "Physical attributes (speed, strength) are nice-to-haves, not requirements.",
         "Blocking/catching virtually never matter for QBs.",
-        "Visibility: throw_accuracy is public (measurable), decision_making is scoutable (film study)."
+        "TUNING v2: AGGRESSIVE flattening - throw_power boosted (mu=84 is highest), accuracy reduced",
+        "TUNING v2: Top-2 stats now 30% (18+12) vs 36% (22+14) vs original 44% (26+18)"
       ],
       "side_of_ball": "offensive",
       "weights": {
-        "throw_accuracy": 0.26,
-        "decision_making": 0.18,
-        "throw_power": 0.12,
-        "anticipation": 0.10,
-        "composure": 0.08,
-        "reaction_time": 0.08
+        "throw_accuracy": 0.18,
+        "throw_power": 0.16,
+        "decision_making": 0.12,
+        "anticipation": 0.12,
+        "composure": 0.10,
+        "reaction_time": 0.10
       },
       "override_base": {
         "speed": 0.02,
         "strength": 0.02,
         "stamina": 0.04,
         "agility": 0.02,
-        "awareness": 0.08
+        "awareness": 0.12
       },
       "override_side": {
         "blocking": 0.00,
         "catching": 0.00
       },
+      "_additional_stats_note": "QB weights v2: throw_accuracy 22->18%, throw_power 12->16% (leverages high mu=84), decision_making 14->12%, reaction_time 8->10%",
       "_verification": {
-        "weights": 0.82,
-        "override_base": 0.18,
+        "weights": 0.78,
+        "override_base": 0.22,
         "override_side": 0.00,
         "total": 1.00
       }
@@ -78,32 +84,33 @@
 
     "RB": {
       "_rationale": [
-        "RB is defined by explosiveness (speed, agility) and durability.",
+        "RB requires balance of athleticism and football-specific skills.",
         "Vision (awareness) and balance determine yards after contact.",
         "Catching increasingly important in modern football (receiving backs).",
-        "Blocking matters for pass protection assignments.",
-        "Speed is public/measurable; balance and awareness require scouting."
+        "Blocking critical for pass protection - differentiates complete backs.",
+        "Speed is public/measurable; balance, blocking, awareness require scouting.",
+        "TUNING: Reduced speed/balance weight, increased blocking to create differentiation (2026-01-22)"
       ],
       "side_of_ball": "offensive",
       "weights": {
-        "balance": 0.20
+        "balance": 0.14
       },
       "override_base": {
-        "speed": 0.16,
-        "strength": 0.08,
+        "speed": 0.12,
+        "strength": 0.10,
         "stamina": 0.08,
         "agility": 0.14,
-        "awareness": 0.10
+        "awareness": 0.12
       },
       "override_side": {
-        "blocking": 0.10,
+        "blocking": 0.16,
         "catching": 0.14
       },
-      "_additional_stats_note": "RB heavily relies on athleticism; balance is key for yards after contact",
+      "_additional_stats_note": "RB balance retuned: less pure athleticism (speed/balance reduced), more football skills (blocking/awareness increased)",
       "_verification": {
-        "weights": 0.20,
+        "weights": 0.14,
         "override_base": 0.56,
-        "override_side": 0.24,
+        "override_side": 0.30,
         "total": 1.00
       }
     },
@@ -250,38 +257,40 @@
 
     "EDGE": {
       "_rationale": [
-        "EDGE rushers are defined by their ability to get to the QB.",
-        "Pass rush is THE critical attribute - sacks win games.",
+        "EDGE rushers must excel at both pass rush and run defense.",
+        "Pass rush is critical but not sole determinant of elite EDGE.",
         "Acceleration and first-step quickness create pressure.",
         "Speed around the edge is essential for speed rushers.",
-        "Strength matters for power moves and setting the edge.",
-        "Must also be able to tackle runners.",
-        "Pass rush is scoutable; acceleration/speed are public."
+        "Strength matters for power moves, setting edge, and shedding blocks.",
+        "Tackling and awareness matter for complete defensive ends.",
+        "Pass rush is scoutable; acceleration/speed are public.",
+        "TUNING: Reduced pass_rush dominance, increased run defense skills (2026-01-22)",
+        "ITERATION 2: Further reduced pass_rush 20%->16%, boosted tackling/strength/awareness (2026-01-22)"
       ],
       "side_of_ball": "defensive",
       "weights": {
-        "pass_rush": 0.26,
+        "pass_rush": 0.16,
         "acceleration": 0.12,
         "balance": 0.06,
         "reaction_time": 0.06
       },
       "override_base": {
         "speed": 0.08,
-        "strength": 0.08,
+        "strength": 0.12,
         "stamina": 0.04,
         "agility": 0.08,
-        "awareness": 0.04
+        "awareness": 0.08
       },
       "override_side": {
-        "tackling": 0.08,
+        "tackling": 0.12,
         "coverage": 0.00,
-        "shedding_blocks": 0.10
+        "shedding_blocks": 0.08
       },
-      "_additional_stats_note": "EDGE premium on pass_rush; athleticism determines rush style (speed vs power)",
+      "_additional_stats_note": "EDGE iteration 2: pass_rush 16% (was 20%), strength 12% (was 10%), awareness 8% (was 6%), tackling 12% (was 10%), shedding_blocks 8% (was 10%) - flatter distribution reduces elite EDGE concentration",
       "_verification": {
-        "weights": 0.50,
-        "override_base": 0.32,
-        "override_side": 0.18,
+        "weights": 0.40,
+        "override_base": 0.40,
+        "override_side": 0.20,
         "total": 1.00
       }
     },
@@ -464,13 +473,13 @@
     "_comment": "Analysis of weight distribution patterns across positions for gameplay balance.",
 
     "weight_distribution_summary": {
-      "QB":   { "weights": 0.82, "base": 0.18, "side": 0.00, "top_stat": "throw_accuracy(26%)" },
-      "RB":   { "weights": 0.20, "base": 0.56, "side": 0.24, "top_stat": "balance(20%)" },
+      "QB":   { "weights": 0.78, "base": 0.22, "side": 0.00, "top_stat": "throw_accuracy(18%)", "_tuned": "2026-01-22-v2" },
+      "RB":   { "weights": 0.14, "base": 0.56, "side": 0.30, "top_stat": "blocking(16%)", "_tuned": "2026-01-22" },
       "WR":   { "weights": 0.36, "base": 0.36, "side": 0.28, "top_stat": "catching(24%)" },
       "TE":   { "weights": 0.20, "base": 0.36, "side": 0.44, "top_stat": "blocking(24%)" },
       "OL":   { "weights": 0.24, "base": 0.38, "side": 0.38, "top_stat": "blocking(38%)" },
       "DL":   { "weights": 0.44, "base": 0.32, "side": 0.24, "top_stat": "run_defense(16%)" },
-      "EDGE": { "weights": 0.50, "base": 0.32, "side": 0.18, "top_stat": "pass_rush(26%)" },
+      "EDGE": { "weights": 0.40, "base": 0.40, "side": 0.20, "top_stat": "pass_rush(16%)", "_tuned": "2026-01-22-v2" },
       "LB":   { "weights": 0.00, "base": 0.48, "side": 0.52, "top_stat": "tackling(22%)" },
       "CB":   { "weights": 0.26, "base": 0.36, "side": 0.38, "top_stat": "coverage(30%)" },
       "S":    { "weights": 0.20, "base": 0.38, "side": 0.42, "top_stat": "coverage(22%)" },
@@ -480,23 +489,32 @@
 
     "position_archetypes": {
       "skill_concentrated": {
-        "positions": ["QB", "K", "P", "EDGE"],
-        "pattern": "Position-specific weights dominate (50-92%). One skill defines the position.",
-        "gameplay_implication": "Clear tier separation. Elite prospects obvious, busts obvious."
+        "positions": ["QB", "K", "P"],
+        "pattern": "Position-specific weights dominate (78-92%). Core skills define the position.",
+        "gameplay_implication": "Clear tier separation. Elite prospects obvious, busts obvious.",
+        "_note": "EDGE moved to balanced_skill after pass_rush weight reduction (2026-01-22)"
+      },
+      "balanced_skill": {
+        "positions": ["EDGE", "DL"],
+        "pattern": "Position-specific weights (40-44%) balanced with athleticism (32-40%) and technique (20-24%).",
+        "gameplay_implication": "Complete players favored. Pure athletes or pure technicians may disappoint.",
+        "_note": "EDGE weight distribution flattened further in iteration 2: now 40/40/20 (2026-01-22-v2)"
       },
       "athleticism_driven": {
-        "positions": ["CB", "WR", "RB"],
-        "pattern": "Base stats (speed/agility) comprise 36-56% of OVR.",
-        "gameplay_implication": "Public stats heavily influence evaluation. Less scouting variance."
+        "positions": ["CB", "WR"],
+        "pattern": "Base stats (speed/agility) comprise 36% of OVR, side skills 28-38%.",
+        "gameplay_implication": "Public stats heavily influence evaluation. Less scouting variance.",
+        "_note": "RB removed after tuning shifted focus to blocking/football skills (2026-01-22)"
       },
       "versatility_required": {
-        "positions": ["TE", "LB", "S"],
-        "pattern": "Side-of-ball overrides are 42-52%. Must do multiple things well.",
-        "gameplay_implication": "Harder to find elite prospects. More 'safe' picks."
+        "positions": ["TE", "LB", "S", "RB"],
+        "pattern": "Side-of-ball overrides are 30-52%. Must do multiple things well.",
+        "gameplay_implication": "Harder to find elite prospects. More 'safe' picks.",
+        "_note": "RB added after tuning increased blocking weight to 16% (2026-01-22)"
       },
       "power_based": {
-        "positions": ["OL", "DL"],
-        "pattern": "Strength (14-16%) and blocking/shedding (38-52% combined) dominate.",
+        "positions": ["OL"],
+        "pattern": "Strength (16%) and blocking (38%) dominate at 54% combined.",
         "gameplay_implication": "Less athletic variation. Technique-heavy evaluation."
       }
     },
@@ -519,9 +537,20 @@
     },
 
     "draft_representation_factors": {
-      "qb_premium": {
-        "observation": "QB has 82% weight on position-specific stats.",
-        "effect": "Elite QBs will dominate OVR rankings. Variance is high."
+      "qb_flattened": {
+        "observation": "QB has 78% weight on position-specific stats. Top stat reduced from 26% to 18%. throw_power boosted 12%->16% (mu=84).",
+        "effect": "More QBs reach elite OVR: leverages high throw_power mean, reduces throw_accuracy variance penalty.",
+        "_tuned": "2026-01-22-v2"
+      },
+      "rb_rebalanced": {
+        "observation": "RB blocking weight increased to 16%, speed reduced to 12%, balance reduced to 14%.",
+        "effect": "RBs must be complete players. Pure athletes less likely to dominate OVR rankings.",
+        "_tuned": "2026-01-22"
+      },
+      "edge_distributed": {
+        "observation": "EDGE pass_rush reduced 26%->20%->16%. Strength/tackling/awareness increased. Weight distribution now 0.40/0.40/0.20.",
+        "effect": "Flatter EDGE weights reduce elite concentration. Complete defenders favored over pure pass rushers.",
+        "_tuned": "2026-01-22-v2"
       },
       "ol_compression": {
         "observation": "OL relies on blocking(38%) + strength(16%) + balance(14%) = 68% of OVR.",
@@ -530,10 +559,6 @@
       "cb_speed_gate": {
         "observation": "CB speed weight is 12% (vs 5% base). Coverage at 30%.",
         "effect": "Slow CBs severely penalized. Speed is a hard floor."
-      },
-      "edge_pass_rush_premium": {
-        "observation": "EDGE pass_rush at 26% is highest single-stat weight for non-K/P.",
-        "effect": "Elite pass rushers will stand out clearly in draft rankings."
       },
       "lb_versatility": {
         "observation": "LB has 0% position-specific weights; entirely base(48%) + side(52%).",
@@ -552,7 +577,8 @@
       "Defensive positions properly weight tackling (6-22% range)",
       "Offensive skill positions properly weight catching (14-24% range)",
       "Special teams properly isolated from standard evaluation",
-      "Speed importance scales correctly: CB(12%) > WR(12%) > RB(16%) > EDGE(8%) > DL(2%) > OL(2%)"
+      "Speed importance scales correctly: CB(12%) > WR(12%) > RB(12%) > EDGE(8%) > DL(2%) > OL(2%)",
+      "TUNING VERIFICATION (2026-01-22): QB 0.78+0.22+0.00=1.00, RB 0.14+0.56+0.30=1.00, EDGE 0.40+0.40+0.20=1.00 (v2)"
     ],
 
     "stats_requiring_addition_to_positions_json": {

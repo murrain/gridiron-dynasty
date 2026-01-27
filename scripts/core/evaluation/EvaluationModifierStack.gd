@@ -331,6 +331,7 @@ static func create_trade_stack() -> EvaluationModifierStack:
 ##   10: PositionTierModifier (additive: -20 to +3 OVR)
 ##   15: PositionValueModifier (additive: -5 to +5 OVR)
 ##   25: TeamNeedModifierV2 (additive: 0 to +12 OVR) - replaces PositionNeedModifier
+##   26: EconomicOpportunityCostModifier (additive: -3 to +3 OVR) - FA market economics
 ##   30: QBUrgencyModifier (multiplicative)
 ##   35: ScoutingKnowledgeModifier (additive: -16 to 0 OVR)
 ##   40: HypeModifier (additive: -3 to +9 OVR)
@@ -338,9 +339,10 @@ static func create_trade_stack() -> EvaluationModifierStack:
 ##   60: CoachMindsetModifier (multiplicative: 0.95x to 1.18x)
 ##   70: RosterMoveModifier (multiplicative)
 ##
-## The four-factor system:
+## The five-factor system:
 ##   perceived_ovr = scout_evaluation (BPA)
 ##                 + team_need_bonus (0 to +12 OVR)
+##                 + economic_adjustment (-3 to +3 OVR)
 ##                 + scouting_adjustment (-16 to 0 OVR)
 ##                 + hype_adjustment (-3 to +9 OVR)
 ##
@@ -356,6 +358,7 @@ static func _get_standard_draft_modifiers() -> Array:
 		"res://scripts/core/evaluation/modifiers/PositionTierModifier.gd",
 		"res://scripts/core/evaluation/modifiers/PositionValueModifier.gd",
 		"res://scripts/core/evaluation/modifiers/TeamNeedModifierV2.gd",  # Replaces PositionNeedModifier
+		"res://scripts/core/evaluation/modifiers/EconomicOpportunityCostModifier.gd",  # FA market economics
 		"res://scripts/core/evaluation/modifiers/QBUrgencyModifier.gd",
 		"res://scripts/core/evaluation/modifiers/ScoutingKnowledgeModifier.gd",  # New
 		"res://scripts/core/evaluation/modifiers/HypeModifier.gd",  # New

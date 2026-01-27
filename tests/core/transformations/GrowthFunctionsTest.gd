@@ -246,8 +246,8 @@ func test_apply_development_prime_player_maintains() -> void:
 	# Changes should be minimal (prime multiplier is 0.35)
 	var total_change := 0.0
 	for stat_name in player["stats"].keys():
-		var before := player["stats"][stat_name]
-		var after := result.player["stats"][stat_name]
+		var before: float = player["stats"][stat_name]
+		var after: float = result.player["stats"][stat_name]
 		total_change += abs(after - before)
 
 	# Total change should be small (prime phase has limited growth)

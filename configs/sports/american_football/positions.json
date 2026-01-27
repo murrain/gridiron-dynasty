@@ -13,29 +13,32 @@
     },
     "distributions": {
       "throw_accuracy": {
-        "mu": 78,
+        "mu": 85,
         "sigma": 9,
         "viability_min": 45,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 Round 2 - mu 84->85 (+1) to boost QB from 6.2% toward 10% target"
       },
       "decision_making": {
-        "mu": 73,
+        "mu": 77,
         "sigma": 7,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
-        "scout_difficulty": "medium"
+        "scout_difficulty": "medium",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 79->77 (-2) to reduce QB overrepresentation"
       },
       "awareness": {
-        "mu": 73,
+        "mu": 77,
         "sigma": 7,
         "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
-        "scout_difficulty": "medium"
+        "scout_difficulty": "medium",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 79->77 (-2) to reduce QB overrepresentation"
       },
       "anticipation": {
         "mu": 70,
@@ -54,19 +57,21 @@
         "scout_difficulty": "hard"
       },
       "throw_power": {
-        "mu": 79,
+        "mu": 86,
         "sigma": 9,
         "viability_min": 40,
         "cap_pct": 0.99,
         "role": "secondary",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 84->86 (+2) for QB OVR boost"
       },
       "reaction_time": {
-        "mu": 72,
+        "mu": 75,
         "sigma": 7,
         "cap_pct": 0.99,
         "role": "secondary",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 72->75 (+3) for QB OVR boost"
       },
       "football_IQ": {
         "mu": 68,
@@ -534,36 +539,40 @@
     },
     "distributions": {
       "speed": {
-        "mu": 84,
+        "mu": 87,
         "sigma": 6,
         "viability_min": 45,
         "cap_pct": 1.0,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 84->87 (+3) for WR rescue"
       },
       "agility": {
-        "mu": 80,
+        "mu": 84,
         "sigma": 7,
         "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 80->84 (+4) for WR rescue"
       },
       "route_running": {
-        "mu": 74,
+        "mu": 79,
         "sigma": 8,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
-        "scout_difficulty": "medium"
+        "scout_difficulty": "medium",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 74->79 (+5) for WR rescue"
       },
       "catching": {
-        "mu": 74,
+        "mu": 79,
         "sigma": 8,
         "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 74->79 (+5) for WR rescue"
       },
       "awareness": {
         "mu": 62,
@@ -1308,20 +1317,22 @@
     },
     "distributions": {
       "pass_rush": {
-        "mu": 82,
+        "mu": 76,
         "sigma": 7,
         "cap_pct": 1.0,
         "role": "core",
         "visibility": "scoutable",
-        "scout_difficulty": "medium"
+        "scout_difficulty": "medium",
+        "_tuning_note": "2026-01-23: Phase 2 Round 2 - mu 82->76 (-6) to suppress EDGE from 31.2% toward 18% target"
       },
       "acceleration": {
-        "mu": 78,
+        "mu": 74,
         "sigma": 7,
         "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 Round 2 - mu 78->74 (-4) to suppress EDGE from 31.2% toward 18% target"
       },
       "agility": {
         "mu": 74,
@@ -2042,28 +2053,31 @@
     },
     "distributions": {
       "kick_power": {
-        "mu": 78,
+        "mu": 65,
         "sigma": 8,
         "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 78->65 (-13) for K/P suppression"
       },
       "kick_accuracy": {
-        "mu": 76,
+        "mu": 63,
         "sigma": 8,
         "viability_min": 40,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 76->63 (-13) for K/P suppression"
       },
       "composure": {
-        "mu": 68,
+        "mu": 55,
         "sigma": 12,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
-        "scout_difficulty": "hard"
+        "scout_difficulty": "hard",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 68->55 (-13) for K/P suppression"
       },
       "focus": {
         "mu": 66,
@@ -2180,28 +2194,31 @@
     },
     "distributions": {
       "kick_power": {
-        "mu": 80,
+        "mu": 67,
         "sigma": 7,
         "viability_min": 45,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 80->67 (-13) for K/P suppression"
       },
       "kick_accuracy": {
-        "mu": 74,
+        "mu": 61,
         "sigma": 8,
         "viability_min": 35,
         "cap_pct": 0.99,
         "role": "core",
-        "visibility": "public"
+        "visibility": "public",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 74->61 (-13) for K/P suppression"
       },
       "composure": {
-        "mu": 66,
+        "mu": 53,
         "sigma": 10,
         "cap_pct": 0.99,
         "role": "core",
         "visibility": "scoutable",
-        "scout_difficulty": "hard"
+        "scout_difficulty": "hard",
+        "_tuning_note": "2026-01-23: Phase 2 integration - mu 66->53 (-13) for K/P suppression"
       },
       "focus": {
         "mu": 64,
