@@ -25,8 +25,11 @@ class_name EvaluationModifier
 
 ## Result of a modifier calculation
 ## Contains both the multiplier value and an explanation
+## Supports both multiplicative (multiplier) and additive (additive_bonus) modifiers
 class ModifierResult:
 	var multiplier: float = 1.0
+	var additive_bonus: float = 0.0
+	var modifier_type: String = "multiplicative"  # "multiplicative" or "additive"
 	var reason: String = ""
 	var details: Dictionary = {}
 
@@ -36,7 +39,22 @@ class ModifierResult:
 		details = p_details
 
 	func is_neutral() -> bool:
+		if modifier_type == "additive":
+			return abs(additive_bonus) < 0.001
 		return abs(multiplier - 1.0) < 0.001
+
+	## Create an additive modifier result (bonus OVR points)
+	static func create_additive(bonus: float, p_reason: String = "", p_details: Dictionary = {}) -> ModifierResult:
+		var result := ModifierResult.new(1.0, p_reason, p_details)
+		result.additive_bonus = bonus
+		result.modifier_type = "additive"
+		return result
+
+	## Create a multiplicative modifier result (scaling factor)
+	static func create_multiplicative(mult: float, p_reason: String = "", p_details: Dictionary = {}) -> ModifierResult:
+		var result := ModifierResult.new(mult, p_reason, p_details)
+		result.modifier_type = "multiplicative"
+		return result
 
 
 ## Unique identifier for this modifier type

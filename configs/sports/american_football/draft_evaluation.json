@@ -17,25 +17,25 @@
       "critical": {
         "description": "No starter at position (0 players)",
         "player_count_threshold": 0,
-        "bonus_ovr": 8.0
+        "bonus_ovr": 4.0
       },
       "high": {
         "description": "Starter below threshold OR only 1 player at position",
         "player_count_threshold": 1,
         "starter_rating_threshold": 65.0,
-        "bonus_ovr": 5.0
+        "bonus_ovr": 2.5
       },
       "moderate": {
         "description": "Starter 65-72 OVR OR below ideal depth",
         "below_ideal_depth": true,
         "starter_rating_range": [65.0, 72.0],
-        "bonus_ovr": 3.0
+        "bonus_ovr": 1.5
       },
       "low": {
         "description": "Starter adequate but weak backup depth",
         "starter_rating_min": 72.0,
         "backup_quality_threshold": 60.0,
-        "bonus_ovr": 1.0
+        "bonus_ovr": 0.5
       },
       "none": {
         "description": "Position is well-stocked with quality depth",
@@ -46,45 +46,45 @@
     "round_scaling": {
       "description": "Scaling factors by round to prevent early-round reaches. Lower values in early rounds mean need bonuses are reduced.",
       "round_1": {
-        "critical": 0.60,
-        "high": 0.50,
-        "moderate": 0.40,
-        "low": 0.30
+        "critical": 0.6,
+        "high": 0.5,
+        "moderate": 0.4,
+        "low": 0.3
       },
       "round_2": {
         "critical": 0.75,
-        "high": 0.70,
-        "moderate": 0.60,
-        "low": 0.50
+        "high": 0.7,
+        "moderate": 0.6,
+        "low": 0.5
       },
       "round_3": {
-        "critical": 0.90,
+        "critical": 0.9,
         "high": 0.85,
-        "moderate": 0.80,
-        "low": 0.70
+        "moderate": 0.8,
+        "low": 0.7
       },
       "round_4_plus": {
-        "critical": 1.00,
-        "high": 1.00,
-        "moderate": 1.00,
-        "low": 1.00
+        "critical": 1.0,
+        "high": 1.0,
+        "moderate": 1.0,
+        "low": 1.0
       }
     },
 
     "position_importance_multipliers": {
       "description": "How important each position's need is. QB need is 50% more impactful than baseline.",
-      "QB": 1.50,
-      "EDGE": 1.20,
-      "CB": 1.10,
-      "OL": 1.00,
-      "WR": 1.00,
-      "DL": 0.90,
-      "LB": 0.90,
-      "TE": 0.80,
-      "S": 0.80,
-      "RB": 0.70,
-      "K": 0.30,
-      "P": 0.30
+      "QB": 1.5,
+      "EDGE": 1.2,
+      "CB": 1.1,
+      "OL": 1.0,
+      "WR": 1.0,
+      "DL": 0.9,
+      "LB": 0.9,
+      "TE": 0.8,
+      "S": 0.8,
+      "RB": 0.7,
+      "K": 0.3,
+      "P": 0.3
     },
 
     "reach_prevention": {
@@ -104,25 +104,25 @@
         "description": "Multiple workouts, medical, interviews - full picture",
         "min_scouting_hours": 40.0,
         "confidence_bonus_ovr": 0.0,
-        "variance_reduction": 0.90
+        "variance_reduction": 0.9
       },
       "solid": {
         "description": "Film study + combine + one meeting",
         "min_scouting_hours": 20.0,
         "confidence_bonus_ovr": 0.0,
-        "variance_reduction": 0.70
+        "variance_reduction": 0.7
       },
       "moderate": {
         "description": "Film study + combine data only",
         "min_scouting_hours": 8.0,
         "confidence_bonus_ovr": -1.0,
-        "variance_reduction": 0.50
+        "variance_reduction": 0.5
       },
       "limited": {
         "description": "Combine data and public info only",
         "min_scouting_hours": 2.0,
         "confidence_bonus_ovr": -2.0,
-        "variance_reduction": 0.30
+        "variance_reduction": 0.3
       },
       "unknown": {
         "description": "No direct scouting - relying on third-party info",
@@ -143,15 +143,15 @@
     "team_philosophy_tolerance": {
       "description": "How tolerant each philosophy is of uncertainty. Higher = more willing to take risks on unknowns.",
       "analytics_heavy": {
-        "tolerance": 0.70,
+        "tolerance": 0.7,
         "description": "Trust data over gut, comfortable with some unknowns if metrics are good"
       },
       "traditional": {
-        "tolerance": 0.50,
+        "tolerance": 0.5,
         "description": "Trust scouts' eyes, want certainty on picks"
       },
       "aggressive": {
-        "tolerance": 1.20,
+        "tolerance": 1.2,
         "description": "Swing for the fences, willing to gamble on upside"
       }
     }
@@ -170,10 +170,10 @@
 
     "round_scaling": {
       "description": "Hype matters more in early rounds due to media pressure and fan expectations",
-      "round_1": 1.20,
-      "round_2": 1.00,
-      "round_3": 0.80,
-      "round_4_plus": 0.50
+      "round_1": 1.2,
+      "round_2": 1.0,
+      "round_3": 0.8,
+      "round_4_plus": 0.5
     },
 
     "award_signal_bonuses": {
@@ -217,7 +217,7 @@
     "team_susceptibility": {
       "description": "How much teams buy into media narratives",
       "generation_weights": {
-        "analytics_focused": 0.20,
+        "analytics_focused": 0.2,
         "balanced": 0.55,
         "narrative_driven": 0.25,
         "description": "Distribution weights when generating team susceptibility"
@@ -229,8 +229,8 @@
           "description": "Data-driven teams largely ignore hype, trust their boards"
         },
         "balanced": {
-          "min": 0.40,
-          "max": 0.60,
+          "min": 0.4,
+          "max": 0.6,
           "description": "Most teams fall here - influenced but not dominated by hype"
         },
         "narrative_driven": {

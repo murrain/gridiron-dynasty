@@ -45,7 +45,9 @@ const VALID_TRANSITIONS := {
 		State.RUNNING,       # Resume draft
 		State.COMPLETED      # End draft early while paused
 	],
-	State.COMPLETED: []      # Terminal state - no transitions
+	State.COMPLETED: [
+		State.NOT_STARTED    # Allow reset for next year's draft
+	]
 }
 
 ## Operations allowed in each state
