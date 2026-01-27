@@ -8,6 +8,7 @@ extends GdUnitTestSuite
 
 const NflDraft = preload("res://scripts/world/NflDraft.gd")
 const Rand = preload("res://autoloads/Rand.gd")
+const DraftTransformations = preload("res://scripts/core/transformations/DraftTransformations.gd")
 
 
 func _create_test_teams() -> Array:
@@ -67,7 +68,7 @@ func test_team_quality_generated() -> void:
 	var teams := _create_test_teams()
 	var class_rules := _create_class_rules()
 
-	var team_quality := NflDraft._generate_team_scouting_quality(teams, class_rules, 12345)
+	var team_quality := DraftTransformations.generate_scouting_quality(teams, class_rules, 12345)
 
 	# Verify all teams have quality generated
 	assert_bool(team_quality.has("BAL")).is_true()
@@ -89,7 +90,7 @@ func test_scouts_generated_with_quality_modifiers() -> void:
 	var scouts_cfg := _create_scouts_cfg()
 	var stats_cfg := {}
 
-	var team_quality := NflDraft._generate_team_scouting_quality(teams, class_rules, 12345)
+	var team_quality := DraftTransformations.generate_scouting_quality(teams, class_rules, 12345)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = Rand.splitmix64(12345 ^ 0xD4AF7001)
@@ -115,7 +116,7 @@ func test_quality_differences() -> void:
 	var scouts_cfg := _create_scouts_cfg()
 	var stats_cfg := {}
 
-	var team_quality := NflDraft._generate_team_scouting_quality(teams, class_rules, 12345)
+	var team_quality := DraftTransformations.generate_scouting_quality(teams, class_rules, 12345)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = Rand.splitmix64(12345 ^ 0xD4AF7001)
@@ -151,7 +152,7 @@ func test_determinism() -> void:
 	var scouts_cfg := _create_scouts_cfg()
 	var stats_cfg := {}
 
-	var team_quality := NflDraft._generate_team_scouting_quality(teams, class_rules, 12345)
+	var team_quality := DraftTransformations.generate_scouting_quality(teams, class_rules, 12345)
 
 	# Generate scouts twice with same seed
 	var rng1 := RandomNumberGenerator.new()

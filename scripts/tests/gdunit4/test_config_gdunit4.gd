@@ -10,7 +10,8 @@ func test_config_loads_base_config() -> void:
 	cfg.configure("res://scripts/tests/fixtures/configs", "res://scripts/tests/fixtures/configs_override", false)
 
 	var merged = cfg.get_config("alpha")
-	assert_int(merged.get("version")).is_equal(1)
+	# JSON parses integers as floats, so cast to int for comparison
+	assert_int(int(merged.get("version"))).is_equal(1)
 
 
 func test_config_preserves_nested_base_values() -> void:
@@ -19,7 +20,8 @@ func test_config_preserves_nested_base_values() -> void:
 
 	var merged = cfg.get_config("alpha")
 	var nested = merged.get("nested", {}) as Dictionary
-	assert_int(nested.get("a")).is_equal(1)
+	# JSON parses integers as floats, so cast to int for comparison
+	assert_int(int(nested.get("a"))).is_equal(1)
 
 
 func test_config_merges_nested_override_values() -> void:
@@ -28,7 +30,8 @@ func test_config_merges_nested_override_values() -> void:
 
 	var merged = cfg.get_config("alpha")
 	var nested = merged.get("nested", {}) as Dictionary
-	assert_int(nested.get("b")).is_equal(5)
+	# JSON parses integers as floats, so cast to int for comparison
+	assert_int(int(nested.get("b"))).is_equal(5)
 
 
 func test_config_adds_nested_override_keys() -> void:
@@ -37,7 +40,8 @@ func test_config_adds_nested_override_keys() -> void:
 
 	var merged = cfg.get_config("alpha")
 	var nested = merged.get("nested", {}) as Dictionary
-	assert_int(nested.get("c")).is_equal(9)
+	# JSON parses integers as floats, so cast to int for comparison
+	assert_int(int(nested.get("c"))).is_equal(9)
 
 
 func test_config_adds_top_level_override_keys() -> void:

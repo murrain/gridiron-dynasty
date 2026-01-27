@@ -87,7 +87,7 @@ static func record_game_result(
 		return _error_result("game_result is empty")
 
 	# Extract current standings from world_state
-	var current_standings := _extract_value(world_state, standings_path)
+	var current_standings: Variant = _extract_value(world_state, standings_path)
 	if current_standings == null:
 		# Initialize empty standings if path doesn't exist
 		current_standings = {}
@@ -168,7 +168,7 @@ static func record_game_results(
 		return {"success": true, "games_recorded": 0, "results": []}
 
 	# Extract current standings
-	var current_standings := _extract_value(world_state, standings_path)
+	var current_standings: Variant = _extract_value(world_state, standings_path)
 	if current_standings == null:
 		current_standings = {}
 
@@ -234,7 +234,7 @@ static func advance_season_phase(
 		return false
 
 	# Extract season state from world_state
-	var season_state := _extract_value(world_state, season_state_path)
+	var season_state: Variant = _extract_value(world_state, season_state_path)
 	if season_state == null:
 		push_warning("SeasonStateManager.advance_season_phase: Season state not found at path %s" % str(season_state_path))
 		return false
@@ -254,7 +254,7 @@ static func advance_season_phase(
 		return false
 
 	# Create updated season state (pure function pattern)
-	var new_season_state := season_state.duplicate(true)
+	var new_season_state: Dictionary = season_state.duplicate(true)
 	new_season_state["phase"] = to_phase
 	new_season_state["phase_transition_timestamp"] = Time.get_ticks_msec()
 
@@ -310,7 +310,7 @@ static func update_roster_for_season(
 		return _error_result("roster_path is empty")
 
 	# Extract roster from world_state
-	var roster := _extract_value(world_state, roster_path)
+	var roster: Variant = _extract_value(world_state, roster_path)
 	if roster == null or not roster is Dictionary:
 		push_error("SeasonStateManager.update_roster_for_season: Roster not found or invalid at path %s" % str(roster_path))
 		return _error_result("Roster not found or invalid")
@@ -385,7 +385,7 @@ static func process_draft_eligibility(
 		return _error_result("rng is null")
 
 	# Extract players from world_state
-	var players := _extract_value(world_state, players_path)
+	var players: Variant = _extract_value(world_state, players_path)
 	if players == null or not players is Array:
 		push_warning("SeasonStateManager.process_draft_eligibility: Players not found at path %s" % str(players_path))
 		return _error_result("Players not found or invalid")
@@ -497,20 +497,33 @@ static func _replace_value(
 # INTERNAL HELPERS - DataBus Integration
 # ============================================================================
 
+## Helper to get DataBus autoload safely (returns null in headless mode).
+## This avoids compile-time identifier resolution issues when running as -s script.
+static func _get_databus() -> Node:
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root := (main_loop as SceneTree).root
+		if root.has_node("DataBus"):
+			return root.get_node("DataBus")
+	return null
+
 ## Notify DataBus that a collection has changed.
 static func _notify_collection_changed(collection_name: String, operation: String) -> void:
-	if DataBus:
-		DataBus.notify_collection_changed(collection_name, operation)
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed(collection_name, operation)
 
 ## Notify DataBus that a phase has completed.
 static func _notify_phase_completed(phase_id: String, year: int) -> void:
-	if DataBus:
-		DataBus.notify_phase_completed(phase_id, year)
+	var databus := _get_databus()
+	if databus:
+		databus.notify_phase_completed(phase_id, year)
 
 ## Notify DataBus that players have changed for a specific stage
 static func _notify_players_changed(stage: Player.PlayerStage, count: int) -> void:
-	if DataBus:
-		DataBus.notify_players_changed(stage, count)
+	var databus := _get_databus()
+	if databus:
+		databus.notify_players_changed(stage, count)
 
 # ============================================================================
 # INTERNAL HELPERS - Utilities

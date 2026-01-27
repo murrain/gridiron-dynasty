@@ -300,7 +300,8 @@ func test_having() -> void:
 		.having("COUNT(*)", ">", 5) \
 		.build()
 
-	assert_str(query["sql"]).contains("HAVING COUNT > $1")
+	# HAVING clause should preserve the aggregate function name
+	assert_str(query["sql"]).contains("HAVING COUNT(*) > $1")
 	assert_array(query["params"]).contains([5])
 
 

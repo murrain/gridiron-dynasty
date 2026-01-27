@@ -512,7 +512,8 @@ static func _extract_profile_common_fields(
 	positions_cfg: Dictionary,
 	main_cfg: Dictionary
 ) -> Dictionary:
-	var player_id := String(player.get("id", ""))
+	# Check both "id" and "player_id" fields for compatibility
+	var player_id := String(player.get("id", player.get("player_id", "")))
 	var position := String(player.get("position", ""))
 	var age := int(player.get("age", 22))
 
@@ -1097,7 +1098,9 @@ static func _find_player_in_rosters(world_state: Dictionary, player_id: String) 
 
 		for player in players:
 			var player_dict := player as Dictionary
-			if player_dict.get("id", "") == player_id:
+			# Check both "id" and "player_id" fields for compatibility
+			var pid := String(player_dict.get("id", player_dict.get("player_id", "")))
+			if pid == player_id:
 				return player_dict
 
 	return {}
@@ -1124,7 +1127,8 @@ static func _find_player_in_undrafted_pool(
 
 	for player in year_pool:
 		var p: Dictionary = player
-		var pid := String(p.get("id", ""))
+		# Check both "id" and "player_id" fields for compatibility
+		var pid := String(p.get("id", p.get("player_id", "")))
 		if pid == player_id:
 			return p
 
@@ -1171,7 +1175,9 @@ static func _find_player_team(world_state: Dictionary, player_id: String) -> Str
 
 		for player in players:
 			var player_dict := player as Dictionary
-			if player_dict.get("id", "") == player_id:
+			# Check both "id" and "player_id" fields for compatibility
+			var pid := String(player_dict.get("id", player_dict.get("player_id", "")))
+			if pid == player_id:
 				return team_id
 
 	return ""
@@ -1227,7 +1233,9 @@ static func _move_player_to_team(
 
 		for i in range(from_players.size()):
 			var p := from_players[i] as Dictionary
-			if p.get("id", "") == player_id:
+			# Check both "id" and "player_id" fields for compatibility
+			var pid := String(p.get("id", p.get("player_id", "")))
+			if pid == player_id:
 				from_players.remove_at(i)
 				break
 
@@ -1238,7 +1246,8 @@ static func _move_player_to_team(
 			var year_pool: Array = undrafted_pool[year]
 			for i in range(year_pool.size()):
 				var p: Dictionary = year_pool[i]
-				var pid := String(p.get("id", ""))
+				# Check both "id" and "player_id" fields for compatibility
+				var pid := String(p.get("id", p.get("player_id", "")))
 				if pid == player_id:
 					year_pool.remove_at(i)
 					break

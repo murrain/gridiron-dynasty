@@ -554,17 +554,28 @@ static func resume_draft(world_state: Dictionary) -> bool:
 # INTERNAL HELPERS - DataBus Integration
 # ============================================================================
 
+## Helper to get DataBus autoload safely (returns null in headless mode).
+## This avoids compile-time identifier resolution issues when running as -s script.
+static func _get_databus() -> Node:
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root := (main_loop as SceneTree).root
+		if root.has_node("DataBus"):
+			return root.get_node("DataBus")
+	return null
+
 ## Notify DataBus that a collection has changed.
-## DataBus is a global autoload and can be accessed directly by name.
 static func _notify_collection_changed(collection_name: String, operation: String) -> void:
-	if DataBus:
-		DataBus.notify_collection_changed(collection_name, operation)
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed(collection_name, operation)
 
 
 ## Notify DataBus that a phase has completed
 static func _notify_phase_completed(phase_id: String, year: int) -> void:
-	if DataBus:
-		DataBus.notify_phase_completed(phase_id, year)
+	var databus := _get_databus()
+	if databus:
+		databus.notify_phase_completed(phase_id, year)
 
 
 # ============================================================================

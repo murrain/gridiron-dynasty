@@ -23,6 +23,16 @@ const FreeAgency = preload("res://scripts/world/FreeAgency.gd")
 const RosterManagement = preload("res://scripts/world/RosterManagement.gd")
 const PlayerStateManager = preload("res://scripts/core/state/PlayerStateManager.gd")
 
+## Helper to get DataBus autoload safely (returns null in headless mode).
+## This avoids compile-time identifier resolution issues when running as -s script.
+static func _get_databus() -> Node:
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var root := (main_loop as SceneTree).root
+		if root.has_node("DataBus"):
+			return root.get_node("DataBus")
+	return null
+
 ## Cached config instance for performance optimization.
 ## The Config object is read-only during simulation and contains no mutable state
 ## that affects determinism. Caching eliminates redundant file I/O across phases.
@@ -114,8 +124,9 @@ func run(world_state: Dictionary, year: int, year_seed: int, capture_timing: boo
 			phase_timings[phase_id] = elapsed_usec
 
 		# Notify DataBus that phase completed
-		if DataBus:
-			DataBus.notify_phase_completed(phase_id, year)
+		var databus := _get_databus()
+		if databus:
+			databus.notify_phase_completed(phase_id, year)
 
 		results.append({
 			"phase_id": phase_id,
@@ -205,10 +216,11 @@ func _handle_hs_generation(
 	world_state["hs_players"] = hs_players
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("hs_players", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("hs_players", "bulk_update")
 		if not world_state.get("hs_schools", []).is_empty():
-			DataBus.notify_collection_changed("hs_schools", "bulk_update")
+			databus.notify_collection_changed("hs_schools", "bulk_update")
 
 	return {
 		"class_year": year,
@@ -239,8 +251,9 @@ func _handle_hs_assignment(
 	world_state["hs_school_index"] = _school_index(hs_schools)
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("hs_players", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("hs_players", "bulk_update")
 
 	return {
 		"year": year,
@@ -284,9 +297,10 @@ func _handle_hs_season(
 	world_state["hs_recruit_pool"] = recruit_pool
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("hs_players", "bulk_update")
-		DataBus.notify_collection_changed("hs_recruit_pool", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("hs_players", "bulk_update")
+		databus.notify_collection_changed("hs_recruit_pool", "bulk_update")
 
 	return {
 		"year": year,
@@ -318,8 +332,9 @@ func _handle_college_generation(
 		world_state["colleges"] = colleges
 
 		# Notify DataBus of collection changes
-		if DataBus:
-			DataBus.notify_collection_changed("colleges", "bulk_update")
+		var databus := _get_databus()
+		if databus:
+			databus.notify_collection_changed("colleges", "bulk_update")
 
 	return {
 		"year": year,
@@ -356,9 +371,10 @@ func _handle_nfl_team_generation(
 		world_state["nfl_rosters"] = {}
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("nfl_teams", "bulk_update")
-		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("nfl_teams", "bulk_update")
+		databus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -419,9 +435,10 @@ func _handle_college_recruiting(
 	_initialize_college_rosters(world_state, year, commitments, recruits)
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("college_commitments", "bulk_update")
-		DataBus.notify_collection_changed("college_rosters", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("college_commitments", "bulk_update")
+		databus.notify_collection_changed("college_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -450,9 +467,10 @@ func _handle_college_season(
 	var result := season.run(world_state, year, step_seed, colleges_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("college_rosters", "bulk_update")
-		DataBus.notify_collection_changed("draft_pool", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("college_rosters", "bulk_update")
+		databus.notify_collection_changed("draft_pool", "bulk_update")
 
 	return result
 
@@ -509,9 +527,10 @@ func _handle_nfl_draft(
 	var result := draft.run(world_state, year, step_seed, league_cfg, positions_cfg, stats_cfg, scouts_cfg, main_cfg)
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
-		DataBus.notify_collection_changed("draft_pool", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("nfl_rosters", "bulk_update")
+		databus.notify_collection_changed("draft_pool", "bulk_update")
 
 	return result
 
@@ -539,8 +558,9 @@ func _handle_roster_management(
 	)
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -580,8 +600,9 @@ func _handle_nfl_free_agency(
 	)
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return {
 		"year": year,
@@ -612,8 +633,9 @@ func _handle_nfl_season(
 	var result := season.run(world_state, year, step_seed, league_cfg, positions_cfg, main_cfg, stats_cfg, _lifecycle_options())
 
 	# Notify DataBus of collection changes
-	if DataBus:
-		DataBus.notify_collection_changed("nfl_rosters", "bulk_update")
+	var databus := _get_databus()
+	if databus:
+		databus.notify_collection_changed("nfl_rosters", "bulk_update")
 
 	return result
 
@@ -856,14 +878,27 @@ static func _filter_college_eligible(
 ) -> Array:
 	var recruiting_cfg: Dictionary = hs_cfg.get("recruiting", {}) as Dictionary
 	var threshold := float(recruiting_cfg.get("college_eligibility_threshold", 0.0))
+
+	# Load OVR weights config for weighted calculation
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	var ovr_config := PlayerRatingCalculator.load_ovr_config(OVR_WEIGHTS_PATH)
+
+	# Fallback to legacy calculation if weights config not found
+	var use_weighted := not ovr_config.is_empty()
 	var class_rules: Dictionary = main_cfg.get("class_rules", {}) as Dictionary
 
 	var eligible := []
 
 	for player in graduates:
 		var p: Dictionary = player
-		# Calculate overall rating using shared utility (same method as draft declaration)
-		var rating := PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
+		var rating: float
+
+		if use_weighted:
+			var position := String(p.get("position", ""))
+			rating = PlayerRatingCalculator.calculate_weighted_ovr(p, position, ovr_config)
+		else:
+			# Fallback to legacy calculation
+			rating = PlayerRatingCalculator.calculate_overall_rating(p, positions_cfg, class_rules)
 
 		if rating >= threshold:
 			eligible.append(p)

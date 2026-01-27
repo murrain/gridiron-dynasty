@@ -155,7 +155,7 @@ static func heal_injuries(
 	var injuries: Array = new_player.get("injuries", []) as Array
 
 	# Convert weeks to years (approximate: 16 weeks = 1 season)
-	var years_passed := max(0, weeks_passed / 16)
+	var years_passed: int = maxi(0, weeks_passed / 16)
 	if years_passed == 0 and weeks_passed > 0:
 		years_passed = 1  # At least advance by 1 year if any time passed
 

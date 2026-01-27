@@ -69,6 +69,23 @@ static func compute_team_value(
 	# Position importance for wins
 	var pos_importance := _get_position_win_impact(position, config)
 
+	# Calculate team-specific multiplier on market value
+	# Instead of returning an absolute impact score, we return a multiplier
+	# that scales the market value based on team context.
+	#
+	# With deep depth (2+ backups), team_multiplier is ~1.0 (market value)
+	# With thin depth (1 backup), team_multiplier is 1.0-1.15
+	# With no backup, team_multiplier is 1.0-1.4
+	#
+	# The multiplier is proportional to impact (higher skill = more value)
+	# but bounded to reasonable ranges.
+	var team_multiplier := 1.0
+	if impact > 0:
+		# Scale leverage multiplier based on how much impact the player has
+		# This ensures stars with no backup get more premium than replacement players
+		var impact_factor := clampf(impact / 30.0, 0.0, 1.0)  # Normalize to 0-1
+		team_multiplier = 1.0 + (leverage_mult - 1.0) * impact_factor * pos_importance / 2.5
+
 	return {
 		"player_id": player_id,
 		"position": position,
@@ -78,7 +95,8 @@ static func compute_team_value(
 		"depth": depth,
 		"leverage_multiplier": leverage_mult,
 		"position_importance": pos_importance,
-		"team_value": impact * leverage_mult * pos_importance
+		"team_multiplier": team_multiplier,  # For applying to market value
+		"team_value": team_multiplier  # Now a multiplier, not absolute value
 	}
 
 ## Get position importance for winning games.

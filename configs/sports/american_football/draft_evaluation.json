@@ -17,25 +17,25 @@
       "critical": {
         "description": "No starter at position (0 players)",
         "player_count_threshold": 0,
-        "bonus_ovr": 4.0
+        "bonus_ovr": 1.0
       },
       "high": {
         "description": "Starter below threshold OR only 1 player at position",
         "player_count_threshold": 1,
         "starter_rating_threshold": 65.0,
-        "bonus_ovr": 2.5
+        "bonus_ovr": 0.6
       },
       "moderate": {
         "description": "Starter 65-72 OVR OR below ideal depth",
         "below_ideal_depth": true,
         "starter_rating_range": [65.0, 72.0],
-        "bonus_ovr": 1.5
+        "bonus_ovr": 0.4
       },
       "low": {
         "description": "Starter adequate but weak backup depth",
         "starter_rating_min": 72.0,
         "backup_quality_threshold": 60.0,
-        "bonus_ovr": 0.5
+        "bonus_ovr": 0.1
       },
       "none": {
         "description": "Position is well-stocked with quality depth",

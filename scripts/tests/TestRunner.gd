@@ -68,7 +68,8 @@ const TEST_SCRIPTS := [
 	"res://scripts/tests/test_a3_3_all_pro_selections.gd",
 	"res://scripts/tests/test_a3_4_pro_bowl_rosters.gd",
 	"res://scripts/tests/test_a3_8_rookie_of_year.gd",
-	"res://scripts/tests/test_snapshot_loader.gd"
+	"res://scripts/tests/test_snapshot_loader.gd",
+	"res://scripts/tests/test_weighted_ovr.gd"
 ]
 
 func _init() -> void:

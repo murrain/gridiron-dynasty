@@ -13,7 +13,8 @@ func test_config_loader_merges_override() -> void:
 
 	var merged = cfg.get_config("alpha")
 	var nested = merged.get("nested", {}) as Dictionary
-	assert_int(nested.get("b")).is_equal(5)
+	# JSON parses integers as floats, so cast to int for comparison
+	assert_int(int(nested.get("b"))).is_equal(5)
 
 
 func test_config_loader_get_all_includes_alpha() -> void:

@@ -12,19 +12,13 @@ class_name PlayerRatingCalculator
 ## RNG Usage: None (pure calculation from player data)
 
 ## [DEPRECATED] Use calculate_weighted_ovr() instead.
-## This function remains for reference but should not be used in new code.
-## Simple unweighted average creates mathematical bias (see ARCHITECTURE_REVIEW_2026-01-21.md).
-##
-## Calculates overall rating for a player using a priority cascade:
-## 1. composite_score (if present) - pre-calculated rating
-## 2. core_avg (if present) - pre-calculated core stats average
-## 3. Position-specific core stats - calculated from position config
-## 4. Simple stats average - fallback when no position config exists
+## This function now internally calls calculate_weighted_ovr() with loaded config.
+## Kept for backwards compatibility during ALPHA, will be removed in future.
 ##
 ## Parameters:
 ##   player: Player dictionary with stats
-##   positions_cfg: Position configuration (for core_stats definition)
-##   class_rules: Class rules configuration (currently unused, reserved for future)
+##   positions_cfg: Position configuration (not used, kept for signature compatibility)
+##   class_rules: Class rules configuration (not used, kept for signature compatibility)
 ##
 ## Returns:
 ##   Overall rating as float (typically 0.0-100.0 range)
@@ -33,57 +27,13 @@ static func calculate_overall_rating(
 	positions_cfg: Dictionary,
 	class_rules: Dictionary
 ) -> float:
-	push_warning("DEPRECATED: calculate_overall_rating() called. Use calculate_weighted_ovr() instead.")
-	# Priority 1: Use pre-calculated composite_score if available
-	if player.has("composite_score"):
-		return float(player.get("composite_score", 0.0))
+	# Load OVR weights config
+	const OVR_WEIGHTS_PATH := "res://configs/sports/american_football/ovr_weights.json"
+	var ovr_config := load_ovr_config(OVR_WEIGHTS_PATH)
 
-	# Priority 2: Use pre-calculated core_avg if available
-	if player.has("core_avg"):
-		return float(player.get("core_avg", 0.0))
-
-	# Priority 3: Calculate from position-specific core stats
+	# Call new weighted OVR system
 	var position := String(player.get("position", ""))
-	if position != "" and positions_cfg.has(position):
-		var pos_cfg: Dictionary = positions_cfg.get(position, {}) as Dictionary
-		var core_stats: Array = pos_cfg.get("core_stats", []) as Array
-
-		if not core_stats.is_empty():
-			# Stats can be nested under "stats" key or at top level
-			var stats_dict: Dictionary = player.get("stats", {}) as Dictionary
-			var use_nested := not stats_dict.is_empty()
-
-			var core_sum := 0.0
-			for stat in core_stats:
-				var stat_name := String(stat)
-				var stat_value: float
-				if use_nested:
-					stat_value = float(stats_dict.get(stat_name, 50.0))
-				else:
-					stat_value = float(player.get(stat_name, 50.0))
-				core_sum += stat_value
-
-			var core_avg := core_sum / float(core_stats.size())
-			return core_avg
-
-	# Priority 4: Fallback to simple average of all numeric stats
-	var stat_sum := 0.0
-	var stat_count := 0
-
-	for key in player.keys():
-		var value = player[key]
-		if value is float or value is int:
-			# Skip non-rating fields (IDs, years, ages that aren't actually ratings)
-			if key in ["player_id", "age", "year", "college_year", "hs_year"]:
-				continue
-			stat_sum += float(value)
-			stat_count += 1
-
-	if stat_count > 0:
-		return stat_sum / float(stat_count)
-
-	# Ultimate fallback: neutral rating
-	return 50.0
+	return calculate_weighted_ovr(player, position, ovr_config)
 
 ## Get visibility tier for a stat from position config
 ##

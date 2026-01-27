@@ -33,16 +33,17 @@ func test_basic_serialization() -> void:
 		"rookie_of_year": 1,
 		"championships": 2
 	}
-	player.contract = {
-		"current_year": 1,
-		"total_years": 4,
-		"annual_value": 2.5,
-		"guaranteed": 1.0,
-		"range_min": 2.0,
-		"range_max": 3.0,
-		"valuation_source": "v1",
-		"valuation_seed": 999
-	}
+	# Create contract using the typed Contract resource
+	var test_contract := Contract.new()
+	test_contract.current_year = 1
+	test_contract.total_years = 4
+	test_contract.annual_value = 2.5
+	test_contract.guaranteed = 1.0
+	test_contract.range_min = 2.0
+	test_contract.range_max = 3.0
+	test_contract.valuation_source = "v1"
+	test_contract.valuation_seed = 999
+	player.contract = test_contract
 
 	var serialized: Dictionary = player.to_dict()
 	var clone: SportPlayer = SportPlayer.new()

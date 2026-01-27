@@ -1,4 +1,4 @@
-extends GutTest
+extends "res://tests/GutTest.gd"
 ## Unit tests for the ReactivePanel style system.
 ##
 ## Tests PanelStyles utility class, ReactivePanel styling,
@@ -43,36 +43,41 @@ func test_panel_styles_create_default_style() -> void:
 
 	assert_not_null(style)
 	assert_true(style is StyleBoxFlat)
-	assert_eq(style.bg_color, PanelStyles.COLORS["bg_medium"])
+	# Use get_color to get theme-aware color (COLORS is deprecated)
+	assert_eq(style.bg_color, PanelStyles.get_color("bg_medium"))
 
 
 func test_panel_styles_create_primary_style() -> void:
 	var style := PanelStyles.create_style("primary", 0)
 
 	assert_not_null(style)
-	assert_eq(style.bg_color, PanelStyles.COLORS["primary"])
-	assert_eq(style.border_color, PanelStyles.COLORS["primary_border"])
+	# Use get_color to get theme-aware colors (COLORS is deprecated)
+	assert_eq(style.bg_color, PanelStyles.get_color("primary"))
+	assert_eq(style.border_color, PanelStyles.get_color("primary_border"))
 
 
 func test_panel_styles_create_nested_style_depth_0() -> void:
 	var style := PanelStyles.create_style("nested", 0)
 
 	assert_not_null(style)
-	assert_eq(style.bg_color, PanelStyles.COLORS["bg_medium"])
+	# Use get_color to get theme-aware colors (COLORS is deprecated)
+	assert_eq(style.bg_color, PanelStyles.get_color("bg_medium"))
 
 
 func test_panel_styles_create_nested_style_depth_1() -> void:
 	var style := PanelStyles.create_style("nested", 1)
 
 	assert_not_null(style)
-	assert_eq(style.bg_color, PanelStyles.COLORS["bg_dark"])
+	# Use get_color to get theme-aware colors (COLORS is deprecated)
+	assert_eq(style.bg_color, PanelStyles.get_color("bg_dark"))
 
 
 func test_panel_styles_create_nested_style_depth_2() -> void:
 	var style := PanelStyles.create_style("nested", 2)
 
 	assert_not_null(style)
-	assert_eq(style.bg_color, PanelStyles.COLORS["bg_darker"])
+	# Use get_color to get theme-aware colors (COLORS is deprecated)
+	assert_eq(style.bg_color, PanelStyles.get_color("bg_darker"))
 
 
 func test_panel_styles_create_transparent_style() -> void:
@@ -95,8 +100,11 @@ func test_panel_styles_custom_config() -> void:
 
 
 func test_panel_styles_get_color() -> void:
+	# get_color returns the current theme's color, verify it returns a valid Color
 	var color := PanelStyles.get_color("bg_dark")
-	assert_eq(color, PanelStyles.COLORS["bg_dark"])
+	# Verify it's a Color type and matches the theme's value
+	assert_true(color is Color)
+	assert_eq(color, ThemeManager.get_color("bg_dark"))
 
 
 func test_panel_styles_get_color_fallback() -> void:

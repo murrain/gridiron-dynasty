@@ -270,8 +270,10 @@ static func _compute_stat_changes(
 			raw_draw = rng.randf_range(prime_min, prime_max)
 			applied_mult = prime_mult
 		else:  # decline
+			# Decline phase: roll positive value then negate to reduce stats
 			raw_draw = rng.randf_range(decline_min, decline_max)
-			applied_mult = decline_mult * wear_mult
+			# Negate the multiplier to make delta negative (stats decrease)
+			applied_mult = -1.0 * decline_mult * wear_mult
 
 		# Calculate delta with phase and context multipliers
 		var delta := raw_draw * applied_mult * context_mult

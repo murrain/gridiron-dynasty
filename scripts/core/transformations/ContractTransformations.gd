@@ -97,7 +97,7 @@ static func create_franchise_tag_contract(
 	consecutive_years: int
 ) -> Dictionary:
 	return {
-		"status": "unsigned",  # Will transition to "franchise_tagged"
+		"status": "signed",  # Franchise tags are immediately binding contracts
 		"annual_value": tag_salary,
 		"years_total": 1,  # Franchise tags are always 1-year
 		"years_remaining": 1,
